@@ -66,13 +66,15 @@ export async function createPreviewFixture(scenario: Scenario, preferredEmail?: 
       VALUES (?,?,'codex.responses','/v1/responses',?,?,'preview-codex',?,?,?,?,?,?)`);
     const usage = db.sqlite.prepare(`INSERT INTO usage_daily
       (user_id,day,route_profile_id,response_model,requests,ok_requests,error_requests,
-       total_tokens,token_measurements,first_seen_at,last_seen_at)
-      VALUES (?,?,'codex.responses','N/A',1,?,?,?,?,?,?)
+       total_tokens,token_measurements,first_seen_at,last_seen_at,api_equivalent_usd_ticks,api_equivalent_measurements)
+      VALUES (?,?,'codex.responses','gpt-5.5',1,?,?,?,?,?,?,?,?)
       ON CONFLICT(user_id,day,route_profile_id,response_model) DO UPDATE SET
         requests=requests+1,ok_requests=ok_requests+excluded.ok_requests,
         error_requests=error_requests+excluded.error_requests,
         total_tokens=total_tokens+excluded.total_tokens,
         token_measurements=token_measurements+excluded.token_measurements,
+        api_equivalent_usd_ticks=api_equivalent_usd_ticks+excluded.api_equivalent_usd_ticks,
+        api_equivalent_measurements=api_equivalent_measurements+excluded.api_equivalent_measurements,
         first_seen_at=MIN(first_seen_at,excluded.first_seen_at),
         last_seen_at=MAX(last_seen_at,excluded.last_seen_at)`);
     for (let index = 0; index < (scenario === "long" ? 32 : 12); index++) {
@@ -81,9 +83,11 @@ export async function createPreviewFixture(scenario: Scenario, preferredEmail?: 
       const failed = index % 5 === 0;
       const tokens = failed || index % 3 === 0 ? null : (index + 1) * 120;
       request.run(`preview-request-${String(index).padStart(2,"0")}`,`preview-correlation-${index}`,owner,`${owner}-key`,failed ? "error" : "ok",failed ? null : 200,failed ? "provider_upstream_transport_error" : null,failed ? null : 350 + index * 80,tokens,at);
-      usage.run(owner,at.slice(0,10),failed ? 0 : 1,failed ? 1 : 0,tokens ?? 0,tokens === null ? 0 : 1,at,at);
+      usage.run(owner,at.slice(0,10),failed ? 0 : 1,failed ? 1 : 0,tokens ?? 0,tokens === null ? 0 : 1,at,at,tokens === null ? 0 : tokens * 50000,tokens === null ? 0 : 1);
       db.sqlite.prepare("UPDATE api_keys SET last_used_at=? WHERE id=? AND (last_used_at IS NULL OR last_used_at<?)").run(at,`${owner}-key`,at);
     }
+    db.sqlite.prepare(`INSERT INTO usage_daily (user_id,day,route_profile_id,response_model,requests,ok_requests,total_tokens,token_measurements,provider_cost_usd_ticks,cost_measurements,first_seen_at,last_seen_at)
+      VALUES ('member',?,'grok.production.responses','grok-4.6',3,3,800,2,5944000,2,?,?)`).run(stamp.slice(0,10),stamp,stamp);
   }
   const cookies = new Map<string, string>();
   for (const id of ["admin", "member"]) cookies.set(id, `${CONSOLE_COOKIE}=${await createConsoleSession(env, { id, email: `${id}@example.test`, sessionEpoch: 0 }, now)}`);

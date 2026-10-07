@@ -11,6 +11,7 @@ export interface UsageSeriesControl {
   readonly plan: string;
   readonly capability?: string;
   readonly title: string;
+  readonly costHelp?: string;
   readonly range?: {readonly key: "7d" | "30d"; readonly href7: string; readonly href30: string};
   readonly metrics: readonly {readonly label: string; readonly value: string}[];
   readonly columns: readonly string[];
@@ -40,7 +41,8 @@ export function readUsageSeries(value: unknown): UsageSeriesControl | null {
       || !("href7" in item) || typeof item.href7 !== "string" || !("href30" in item) || typeof item.href30 !== "string") return null;
     range = {key: item.key, href7: item.href7, href30: item.href30};
   }
-  return {id: value.id, plan: value.plan, title: value.title, capability: "capability" in value ? value.capability as string : undefined, range, metrics, columns: value.columns, rows};
+  if ("costHelp" in value && value.costHelp !== undefined && typeof value.costHelp !== "string") return null;
+  return {id: value.id, plan: value.plan, title: value.title, costHelp: "costHelp" in value ? value.costHelp as string : undefined, capability: "capability" in value ? value.capability as string : undefined, range, metrics, columns: value.columns, rows};
 }
 
 export function UsageSeriesView({control}: {readonly control: UsageSeriesControl}) {
@@ -58,6 +60,7 @@ export function UsageSeriesView({control}: {readonly control: UsageSeriesControl
         })}</dl>
         {enhanced ? <CollapsibleTrigger asChild><Button variant="ghost" className="usage-data-trigger" aria-label={`${control.title} 按日数据`}>按日数据<ChevronDown className="ui-icon" aria-hidden="true"/></Button></CollapsibleTrigger> : null}
       </div>
+      {control.costHelp ? <p className="muted">{control.costHelp}</p> : null}
       <div className="usage-trend-plot">
         <svg viewBox="0 0 600 100" preserveAspectRatio="none" aria-hidden="true" focusable="false">
           <path d="M0 99.5 H600" className="usage-trend-baseline"/>

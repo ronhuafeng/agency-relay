@@ -1259,7 +1259,7 @@ export interface ExecutionPlanPresentation {
   clientLabel: "Codex" | "Grok" | "xAI API" | "Client";
   usageLabel: string;
   usageObserver: UsageObserver;
-  provisionalBilling: boolean;
+  costBasis: "provider_reported" | "openai_standard" | "none";
 }
 
 /**
@@ -1272,7 +1272,7 @@ export function executionPlanPresentation(planId: string): ExecutionPlanPresenta
       clientLabel: "Codex",
       usageLabel: "Codex",
       usageObserver: "responses",
-      provisionalBilling: false
+      costBasis: "openai_standard"
     };
   }
   if (planId === "N/A") {
@@ -1280,7 +1280,7 @@ export function executionPlanPresentation(planId: string): ExecutionPlanPresenta
       clientLabel: "Client",
       usageLabel: "历史记录 · 来源未记录",
       usageObserver: "none",
-      provisionalBilling: false
+      costBasis: "none"
     };
   }
 
@@ -1290,7 +1290,7 @@ export function executionPlanPresentation(planId: string): ExecutionPlanPresenta
       clientLabel: "Client",
       usageLabel: planId,
       usageObserver: "none",
-      provisionalBilling: false
+      costBasis: "none"
     };
   }
 
@@ -1299,7 +1299,7 @@ export function executionPlanPresentation(planId: string): ExecutionPlanPresenta
       clientLabel: "Codex",
       usageLabel: "Codex",
       usageObserver: plan.usageObserver,
-      provisionalBilling: false
+      costBasis: plan.usageObserver === "responses" ? "openai_standard" : "none"
     };
   }
 
@@ -1313,7 +1313,7 @@ export function executionPlanPresentation(planId: string): ExecutionPlanPresenta
       clientLabel: "Client",
       usageLabel: plan.id,
       usageObserver: plan.usageObserver,
-      provisionalBilling: false
+      costBasis: "none"
     };
   }
   const usagePrefix = clientLabel === "xAI API" ? "xAI" : clientLabel;
@@ -1328,7 +1328,7 @@ export function executionPlanPresentation(planId: string): ExecutionPlanPresenta
     clientLabel,
     usageLabel,
     usageObserver: plan.usageObserver,
-    provisionalBilling: plan.credentialSlot === "grok_production"
+    costBasis: plan.credentialSlot === "grok_production" ? "provider_reported" : "none"
   };
 }
 

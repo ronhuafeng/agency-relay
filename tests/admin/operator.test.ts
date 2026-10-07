@@ -1335,7 +1335,9 @@ describe("admin pages, accounts, and audit", () => {
       total_tokens: 205,
       token_measurements: 11,
       provider_cost_usd_ticks: 0,
-      cost_measurements: 0
+      cost_measurements: 0,
+      api_equivalent_usd_ticks: 0,
+      api_equivalent_measurements: 0
     }, [
       usageRow({
         first_day: "2026-06-24",
@@ -1447,7 +1449,9 @@ describe("admin pages, accounts, and audit", () => {
         total_tokens: 205,
         token_measurements: 11,
         provider_cost_usd_ticks: 0,
-        cost_measurements: 0
+        cost_measurements: 0,
+        api_equivalent_usd_ticks: 0,
+        api_equivalent_measurements: 0
       },
       rows: [
         {
@@ -1468,6 +1472,8 @@ describe("admin pages, accounts, and audit", () => {
           token_measurements: 5,
           provider_cost_usd_ticks: 0,
           cost_measurements: 0,
+          api_equivalent_usd_ticks: 0,
+          api_equivalent_measurements: 0,
           last_seen_at: "2026-06-24T02:30:00.000Z"
         },
         {
@@ -1488,6 +1494,8 @@ describe("admin pages, accounts, and audit", () => {
           token_measurements: 3,
           provider_cost_usd_ticks: 0,
           cost_measurements: 0,
+          api_equivalent_usd_ticks: 0,
+          api_equivalent_measurements: 0,
           last_seen_at: "2026-06-24T02:00:00.000Z"
         },
         {
@@ -1508,6 +1516,8 @@ describe("admin pages, accounts, and audit", () => {
           token_measurements: 3,
           provider_cost_usd_ticks: 0,
           cost_measurements: 0,
+          api_equivalent_usd_ticks: 0,
+          api_equivalent_measurements: 0,
           last_seen_at: "2026-06-24T01:00:00.000Z"
         }
       ],
@@ -1559,7 +1569,9 @@ describe("admin pages, accounts, and audit", () => {
       total_tokens: 30,
       token_measurements: 2,
       provider_cost_usd_ticks: 0,
-      cost_measurements: 0
+      cost_measurements: 0,
+      api_equivalent_usd_ticks: 0,
+      api_equivalent_measurements: 0
     }, [
       usageRow({
         first_day: "2026-06-24",
@@ -2106,6 +2118,8 @@ function zeroUsageTotals(): UsageSummaryTotals {
     total_tokens: 0,
     token_measurements: 0,
     provider_cost_usd_ticks: 0,
-    cost_measurements: 0
+    cost_measurements: 0,
+    api_equivalent_usd_ticks: 0,
+    api_equivalent_measurements: 0
   };
 }

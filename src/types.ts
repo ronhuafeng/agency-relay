@@ -61,6 +61,8 @@ export interface UsageSummaryTotals {
   token_measurements: number;
   provider_cost_usd_ticks: number;
   cost_measurements: number;
+  api_equivalent_usd_ticks: number;
+  api_equivalent_measurements: number;
 }
 
 export interface UsageSummaryRow extends UsageSummaryTotals {
@@ -131,6 +133,7 @@ export interface RequestContext {
 export interface CapturedProviderUsage {
   input_tokens: number | null;
   cached_input_tokens: number | null;
+  cache_write_input_tokens?: number | null;
   output_tokens: number | null;
   reasoning_tokens: number | null;
   total_tokens: number | null;

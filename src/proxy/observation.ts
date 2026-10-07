@@ -311,9 +311,11 @@ function captureResponseUsage(value: JsonObject): CapturedResponseUsage | null {
 function normalizeUsage(usage: JsonObject): CapturedProviderUsage {
   const inputDetails = isJsonObject(usage.input_tokens_details) ? usage.input_tokens_details : undefined;
   const outputDetails = isJsonObject(usage.output_tokens_details) ? usage.output_tokens_details : undefined;
+  const cacheWrites = nonNegativeIntegerOrNull(inputDetails?.cache_write_tokens);
   return {
     input_tokens: nonNegativeIntegerOrNull(usage.input_tokens),
     cached_input_tokens: nonNegativeIntegerOrNull(inputDetails?.cached_tokens ?? usage.cached_input_tokens),
+    ...(cacheWrites !== null ? { cache_write_input_tokens: cacheWrites } : {}),
     output_tokens: nonNegativeIntegerOrNull(usage.output_tokens),
     reasoning_tokens: nonNegativeIntegerOrNull(outputDetails?.reasoning_tokens ?? usage.reasoning_tokens),
     total_tokens: nonNegativeIntegerOrNull(usage.total_tokens),

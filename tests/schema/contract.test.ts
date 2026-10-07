@@ -29,7 +29,10 @@ const CURRENT_REQUEST_AUDIT_COLUMNS = [
   "capability_source",
   "subscription_account_id",
   "egress_profile_id",
-  "provider_cost_usd_ticks"
+  "provider_cost_usd_ticks",
+  "cache_write_input_tokens",
+  "api_equivalent_usd_ticks",
+  "api_price_version"
 ] as const;
 
 const VIDEO_JOB_COLUMNS = [
@@ -64,7 +67,9 @@ const METERED_USAGE_DAILY_COLUMNS = [
   "provider_cost_usd_ticks",
   "cost_measurements",
   "first_seen_at",
-  "last_seen_at"
+  "last_seen_at",
+  "api_equivalent_usd_ticks",
+  "api_equivalent_measurements"
 ] as const;
 
 const METERED_MEDIA_USAGE_DAILY_COLUMNS = [

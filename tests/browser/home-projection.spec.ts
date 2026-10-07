@@ -9,7 +9,7 @@ for (const width of [320, 390, 1440]) test.describe(`organization Home ${width}p
     await expect(trends).toBeVisible();
     const grok = page.locator('[data-trend-plan="grok.production.responses"]');
     await expect(grok.locator(".usage-data-trigger")).toHaveAttribute("aria-expanded", "false");
-    expect(await grok.locator(".usage-metrics").textContent()).toContain("0 · 部分 1/4");
+    expect(await grok.locator(".usage-metrics").textContent()).toContain("0 · 已记录 1/4 次请求");
     const initialMetrics = await trends.locator(".usage-metrics").allTextContents();
     const rail = await page.locator(".nav-rail").elementHandle();
     const account = await page.getByRole("button", {name: "账号菜单", exact: true}).elementHandle();

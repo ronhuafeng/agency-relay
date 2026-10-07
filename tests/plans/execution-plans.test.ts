@@ -195,13 +195,13 @@ describe("Execution Plans", () => {
       clientLabel: "Codex",
       usageLabel: "Codex",
       usageObserver: "responses",
-      provisionalBilling: false
+      costBasis: "openai_standard"
     });
     expect(executionPlanPresentation("grok.production.responses")).toEqual({
       clientLabel: "Grok",
       usageLabel: "Grok 响应",
       usageObserver: "responses",
-      provisionalBilling: true
+      costBasis: "provider_reported"
     });
     expect(executionPlanPresentation("grok.production.images_generations").usageLabel).toBe("Grok 图像");
     expect(executionPlanPresentation("xai.production.video").usageLabel).toBe("xAI 视频");
@@ -209,14 +209,14 @@ describe("Execution Plans", () => {
       clientLabel: "Codex",
       usageLabel: "Codex",
       usageObserver: "responses",
-      provisionalBilling: false
+      costBasis: "openai_standard"
     });
     expect(executionPlanPresentation("N/A").usageLabel).toBe("历史记录 · 来源未记录");
     expect(executionPlanPresentation("xai.unknown")).toEqual({
       clientLabel: "Client",
       usageLabel: "xai.unknown",
       usageObserver: "none",
-      provisionalBilling: false
+      costBasis: "none"
     });
   });
 

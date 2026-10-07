@@ -1,7 +1,8 @@
 import { canonicalMailbox } from "./auth/principal";
 import { generateId, nowIso } from "./crypto";
 import { HttpError } from "./errors";
-import { REAL_TASK_EXECUTION_PLAN_IDS, type UsageObserver } from "./plans/execution-plans";
+import { REAL_TASK_EXECUTION_PLAN_IDS, executionPlanPresentation, type UsageObserver } from "./plans/execution-plans";
+import { apiEquivalentValue } from "./usage/api-value";
 import type { UsageDailyResult, UsageDailyPoint, MediaUsageDailyPoint, ApiKeyRow, CapturedProviderUsage, CapturedResponseUsage, CodexAuthRow, MediaUsageSummaryResult, MediaUsageSummaryRow, MediaUsageSummaryTotals, UsageSummaryResult, UsageSummaryRow, UsageSummaryTotals, UserRow } from "./types";
 
 export const SHARED_CODEX_AUTH_ID = "shared_default";
@@ -640,6 +641,7 @@ function prepareAuditInsert(
     latency_ms?: number | null;
     response_id?: string | null;
     usage?: CapturedProviderUsage | null;
+    apiValue?: { ticks: number; version: string } | null;
   } & RouteDecisionAuditFields,
   now: Date
 ): D1PreparedStatement {
@@ -649,8 +651,8 @@ function prepareAuditInsert(
       response_id, input_tokens, cached_input_tokens, output_tokens, reasoning_tokens, total_tokens,
       provider_cost_usd_ticks, created_at,
       ingress_profile_id, ingress_protocol, resolved_model, capability_source, subscription_account_id,
-      egress_profile_id)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      egress_profile_id, cache_write_input_tokens, api_equivalent_usd_ticks, api_price_version)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).bind(
     input.id,
     input.request_id ?? null,
@@ -679,7 +681,10 @@ function prepareAuditInsert(
     input.resolved_model ?? null,
     input.capability_source ?? null,
     input.subscription_account_id ?? null,
-    input.egress_profile_id ?? null
+    input.egress_profile_id ?? null,
+    input.usage?.cache_write_input_tokens ?? null,
+    input.apiValue?.ticks ?? null,
+    input.apiValue?.version ?? null
   );
 }
 
@@ -700,6 +705,8 @@ function prepareUsageDailyUpsert(
     token_measurements: number;
     provider_cost_usd_ticks: number;
     cost_measurements: number;
+    api_equivalent_usd_ticks: number;
+    api_equivalent_measurements: number;
   },
   now = new Date()
 ): D1PreparedStatement {
@@ -712,8 +719,9 @@ function prepareUsageDailyUpsert(
      (user_id, day, route_profile_id, response_model, requests, ok_requests,
       error_requests, input_tokens, cached_input_tokens, output_tokens,
       reasoning_tokens, total_tokens, token_measurements,
-      provider_cost_usd_ticks, cost_measurements, first_seen_at, last_seen_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      provider_cost_usd_ticks, cost_measurements, first_seen_at, last_seen_at,
+      api_equivalent_usd_ticks, api_equivalent_measurements)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(user_id, day, route_profile_id, response_model) DO UPDATE SET
        requests = usage_daily.requests + excluded.requests,
        ok_requests = usage_daily.ok_requests + excluded.ok_requests,
@@ -726,6 +734,8 @@ function prepareUsageDailyUpsert(
        token_measurements = usage_daily.token_measurements + excluded.token_measurements,
        provider_cost_usd_ticks = usage_daily.provider_cost_usd_ticks + excluded.provider_cost_usd_ticks,
        cost_measurements = usage_daily.cost_measurements + excluded.cost_measurements,
+       api_equivalent_usd_ticks = usage_daily.api_equivalent_usd_ticks + excluded.api_equivalent_usd_ticks,
+       api_equivalent_measurements = usage_daily.api_equivalent_measurements + excluded.api_equivalent_measurements,
        first_seen_at = CASE
          WHEN usage_daily.first_seen_at IS NULL OR excluded.first_seen_at < usage_daily.first_seen_at
            THEN excluded.first_seen_at
@@ -749,7 +759,9 @@ function prepareUsageDailyUpsert(
     input.provider_cost_usd_ticks,
     input.cost_measurements,
     seenAt,
-    seenAt
+    seenAt,
+    input.api_equivalent_usd_ticks,
+    input.api_equivalent_measurements
   );
 }
 
@@ -780,6 +792,9 @@ export async function commitProviderAttemptAccounting(
   }
 
   const usage = input.usage_capture?.usage;
+  const apiValue = input.usage_observer === "responses"
+    && executionPlanPresentation(input.route_profile_id).costBasis === "openai_standard"
+    ? apiEquivalentValue(input.usage_capture) : null;
   const statements: D1PreparedStatement[] = [prepareAuditInsert(env, {
     id: input.audit_id,
     request_id: input.request_id,
@@ -797,6 +812,7 @@ export async function commitProviderAttemptAccounting(
     latency_ms: input.latency_ms,
     response_id: input.usage_capture?.response_id,
     usage,
+    apiValue,
     ingress_profile_id: input.ingress_profile_id,
     ingress_protocol: input.ingress_protocol,
     resolved_model: input.resolved_model,
@@ -821,7 +837,9 @@ export async function commitProviderAttemptAccounting(
       token_measurements: hasTokenMeasurement(usage) ? 1 : 0,
       provider_cost_usd_ticks: nonNegativeIntegerOrZero(usage?.provider_cost_usd_ticks),
       cost_measurements: usage?.provider_cost_usd_ticks !== null
-        && usage?.provider_cost_usd_ticks !== undefined ? 1 : 0
+        && usage?.provider_cost_usd_ticks !== undefined ? 1 : 0,
+      api_equivalent_usd_ticks: apiValue?.ticks ?? 0,
+      api_equivalent_measurements: apiValue ? 1 : 0
     }, now));
   }
 
@@ -855,6 +873,8 @@ export async function queryUsageSummary(
        COALESCE(SUM(ud.token_measurements), 0) AS token_measurements,
        COALESCE(SUM(ud.provider_cost_usd_ticks), 0) AS provider_cost_usd_ticks,
        COALESCE(SUM(ud.cost_measurements), 0) AS cost_measurements,
+       COALESCE(SUM(ud.api_equivalent_usd_ticks), 0) AS api_equivalent_usd_ticks,
+       COALESCE(SUM(ud.api_equivalent_measurements), 0) AS api_equivalent_measurements,
        COUNT(DISTINCT ud.user_id) AS users_with_usage,
        MAX(ud.last_seen_at) AS latest_usage_at
      FROM usage_daily AS ud
@@ -939,7 +959,9 @@ export async function queryUsageDaily(env: Env, input: UsageSummaryQuery): Promi
       SUM(ud.input_tokens) AS input_tokens, SUM(ud.cached_input_tokens) AS cached_input_tokens,
       SUM(ud.output_tokens) AS output_tokens, SUM(ud.reasoning_tokens) AS reasoning_tokens,
       SUM(ud.total_tokens) AS total_tokens, SUM(ud.token_measurements) AS token_measurements,
-      SUM(ud.provider_cost_usd_ticks) AS provider_cost_usd_ticks, SUM(ud.cost_measurements) AS cost_measurements
+      SUM(ud.provider_cost_usd_ticks) AS provider_cost_usd_ticks, SUM(ud.cost_measurements) AS cost_measurements,
+      SUM(ud.api_equivalent_usd_ticks) AS api_equivalent_usd_ticks,
+      SUM(ud.api_equivalent_measurements) AS api_equivalent_measurements
       FROM usage_daily AS ud ${responseFilter.where}
       GROUP BY ud.day, ud.route_profile_id ORDER BY ud.route_profile_id, ud.day`)
       .bind(...responseFilter.bindings).all<UsageDailyPoint>(),
@@ -1045,6 +1067,8 @@ async function queryUsageSummaryRows(
        SUM(ud.token_measurements) AS token_measurements,
        SUM(ud.provider_cost_usd_ticks) AS provider_cost_usd_ticks,
        SUM(ud.cost_measurements) AS cost_measurements,
+       SUM(ud.api_equivalent_usd_ticks) AS api_equivalent_usd_ticks,
+       SUM(ud.api_equivalent_measurements) AS api_equivalent_measurements,
        MAX(ud.last_seen_at) AS last_seen_at
      FROM usage_daily AS ud
      LEFT JOIN users ON users.id = ud.user_id
@@ -1092,6 +1116,12 @@ function usageSummaryWhere(input: UsageRangeQuery & {
   };
 }
 
+function moneyOrZero(value: number | null | undefined): number {
+  if (value == null) return 0;
+  if (!Number.isSafeInteger(value) || value < 0) throw new RangeError("Usage amount exceeds exact integer range");
+  return value;
+}
+
 function normalizeUsageTotals(row: UsageSummaryTotals | null): UsageSummaryTotals {
   return {
     requests: nonNegativeIntegerOrZero(row?.requests),
@@ -1103,8 +1133,10 @@ function normalizeUsageTotals(row: UsageSummaryTotals | null): UsageSummaryTotal
     reasoning_tokens: nonNegativeIntegerOrZero(row?.reasoning_tokens),
     total_tokens: nonNegativeIntegerOrZero(row?.total_tokens),
     token_measurements: nonNegativeIntegerOrZero(row?.token_measurements),
-    provider_cost_usd_ticks: nonNegativeIntegerOrZero(row?.provider_cost_usd_ticks),
-    cost_measurements: nonNegativeIntegerOrZero(row?.cost_measurements)
+    provider_cost_usd_ticks: moneyOrZero(row?.provider_cost_usd_ticks),
+    cost_measurements: nonNegativeIntegerOrZero(row?.cost_measurements),
+    api_equivalent_usd_ticks: moneyOrZero(row?.api_equivalent_usd_ticks),
+    api_equivalent_measurements: nonNegativeIntegerOrZero(row?.api_equivalent_measurements)
   };
 }
 
@@ -1142,7 +1174,7 @@ function normalizeMediaUsageTotals(row: MediaUsageSummaryTotals | null): MediaUs
     video_seconds: nonNegativeNumberOrZero(row?.video_seconds),
     output_measurements: nonNegativeIntegerOrZero(row?.output_measurements),
     duration_measurements: nonNegativeIntegerOrZero(row?.duration_measurements),
-    provider_cost_usd_ticks: nonNegativeIntegerOrZero(row?.provider_cost_usd_ticks),
+    provider_cost_usd_ticks: moneyOrZero(row?.provider_cost_usd_ticks),
     cost_measurements: nonNegativeIntegerOrZero(row?.cost_measurements)
   };
 }
