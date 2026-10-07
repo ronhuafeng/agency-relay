@@ -1,0 +1,2 @@
+DROP TRIGGER users_legacy_human_insert;
+DROP TRIGGER users_legacy_human_identity_update;

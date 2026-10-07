@@ -1,0 +1,17 @@
+[Unit]
+Description=Codex egress shim
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=bef0rewind
+WorkingDirectory=/home/bef0rewind/codex-egress-shim
+EnvironmentFile=/home/bef0rewind/codex-egress-shim/.env
+ExecStart=/usr/local/bin/node /home/bef0rewind/codex-egress-shim/current/server.mjs
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=30s
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,1 @@
+DROP TRIGGER api_keys_assign_legacy_family;

@@ -1,0 +1,67 @@
+{
+  "name": "agency-relay",
+  "interface": {
+    "displayName": "Agency Relay"
+  },
+  "plugins": [
+    {
+      "name": "cloudflare",
+      "source": {
+        "source": "url",
+        "url": "https://github.com/cloudflare/skills.git",
+        "ref": "main",
+        "sha": "41e0d19858946d18af9ee2c2feebbe2e11d829ff"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    },
+    {
+      "name": "stitch-design",
+      "source": {
+        "source": "git-subdir",
+        "url": "https://github.com/google-labs-code/stitch-skills.git",
+        "path": "./plugins/stitch-design",
+        "ref": "main",
+        "sha": "0337446dadde6f8c94210444e2aa9d546126480f"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    },
+    {
+      "name": "stitch-build",
+      "source": {
+        "source": "git-subdir",
+        "url": "https://github.com/google-labs-code/stitch-skills.git",
+        "path": "./plugins/stitch-build",
+        "ref": "main",
+        "sha": "0337446dadde6f8c94210444e2aa9d546126480f"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    },
+    {
+      "name": "stitch-utilities",
+      "source": {
+        "source": "git-subdir",
+        "url": "https://github.com/google-labs-code/stitch-skills.git",
+        "path": "./plugins/stitch-utilities",
+        "ref": "main",
+        "sha": "0337446dadde6f8c94210444e2aa9d546126480f"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

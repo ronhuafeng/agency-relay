@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "paths": { "@/*": ["./src/*"] },
+    "lib": ["ES2022", "WebWorker", "DOM", "DOM.Iterable"],
+    "types": ["@cloudflare/workers-types", "vitest/globals", "node"],
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "allowSyntheticDefaultImports": true,
+    "forceConsistentCasingInFileNames": true,
+    "jsx": "react-jsx"
+  },
+  "include": ["worker-configuration.d.ts", "src/**/*.ts", "scripts/**/*.ts", "tests/**/*.ts", "deploy/codex-egress-shim/**/*.ts", "vitest.config.ts", "vitest.live.config.ts"],
+  "exclude": ["src/admin/client/**/*", "tests/support/browser-dom.ts", "tests/admin/confirmation.test.ts", "tests/admin/navigation.test.ts", "tests/admin/recovery.test.ts", "tests/admin/mutations.test.ts", "tests/admin/member-mutations.test.ts", "tests/admin/drafts.test.ts", "tests/admin/controls.test.ts", "tests/admin/task-editor-drafts.test.ts", "tests/tooling/preview-workbench.test.ts", "tests/admin/credential-status-client.test.ts"]
+}

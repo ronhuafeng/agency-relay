@@ -1,0 +1,15 @@
+.console-recovery-page { min-height:100svh; }
+.recovery-brand { display:flex; align-items:center; gap:var(--space-3); padding:var(--space-5); }
+.recovery-stage { display:flex; justify-content:center; padding:clamp(24px,8vh,80px) var(--space-4) var(--space-6); }
+.recovery-card { width:100%; max-width:440px; }
+.recovery-content { display:flex; flex-direction:column; gap:var(--space-5); padding:var(--space-5); }
+.recovery-icon { color:var(--muted-foreground); }
+.recovery-copy { display:grid; gap:var(--space-2); }
+.recovery-copy h1 { font:var(--typography-page-title); letter-spacing:var(--typography-page-title-letter-spacing); overflow-wrap:anywhere; }
+.recovery-copy p { color:var(--muted-foreground); overflow-wrap:anywhere; }
+.recovery-outcome { border-top:1px solid var(--line-soft); padding-top:var(--space-4); color:var(--warn); overflow-wrap:anywhere; }
+.recovery-action { width:100%; white-space:normal; }
+@media(max-width:480px) {
+  .recovery-brand { padding:var(--space-4); }
+  .recovery-stage { padding-top:var(--space-5); }
+}

@@ -1,0 +1,15 @@
+[mcp_servers.stitch]
+url = "https://stitch.googleapis.com/mcp"
+env_http_headers = { "X-Goog-Api-Key" = "STITCH_API_KEY" }
+
+[plugins."stitch-design@agency-relay"]
+enabled = true
+
+[plugins."stitch-build@agency-relay"]
+enabled = true
+
+[plugins."stitch-utilities@agency-relay"]
+enabled = true
+
+[plugins."cloudflare@agency-relay"]
+enabled = true

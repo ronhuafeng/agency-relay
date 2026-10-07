@@ -1,0 +1,5 @@
+self-hosted-runner:
+  labels:
+    - Linux
+    - X64
+    - mini-proxy-core

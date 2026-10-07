@@ -1,0 +1,85 @@
+{
+  "name": "agency-relay",
+  "version": "0.1.0",
+  "description": "Cloudflare Worker gateway with bound provider credentials and Codex egress support.",
+  "type": "module",
+  "packageManager": "pnpm@10.28.2",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/ronhuafeng/agency-relay.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ronhuafeng/agency-relay/issues"
+  },
+  "homepage": "https://github.com/ronhuafeng/agency-relay#readme",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.client.json --noEmit && pnpm run egress:check && pnpm run console:check",
+    "types:generate": "wrangler types --include-runtime=false --strict-vars=false",
+    "types:check": "wrangler types --check --include-runtime=false --strict-vars=false",
+    "test": "vitest run",
+    "test:live": "vitest run --config vitest.live.config.ts",
+    "egress:build": "tsx ./scripts/build-egress.ts",
+    "egress:check": "tsx ./scripts/build-egress.ts --check",
+    "egress:test": "pnpm run egress:check && python3 -m unittest discover -s deploy/codex-egress-shim/tests -p 'test_*.py' -v",
+    "dev": "CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false wrangler dev",
+    "deploy:dry-run": "wrangler deploy --dry-run",
+    "scan:git-artifacts": "tsx ./scripts/scan-git-artifacts.ts",
+    "console:build": "tsx ./scripts/build-console-client.ts",
+    "console:check": "tsx ./scripts/build-console-client.ts --check",
+    "lint:css": "stylelint \"src/admin/**/*.css\"",
+    "lint:classes": "eslint src/admin/ui --max-warnings 0",
+    "test:browser": "NODE_ENV=production playwright test",
+    "console:preview": "NODE_ENV=production tsx scripts/console-preview/server.ts",
+    "console:preview:pull": "tsx scripts/console-preview/pull-data.ts"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.29.7",
+    "@babel/eslint-parser": "^7.29.9",
+    "@babel/preset-react": "^7.29.7",
+    "@babel/preset-typescript": "^7.29.7",
+    "@cloudflare/workers-types": "^5.20260926.1",
+    "@google/design.md": "^0.4.0",
+    "@playwright/test": "1.63.0",
+    "@tailwindcss/cli": "^4.3.3",
+    "@terrazzo/cli": "^2.7.1",
+    "@terrazzo/parser": "^2.7.1",
+    "@terrazzo/plugin-css": "^2.7.1",
+    "@types/jsdom": "^30.0.0",
+    "@types/node": "^26.6.3",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "esbuild": "^0.28.2",
+    "eslint": "^9.39.5",
+    "eslint-plugin-tailwindcss": "4.4.0",
+    "jsdom": "^30.1.1",
+    "stylelint": "^17.16.0",
+    "tailwindcss": "^4.3.3",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.2",
+    "wrangler": "^4.141.0"
+  },
+  "pnpm": {
+    "overrides": {
+      "undici": "7.29.1"
+    }
+  },
+  "overrides": {
+    "vite": {
+      "esbuild": "0.28.1"
+    }
+  },
+  "dependencies": {
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "lucide-react": "^1.49.0",
+    "radix-ui": "^1.6.7",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "tailwind-merge": "^3.7.0"
+  }
+}

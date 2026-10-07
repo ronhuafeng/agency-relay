@@ -1,0 +1,228 @@
+name: Console browser
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  changes:
+    runs-on: ubuntu-24.04
+    outputs:
+      relevant: ${{ steps.paths.outputs.relevant }}
+      webkit: ${{ steps.paths.outputs.webkit }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - id: paths
+        name: Select the browser boundary
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            echo "relevant=true" >> "$GITHUB_OUTPUT"
+            echo "webkit=true" >> "$GITHUB_OUTPUT"
+          else
+            git diff --name-only "$BASE" HEAD > "$RUNNER_TEMP/console-browser-paths"
+            if grep -E '^(src/admin/(app|return-target)\.ts|src/admin/client/(main\.tsx|recovery\.ts|authority\.ts)|src/auth/feishu-login\.ts|tests/browser/(worker|fixtures)\.ts|tests/browser/(core|member-keys|secrets|shell-installation|service-accounts|service-delegation|login-recovery|authority-recovery|page-restoration)\.spec\.ts|\.github/workflows/console-browser\.yml)$' "$RUNNER_TEMP/console-browser-paths" > /dev/null; then
+              echo "webkit=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "webkit=false" >> "$GITHUB_OUTPUT"
+            fi
+            if grep -E '^(src/|tokens/|migrations/|tests/(browser|support)/|scripts/|deploy/codex-egress-shim/egress-protocol.json$|package.json$|pnpm-lock.yaml$|tsconfig[^/]*\.json$|playwright.config.ts$|worker-configuration.d.ts$|wrangler[^/]*$|\.github/workflows/)' "$RUNNER_TEMP/console-browser-paths" > /dev/null; then
+              echo "relevant=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "relevant=false" >> "$GITHUB_OUTPUT"
+              echo "Browser suite not selected: no runtime, projection, fixture, build, type, dependency or workflow inputs changed." >> "$GITHUB_STEP_SUMMARY"
+            fi
+          fi
+
+  regression:
+    needs: changes
+    if: needs.changes.outputs.relevant == 'true'
+    name: browser-${{ matrix.project }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      MINI_BROWSER_REFERENCE_FONTS: '1'
+    strategy:
+      fail-fast: false
+      matrix:
+        project: ${{ fromJSON(needs.changes.outputs.webkit == 'true' && '["chromium","webkit"]' || '["chromium"]') }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: 10.28.2
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 26
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Install the lockfile's browser and pinned-font inputs
+        run: |
+          pnpm exec playwright install --with-deps ${{ matrix.project }}
+          sudo apt-get install -y fonts-noto-cjk
+      - run: pnpm run console:check
+      - id: browser
+        run: pnpm run test:browser --project=${{ matrix.project }}
+      - id: base
+        name: Compare the same display fixture with the PR base when compatible
+        if: always() && github.event_name == 'pull_request'
+        continue-on-error: true
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          PROJECT: ${{ matrix.project }}
+        run: |
+          if ! git diff --quiet "$BASE" HEAD -- package.json pnpm-lock.yaml playwright.config.ts tests/browser scripts/build-console-client.ts scripts/build-egress.ts; then
+            echo "availability=incompatible fixture, build or dependency inputs" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "availability=compatible" >> "$GITHUB_OUTPUT"
+          git worktree add --detach "$RUNNER_TEMP/console-preview-base" "$BASE"
+          ln -s "$GITHUB_WORKSPACE/node_modules" "$RUNNER_TEMP/console-preview-base/node_modules"
+          cd "$RUNNER_TEMP/console-preview-base"
+          pnpm run console:check
+          pnpm run test:browser tests/browser/visual.spec.ts --project="$PROJECT"
+      - id: preview
+        name: Prepare bounded display-only review evidence
+        if: always()
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+          PROJECT: ${{ matrix.project }}
+          HEAD_OUTCOME: ${{ steps.browser.outcome }}
+          BASE_OUTCOME: ${{ steps.base.outcome }}
+          BASE_AVAILABILITY: ${{ steps.base.outputs.availability }}
+        run: |
+          python3 - <<'PY'
+          import json, os, pathlib, shutil, subprocess, tempfile
+          root = pathlib.Path(tempfile.mkdtemp(prefix='console-preview-', dir=os.environ['RUNNER_TEMP']))
+          checkout = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
+          tree = subprocess.check_output(['git', 'rev-parse', 'HEAD^{tree}'], text=True).strip()
+          scenes = {
+              ('member', 'representative', 'keys', 390, 'dark'),
+              ('member', 'key configuration', 'setup&key=member-key', 390, 'light'),
+              ('admin', 'representative', 'access', 1440, 'light'),
+              ('admin', 'person detail', 'access&person=other', 390, 'dark'),
+              ('admin', 'person detail', 'access&person=other', 1440, 'light'),
+              ('admin', 'routes', 'surfaces', 1440, 'dark')
+          }
+          records, size = [], 0
+          for side, source, expected_sha in [
+              ('head', pathlib.Path('tmp/browser-results'), checkout),
+              ('base', pathlib.Path(os.environ['RUNNER_TEMP']) / 'console-preview-base/tmp/browser-results', os.environ['PR_BASE'])]:
+              captures = sorted(p for p in source.glob('visual-*/safe-*.json'))
+              if len(captures) > 6:
+                  raise SystemExit('Preview exceeds the six-scene bound')
+              for metadata in captures:
+                  if metadata.is_symlink() or metadata.parent.is_symlink() or metadata.stat().st_size > 8192:
+                      raise SystemExit('Preview metadata is not a bounded regular fixture file')
+                  data = json.loads(metadata.read_text())
+                  name = data.get('image', '')
+                  typography = data.get('typography')
+                  if (set(data) != {'schema', 'checkout_sha', 'tracked_dirty', 'role', 'scenario', 'view', 'viewport', 'theme', 'browser', 'capture', 'image', 'typography'}
+                      or data.get('schema') != 2 or data.get('checkout_sha') != expected_sha
+                      or data.get('tracked_dirty') is not False
+                      or data.get('browser') != os.environ['PROJECT']
+                      or data.get('viewport') not in [{'width': 390, 'height': 900}, {'width': 1440, 'height': 900}]
+                      or (data.get('role'), data.get('scenario'), data.get('view'), data.get('viewport', {}).get('width'), data.get('theme')) not in scenes
+                      or data.get('capture') != 'complete'
+                      or not isinstance(typography, dict)
+                      or set(typography) != {'mode', 'platform', 'os_release', 'declared_stack'}
+                      or typography.get('mode') != 'linux-reference' or typography.get('platform') != 'linux'
+                      or any(not isinstance(typography.get(field), str) or not 0 < len(typography[field]) <= limit
+                             for field, limit in [('os_release', 128), ('declared_stack', 512)])
+                      or pathlib.Path(name).name != name or not name.startswith('safe-') or not name.endswith('.png')):
+                      raise SystemExit('Preview metadata does not match the executed checkout')
+                  if name != f"safe-{data['role']}-{data['scenario'].replace(' ', '-')}-{data['viewport']['width']}-{data['theme']}.png":
+                      raise SystemExit('Preview image is outside the selected display scene')
+                  image = metadata.with_name(name)
+                  if image.is_symlink() or not image.is_file():
+                      raise SystemExit('Preview is not a regular PNG file')
+                  size += image.stat().st_size + metadata.stat().st_size
+                  if size > 25_000_000:
+                      raise SystemExit('Preview exceeds the 25 MB artifact bound')
+                  with image.open('rb') as source_image:
+                      if source_image.read(8) != b'\x89PNG\r\n\x1a\n':
+                          raise SystemExit('Preview is not a PNG')
+                  destination = root / side
+                  destination.mkdir(exist_ok=True)
+                  shutil.copyfile(image, destination / image.name)
+                  shutil.copyfile(metadata, destination / metadata.name)
+                  records.append({'side': side, **data})
+          provenance = {
+              'schema': 1, 'repository': os.environ['GITHUB_REPOSITORY'],
+              'run_id': os.environ['GITHUB_RUN_ID'], 'run_attempt': os.environ['GITHUB_RUN_ATTEMPT'],
+              'event': os.environ['GITHUB_EVENT_NAME'], 'pr': os.environ['PR_NUMBER'] or None,
+              'checkout_sha': checkout, 'checkout_tree': tree,
+              'pr_base_sha': os.environ['PR_BASE'] or None, 'pr_head_sha': os.environ['PR_HEAD'] or None,
+              'browser': os.environ['PROJECT'], 'head_suite_outcome': os.environ['HEAD_OUTCOME'],
+              'base_suite_outcome': os.environ['BASE_OUTCOME'],
+              'base_availability': os.environ['BASE_AVAILABILITY'] or 'not a PR comparison',
+              'captures': records,
+              'limits': 'Display-only PNGs and metadata; no raw report, DOM, trace, video or storage state. Captures do not turn a failed suite into a pass.'
+          }
+          serialized = json.dumps(provenance, indent=2) + '\n'
+          if size + len(serialized.encode('utf8')) > 25_000_000:
+              raise SystemExit('Preview plus provenance exceeds the 25 MB artifact bound')
+          (root / 'provenance.json').write_text(serialized)
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
+              summary.write(f"## Console review evidence ({os.environ['PROJECT']})\n\n")
+              summary.write(f"Actual checkout: `{checkout}` · tree `{tree}`\n\n")
+              summary.write(f"PR #{os.environ['PR_NUMBER'] or 'none'} · base `{os.environ['PR_BASE'] or 'n/a'}` · head `{os.environ['PR_HEAD'] or 'n/a'}`\n\n")
+              summary.write(f"Head suite: **{os.environ['HEAD_OUTCOME']}** · display captures: {sum(r['side'] == 'head' for r in records)} / 6\n\n")
+              summary.write(f"Base comparison: {provenance['base_availability']} · suite {os.environ['BASE_OUTCOME']}\n\n")
+              summary.write('A pull-request checkout may be GitHub’s merge SHA; it is not relabeled as a standalone head build. Failure and rerun attempts retain their own run identity. No pixel baseline is updated automatically.\n')
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write(f'directory={root.resolve()}\n')
+          PY
+      - name: Report a preview preparation failure without publishing partial files
+        if: always() && steps.preview.outcome != 'success'
+        env:
+          NATIVE_RESULT: ${{ steps.browser.outcome }}
+        run: |
+          printf '\nPreview preparation did not succeed; no preview files were published. Native browser result: %s. See this job for the failing step.\n' "$NATIVE_RESULT" >> "$GITHUB_STEP_SUMMARY"
+      - id: artifact
+        name: Retain only display previews and version metadata
+        if: always() && steps.preview.outcome == 'success'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: browser-${{ matrix.project }}-attempt-${{ github.run_attempt }}
+          path: ${{ steps.preview.outputs.directory }}
+          if-no-files-found: error
+          retention-days: 7
+      - name: Link the private review artifact
+        if: always() && steps.artifact.outputs.artifact-url != ''
+        env:
+          ARTIFACT_URL: ${{ steps.artifact.outputs.artifact-url }}
+        run: printf '\n[Download display-only preview evidence](%s) (repository access required; retained seven days)\n' "$ARTIFACT_URL" >> "$GITHUB_STEP_SUMMARY"
+
+  browser:
+    if: always()
+    needs: [changes, regression]
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Report browser gate selection and result
+        env:
+          SELECTED: ${{ needs.changes.outputs.relevant }}
+          CHANGES: ${{ needs.changes.result }}
+          RESULT: ${{ needs.regression.result }}
+        run: |
+          if [ "$CHANGES" != success ]; then exit 1; fi
+          if [ "$SELECTED" != true ]; then
+            echo "Browser suite explicitly not selected for this documentation-only change." >> "$GITHUB_STEP_SUMMARY"
+          elif [ "$RESULT" != success ]; then
+            echo "Selected browser suite did not pass: $RESULT" >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi

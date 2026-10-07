@@ -1,0 +1,123 @@
+{
+  "manifestHeader": "x-mini-header-manifest",
+  "secretHeader": "x-codex-egress-secret",
+  "transportTrace": {
+    "header": "x-mini-transport-trace-id",
+    "schemaVersion": 1,
+    "events": {
+      "workerOutcome": "worker_request_outcome",
+      "egressAccepted": "egress_request_accepted",
+      "egressOutcome": "egress_transport_outcome"
+    },
+    "eventFields": {
+      "workerOutcome": [
+        "event",
+        "schema_version",
+        "transport_trace_id",
+        "request_id",
+        "route",
+        "user_id",
+        "key_id",
+        "codex_auth_id",
+        "status",
+        "upstream_status",
+        "error_code",
+        "session_id",
+        "thread_id",
+        "latency_ms",
+        "usage_captured",
+        "upstream_headers_ms",
+        "first_sse_chunk_ms",
+        "first_sse_event_ms",
+        "stream_duration_ms",
+        "stream_bytes",
+        "stream_chunks",
+        "terminal_event",
+        "client_aborted",
+        "transport",
+        "observation_status",
+        "observation_error_code",
+        "observation_stage",
+        "content_encoding"
+      ],
+      "egressAccepted": [
+        "event",
+        "schema_version",
+        "transport_trace_id",
+        "transport_trace_status",
+        "method",
+        "path"
+      ],
+      "egressOutcome": [
+        "event",
+        "schema_version",
+        "transport_trace_id",
+        "transport_trace_status",
+        "method",
+        "path",
+        "status",
+        "transport_outcome",
+        "transport_stage",
+        "duration_ms",
+        "first_request_upload_byte_ms",
+        "request_upload_complete_ms",
+        "request_upload_bytes",
+        "request_upload_chunks",
+        "request_upload_complete",
+        "upstream_headers_ms",
+        "first_upstream_byte_ms",
+        "first_downstream_submit_ms",
+        "upstream_read_bytes",
+        "upstream_read_chunks",
+        "downstream_submit_bytes",
+        "downstream_submit_chunks"
+      ]
+    },
+    "outcomes": {
+      "completed": "completed",
+      "upstreamRequestFailed": "upstream_request_failed",
+      "upstreamReadFailed": "upstream_read_failed",
+      "downstreamClosed": "downstream_closed",
+      "downstreamWriteFailed": "downstream_write_failed",
+      "requestUploadAborted": "request_upload_aborted",
+      "indeterminate": "indeterminate"
+    },
+    "stages": {
+      "upstreamConnect": "upstream_connect",
+      "requestUpload": "request_upload",
+      "responseRead": "response_read",
+      "responseWrite": "response_write",
+      "unknown": "unknown"
+    },
+    "diagnoses": {
+      "protocolTerminalObserved": "protocol_terminal_observed",
+      "backendConnectionFailed": "backend_connection_failed",
+      "backendStreamTerminated": "backend_stream_terminated",
+      "backendCleanEofWithoutTerminal": "backend_clean_eof_without_terminal",
+      "workerToEgressTransportFailed": "worker_to_egress_transport_failed",
+      "clientOrEdgeCancelled": "client_or_edge_cancelled",
+      "postTerminalConnectionRelease": "post_terminal_connection_release",
+      "workerOutcomeMissing": "worker_outcome_missing",
+      "egressOutcomeMissing": "egress_outcome_missing",
+      "indeterminate": "indeterminate"
+    },
+    "traceStatuses": {
+      "ok": "ok",
+      "missing": "missing",
+      "invalid": "invalid"
+    },
+    "schemaEvolution": {
+      "additiveOptionalFields": "compatible",
+      "removeOrChangeMeaning": "new_schema_version",
+      "unknownFields": "ignore"
+    }
+  },
+  "errors": {
+    "invalidSecret": "invalid_egress_secret",
+    "missingManifest": "missing_header_manifest",
+    "duplicateManifest": "duplicate_header_manifest",
+    "invalidManifest": "invalid_header_manifest",
+    "internalManifest": "internal_header_manifest",
+    "unsatisfiedManifest": "unsatisfied_header_manifest"
+  }
+}

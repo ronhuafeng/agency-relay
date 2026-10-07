@@ -1,0 +1,48 @@
+node_modules/
+.wrangler/
+
+.dev.vars
+.dev.vars.*
+.env
+.env.*
+!.env.example
+.envrc
+
+coverage/
+dist/
+tmp/
+# Local third-party checkouts for reading only; not part of this repo
+reference/
+*.log
+__pycache__/
+*.py[cod]
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.DS_Store
+
+local-secrets/
+.secrets/
+# Private design drafts and generated design-tool metadata stay local.
+.stitch/
+.codex/*
+!.codex/config.toml
+auth.json
+**/auth.json
+worker-secret.json
+password.txt
+cloudflare-gateway-token.txt
+*.pem
+*.key
+
+# Other package-manager lockfiles (pnpm is the source of truth)
+package-lock.json
+npm-shrinkwrap.json
+yarn.lock
+bun.lock
+bun.lockb
+.dev.vars.diag
+
+# Local Codex session journals are operator context, not repository truth.
+codex_journal.md
+codex_journal.d/

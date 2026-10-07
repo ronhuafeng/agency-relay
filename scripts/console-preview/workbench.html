@@ -1,0 +1,44 @@
+<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Agency Relay · 本地预览台</title>
+<style>
+:root{font:14px/1.5 system-ui,"PingFang SC",sans-serif;color:#202b3a;background:#e8edf2;color-scheme:light}*{box-sizing:border-box}body{margin:0;display:grid;grid-template-rows:auto auto minmax(0,1fr);height:100dvh}header{background:#fff;border-bottom:1px solid #c5ceda;padding:12px 20px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}h1{font-size:16px;margin:0}small{color:#657184}.source{color:#245943;background:#e9f4ed;padding:4px 9px;font-size:12px}.controls{display:flex;align-items:center;flex-wrap:wrap;gap:12px;padding:12px 20px;background:#f7f9fb;border-bottom:1px solid #c5ceda}label{display:flex;gap:7px;align-items:center;color:#566276}select,button,a.action{font:inherit;min-height:36px;padding:6px 10px;border:1px solid #bcc8d5;background:#fff;color:#202b3a;border-radius:3px;cursor:pointer;text-decoration:none}button:hover,a.action:hover{background:#eef3fa}:focus-visible{outline:3px solid #3971c8;outline-offset:3px}.spacer{flex:1}#stage{padding:20px;overflow:auto;min-height:0}iframe{display:block;border:1px solid #bcc8d5;background:#fff;width:100%;height:100%;margin:0 auto;box-shadow:0 3px 15px #17293d12}#status{font-size:12px;color:#647083;margin-left:auto}@media(max-width:700px){#stage{padding:8px;min-height:300px}.controls{gap:8px;padding:10px}header{padding:10px}}
+</style><header><h1>Agency Relay / 预览台</h1><span class="source" id="source">本地示例数据</span><small id="data-note">操作只影响本次预览，重置后恢复。</small><span id="status" role="status">正在加载</span></header>
+<div class="controls"><label>身份<select id="role"><option value="admin">管理员</option><option value="member">成员</option></select></label><label>场景<select id="scene"><option value="populated">日常管理</option><option value="empty">新组织</option><option value="long">长内容与分页</option><option value="snapshot">现网快照 · 本地副本</option></select></label><label>页面<select id="page"></select></label><label>宽度<select id="width"><option value="fluid">自适应</option><option value="1440">1440</option><option value="1024">1024</option><option value="768">768</option><option value="390">390</option><option value="320">320</option></select></label><label>主题<select id="theme"><option value="light">浅色</option><option value="dark">深色</option><option value="system">跟随系统</option></select></label><button id="reload">刷新页面</button><button id="reset">重置示例</button><a class="action" id="standalone" target="_blank" rel="noopener">独立打开 ↗</a></div>
+<div id="stage"><iframe id="preview" title="Agency Relay 页面预览"></iframe></div>
+<script>
+const $=id=>document.getElementById(id), frame=$('preview');
+let configurationQueue=Promise.resolve(),loadVersion=0,loading=false,frameTarget;
+let snapshotReporting=false,snapshotAccountScoped=false,snapshotRoles=[],snapshotHistory;
+const pages={admin:[['access','成员与服务'],['overview','组织概览'],['credentials','上游连接'],['setup','客户端配置'],['audit','请求记录'],['usage','用量报告'],['surfaces','服务路由'],['quotas','额度政策'],['control-audit','管理记录']],member:[['home','我的工作台'],['keys','我的密钥'],['quota','我的额度'],['usage','我的用量'],['setup','客户端配置']]};
+const params=new URLSearchParams(location.search);for(const id of ['role','scene','width','theme'])if([...$(id).options].some(o=>o.value===params.get(id)))$(id).value=params.get(id);
+function setPages(){ $('page').replaceChildren(...pages[$('role').value].map(([value,label])=>new Option(label,value)));if([...$('page').options].some(o=>o.value===params.get('page')))$('page').value=params.get('page');}
+setPages();
+function save(){const q=new URLSearchParams();for(const id of ['role','scene','page','width','theme'])q.set(id,$(id).value);history.replaceState(null,'','/__preview?'+q);}
+function geometry(){frame.style.width=$('width').value==='fluid'?'100%':$('width').value+'px';frame.style.colorScheme=$('theme').value==='system'?'light dark':$('theme').value;save();}
+function target(){return '/?'+($('role').value==='member'?'area=me&':'')+'view='+$('page').value+($('role').value==='admin'||$('page').value==='usage'?'&range=7d':'');}
+async function load(reset=false,preserve=false){
+  for(const option of $('role').options)option.disabled=$('scene').value==='snapshot'&&!snapshotRoles.includes(option.value);
+  if($('role').selectedOptions[0].disabled){const available=[...$('role').options].find(option=>!option.disabled);if(!available){$('status').textContent='快照没有可登录账号';frame.src='about:blank';return}$('role').value=available.value;setPages();preserve=false}
+  const version=++loadVersion,scene=$('scene').value;
+  const body=JSON.stringify({role:$('role').value,scene,theme:$('theme').value,reset});
+  const previous=preserve&&!loading&&frame.contentWindow?new URL(frame.contentWindow.location.href):undefined;
+  const current=previous&&previous.searchParams.get('view')===$('page').value?previous.pathname+previous.search+previous.hash:target();
+  loading=true;frameTarget=undefined;frameObserver?.disconnect();$('status').textContent='正在加载';
+  // Configuration changes share one server-side fixture. Apply them in order;
+  // only the latest selection can navigate or update the workbench.
+  const request=configurationQueue.then(()=>fetch('/__preview/config',{method:'POST',headers:{'Content-Type':'application/json'},body}));
+  configurationQueue=request.then(()=>undefined,()=>undefined);
+  let r;try{r=await request}catch{if(version===loadVersion)$('status').textContent='加载失败，请重试';return}
+  if(version!==loadVersion)return;
+  if(!r.ok){$('status').textContent='加载失败，请重试';return}
+  $('source').textContent=scene==='snapshot'?'现网快照 · 本地副本':'本地示例数据';
+  $('data-note').textContent=scene==='snapshot'?(snapshotReporting?(snapshotAccountScoped?'导入指定账号、关联展示数据、额度与用量统计；操作只修改本地。上游凭据未导入。':'导入组织展示数据、额度、用量与任务记录；操作只修改本地。上游凭据未导入。'):'仅导入人员、账号、密钥与额度。用量、活动和上游连接未导入；操作只修改本地。'):'所有操作只修改本地副本，重置后恢复。';
+  if(scene==='snapshot'&&snapshotHistory&&snapshotHistory.imported<snapshotHistory.available)$('data-note').textContent+=' 任务记录仅最近 '+snapshotHistory.imported.toLocaleString('zh-CN')+' / '+snapshotHistory.available.toLocaleString('zh-CN')+' 条。';
+  frameTarget=new URL(current,location.href);frame.src=current;$('standalone').href=current;geometry();
+}
+$('role').onchange=()=>{setPages();load()};for(const id of ['scene','page'])$(id).onchange=()=>load();$('theme').onchange=()=>load(false,true);$('width').onchange=geometry;$('standalone').onclick=()=>{$('standalone').href=frame.contentWindow.location.href};$('reload').onclick=()=>load(false,true);$('reset').onclick=()=>load(true);
+let frameObserver;
+function syncFrameNavigation(){if(loading)return;try{const current=new URL(frame.contentWindow.location.href);$('standalone').href=current.href;const view=current.searchParams.get('view');if(view&&[...$('page').options].some(option=>option.value===view)&&$('page').value!==view){$('page').value=view;save()}}catch{}}
+frame.onload=()=>{if(loading){if(!frameTarget)return;try{if(new URL(frame.contentWindow.location.href).searchParams.get('view')!==frameTarget.searchParams.get('view'))return}catch{return}loading=false}$('status').textContent='已加载 · 本地代码';frameObserver?.disconnect();syncFrameNavigation();try{frameObserver=new MutationObserver(syncFrameNavigation);frameObserver.observe(frame.contentDocument.body,{childList:true,subtree:true})}catch{}};
+let revision;setInterval(async()=>{try{const r=await fetch('/__preview/revision');const next=await r.text();if(revision&&next!==revision){$('status').textContent='代码已更新，点击刷新查看'}revision=next}catch{$('status').textContent='预览服务已停止'}},2000);
+fetch('/__preview/data').then(r=>r.json()).then(data=>{snapshotReporting=!!data.reporting;snapshotAccountScoped=!!data.accountScoped;snapshotHistory=data.requestHistory;snapshotRoles=data.roles??[];if(data.capturedAt)$('scene').querySelector('[value=snapshot]').textContent='现网快照 · '+new Date(data.capturedAt).toLocaleString('zh-CN',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});if(!data.snapshot)$('scene').querySelector('[value=snapshot]').disabled=true;else if(!params.has('scene'))$('scene').value='snapshot';return load()});
+</script></html>

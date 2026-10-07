@@ -1,0 +1,81 @@
+name: Bug Report
+description: Report a reproducible problem in agency-relay.
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: >-
+        Do not include live tokens, API keys, `.dev.vars`, `.codex/auth.json`, or
+        egress secrets. Prefer the smallest evidence that crosses the affected
+        Agency Relay-owned boundary; do not add a Live probe when a deterministic owned
+        test can settle the question.
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What happened?
+    validations:
+      required: true
+  - type: textarea
+    id: contract
+    attributes:
+      label: Current Contract or Boundary
+      description: >-
+        Which current Agency Relay, Local Adapter, security, authority, transport, or
+        Provider-boundary invariant is violated? If none is known, say so.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Smallest Reproduction
+      description: Provide the smallest safe reproduction at the owning seam.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence Status
+      description: >-
+        Separate what is mechanism-confirmed, what current client/Provider/runtime
+        trigger is confirmed, and what user-visible impact is confirmed. A bounded
+        probe that did not observe something is not proof it can never occur.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: State the owned behavior, not a preferred implementation technique.
+    validations:
+      required: true
+  - type: textarea
+    id: history
+    attributes:
+      label: Historical Design Context
+      description: >-
+        Note any known rationale, prior tests, Provider facts, issues, or release
+        evidence that may explain the current behavior. Existing behavior is not
+        technical debt by default; preserve still-valid constraints.
+    validations:
+      required: false
+  - type: textarea
+    id: correction
+    attributes:
+      label: Smallest Safe Correction and Verification
+      description: >-
+        If known, describe the narrowest correction and the smallest owning
+        regression test or bounded probe needed. Avoid new compatibility layers,
+        runners, or persistent Live infrastructure unless the current contract
+        requires them.
+    validations:
+      required: false
+  - type: textarea
+    id: context
+    attributes:
+      label: Non-secret Context
+      description: Include request IDs, status codes, route names, versions, and redacted logs.
+    validations:
+      required: false

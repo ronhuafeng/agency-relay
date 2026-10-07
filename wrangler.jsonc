@@ -1,0 +1,95 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "mini-proxy-core",
+  "main": "src/index.ts",
+  "build": {
+    "command": "pnpm run console:build"
+  },
+  "compatibility_date": "2026-06-24",
+  "compatibility_flags": [
+    "nodejs_compat",
+    "enable_request_signal",
+    "request_signal_passthrough",
+    "global_fetch_strictly_public"
+  ],
+  "routes": [
+    {
+      "pattern": "api.trustedtunnel.app/*",
+      "zone_name": "trustedtunnel.app"
+    },
+    {
+      "pattern": "grok.trustedtunnel.app/*",
+      "zone_name": "trustedtunnel.app"
+    },
+    {
+      "pattern": "xai.trustedtunnel.app/*",
+      "zone_name": "trustedtunnel.app"
+    },
+    {
+      "pattern": "mini-proxy.uniweaver.com",
+      "custom_domain": true
+    }
+  ],
+  "observability": {
+    "enabled": true,
+    "logs": {
+      "enabled": true,
+      "head_sampling_rate": 1
+    },
+    "traces": {
+      "enabled": true,
+      "head_sampling_rate": 0.05
+    }
+  },
+  "triggers": {
+    "crons": ["17 * * * *", "17 3 * * *"]
+  },
+  "vars": {
+    "CODEX_EGRESS_BASE_URL": "https://codex-egress-us-west1-a.trustedtunnel.app",
+    "CODEX_OAUTH_TOKEN_URL": "https://auth.openai.com/oauth/token",
+    "CODEX_CLIENT_ID": "app_EMoamEEZ73f0CkXaXp7hrann",
+    "ADMIN_DASHBOARD_HOST": "mini-proxy.uniweaver.com",
+    "CONSOLE_EMAIL_DOMAIN": "uniweaver.com",
+    "REQUEST_AUDIT_RETENTION_DAYS": "30"
+  },
+  "secrets": {
+    "required": [
+      "TOKEN_ENCRYPTION_KEY_V1",
+      "API_KEY_HASH_PEPPER",
+      "ADMIN_SECRET",
+      "CODEX_EGRESS_SECRET",
+      "FEISHU_APP_ID",
+      "FEISHU_APP_SECRET"
+    ]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "mini-proxy-core",
+      "database_id": "d807c677-151e-412d-bc74-fd33836be171",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "TOKEN_AUTHORITY",
+        "class_name": "TokenAuthority"
+      },
+      {
+        "name": "CREDENTIAL_EVENTS",
+        "class_name": "CredentialEvents"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["TokenAuthority"]
+    },
+    {
+      "tag": "v2-credential-events",
+      "new_sqlite_classes": ["CredentialEvents"]
+    }
+  ]
+}

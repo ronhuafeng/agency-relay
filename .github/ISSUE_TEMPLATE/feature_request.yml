@@ -1,0 +1,56 @@
+name: Feature Request
+description: Propose a scoped change to agency-relay.
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What user or operator problem should this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: boundary
+    attributes:
+      label: Owned Boundary and Current Contract
+      description: >-
+        Which exact Agency Relay or Local Adapter boundary owns this behavior, and what
+        current contract requires Agency Relay to change rather than leaving the behavior
+        to the client or Provider?
+    validations:
+      required: true
+  - type: textarea
+    id: existing
+    attributes:
+      label: Existing Behavior and Rationale
+      description: >-
+        Describe the current behavior and any known historical rationale or
+        external premise. Explain why that premise no longer suffices if the
+        proposal changes an established path.
+    validations:
+      required: false
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: Describe the smallest useful change and what remains intentionally unchanged.
+    validations:
+      required: true
+  - type: textarea
+    id: verification
+    attributes:
+      label: Smallest Verification
+      description: >-
+        Name the narrowest owning test or bounded external proof required. Avoid
+        persistent Live infrastructure when a deterministic local proof is enough.
+    validations:
+      required: false
+  - type: textarea
+    id: security
+    attributes:
+      label: Security and Operations Impact
+      description: Note auth, egress, audit, deployment, or secret-handling effects.
+    validations:
+      required: true

@@ -1,0 +1,17 @@
+[Unit]
+Description=Mini Codex egress tunnel (Singapore)
+After=network-online.target codex-egress-shim.service
+Wants=network-online.target
+Requires=codex-egress-shim.service
+
+[Service]
+Type=simple
+User=bef0rewind
+ExecStart=/usr/local/bin/cloudflared tunnel --no-autoupdate --loglevel info --metrics 127.0.0.1:20241 run --token-file /home/bef0rewind/codex-egress-shim/.tunnel-token
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=45s
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

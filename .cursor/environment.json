@@ -1,0 +1,8 @@
+{
+  "name": "agency-relay",
+  "user": "ubuntu",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+  "install": "pnpm install --frozen-lockfile"
+}
