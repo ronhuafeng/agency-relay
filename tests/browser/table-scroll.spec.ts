@@ -12,17 +12,6 @@ for (const script of [true, false]) test.describe(`table keyboard access, script
       parentWidth: element.parentElement?.clientWidth,
       overflowX: getComputedStyle(element).overflowX
     }));
-    if(view === "audit") {
-      expect(geometry.overflowX).toBe("visible");
-      expect(geometry.scrollWidth).toBeLessThanOrEqual(geometry.clientWidth+1);
-      const request=region.getByRole('link',{name:/^查看请求/}).first();
-      await request.focus();await expect(request).toBeFocused();
-      await page.keyboard.press('Enter');
-      await expect(page.getByRole('article')).toBeVisible();
-      await expect(region).toBeVisible();
-      expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
-      return;
-    }
     expect(geometry.overflowX).toBe("auto");
     expect(geometry.scrollWidth, JSON.stringify(geometry)).toBeGreaterThan(geometry.clientWidth);
     await region.focus();
@@ -31,5 +20,12 @@ for (const script of [true, false]) test.describe(`table keyboard access, script
     await page.keyboard.press("ArrowRight", {delay: 80});
     await expect.poll(() => region.evaluate(element => element.scrollLeft)).toBeGreaterThan(0);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+    if (view === "audit") {
+      const request = region.getByRole('link', {name: /^查看请求/}).first();
+      await request.focus(); await page.keyboard.press('Enter');
+      await expect(page.getByRole('article')).toBeVisible();
+      await expect(region).toBeVisible();
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+    }
   });
 });

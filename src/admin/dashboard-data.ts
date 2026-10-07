@@ -143,6 +143,8 @@ export interface AdminDashboardOverviewModel extends AdminDashboardPageModelBase
 
 export interface AdminDashboardUsageModel extends AdminDashboardPageModelBase {
   view: "usage";
+  search: string;
+  searchUrl: string;
   trends: UsageTrendsModel;
   rows: UsageSummaryRow[];
   mediaRows: MediaUsageSummaryRow[];
@@ -287,7 +289,9 @@ export async function loadDashboard(input: AdminDashboardInput, base: AdminDashb
     model = {
       ...base,
       view,
-      trends: {range: parseUsageTrendRange(input.url, input.now), daily, scopeLabel: requestedPerson ? "所选用户" : "组织用量", navigationUrl: base.canonicalUrl,
+      searchUrl: base.canonicalUrl,
+      search: usageQuery.q ?? "",
+      trends: {range: parseUsageTrendRange(input.url, input.now), daily, search: usageQuery.q ?? "", scopeLabel: requestedPerson ? "所选用户" : "组织用量", navigationUrl: base.canonicalUrl,
         filterLabel: [requestedPerson ? `用户：${requestedPerson}` : "", usageQuery.route_profile_id ? `执行计划：${usageQuery.route_profile_id}` : "", usageQuery.response_model ? `模型：${usageQuery.response_model}（仅 Responses）` : ""].filter(Boolean).join(" · ")},
       rows: usage.rows.slice(0, LEDGER_DISPLAY_LIMIT),
       mediaRows: mediaUsage.rows.slice(0, LEDGER_DISPLAY_LIMIT),

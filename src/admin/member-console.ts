@@ -1,4 +1,4 @@
-import { parseUsageQuery, parseUsageTrendRange, type UsageTrendRange } from "./usage-query";
+import { parseUsageQuery, parseUsageSearch, parseUsageTrendRange, type UsageTrendRange } from "./usage-query";
 import { ReadError } from "./ui/read-error";
 import { createElement, type ReactNode } from "react";
 import { consoleDocument } from "./console-shell";
@@ -48,12 +48,14 @@ export async function memberConsoleResponse(input: {
   let trend: UsageTrendRange | undefined;
   if (view === "usage") {
     try {
-      if ([...input.url.searchParams.keys()].some(key => !["area", "view", "range", "user_id"].includes(key))) throw new Error("Unsupported usage page parameter");
+      if ([...input.url.searchParams.keys()].some(key => !["area", "view", "range", "user_id", "q"].includes(key))) throw new Error("Unsupported usage page parameter");
       trend = parseUsageTrendRange(input.url, input.now);
+      parseUsageSearch(input.url);
     }
     catch { return html(400, input.requestId, createElement(ReadError, {title: "时间范围不正确", message: "请选择最近 7 天或 30 天。显式日期查询请使用此账号的用量 API。", retryUrl: memberHref("usage", undefined, input.service?.id), retryLabel: "打开最近 7 天", requestId: input.requestId}), input.principal, view, input.service); }
   }
-  const readUrl = trend ? `${memberHref("usage", undefined, input.service?.id)}&range=${trend.key}` : memberHref(view, view === "keys" ? input.url.searchParams.get("key") ?? undefined : undefined, input.service?.id);
+  const search = trend ? parseUsageSearch(input.url) : "";
+  const readUrl = trend ? `${memberHref("usage", undefined, input.service?.id)}&range=${trend.key}${search ? `&q=${encodeURIComponent(search)}` : ""}` : memberHref(view, view === "keys" ? input.url.searchParams.get("key") ?? undefined : undefined, input.service?.id);
   try {
     const {body, data} = await renderView(input, view, trend);
     if (input.service) await delegatedService(input.env, input.principal, input.service.id);
@@ -145,13 +147,16 @@ async function renderView(input: {
   }
   if (view === "usage") {
     const range = trend!;
-    const query = {mode: "range", from: range.from, to: range.to, user_id: input.service?.id ?? input.principal.id, limit: 101} as const;
+    const search = parseUsageSearch(input.url);
+    const searchUrl = `${memberHref("usage", undefined, input.service?.id)}&range=${range.key}${search ? `&q=${encodeURIComponent(search)}` : ""}`;
+    const query = {mode: "range", from: range.from, to: range.to, user_id: input.service?.id ?? input.principal.id, q: search, limit: 101} as const;
     const [usage, media, daily] = await Promise.all([queryUsageSummary(input.env, query), queryMediaUsageSummary(input.env, query), queryUsageDaily(input.env, query)]);
     const model = {
-      trends: {range, daily, scopeLabel: input.service ? `${input.service.display_name} · 用量` : "我的用量", navigationUrl: `${memberHref("usage", undefined, input.service?.id)}&range=${range.key}`},
+      search, searchUrl,
+      trends: {range, daily, search, scopeLabel: input.service ? `${input.service.display_name} · 用量` : "我的用量", navigationUrl: searchUrl},
       rows: usage.rows.slice(0, 100), mediaRows: media.rows.slice(0, 100),
       rowsTruncated: usage.rows.length > 100, mediaRowsTruncated: media.rows.length > 100,
-      range: {emptyLabel: "这个范围没有用量记录。", rawUsageUrl: `${input.service ? `/me/service-accounts/${encodeURIComponent(input.service.id)}/usage` : "/me/usage"}?from=${range.from}&to=${range.to}`},
+      range: {emptyLabel: "这个范围没有匹配的用量记录。", rawUsageUrl: `${input.service ? `/me/service-accounts/${encodeURIComponent(input.service.id)}/usage` : "/me/usage"}?from=${range.from}&to=${range.to}${search ? `&q=${encodeURIComponent(search)}` : ""}`},
       filterPlaceholder: "搜索模型",
       limitNote: "请求和媒体记录分别显示最多 100 条，导出文件使用相同上限。"
     };

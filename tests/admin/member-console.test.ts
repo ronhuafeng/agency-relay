@@ -229,7 +229,7 @@ describe("role-aware console", () => {
     expect(reportDoc.querySelector('.usage-metrics')?.textContent).toContain('Token10');
     expect(reportDoc.querySelector('.usage-record [popover] p')?.textContent).toContain('1 次请求未记录');
     expect(reportDoc.querySelector('a[download]')?.getAttribute('href')).toBe('/me/usage?from=2026-06-18&to=2026-06-24');
-    expect(reportDoc.querySelector('input[type="search"]')?.getAttribute('placeholder')).toBe('本页：搜索模型');
+    expect(reportDoc.querySelector('input[type="search"]')?.getAttribute('placeholder')).toBe('搜索模型');
     expect(reportHtml).not.toContain(other.user.id);
     expect(reportHtml).not.toContain('hidden-person@example.com');
   });

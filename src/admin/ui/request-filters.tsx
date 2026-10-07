@@ -6,16 +6,19 @@ import { NativeSelect } from "./components/native-select";
 import { Field, FieldLabel } from "./components/field";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "./components/collapsible";
 import { useEnhanced } from "./use-enhanced";
+import { InfoPopover } from "./components/info-popover";
 
 export interface RequestFiltersControl {
   readonly action: string;
   readonly query: {readonly from: string; readonly to: string; readonly plan: string; readonly user: string; readonly result: string; readonly request: string};
   readonly services: readonly {readonly id: string; readonly label: string}[];
+  readonly retentionDays: number | null;
 }
 export function readRequestFilters(value: unknown): RequestFiltersControl | null {
   if (!value || typeof value !== "object" || !("action" in value) || typeof value.action !== "string"
     || !("query" in value) || !value.query || typeof value.query !== "object"
-    || !("services" in value) || !Array.isArray(value.services)) return null;
+    || !("services" in value) || !Array.isArray(value.services)
+    || !("retentionDays" in value) || value.retentionDays !== null && typeof value.retentionDays !== "number") return null;
   const q = value.query as Record<string, unknown>;
   if (["from", "to", "plan", "user", "result", "request"].some(field => typeof q[field] !== "string")) return null;
   if (q.result !== "" && q.result !== "ok" && q.result !== "error" && q.result !== "unknown") return null;
@@ -24,7 +27,11 @@ export function readRequestFilters(value: unknown): RequestFiltersControl | null
     if (!service || typeof service !== "object" || typeof service.id !== "string" || typeof service.label !== "string") return null;
     services.push({id: service.id, label: service.label});
   }
-  return {action: value.action, services, query: {from:q.from as string,to:q.to as string,plan:q.plan as string,user:q.user as string,result:q.result,request:q.request as string}};
+  return {action: value.action, services, retentionDays: value.retentionDays, query: {from:q.from as string,to:q.to as string,plan:q.plan as string,user:q.user as string,result:q.result,request:q.request as string}};
+}
+
+export function RequestScope({retentionDays, id = "request-history-scope"}: {readonly retentionDays: number | null; readonly id?: string}) {
+  return <InfoPopover id={id} label="记录范围" iconOnly><p>仅显示当前仍保留的请求元数据{retentionDays === null ? "；保留配置暂时无法确认" : `；保留 ${retentionDays} 天`}。并非每次入口拒绝都采集，旧记录可能已清理。</p><p>用量报告和管理记录分别保存。历史成功不代表当前服务健康。</p></InfoPopover>;
 }
 
 export function RequestFiltersView({control}: {readonly control: RequestFiltersControl}) {
@@ -60,6 +67,7 @@ export function RequestFiltersView({control}: {readonly control: RequestFiltersC
         {enhanced ? <CollapsibleTrigger asChild><Button type="button" variant="outline">精确定位{exactCount ? ` · ${exactCount}` : ""}<ChevronDown className="ui-icon" aria-hidden="true" /></Button></CollapsibleTrigger> : null}
         <Button type="submit">筛选请求</Button>
         {filtered ? <Button asChild variant="ghost"><a data-dashboard-link="" href="?view=audit#request-history">清除筛选</a></Button> : null}
+        <RequestScope retentionDays={control.retentionDays}/>
       </div>
       <CollapsibleContent forceMount hidden={enhanced && !expanded} className="request-exact-filters">
         <Field><FieldLabel htmlFor="request-person">成员</FieldLabel><Input id="request-person" name="audit_user" placeholder="邮箱或成员 ID · 精确匹配" defaultValue={q.user} maxLength={254} /></Field>

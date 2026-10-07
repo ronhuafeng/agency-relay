@@ -3,7 +3,7 @@ import { HttpError } from "../errors";
 const MAX_USAGE_LIMIT = 1000;
 const DAY_MS = 86_400_000;
 export const MAX_USAGE_RANGE_DAYS = 3660;
-const USAGE_QUERY_PARAMS = new Set(["scope", "day", "from", "to", "user_id", "route_profile_id", "response_model", "limit"]);
+const USAGE_QUERY_PARAMS = new Set(["scope", "day", "from", "to", "user_id", "route_profile_id", "response_model", "q", "limit"]);
 
 interface UsageQueryFilters {
   scope: "all" | null;
@@ -13,6 +13,7 @@ interface UsageQueryFilters {
   user_id: string | null;
   route_profile_id: string | null;
   response_model: string | null;
+  q: string | null;
   limit: number;
 }
 interface ParsedUsageQuery {
@@ -60,9 +61,20 @@ export function parseUsageQuery(url: URL, options: { defaultAll?: boolean; defau
       user_id: userId,
       route_profile_id: routeProfileId,
       response_model: responseModel,
+      q: parseUsageSearch(url) || null,
       limit
     }
   };
+}
+
+/** One bounded literal search for the whole authorized report, including export. */
+export function parseUsageSearch(url: URL): string {
+  const values = url.searchParams.getAll("q");
+  const value = (values[0] ?? "").trim();
+  if (values.length > 1 || value.length > 256 || /[\u0000-\u001f\u007f]/.test(value)) {
+    throw new HttpError(400, "Use one search of at most 256 characters", "invalid_request_error", "invalid_usage_filters");
+  }
+  return value;
 }
 
 

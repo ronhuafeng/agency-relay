@@ -13,6 +13,7 @@ interface UsageRangeQuery {
   day?: string | null;
   from?: string | null;
   to?: string | null;
+  q?: string | null;
 }
 
 interface UsageSummaryQuery extends UsageRangeQuery {
@@ -1109,6 +1110,10 @@ function usageSummaryWhere(input: UsageRangeQuery & {
     conditions.push("ud.response_model = ?");
     bindings.push(input.response_model);
   }
+  if (input.q) {
+    conditions.push(usageSearchWhere("ud", true));
+    bindings.push(input.q, input.q, input.q, input.q);
+  }
 
   return {
     where: conditions.length ? `WHERE ${conditions.join(" AND ")}` : "",
@@ -1158,10 +1163,22 @@ function mediaUsageSummaryWhere(input: MediaUsageSummaryQuery): { where: string;
     conditions.push("mu.route_profile_id = ?");
     bindings.push(input.route_profile_id);
   }
+  if (input.q) {
+    conditions.push(usageSearchWhere("mu", false));
+    bindings.push(input.q, input.q, input.q);
+  }
   return {
     where: conditions.length ? `WHERE ${conditions.join(" AND ")}` : "",
     bindings
   };
+}
+
+function usageSearchWhere(alias: "ud" | "mu", model: boolean): string {
+  return `(${model ? `instr(lower(${alias}.response_model), lower(?)) > 0 OR ` : ""}
+    instr(lower(${alias}.user_id), lower(?)) > 0 OR
+    ${alias}.user_id IN (SELECT id FROM users WHERE
+      instr(lower(COALESCE(email, '')), lower(?)) > 0 OR
+      instr(lower(COALESCE(display_name, '')), lower(?)) > 0))`;
 }
 
 function normalizeMediaUsageTotals(row: MediaUsageSummaryTotals | null): MediaUsageSummaryTotals {

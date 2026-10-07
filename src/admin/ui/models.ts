@@ -156,7 +156,7 @@ function readUsageFacts(value: unknown): UsageFact[] | null {
 }
 export function readUsageReport(value: unknown): UsageReportControl | null {
   if (!isRecord(value) || !Array.isArray(value.records) || typeof value.emptyLabel !== "string" || typeof value.exportUrl !== "string" || typeof value.truncated !== "boolean" || typeof value.filterPlaceholder !== "string" || typeof value.limitNote !== "string") return null;
-  if (!value.exportUrl.startsWith("/admin/usage?") && !/^\/me\/usage(?:\?from=\d{4}-\d{2}-\d{2}&to=\d{4}-\d{2}-\d{2})?$/.test(value.exportUrl)) return null;
+  if (!value.exportUrl.startsWith("/admin/usage?") && !/^\/me\/(?:usage|service-accounts\/[^/?#]+\/usage)(?:\?from=\d{4}-\d{2}-\d{2}&to=\d{4}-\d{2}-\d{2}(?:&q=[^&#]*)?)?$/.test(value.exportUrl)) return null;
   const records: UsageRecord[] = [];
   for (const record of value.records) {
     if (!isRecord(record) || typeof record.id !== "string" || typeof record.authority !== "string" || typeof record.service !== "string" || typeof record.plan !== "string" || typeof record.owner !== "string" || typeof record.title !== "string" || record.note !== null && typeof record.note !== "string") return null;

@@ -57,6 +57,7 @@ export function VisibleRowFilter(props: {
   readonly countLabel: string;
   readonly rowCount: number;
   readonly shownRowsOnly?: boolean;
+  readonly hideCount?: boolean;
   readonly action?: ReactNode;
   readonly children: ReactNode;
 }) {
@@ -75,7 +76,7 @@ export function VisibleRowFilter(props: {
             data-visible-row-filter-input=""
           />
         </Label>
-        <span className="meta" data-visible-row-filter-count="" aria-live="polite">{props.countLabel}</span>
+        {props.hideCount ? null : <span className="meta" data-visible-row-filter-count="" aria-live="polite">{props.countLabel}</span>}
         {props.action}
       </div>
       {props.shownRowsOnly ? <p className="visible-row-filter-scope sr-only">只搜索当前列表。</p> : null}

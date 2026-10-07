@@ -74,7 +74,6 @@ describe("typed console controls", () => {
     const trigger = element(".usage-record button[popovertarget]", HTMLButtonElement);
     expect(trigger.getAttribute("popovertarget")).toBe(details.id);
     expect(details.textContent).toContain("member_preview");
-    expect(element("a[download]", HTMLAnchorElement).getAttribute("href")).toBe(usage.exportUrl);
   });
   it("keeps primary numbers and authorized detail metadata after enhancement", async () => {
     document.body.innerHTML = '<div id="root"></div>'; root = createRoot(element("#root", HTMLElement));

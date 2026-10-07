@@ -181,7 +181,7 @@ it("keeps delegated 7/30-day trend navigation, exports and invalid-range recover
       expect(doc.querySelector('main')?.getAttribute('data-dashboard-url')).toBe(f.prefix+`?view=usage&range=${range}`);
       expect(doc.querySelector('h1')?.textContent).toBe("Nightly automation · 用量");
       expect(doc.querySelector('[data-trend-plan="codex.responses"] .usage-metrics')?.textContent).toContain(`Requests${requests}`);
-      expect(doc.querySelectorAll('[data-trend-plan="codex.responses"] tbody tr')).toHaveLength(days);
+      expect(doc.querySelectorAll('[data-daily-plan="codex.responses"]')).toHaveLength(days);
       const hrefs=[...doc.querySelectorAll('nav[aria-label="UTC 时间范围"] a')].map(a=>a.getAttribute('href'));
       expect(hrefs).toEqual([f.prefix+'?view=usage&range=7d',f.prefix+'?view=usage&range=30d']);
       const exportHref=doc.querySelector('a[download]')?.getAttribute('href')!;expect(exportHref.startsWith(f.prefix+'/usage?from=')).toBe(true);

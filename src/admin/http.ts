@@ -1692,6 +1692,7 @@ async function routeAdminUsage(env: Env, url: URL): Promise<Response> {
       to: parsed.filters.to,
       user_id: parsed.filters.user_id,
       route_profile_id: parsed.filters.route_profile_id,
+      q: parsed.filters.q,
       limit: parsed.filters.limit
     };
     const [summary, media] = await Promise.all([queryUsageSummary(env, {
@@ -1860,6 +1861,7 @@ function usageQueryGuide() {
       user_id: "optional string",
       route_profile_id: "optional exact execution plan id",
       response_model: "optional string",
+      q: "optional literal person or Responses model search, at most 256 characters",
       limit: "required integer, 1..1000"
     },
     row_schema: [

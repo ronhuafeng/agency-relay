@@ -8,6 +8,18 @@
   --background: #eaedf2;
   --border: #182131;
   --card: #ffffff;
+  /* Categorical chart series 1; does not express task health. */
+  --chart-1: #007d8a;
+  /* Categorical chart series 2; does not express task health. */
+  --chart-2: #8261c9;
+  /* Categorical chart series 3; does not express task health. */
+  --chart-3: #c66a1e;
+  /* Categorical chart series 4; does not express task health. */
+  --chart-4: #4b7e45;
+  /* Categorical chart series 5; does not express task health. */
+  --chart-5: #c34675;
+  /* Categorical chart series 6; does not express task health. */
+  --chart-6: #5478ac;
   --control-divider: 1px;
   --control-menu: 280px;
   --control-target: 44px;
@@ -89,6 +101,18 @@
     --background: #0f0b21;
     --border: #5e566f;
     --card: #1c182f;
+    /* Categorical chart series 1; does not express task health. */
+    --chart-1: #54c7ce;
+    /* Categorical chart series 2; does not express task health. */
+    --chart-2: #b79be8;
+    /* Categorical chart series 3; does not express task health. */
+    --chart-3: #eda968;
+    /* Categorical chart series 4; does not express task health. */
+    --chart-4: #90c58a;
+    /* Categorical chart series 5; does not express task health. */
+    --chart-5: #e893b4;
+    /* Categorical chart series 6; does not express task health. */
+    --chart-6: #8aaed9;
     --control-divider: 1px;
     --control-menu: 280px;
     --control-target: 44px;

@@ -1134,7 +1134,7 @@ describe("Dashboard", () => {
     expect(filters?.querySelector('[name="audit_plan"]')).not.toBeNull();
     expect(filters?.querySelector('[name="audit_user"]')).not.toBeNull();
     expect(document.querySelectorAll('[data-request-record]')).toHaveLength(10);
-    expect(document.querySelector('#request-history thead .info-popover button')?.getAttribute('aria-label')).toBe('记录范围');
+    expect(document.querySelector('.request-filter-actions .info-popover button')?.getAttribute('aria-label')).toBe('记录范围');
     expect(document.querySelectorAll('#activity-summary')).toHaveLength(0);
     expect(db.preparedSql.some((sql) => sql.includes("GROUP BY") && sql.includes("route_profile_id"))).toBe(false);
     expect(
@@ -1239,11 +1239,10 @@ describe("Dashboard", () => {
     expect(records).toHaveLength(1);
     expect(records[0]?.textContent).toContain("gpt-5.1-codex");
     expect(html).not.toContain("gpt-5.2-codex");
-    const facts = (selector: string) => Object.fromEntries([...doc.querySelectorAll(selector)]
-      .map(fact => [fact.querySelector("dt")?.textContent, fact.querySelector("dd")?.textContent]));
     expect(records[0]?.querySelector('.usage-record-count')?.textContent).toContain('2');
     expect(records[0]?.querySelector('.usage-record-measurement')?.textContent).toContain('40');
-    const totals = facts('[data-trend-plan="codex.responses"] .usage-metrics > div');
+    const facts = [...doc.querySelectorAll('[data-trend-plan="codex.responses"] .usage-metrics > div')];
+    const totals = Object.fromEntries(facts.map(fact => [fact.querySelector("dt")?.textContent, fact.querySelector("dd")?.textContent]));
     expect(totals["Requests"]).toBe("2");
     expect(totals["Token"]).toMatch(/^40(?:\s|$)/);
   });

@@ -27,7 +27,9 @@ function projection(document: Document) {
     plan: series.getAttribute("data-trend-plan"),
     capability: series.getAttribute("data-trend-capability"),
     metrics: [...series.querySelectorAll("dt")].map(node => [node.textContent, node.nextElementSibling?.textContent]),
-    rows: [...series.querySelectorAll("tbody tr")].map(row => row.textContent)
+    rows: [...document.querySelectorAll("[data-text-plan]")]
+      .filter(data => data.getAttribute("data-text-plan") === series.getAttribute("data-trend-plan") && data.getAttribute("data-text-capability") === series.getAttribute("data-trend-capability"))
+      .flatMap(data => [...data.querySelectorAll("dl>div")].map(row => row.textContent))
   }));
 }
 
@@ -68,8 +70,9 @@ describe("organization Home usage projection", () => {
     expect(metric(grok, "Failure")).toBe("251");
     expect(metric(grok, "Token")).toBe(`100 · 已记录 252/${requests} 次请求`);
     expect(metric(grok, "上游计量金额")).toBe(`$0.0000000012 · 已记录 252/${requests} 次请求`);
-    expect(grok.querySelectorAll("tbody tr")).toHaveLength(range === "7d" ? 7 : 30);
-    expect(grok.querySelector("tbody tr:last-child")?.textContent).toContain("2026-06-24 · 未结束");
+    const days = home.document.querySelectorAll('[data-text-plan="grok.production.responses"] dl>div');
+    expect(days).toHaveLength(range === "7d" ? 7 : 30);
+    expect(days[days.length - 1].textContent).toContain("2026-06-24 UTC · 未结束");
     expect(metric(home.document.querySelector('[data-trend-plan="xai.production.responses"]')!, "Token")).toBe("未记录 · 覆盖 0/3");
     expect(metric(home.document.querySelector('[data-trend-plan="xai.production.responses"]')!, "上游计量金额")).toBe("未提供 · 覆盖 0/3");
     expect(metric(home.document.querySelector('[data-trend-plan="codex.responses"]')!, "API 费率折算")).toContain("未提供 · 覆盖 0/");

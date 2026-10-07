@@ -8,7 +8,9 @@ for (const width of [320, 390, 1440]) test.describe(`organization Home ${width}p
     const trends = page.getByRole("region", {name: "按日用量趋势"});
     await expect(trends).toBeVisible();
     const grok = page.locator('[data-trend-plan="grok.production.responses"]');
-    await expect(grok.locator(".usage-data-trigger")).toHaveAttribute("aria-expanded", "false");
+    const description = trends.locator("details.usage-chart-description");
+    await expect(description).toHaveJSProperty("open", false);
+    await expect(trends.locator(".usage-bar-plot")).toHaveCount(1);
     expect(await grok.locator(".usage-metrics").textContent()).toContain("0 · 已记录 1/4 次请求");
     const initialMetrics = await trends.locator(".usage-metrics").allTextContents();
     const rail = await page.locator(".nav-rail").elementHandle();
@@ -25,37 +27,41 @@ for (const width of [320, 390, 1440]) test.describe(`organization Home ${width}p
     await expectAccountRole(page, "管理员");
     const homeMetrics = await trends.locator(".usage-metrics").allTextContents();
     expect(homeMetrics).not.toEqual(initialMetrics);
-    const homeBars = await trends.locator("svg rect").evaluateAll(nodes => nodes.map(node => node.getAttribute("height")));
+    const homeBars = await trends.locator(".usage-chart-bar").evaluateAll(nodes => nodes.map(node => ({x: node.getAttribute("x"), y: node.getAttribute("y"), height: node.getAttribute("height")})));
 
-    await grok.locator(".usage-data-trigger").focus();
+    await description.locator("summary").focus();
     await page.keyboard.press("Enter");
-    await expect(grok.locator(".usage-data-trigger")).toHaveAttribute("aria-expanded", "true");
-    await expect(grok.locator("tbody tr")).toHaveCount(30);
-    await expect(grok.locator(".table-scroll")).toBeVisible();
-    await grok.locator(".usage-data-trigger").click();
+    await expect(description).toHaveJSProperty("open", true);
+    const grokDays = description.locator('[data-text-plan="grok.production.responses"] dl>div');
+    await expect(grokDays).toHaveCount(30);
+    await expect(grokDays.first()).toContainText("2026-05-26 UTC");
+    await expect(grokDays.last()).toContainText("2026-06-24 UTC · 未结束");
+    await expect(grokDays.last()).toContainText("已记录 1/4 次请求");
+    await expect(description.locator("table")).toHaveCount(0);
+    await description.locator("summary").click();
 
     const geometry = await page.evaluate(() => {
-      const boxes = Array.from(document.querySelectorAll<HTMLElement>("#usage-trends .usage-trend-series"));
+      const boxes = Array.from(document.querySelectorAll<HTMLElement>("#usage-trends .usage-comparison"));
       const overlaps = (first: DOMRect, second: DOMRect) => Math.min(first.right, second.right) - Math.max(first.left, second.left) > 1 && Math.min(first.bottom, second.bottom) - Math.max(first.top, second.top) > 1;
       let overlapping = 0;
-      for (const series of boxes) {
-        const title = series.querySelector<HTMLElement>("h3")!;
-        const ranges = series.querySelector<HTMLElement>(".ranges");
+      for (const comparison of boxes) {
+        const title = comparison.querySelector<HTMLElement>("h3")!;
+        const ranges = comparison.querySelector<HTMLElement>(".ranges");
         if (ranges && overlaps(title.getBoundingClientRect(), ranges.getBoundingClientRect())) overlapping++;
-        const metrics = Array.from(series.querySelectorAll<HTMLElement>(".usage-metrics>div"));
-        for (let first = 0; first < metrics.length; first++) for (let second = first + 1; second < metrics.length; second++) if (overlaps(metrics[first].getBoundingClientRect(), metrics[second].getBoundingClientRect())) overlapping++;
-        const plot = series.querySelector<HTMLElement>(".usage-trend-plot")!.getBoundingClientRect();
-        if (metrics.some(metric => overlaps(metric.getBoundingClientRect(), plot))) overlapping++;
+        const fields = Array.from(comparison.querySelectorAll<HTMLElement>(".usage-chart-controls>label"));
+        for (let first = 0; first < fields.length; first++) for (let second = first + 1; second < fields.length; second++) if (overlaps(fields[first].getBoundingClientRect(), fields[second].getBoundingClientRect())) overlapping++;
+        const plot = comparison.querySelector<HTMLElement>(".usage-chart-frame")!.getBoundingClientRect();
+        if (fields.some(field => overlaps(field.getBoundingClientRect(), plot))) overlapping++;
       }
-      const controls = Array.from(document.querySelectorAll<HTMLElement>('#usage-trends .ranges a,#usage-trends .usage-data-trigger,[data-home-summary] a,.home-overview-grid .action-link'));
+      const controls = Array.from(document.querySelectorAll<HTMLElement>('#usage-trends .ranges a,#usage-trends .usage-chart-controls select,#usage-trends .usage-chart-legend button,#usage-trends .usage-chart-description>summary,[data-home-summary] a,.home-overview-grid .action-link')).filter(control => control.checkVisibility());
       return {
         overflowing: document.documentElement.scrollWidth > innerWidth + 1,
         overlapping,
-        clippedSeries: boxes.filter(series => {const box = series.getBoundingClientRect(); return box.left < -1 || box.right > innerWidth + 1;}).length,
+        clippedComparisons: boxes.filter(comparison => {const box = comparison.getBoundingClientRect(); return box.left < -1 || box.right > innerWidth + 1;}).length,
         smallOrClippedControls: controls.filter(control => {const box = control.getBoundingClientRect(); return box.width < 44 || box.height < 44 || box.left < -1 || box.right > innerWidth + 1;}).length
       };
     });
-    expect(geometry).toEqual({overflowing: false, overlapping: 0, clippedSeries: 0, smallOrClippedControls: 0});
+    expect(geometry).toEqual({overflowing: false, overlapping: 0, clippedComparisons: 0, smallOrClippedControls: 0});
     expect(await page.locator("[data-one-time-key],[data-created-token]").count()).toBe(0);
     await page.evaluate(() => document.fonts.ready);
     await page.evaluate(() => scrollTo(0, 0));
@@ -69,7 +75,7 @@ for (const width of [320, 390, 1440]) test.describe(`organization Home ${width}p
     await expect(page.locator('main[data-dashboard-view="usage"]')).toBeVisible();
     await expect(page.locator("[data-usage-range-label]")).toHaveAttribute("data-usage-range-label", "2026-05-26 至 2026-06-24 UTC");
     expect(await page.locator("#usage-trends .usage-metrics").allTextContents()).toEqual(homeMetrics);
-    expect(await page.locator("#usage-trends svg rect").evaluateAll(nodes => nodes.map(node => node.getAttribute("height")))).toEqual(homeBars);
+    expect(await page.locator("#usage-trends .usage-chart-bar").evaluateAll(nodes => nodes.map(node => ({x: node.getAttribute("x"), y: node.getAttribute("y"), height: node.getAttribute("height")})))).toEqual(homeBars);
     expect(await rail!.evaluate(node => node === document.querySelector(".nav-rail"))).toBe(true);
     expect(await account!.evaluate(node => node.isConnected)).toBe(true);
     expect(worker.requests.every(request => request.method === "GET")).toBe(true);

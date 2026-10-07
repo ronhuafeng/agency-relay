@@ -5,6 +5,11 @@ import type { MediaUsageSummaryRow, UsageSummaryRow } from "../../../types";
 import { UsageReportIsland } from "../islands";
 import type { UsageFact, UsageRecord } from "../models";
 import { usageCost } from "../../usage-cost";
+import { Button } from "../components/button";
+import { Input } from "../components/input";
+import { Label } from "../components/label";
+import { Download, Search } from "lucide-react";
+import { inventoryUrl } from "../href";
 
 export interface UsagePageModel {
   readonly trends?: UsageTrendsModel;
@@ -15,6 +20,8 @@ export interface UsagePageModel {
   readonly range: {readonly emptyLabel: string; readonly rawUsageUrl: string};
   readonly filterPlaceholder?: string;
   readonly limitNote?: string;
+  readonly search?: string;
+  readonly searchUrl?: string;
 }
 function formatRatioPercent(numerator: number, denominator: number): string {
   return denominator > 0 ? `${(numerator / denominator * 100).toFixed(1)}%` : "—";
@@ -68,12 +75,19 @@ function mediaRecord(row: MediaUsageSummaryRow, index: number): UsageRecord {
   };
 }
 export function UsagePage({model}: {readonly model: UsagePageModel}) {
-  return <>{model.trends ? <UsageTrends model={model.trends}/> : null}{model.rows.length + model.mediaRows.length > 0 || !model.trends ? <section id="usage-details" tabIndex={-1} aria-label="用量明细"><UsageReportIsland control={{
+  const url = new URL(model.searchUrl ?? model.trends?.navigationUrl ?? "/admin?view=usage", "https://console.invalid");
+  return <div className="usage-page view-stack"><form method="get" action={url.pathname} data-dashboard-search="" data-search-anchor="usage-trends" className="usage-toolbar" aria-label="筛选全部用量">
+    {[...url.searchParams].filter(([key]) => key !== "q").map(([key, value]) => <input key={key} type="hidden" name={key} value={value}/>)}
+    <Label className="usage-search"><span className="sr-only">{model.filterPlaceholder ?? "搜索人员或模型"}</span><Input type="search" name="q" placeholder={model.filterPlaceholder ?? "搜索人员或模型"} defaultValue={model.search ?? ""} maxLength={256} autoComplete="off"/></Label>
+    <Button type="submit" variant="outline"><Search className="ui-icon" aria-hidden="true"/>搜索</Button>
+    {model.search ? <Button asChild variant="ghost"><a data-dashboard-link="" href={inventoryUrl(`${url.pathname}${url.search}`, {q: null})}>清除</a></Button> : null}
+    <Button asChild variant="outline"><a href={model.range.rawUsageUrl} download="usage.json"><Download className="ui-icon" aria-hidden="true"/>导出数据</a></Button>
+  </form>{model.trends ? <UsageTrends model={model.trends}/> : null}{model.rows.length + model.mediaRows.length > 0 || !model.trends ? <section id="usage-details" tabIndex={-1} aria-label="用量明细"><UsageReportIsland control={{
     records: [...model.rows.map(responseRecord), ...model.mediaRows.map(mediaRecord)],
     emptyLabel: model.range.emptyLabel,
     exportUrl: model.range.rawUsageUrl,
     truncated: model.rowsTruncated || model.mediaRowsTruncated,
     filterPlaceholder: model.filterPlaceholder ?? "搜索人员或模型",
     limitNote: model.limitNote ?? "请求和媒体记录分别显示最多 250 条，导出文件中各保留最多 1,000 条。"
-  }} /></section> : null}</>;
+  }} /></section> : null}</div>;
 }

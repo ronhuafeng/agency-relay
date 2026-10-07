@@ -1436,6 +1436,7 @@ describe("admin pages, accounts, and audit", () => {
         user_id: null,
         route_profile_id: null,
         response_model: null,
+        q: null,
         limit: 10
       },
       totals: {
@@ -1607,6 +1608,7 @@ describe("admin pages, accounts, and audit", () => {
       user_id: userId,
       route_profile_id: "codex.responses",
       response_model: "gpt-5.5-2026-07-01",
+      q: null,
       limit: 100
     });
     expect(body.totals).toMatchObject({ requests: 2, total_tokens: 30 });

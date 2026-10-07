@@ -10,6 +10,7 @@ import { InfoPopover } from "../components/info-popover";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "../components/table";
 import { RequestFiltersIsland } from "../islands";
 import { ObjectWorkspace, TaskClose } from "../task-workspace";
+import { RequestScope } from "../request-filters";
 
 function Result({ value }: { readonly value: RequestHistoryRecord["status"] }) {
   return <Badge data-tone={value === "error" ? "bad" : value === "ok" ? "ok" : undefined}>{value === "ok" ? "成功" : value === "error" ? "失败" : "未识别"}</Badge>;
@@ -18,7 +19,7 @@ function Fact({ label, children }: { readonly label: string; readonly children: 
   return <div><dt>{label}</dt><dd>{children}</dd></div>;
 }
 function HistoryScope({ model, id = "request-history-scope" }: { readonly model: RequestHistoryModel; readonly id?: string }) {
-  return <InfoPopover id={id} label="记录范围" iconOnly><p>仅显示当前仍保留的请求元数据{model.retentionDays === null ? "；保留配置暂时无法确认" : `；保留 ${model.retentionDays} 天`}。并非每次入口拒绝都采集，旧记录可能已清理。</p><p>用量报告和管理记录分别保存。历史成功不代表当前服务健康。</p></InfoPopover>;
+  return <RequestScope retentionDays={model.retentionDays} id={id}/>;
 }
 function RequestDetail({ row, model }: { readonly row: RequestHistoryRecord; readonly model: RequestHistoryModel }) {
   return <Card role="article" data-request-detail={row.id} className="request-detail-panel">
@@ -67,13 +68,15 @@ export function RequestHistory({ model }: { readonly model: RequestHistoryModel 
   const q = model.query;
   return <section id="request-history" aria-labelledby="request-history-title" className="panel usage-stack request-workspace" tabIndex={-1}>
     <h2 id="request-history-title" className="sr-only">请求记录</h2>
-    <RequestFiltersIsland control={{action:new URL(model.listUrl, "https://console.invalid").pathname,query:{from:q.from,to:q.to,plan:q.plan,user:q.user,result:q.result,request:q.request},services:model.services}} />
-    <ObjectWorkspace className="request-object-workspace" task={q.record ? <div id="request-detail" tabIndex={-1}>{model.detail ? <RequestDetail row={model.detail} model={model} /> : <section role="status" className="unavailable-view" data-request-missing=""><div className="task-card-head"><h2>未找到保留记录</h2><TaskClose href={`${model.listUrl}#request-history`} label="收起请求详情"/></div><p>这条内部记录可能未采集、已清理或不可用。查不到记录不代表没有发生请求。</p><HistoryScope model={model} id="request-missing-scope"/></section>}</div> : null} collection={<div className="request-collection"><div className="request-table"><Table scrollLabel="保留的请求记录" role="table" aria-label="保留的请求记录"><TableHeader role="rowgroup"><TableRow role="row"><TableHead scope="col">时间（UTC）</TableHead><TableHead scope="col">成员</TableHead><TableHead scope="col">服务 / 路径</TableHead><TableHead scope="col">结果</TableHead><TableHead scope="col" className="number">耗时</TableHead><TableHead scope="col" className="table-header-help"><span className="sr-only">操作</span><HistoryScope model={model}/></TableHead></TableRow></TableHeader><TableBody role="rowgroup">
+    <RequestFiltersIsland control={{action:new URL(model.listUrl, "https://console.invalid").pathname,query:{from:q.from,to:q.to,plan:q.plan,user:q.user,result:q.result,request:q.request},services:model.services,retentionDays:model.retentionDays}} />
+    <ObjectWorkspace className="request-object-workspace" task={q.record ? <div id="request-detail" tabIndex={-1}>{model.detail ? <RequestDetail row={model.detail} model={model} /> : <section role="status" className="unavailable-view" data-request-missing=""><div className="task-card-head"><h2>未找到保留记录</h2><TaskClose href={`${model.listUrl}#request-history`} label="收起请求详情"/></div><p>这条内部记录可能未采集、已清理或不可用。查不到记录不代表没有发生请求。</p><HistoryScope model={model} id="request-missing-scope"/></section>}</div> : null} collection={<div className="request-collection"><div className="request-table"><Table scrollLabel="保留的请求记录" role="table" aria-label="保留的请求记录"><TableHeader role="rowgroup"><TableRow role="row"><TableHead scope="col">时间（UTC）</TableHead><TableHead scope="col">成员</TableHead><TableHead scope="col">服务</TableHead><TableHead scope="col">请求路径</TableHead><TableHead scope="col">结果</TableHead><TableHead scope="col" className="number">上游状态</TableHead><TableHead scope="col" className="number">耗时</TableHead><TableHead scope="col">操作</TableHead></TableRow></TableHeader><TableBody role="rowgroup">
       {model.rows.map(row=><TableRow role="row" key={row.id} data-request-record={row.id} data-state={row.id===q.record?"selected":undefined}>
         <TableCell role="cell"><time dateTime={row.at} title={row.at}>{formatOperatorInstant(row.at)}</time></TableCell>
         <TableCell role="cell">{row.currentEmail ?? row.userId ?? "未记录"}</TableCell>
-        <TableCell role="cell"><strong>{row.service}</strong><small className="record-subline">{row.path ?? "路径未记录"}</small></TableCell>
-        <TableCell role="cell"><Result value={row.status}/><small className="record-subline">上游 {row.upstreamStatus ?? "未记录"}</small></TableCell>
+        <TableCell role="cell">{row.service}</TableCell>
+        <TableCell role="cell"><code>{row.path ?? "路径未记录"}</code></TableCell>
+        <TableCell role="cell"><Result value={row.status}/></TableCell>
+        <TableCell role="cell" className="number">{row.upstreamStatus ?? "未记录"}</TableCell>
         <TableCell role="cell" className="number"><span className="sr-only">耗时 </span>{row.latencyMs===null?"未记录":`${formatNumber(row.latencyMs)} ms`}</TableCell>
         <TableCell role="cell"><a className="action-link request-record-link" data-dashboard-link="" href={row.href} aria-label={`查看请求 ${row.id}`}><span>查看</span><ChevronRight className="ui-icon" aria-hidden="true" /></a></TableCell>
       </TableRow>)}

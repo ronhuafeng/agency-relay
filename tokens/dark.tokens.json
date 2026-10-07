@@ -180,6 +180,84 @@
         ],
         "hex": "#05030d"
       }
+    },
+    "chart-1": {
+      "$type": "color",
+      "$description": "Categorical chart series 1; does not express task health.",
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [
+          0.32941176470588235,
+          0.7803921568627451,
+          0.807843137254902
+        ],
+        "hex": "#54c7ce"
+      }
+    },
+    "chart-2": {
+      "$type": "color",
+      "$description": "Categorical chart series 2; does not express task health.",
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [
+          0.7176470588235294,
+          0.6078431372549019,
+          0.9098039215686274
+        ],
+        "hex": "#b79be8"
+      }
+    },
+    "chart-3": {
+      "$type": "color",
+      "$description": "Categorical chart series 3; does not express task health.",
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [
+          0.9294117647058824,
+          0.6627450980392157,
+          0.40784313725490196
+        ],
+        "hex": "#eda968"
+      }
+    },
+    "chart-4": {
+      "$type": "color",
+      "$description": "Categorical chart series 4; does not express task health.",
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [
+          0.5647058823529412,
+          0.7725490196078432,
+          0.5411764705882353
+        ],
+        "hex": "#90c58a"
+      }
+    },
+    "chart-5": {
+      "$type": "color",
+      "$description": "Categorical chart series 5; does not express task health.",
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [
+          0.9098039215686274,
+          0.5764705882352941,
+          0.7058823529411765
+        ],
+        "hex": "#e893b4"
+      }
+    },
+    "chart-6": {
+      "$type": "color",
+      "$description": "Categorical chart series 6; does not express task health.",
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [
+          0.5411764705882353,
+          0.6823529411764706,
+          0.8509803921568627
+        ],
+        "hex": "#8aaed9"
+      }
     }
   },
   "shadow": {

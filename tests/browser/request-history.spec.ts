@@ -5,7 +5,7 @@ for (const width of [320, 390, 1440]) test.describe(`request history ${width}px`
   test("filters, keyboard detail, Back/Forward and return preserve context", async ({ page, worker }, testInfo) => {
     worker.seedRequestHistory();
     await page.goto("/admin?view=audit");
-    const scope = page.locator('#request-history thead').getByRole('button', { name: '记录范围', exact: true });
+    const scope = page.locator('.request-filter-actions').getByRole('button', { name: '记录范围', exact: true });
     await expect(scope).toBeVisible();
     const scopeBounds = await scope.evaluate(button => ({left:button.getBoundingClientRect().left,right:button.getBoundingClientRect().right,width:button.getBoundingClientRect().width,height:button.getBoundingClientRect().height,viewport:innerWidth}));
     expect(scopeBounds.left).toBeGreaterThanOrEqual(0);
@@ -19,8 +19,14 @@ for (const width of [320, 390, 1440]) test.describe(`request history ${width}px`
       await expect(page.getByRole("button", { name: "精确定位", exact: true })).toBeVisible();
       const bounds = await page.locator("[data-request-record]").first().evaluate(row => ({bottom:row.getBoundingClientRect().bottom,viewport:innerHeight}));
       expect(bounds.bottom).toBeLessThanOrEqual(bounds.viewport);
-      expect(await page.locator(".request-table").evaluate(table => table.scrollWidth <= table.clientWidth + 1)).toBe(true);
+      const table = page.getByRole("region", {name: "保留的请求记录", exact: true});
+      expect(await table.evaluate(element => element.scrollWidth > element.clientWidth)).toBe(true);
+      await table.focus();
+      await page.keyboard.press("ArrowRight", {delay: 80});
+      await expect.poll(() => table.evaluate(element => element.scrollLeft)).toBeGreaterThan(0);
     }
+    await expect(page.locator("[data-request-record]").first().locator("td")).toHaveCount(8);
+    expect(await page.locator("[data-request-record]").first().evaluate(row => getComputedStyle(row).display)).toBe("table-row");
     await page.getByRole("button", { name: "精确定位", exact: true }).click();
     await page.getByRole("combobox", { name: "服务与路由", exact: true }).selectOption('codex.responses');
     await page.getByRole("textbox", { name: "成员", exact: true }).fill('member');

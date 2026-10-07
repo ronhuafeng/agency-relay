@@ -47,6 +47,46 @@ describe("exact bounded usage dates", () => {
 });
 
 describe("daily SQL and honest projections", () => {
+  it("searches the complete authorized ledger and exports the same person/model subset", async () => {
+    const fixture = makeFixture();
+    const member = await createUser(fixture, "member@example.com");
+    fixture.db.seedConsoleUser({id: "admin-own", email: "boss@example.com", role: "admin"});
+    for (let index = 0; index < 251; index++) fixture.db.seedUsage({user_id: member.user.id, day: "2026-06-24", route_profile_id: "codex.responses", response_model: `match-${index}`, requests: 2, total_tokens: 0, token_measurements: 1});
+    fixture.db.seedUsage({user_id: "other", day: "2026-06-24", route_profile_id: "codex.responses", response_model: "foreign-match", requests: 99});
+    const query = {mode: "range", from: "2026-06-18", to: "2026-06-24", q: "MATCH-", user_id: member.user.id, limit: 1} as const;
+    expect((await queryUsageSummary(fixture.env, query)).rows).toHaveLength(1);
+    expect((await queryUsageDaily(fixture.env, query)).responses[0].requests).toBe(502);
+    expect((await queryUsageDaily(fixture.env, {...query, q: "match-%"})).responses).toHaveLength(0);
+    const request = async (email: string, path: string) => handleRequest(new Request(`https://admin.example.test${path}`, {headers: {Cookie: `__Host-mini-console=${await consoleCookie(fixture, email)}`}}), fixture.env, fixture.ctx, fixture.deps);
+    const page = await request("boss@example.com", "/admin?view=usage&range=7d&q=MEMBER%40EXAMPLE.COM");
+    expect(page.status).toBe(200);
+    const document = doc(await page.text());
+    expect(textFor(document.querySelector('[data-trend-plan]')!, "Requests")).toBe("502");
+    expect(document.querySelectorAll('.usage-record')).toHaveLength(250);
+    expect(document.querySelector('input[name="q"]')?.getAttribute('value')).toBe("MEMBER@EXAMPLE.COM");
+    const exportUrl = document.querySelector('a[download]')!.getAttribute('href')!;
+    const exported = await (await request("boss@example.com", exportUrl)).json() as {totals: {requests: number}; rows: unknown[]};
+    expect(exported.totals.requests).toBe(502);
+    expect(exported.rows).toHaveLength(251);
+    const own = await request("member@example.com", "/admin?area=me&view=usage&range=7d&q=foreign-match&user_id=other");
+    expect(own.status).toBe(200);
+    expect(doc(await own.text()).querySelectorAll('[data-trend-plan]')).toHaveLength(0);
+  });
+  it("distinguishes coexisting exact plans and uses integral low-count axis ticks", async () => {
+    const fixture = makeFixture();
+    for (const plan of ["codex.responses", "codex.responses_compact", "codex.historical.responses"]) fixture.db.seedUsage({user_id: "mine", day: "2026-06-24", route_profile_id: plan, requests: 1});
+    const daily = await queryUsageDaily(fixture.env, {mode: "range", from: "2026-06-18", to: "2026-06-24", user_id: "mine", limit: 1});
+    const document = doc(renderToStaticMarkup(createElement(UsageTrends, {model: {range: parseUsageTrendRange(url(""), now), daily, scopeLabel: "我的用量"}})));
+    const series = [...document.querySelectorAll('[data-trend-plan]')];
+    expect(new Set(series.map(node => node.querySelector('button')?.textContent)).size).toBe(3);
+    expect(new Set(series.map(node => node.querySelector('[data-series-color]')?.getAttribute('data-series-color'))).size).toBe(3);
+    for (const node of series) expect(node.querySelector('code')?.textContent).toBe(node.getAttribute('data-trend-plan'));
+    expect([...document.querySelectorAll('.usage-chart-y span')].map(node => node.textContent)).toEqual(["2", "1", "0"]);
+    for (const bar of document.querySelectorAll('[data-chart-day="2026-06-24"] .usage-chart-bar')) {
+      expect(bar.getAttribute('y')).toBe("120");
+      expect(bar.getAttribute('height')).toBe("100");
+    }
+  });
   it("sums every matching ledger row beyond the display/export limit and keeps exact plans apart", async () => {
     const fixture = makeFixture();
     for (let i = 0; i < 251; i++) fixture.db.seedUsage({user_id: "mine", day: "2026-06-24", route_profile_id: "grok.production.responses", response_model: `model-${i}`, requests: 2, ok_requests: 1, error_requests: 1, total_tokens: 0, token_measurements: 1, cost_measurements: 1});
@@ -66,7 +106,7 @@ describe("daily SQL and honest projections", () => {
     expect(textFor(grok, "Requests")).toBe("503");
     expect(textFor(grok, "Token")).toBe("100 · 已记录 252/503 次请求");
     expect(textFor(grok, "上游计量金额")).toBe("$0.0000000012 · 已记录 252/503 次请求");
-    const rows = [...grok.querySelectorAll("tbody tr")];
+    const rows = [...document.querySelectorAll('[data-text-plan="grok.production.responses"] dl>div')];
     expect(rows).toHaveLength(7);
     expect(rows[0].textContent).toContain("未记录 · 覆盖 0/0");
     expect(rows.at(-1)!.textContent).toContain("0 · 已记录 251/502 次请求");
@@ -103,9 +143,10 @@ describe("daily SQL and honest projections", () => {
     expect(textFor(video, "上游计量金额")).toBe("$0 · 已记录 1/3 次终态");
     const image = document.querySelector('[data-trend-capability="image_generation"]')!;
     expect(textFor(image, "输出")).toBe("1 · 已记录 1/2 次请求");
-    const start = video.querySelectorAll('tbody tr')[5];
+    const videoRows = document.querySelectorAll('[data-text-plan="xai.production.videos_generations"] dl>div');
+    const start = videoRows[5];
     expect(start.textContent).toContain("未提供 · 覆盖 0/0");
-    expect(video.querySelectorAll('tbody tr')[6].textContent).toContain("2026-06-24 · 未结束01 / 1 / 1");
+    expect(videoRows[6].textContent).toContain("完成 / 失败 / 过期：1 / 1 / 1");
   });
 });
 

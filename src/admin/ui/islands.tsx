@@ -8,7 +8,7 @@ import { AccountMenuView, type AccountMenuControl } from "./account-menu";
 import { SetupFilesView, type SetupFilesControl } from "./setup-files";
 import { SetupWorkbenchView, type SetupWorkbenchControl } from "./setup-workbench";
 import { RequestFiltersView, type RequestFiltersControl } from "./request-filters";
-import { UsageSeriesView, type UsageSeriesControl } from "./usage-series";
+import { UsageComparison, type UsageComparisonControl } from "./usage-comparison";
 import { TaskEditorView, type TaskEditorControl } from "./task-editor";
 import { RoutesView, type RouteRow } from "./pages/routes";
 import { CreditTableView, type CreditTableRow } from "./credit-table";
@@ -29,8 +29,8 @@ export function RoutesIsland({routes}: {readonly routes: readonly RouteRow[]}) {
   return <><div id="routes-root"><RoutesView routes={routes}/></div><IslandData id="routes-props" kind="routes" value={routes}/></>;
 }
 
-export function UsageSeriesIsland({control}: {readonly control: UsageSeriesControl}) {
-  return <div className="usage-series-slot"><div id={`${control.id}-root`}><UsageSeriesView control={control}/></div><IslandData id={`${control.id}-props`} kind="usage-series" value={control}/></div>;
+export function UsageComparisonIsland({control}: {readonly control: UsageComparisonControl}) {
+  return <><div id={`${control.id}-root`}><UsageComparison control={control}/></div><IslandData id={`${control.id}-props`} kind="usage-comparison" value={control}/></>;
 }
 
 export function RequestFiltersIsland({control}: {readonly control: RequestFiltersControl}) {
@@ -77,7 +77,7 @@ type IslandModel =
   | {readonly kind: "credit-table"; readonly value: readonly CreditTableRow[]}
   | {readonly kind: "task-editor"; readonly value: TaskEditorControl}
   | {readonly kind: "routes"; readonly value: readonly RouteRow[]}
-  | {readonly kind: "usage-series"; readonly value: UsageSeriesControl}
+  | {readonly kind: "usage-comparison"; readonly value: UsageComparisonControl}
   | {readonly kind: "request-filters"; readonly value: RequestFiltersControl}
   | {readonly kind: "account-menu"; readonly value: AccountMenuControl}
   | {readonly kind: "setup-files"; readonly value: SetupFilesControl}

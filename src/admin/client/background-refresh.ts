@@ -26,8 +26,9 @@ export function initializeBackgroundRefresh(apply: (doc: Document) => void): () 
     for (const tabs of changedTabs) if (!root.contains(tabs)) changedTabs.delete(tabs);
     const active = document.activeElement;
     return editedForms.size > 0 || changedTabs.size > 0
+      || active instanceof Element && active.matches(".usage-chart-bar")
       || active instanceof HTMLElement && active.matches("input,textarea,select,button,a[href],summary")
-      || Boolean(root.querySelector('[data-draft-state]:not([hidden]),[data-slot=collapsible-content][data-state=open],[data-member-key-open=true],[data-credit-editor-state=open],[data-dashboard-notice][data-state=error]:not([hidden])'))
+      || Boolean(root.querySelector('[data-draft-state]:not([hidden]),[data-slot=collapsible-content][data-state=open],details[open],[data-member-key-open=true],[data-credit-editor-state=open],[data-dashboard-notice][data-state=error]:not([hidden])'))
       || Array.from(document.querySelectorAll('[popover]:popover-open,[role=dialog],[role=alertdialog],[data-slot=dropdown-menu-content]')).some(visible)
       || Boolean(document.querySelector<HTMLInputElement>("#console-navigation-toggle")?.checked)
       || Array.from(root.querySelectorAll<HTMLInputElement>('input[type=password],[data-visible-row-filter-input]')).some(input => input.value !== "");

@@ -18,25 +18,33 @@ for (const scenario of [
     await expect(page.locator('.usage-record[data-usage-plan="codex.responses"]').filter({hasText: 'gpt-5.5'}).locator('.usage-record-cost')).toContainText('$0.00071');
     if (scenario.identity === "member") expect((await page.locator('main').textContent())?.includes('other-private-model')).toBe(false);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
-    const disclosure = page.locator('[data-trend-plan="grok.production.responses"] .usage-data-trigger');
-    await expect(disclosure).toHaveAttribute('aria-expanded', 'false');
+    await expect(page.locator('.usage-comparison table')).toHaveCount(0);
+    await expect(page.getByRole('table', {name: '按人员和服务的用量'})).toHaveCount(1);
+    const layout = page.getByRole('combobox', {name: '柱状图布局', exact: true});
+    const bars = page.locator('[data-chart-day="2026-06-24"] .usage-chart-bar');
+    await expect(layout).toHaveValue('grouped');
+    expect(await bars.nth(0).getAttribute('x')).not.toBe(await bars.nth(1).getAttribute('x'));
+    await layout.selectOption('stacked');
+    expect(await bars.nth(0).getAttribute('x')).toBe(await bars.nth(1).getAttribute('x'));
+    const stacked = await bars.evaluateAll(nodes => nodes.map(node => ({y: Number(node.getAttribute('y')), height: Number(node.getAttribute('height'))})));
+    expect(stacked[1].y + stacked[1].height).toBeCloseTo(stacked[0].y);
+    await layout.selectOption('grouped');
+    await page.getByRole('combobox', {name: 'UTC 日期', exact: true}).selectOption('2026-06-23');
+    await expect(page.locator('.usage-day-values')).toContainText('2026-06-23 UTC');
+    await bars.nth(1).focus();
+    await expect(page.locator('.usage-day-values')).toContainText('2026-06-24 UTC');
+    await page.getByRole('combobox', {name: '比较指标', exact: true}).selectOption('tokens');
+    await expect(page.locator('[data-chart-day="2026-06-23"] [data-daily-plan="codex.responses"] .usage-unknown-mark')).toHaveText('?');
+    await expect(page.locator('[data-chart-day="2026-06-24"] [data-daily-plan="grok.production.responses"] .usage-chart-bar')).toHaveAttribute('aria-label', /已记录令牌：0/);
+    await page.getByRole('combobox', {name: '比较指标', exact: true}).selectOption('count');
+    const disclosure = page.locator('.usage-chart-description > summary');
+    const data = page.locator('[data-text-plan="grok.production.responses"]');
+    await expect(data).toBeHidden();
     await disclosure.focus(); await page.keyboard.press('Enter');
-    await expect(disclosure).toHaveAttribute('aria-expanded', 'true');
-    const data = page.locator('[data-trend-plan="grok.production.responses"] .table-scroll');
     await expect(data).toBeVisible();
-    // Continue the human keyboard path from the disclosure into its opened data region.
-    await page.keyboard.press('Tab'); await expect(data).toBeFocused();
-    await expect(data).toHaveAttribute('data-slot', 'table-container');
-    if (scenario.width === 390) {
-      expect(await data.evaluate(element => element.scrollWidth > element.clientWidth)).toBe(true);
-      // One physical key dwell allows WebKit's native scroll animation to begin before keyup.
-      await page.keyboard.press('ArrowRight', {delay: 80});
-      await expect.poll(() => data.evaluate(element => element.scrollLeft)).toBeGreaterThan(0);
-    }
-    expect(await data.locator('tbody tr').count()).toBe(7);
-    expect(await data.evaluate(element => !element.closest('[popover],[role=dialog],details'))).toBe(true);
-    expect((await data.locator('tbody tr').first().textContent())?.includes('未记录 · 覆盖 0/0')).toBe(true);
-    expect((await data.locator('tbody tr').last().textContent())?.includes('未结束')).toBe(true);
+    await expect(data.locator('dl>div')).toHaveCount(7);
+    await expect(data.locator('dl>div').first()).toContainText('未记录 · 覆盖 0/0');
+    await expect(data.locator('dl>div').last()).toContainText('未结束');
     // Usage fixture has no secrets or real authority on screen. Capture this allowlisted view only.
     await page.evaluate(() => scrollTo(0, 0));
     expect(await page.locator("[data-one-time-key],[data-created-token]").count()).toBe(0);
@@ -46,10 +54,27 @@ for (const scenario of [
 
     await disclosure.click();
     await expect(data).toBeHidden();
-    const originalSummary = await page.locator('[data-trend-plan="grok.production.responses"] .usage-metrics').textContent();
-    await page.locator('[data-visible-row-filter-input]').fill('no-rendered-record-matches');
-    expect(await page.locator('[data-trend-plan="grok.production.responses"] .usage-metrics').textContent()).toBe(originalSummary);
-    await page.locator('[data-visible-row-filter-input]').fill('');
+    // The same server filter changes the complete chart, original details and export.
+    await page.getByRole('searchbox').fill('gpt-5.5');
+    await page.getByRole('button', {name: '搜索', exact: true}).click();
+    await expect(page.locator('[data-trend-plan]')).toHaveCount(1);
+    await expect(page.locator('.usage-record')).toHaveCount(1);
+    await expect(page.locator('[data-trend-plan="codex.responses"] .usage-metrics')).toContainText('Requests2');
+    const exportHref = await page.getByRole('link', {name: '导出数据', exact: true}).getAttribute('href');
+    const exportResponse = await page.request.get(exportHref!);
+    expect(exportResponse.status()).toBe(200);
+    const exported = await exportResponse.json();
+    const usage = scenario.identity === "member" ? exported.usage : exported;
+    const mediaRows = scenario.identity === "member" ? exported.media.rows : exported.media_rows;
+    expect(usage.totals.requests).toBe(2);
+    expect(usage.rows).toHaveLength(1);
+    expect(usage.rows[0].response_model).toBe('gpt-5.5');
+    expect(mediaRows).toHaveLength(0);
+    await page.getByRole('navigation', {name: 'UTC 时间范围'}).getByRole('link', {name: '30 天', exact: true}).click();
+    await expect(page.getByRole('searchbox')).toHaveValue('gpt-5.5');
+    await expect(page.locator('[data-trend-plan="codex.responses"] .usage-metrics')).toContainText('Requests2');
+    await page.getByRole('link', {name: '清除', exact: true}).click();
+    await page.getByRole('navigation', {name: 'UTC 时间范围'}).getByRole('link', {name: '7 天', exact: true}).click();
 
     const stale = worker.hold({method: 'GET', path: '/admin', view: 'usage'});
     await page.getByRole('navigation', {name: 'UTC 时间范围'}).getByRole('link', {name: '30 天', exact: true}).click();
@@ -96,17 +121,18 @@ test.describe('personal native empty and unavailable usage', () => {
 
 test.describe('native daily ledger', () => {
   test.use({identity: 'member', script: false, viewport: {width: 390, height: 900}});
-  test('exposes the complete scoped table without script', async ({page, worker}) => {
+  test('exposes scoped bars and complete daily text without script', async ({page, worker}) => {
     worker.seedUsageTrends();
     await page.goto('/admin?area=me&view=usage&range=7d');
-    const table = page.locator('[data-trend-plan="grok.production.responses"] .table-scroll');
-    await expect(table).toBeVisible();
-    await expect(table.locator('tbody tr')).toHaveCount(7);
-    await table.focus(); await expect(table).toBeFocused();
-    await expect(table).toHaveAttribute('data-slot', 'table-container');
-    expect(await table.evaluate(element => element.scrollWidth > element.clientWidth)).toBe(true);
-    await page.keyboard.press('ArrowRight', {delay: 80});
-    await expect.poll(() => table.evaluate(element => element.scrollLeft)).toBeGreaterThan(0);
+    await expect(page.locator('.usage-bar-plot')).toBeVisible();
+    await expect(page.locator('.usage-comparison table')).toHaveCount(0);
+    await page.locator('.usage-chart-description > summary').focus();
+    await page.keyboard.press('Enter');
+    const data = page.locator('[data-text-plan="grok.production.responses"]');
+    await expect(data).toBeVisible();
+    await expect(data.locator('dl>div')).toHaveCount(7);
+    await expect(data.locator('dl>div').last()).toContainText('0 · 已记录 1/4 次请求');
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
     expect((await page.locator('main').textContent())?.includes('other-private-model')).toBe(false);
   });
 });

@@ -52,7 +52,7 @@ function RouteList({ hostname, routes, hostIndex, tabbed = false }: { readonly h
       <div className="panel-head">
         <div className="route-host-identity"><h2 id={headingId} className={tabbed ? "sr-only" : undefined}>{grantLabel(routes[0]?.grant ?? "")}</h2><code>{presentText(hostname)}</code></div>
       </div>
-      <VisibleRowFilter label={`${hostname} 上的路由`} placeholder="过滤路由" countLabel={`${formatNumber(routes.length)} 条`} rowCount={routes.length} shownRowsOnly>
+      <VisibleRowFilter label={`${hostname} 上的路由`} placeholder="过滤路由" countLabel={`${formatNumber(routes.length)} 条`} rowCount={routes.length} shownRowsOnly hideCount>
         <div className="route-table"><Table scrollLabel={`${hostname} 上的路由`} role="table" aria-label={`${hostname} 上的路由`}><TableHeader role="rowgroup"><TableRow role="row"><TableHead scope="col">方法</TableHead><TableHead scope="col">请求路径</TableHead><TableHead scope="col">服务</TableHead><TableHead scope="col">最近结果</TableHead><TableHead scope="col"><span className="sr-only">详情</span></TableHead></TableRow></TableHeader><TableBody role="rowgroup">
           {routes.map((route) => {
             const health = healthOf(route);

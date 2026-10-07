@@ -176,7 +176,7 @@ td.actions{white-space:nowrap}
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 .visible-row-filter:not([data-visible-row-filter-ready=true])>.visible-row-filter-bar,.visible-row-filter:not([data-visible-row-filter-ready=true])>.visible-row-filter-scope{display:none}
 .visible-row-filter-bar{display:flex;align-items:center;justify-content:flex-start;flex-wrap:wrap;gap:12px;padding:0 0 12px;border:0;background:transparent}
-.visible-row-filter-bar label{flex:1 1 280px;max-width:420px}
+.visible-row-filter-bar label{flex:1 1 280px;min-width:0}
 .visible-row-filter-bar input{width:100%;font:inherit}
 .visible-row-filter-scope{margin:0;padding:7px 0;border-bottom:1px solid var(--line-soft);color:var(--muted-foreground);font-size:13px}
 .visible-row-filter>[data-visible-row-filter-empty]{border-top:1px solid var(--line-soft)}
@@ -875,16 +875,6 @@ label.confirmation-fallback>span{min-width:0;flex:1 1 auto}
 :is(.page-head h1,.console-simple h1,.console-simple h2,.panel h2,.panel h3,.nav-toggle-label,.brand>strong) { letter-spacing:normal; }
 
 /* Bounded SSR usage trends; data tables remain usable without client scripting. */
-.usage-trend-series { min-width: 0; }
-.usage-trend-series h3 { margin-block: 0 .4rem; }
-.usage-trend-plot { margin-block: 1rem; }
-.usage-trend-plot svg { display: block; width: 100%; fill: currentColor; }
-.usage-trend-baseline { stroke: currentColor; fill: none; }
-.usage-trend-endpoints { display: flex; justify-content: space-between; gap: 1rem; }
-.usage-trend-data .table-scroll { max-width: 100%; overflow-x: auto; }
-.usage-trend-data th, .usage-trend-data td { white-space: nowrap; }
-.usage-trend-data caption { text-align: start; white-space: normal; overflow-wrap: anywhere; }
-.usage-trend-series .note { overflow-wrap: anywhere; }
 
 /* The document owns this mask, so replacing a shell, form, portal or even the
    body cannot uncover private content while foreground authority is unknown. */
@@ -976,8 +966,6 @@ html[data-console-authority-pending] body > :not([data-console-authority-status]
 .console-simple [data-member-view] .section-links { margin:0; }
 .console-simple [data-member-view] :is(.services,.key-facts) { overflow-wrap:anywhere; }
 .console-simple [data-member-view=quota] .services { grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr)); align-items:start; }
-.usage-trend-grid { align-items:start; }
-.usage-trend-data .table-scroll:focus-visible { outline:3px solid var(--ring); outline-offset:3px; }
 @media(min-width:1200px) {
   .usage-report .usage-record { grid-template-columns:minmax(0,1fr) minmax(0,1fr); column-gap:32px; }
 }

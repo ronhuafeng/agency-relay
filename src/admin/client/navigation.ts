@@ -181,7 +181,7 @@ export function createNavigation(initialize: (root: ParentNode) => void, drafts:
         clearPrivatePage();
         notice(reason === "session" ? "登录状态无法验证，请重新登录。" : "当前角色已改变，请打开自己的首页。", "error", new URL(reason === "session" ? consoleLoginHref(url.pathname + url.search + url.hash) : "/", location.href), reason === "session" ? "重新登录" : "打开我的首页");
       } else if (mode === "back") { location.replace(url.href); }
-      else notice((document.querySelector<HTMLElement>("[data-usage-range-label]")?.dataset.usageRangeLabel ? `仍显示旧范围 ${document.querySelector<HTMLElement>("[data-usage-range-label]")!.dataset.usageRangeLabel} 的上次数据（已过期）。` : "") + (reason === "denied" ? "没有这个页面的访问权限，目前仍显示上次的数据。" : document.querySelector("[data-dashboard-unavailable]") ? "页面暂时打不开，请稍后重试。" : "页面暂时打不开，目前仍显示上次的数据。"), "error", url, "重试");
+      else notice((document.querySelector<HTMLElement>("[data-usage-range-label]")?.dataset.usageRangeLabel ? `仍显示旧范围 ${document.querySelector<HTMLElement>("[data-usage-range-label]")!.dataset.usageRangeLabel} 的上次数据（已过期）；已应用搜索：${document.querySelector<HTMLElement>("[data-usage-search]")?.dataset.usageSearch || "无"}。` : "") + (reason === "denied" ? "没有这个页面的访问权限，目前仍显示上次的数据。" : document.querySelector("[data-dashboard-unavailable]") ? "页面暂时打不开，请稍后重试。" : "页面暂时打不开，目前仍显示上次的数据。"), "error", url, "重试");
     } finally { if (requestSequence === sequence) { busy = false; main().removeAttribute("aria-busy"); } }
   };
   document.addEventListener("submit", (event) => {

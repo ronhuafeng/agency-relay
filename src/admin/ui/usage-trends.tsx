@@ -1,4 +1,4 @@
-import { UsageSeriesIsland } from "./islands";
+import { UsageComparisonIsland } from "./islands";
 import type { UsageSeriesControl } from "./usage-series";
 import type { MediaUsageDailyPoint, UsageDailyPoint, UsageDailyResult } from "../../types";
 import { executionPlanPresentation } from "../../plans/execution-plans";
@@ -14,6 +14,7 @@ export interface UsageTrendsModel {
   scopeLabel: string;
   filterLabel?: string;
   navigationUrl?: string;
+  search?: string;
 }
 const number = formatNumber;
 function measured(value: number, coverage: number, denominator: number, money = false, unit = "", opportunities = "次请求"): string {
@@ -28,13 +29,13 @@ function sum<T extends Record<string, number>>(zero: T, rows: readonly T[]): T {
   for (const field of Object.keys(zero) as (keyof T)[]) result[field] = rows.reduce<number>((total, row) => total + row[field], 0) as T[keyof T];
   return result;
 }
-function ResponseSeries({plan, source, range, navigation}: {plan: string; source: readonly UsageDailyPoint[]; range: UsageTrendRange; navigation?: UsageSeriesControl["range"]}) {
+function responseSeries(plan: string, source: readonly UsageDailyPoint[], range: UsageTrendRange): UsageSeriesControl {
   const presentation = executionPlanPresentation(plan);
   const rows = range.days.map(day => source.find(row => row.day === day) ?? {...zeroResponses, day, route_profile_id: plan});
   const totals = sum(zeroResponses, source);
   const cost = usageCost(plan, totals);
-  return <UsageSeriesIsland control={{
-    id: `trend-data-${plan}`, plan, title: presentation.usageLabel, range: navigation,
+  return {
+    id: `trend-data-${plan}`, plan, title: presentation.usageLabel,
     costHelp: cost?.help,
     metrics: [
       {label: "Requests", value: number(totals.requests)},
@@ -43,11 +44,11 @@ function ResponseSeries({plan, source, range, navigation}: {plan: string; source
       ...(cost ? [{label: cost.label, value: measured(cost.ticks, cost.measurements, totals.requests, true)}] : [])
     ],
     columns: ["Requests", "Failure", "Token · 覆盖", ...(cost ? [`${cost.label} · 覆盖`] : [])],
-    rows: rows.map(row => { const dailyCost = usageCost(plan, row); return {day: row.day, current: row.day === range.to, count: row.requests, values: [number(row.requests), number(row.error_requests), measured(row.total_tokens, row.token_measurements, row.requests), ...(dailyCost ? [measured(dailyCost.ticks, dailyCost.measurements, row.requests, true)] : [])]}; })
-  }}/>;
+    rows: rows.map(row => { const dailyCost = usageCost(plan, row); return {day: row.day, current: row.day === range.to, count: row.requests, failure: row.error_requests, tokens: row.token_measurements > 0 ? row.total_tokens : null, values: [number(row.requests), number(row.error_requests), measured(row.total_tokens, row.token_measurements, row.requests), ...(dailyCost ? [measured(dailyCost.ticks, dailyCost.measurements, row.requests, true)] : [])]}; })
+  };
 }
 const capabilityLabels = {image_generation: "生成图像", image_edit: "编辑图像", video_generation: "生成视频", video_edit: "编辑视频", video_extension: "延长视频"};
-function MediaSeries({plan, capability, source, range, navigation}: {plan: string; capability: MediaUsageDailyPoint["capability"]; source: readonly MediaUsageDailyPoint[]; range: UsageTrendRange; navigation?: UsageSeriesControl["range"]}) {
+function mediaSeries(plan: string, capability: MediaUsageDailyPoint["capability"], source: readonly MediaUsageDailyPoint[], range: UsageTrendRange): UsageSeriesControl {
   const presentation = executionPlanPresentation(plan);
   const video = capability.startsWith("video");
   const opportunities = (row: typeof zeroMedia) => video ? row.completed_jobs + row.failed_jobs + row.expired_jobs : row.started_jobs;
@@ -55,8 +56,8 @@ function MediaSeries({plan, capability, source, range, navigation}: {plan: strin
   const totals = sum(zeroMedia, source); const denominator = opportunities(totals);
   const cost = usageCost(plan, totals);
   const measurement = (value: number, coverage: number, count: number, money = false, unit = "") => measured(value, coverage, count, money, unit, video ? "次终态" : "次请求");
-  return <UsageSeriesIsland control={{
-    id: `trend-data-${plan}-${capability}`, plan, capability, title: `${presentation.clientLabel} · ${capabilityLabels[capability]}`, range: navigation,
+  return {
+    id: `trend-data-${plan}-${capability}`, plan, capability, title: `${presentation.clientLabel} · ${capabilityLabels[capability]}`,
     costHelp: cost?.help,
     metrics: [
       {label: "开始", value: number(totals.started_jobs)},
@@ -66,19 +67,23 @@ function MediaSeries({plan, capability, source, range, navigation}: {plan: strin
       ...(cost ? [{label: cost.label, value: measurement(cost.ticks, cost.measurements, denominator, true)}] : [])
     ],
     columns: ["开始", "完成 / 失败 / 过期", "输出 · 覆盖", ...(video ? ["秒 · 覆盖"] : []), ...(cost ? [`${cost.label} · 覆盖`] : [])],
-    rows: rows.map(row => ({day: row.day, current: row.day === range.to, count: row.started_jobs, values: [number(row.started_jobs), `${number(row.completed_jobs)} / ${number(row.failed_jobs)} / ${number(row.expired_jobs)}`, measurement(row.outputs, row.output_measurements, opportunities(row)), ...(video ? [measurement(row.video_seconds, row.duration_measurements, opportunities(row), false, " 秒")] : []), ...(cost ? [measurement(row.provider_cost_usd_ticks, row.cost_measurements, opportunities(row), true)] : [])]}))
-  }}/>;
+    rows: rows.map(row => ({day: row.day, current: row.day === range.to, count: row.started_jobs, failure: row.failed_jobs, values: [number(row.started_jobs), `${number(row.completed_jobs)} / ${number(row.failed_jobs)} / ${number(row.expired_jobs)}`, measurement(row.outputs, row.output_measurements, opportunities(row)), ...(video ? [measurement(row.video_seconds, row.duration_measurements, opportunities(row), false, " 秒")] : []), ...(cost ? [measurement(row.provider_cost_usd_ticks, row.cost_measurements, opportunities(row), true)] : [])]}))
+  };
 }
 export function UsageTrends({model}: {model: UsageTrendsModel}) {
   const {daily, range} = model;
   const plans = [...new Set(daily.responses.map(row => row.route_profile_id))];
   const mediaGroups = [...new Map(daily.media.map(row => [`${row.route_profile_id}:${row.capability}`, {plan: row.route_profile_id, capability: row.capability}])).values()];
+  const series = [...plans.map(plan => responseSeries(plan, daily.responses.filter(row => row.route_profile_id === plan), range)),
+    ...mediaGroups.map(({plan, capability}) => mediaSeries(plan, capability, daily.media.filter(row => row.route_profile_id === plan && row.capability === capability), range))];
+  const labels: Record<string, string> = {"codex.responses": "Codex · Responses", "codex.responses_compact": "Codex · Compact", "codex.historical.responses": "Codex · 历史"};
+  const distinctSeries = series.map(item => series.filter(other => other.title === item.title).length > 1 ? {...item, title: labels[item.plan] ?? `${item.title} · ${item.plan}`} : item);
   const navigation = model.navigationUrl ? {key: range.key, href7: inventoryUrl(model.navigationUrl, {range: "7d"}), href30: inventoryUrl(model.navigationUrl, {range: "30d"})} : undefined;
-  return <section id="usage-trends" tabIndex={-1} className="usage-trends view-stack" aria-label="按日用量趋势" data-usage-range-label={`${range.from} 至 ${range.to} UTC`}>
+  return <section id="usage-trends" tabIndex={-1} className="usage-trends view-stack" aria-label="按日用量趋势" data-usage-range-label={`${range.from} 至 ${range.to} UTC`} data-usage-search={model.search ?? ""}>
     <h2 className="sr-only">{model.scopeLabel}</h2>{model.filterLabel ? <p className="usage-filter-context">{model.filterLabel}</p> : null}
-    <div className="usage-trend-grid">{plans.map((plan, index) => <ResponseSeries key={plan} plan={plan} source={daily.responses.filter(row => row.route_profile_id === plan)} range={range} navigation={index === 0 ? navigation : undefined}/>)}
-    {mediaGroups.map(({plan, capability}, index) => <MediaSeries key={`${plan}:${capability}`} plan={plan} capability={capability} source={daily.media.filter(row => row.route_profile_id === plan && row.capability === capability)} range={range} navigation={plans.length === 0 && index === 0 ? navigation : undefined}/>)}
-    {plans.length === 0 && mediaGroups.length === 0 ? <><header className="usage-empty-range">{navigation ? <nav className="ranges" aria-label="UTC 时间范围"><a href={navigation.href7} data-dashboard-link="" aria-current={range.key === "7d" ? "true" : undefined}>7 天</a><a href={navigation.href30} data-dashboard-link="" aria-current={range.key === "30d" ? "true" : undefined}>30 天</a></nav> : null}</header><Empty data-trend-empty="all"><EmptyHeader><EmptyTitle>此范围暂无用量记录</EmptyTitle></EmptyHeader></Empty></> : null}
-    </div>
+    {plans.length + mediaGroups.length > 0 ? <UsageComparisonIsland control={{id: "usage-comparison", range: navigation,
+      series: distinctSeries
+    }}/> : <><header className="usage-empty-range">{navigation ? <nav className="ranges" aria-label="UTC 时间范围"><a href={navigation.href7} data-dashboard-link="" aria-current={range.key === "7d" ? "true" : undefined}>7 天</a><a href={navigation.href30} data-dashboard-link="" aria-current={range.key === "30d" ? "true" : undefined}>30 天</a></nav> : null}</header><Empty data-trend-empty="all"><EmptyHeader><EmptyTitle>此范围暂无用量记录</EmptyTitle></EmptyHeader></Empty></>}
+
   </section>;
 }

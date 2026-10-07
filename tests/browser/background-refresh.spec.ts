@@ -5,7 +5,9 @@ test('quiet reads retain unchanged content and apply changed SQL data without mo
   await page.clock.install({time: new Date(NOW)});
   await page.setViewportSize({width: 1200, height: 420});
   worker.seedUsageTrends();
-  await page.goto('/admin?view=usage&range=7d');
+  const usageSearches: Array<string | null> = [];
+  page.on('request', request => { const url = new URL(request.url()); if (request.method() === 'GET' && url.searchParams.get('view') === 'usage') usageSearches.push(url.searchParams.get('q')); });
+  await page.goto('/admin?view=usage&range=7d&q=grok-observed-zero');
   const root = await page.locator('main#content').elementHandle();
   await page.locator('main#content').focus();
   await page.evaluate(() => scrollTo(0, 120));
@@ -25,32 +27,74 @@ test('quiet reads retain unchanged content and apply changed SQL data without mo
   await page.clock.fastForward(300000);
   await expect.poll(() => page.locator('main').getAttribute('data-console-revision')).not.toBe(unchangedRevision);
   await expect(page.locator('[data-trend-plan="grok.production.responses"] .usage-metrics')).toContainText('Requests5');
+  await expect(page.locator('[data-usage-search]')).toHaveAttribute('data-usage-search', 'grok-observed-zero');
+  await expect(page.locator('[data-trend-plan]')).toHaveCount(1);
+  expect(usageSearches.every(search => search === 'grok-observed-zero')).toBe(true);
   expect(await root!.evaluate(node => node.isConnected)).toBe(false);
   await expect(page.locator('main#content')).toBeFocused();
   expect(await page.evaluate(() => scrollY)).toBe(scroll);
   expect(worker.requests.every(request => request.method === 'GET')).toBe(true);
 });
 
-test('changed ledger data waits while its inline table is open', async ({page, worker}) => {
+test('changed ledger data waits while its native chart explanation is open', async ({page, worker}) => {
   await page.clock.install({time: new Date(NOW)});
   worker.seedUsageTrends();
   await page.goto('/admin?view=usage&range=7d');
-  const disclosure = page.locator('[data-trend-plan="grok.production.responses"] .usage-data-trigger');
-  await disclosure.click();
-  await page.locator('.usage-series-head h3').first().evaluate(node => { (node as HTMLElement).tabIndex = -1; (node as HTMLElement).focus(); });
+  const disclosure = page.locator('details.usage-chart-description');
+  const summary = disclosure.locator('summary');
+  await summary.focus();
+  await page.keyboard.press('Enter');
+  await expect(disclosure).toHaveJSProperty('open', true);
+  await expect(disclosure.locator('[data-text-plan="grok.production.responses"] dl>div')).toHaveCount(7);
+  const heading = page.locator('.usage-comparison-head h3');
+  await heading.evaluate(node => { (node as HTMLElement).tabIndex = -1; (node as HTMLElement).focus(); });
   const revision = await page.locator('main').getAttribute('data-console-revision');
   worker.recordObservedRequest();
   worker.advanceClock(300000);
   await page.clock.fastForward(300000);
   await expect(page.locator('[data-console-status]')).toHaveText('有新数据');
-  await expect(disclosure).toHaveAttribute('aria-expanded', 'true');
+  await expect(disclosure).toHaveJSProperty('open', true);
+  await expect(heading).toBeFocused();
   expect(await page.locator('main').getAttribute('data-console-revision')).toBe(revision);
-  await disclosure.click();
+  await summary.click();
   await page.locator('main#content').focus();
   worker.advanceClock(300000);
   await page.clock.fastForward(300000);
   await expect(page.locator('[data-trend-plan="grok.production.responses"] .usage-metrics')).toContainText('Requests5');
   await expect(page.locator('[data-console-status]')).toBeHidden();
+});
+
+test('changed ledger data waits while keyboard focus is on a compared day bar', async ({page, worker}) => {
+  await page.clock.install({time: new Date(NOW)});
+  worker.seedUsageTrends();
+  await page.goto('/admin?view=usage&range=7d');
+  const bar = page.locator('[data-chart-day="2026-06-23"] [data-daily-plan="codex.responses"] .usage-chart-bar');
+  expect(Number(await bar.getAttribute('height'))).toBeGreaterThan(0);
+  await bar.focus();
+  await page.keyboard.press('Shift+Tab');
+  await page.keyboard.press('Tab');
+  await expect(bar).toBeFocused();
+  await expect(page.locator('.usage-day-values')).toContainText('2026-06-23 UTC');
+  const originalBar = await bar.elementHandle();
+  const revision = await page.locator('main').getAttribute('data-console-revision');
+
+  worker.recordObservedRequest();
+  worker.advanceClock(300000);
+  await page.clock.fastForward(300000);
+  await expect(page.locator('[data-console-status]')).toHaveText('有新数据');
+  await expect(bar).toBeFocused();
+  await expect(page.locator('.usage-day-values')).toContainText('2026-06-23 UTC');
+  expect(await originalBar!.evaluate(node => node.isConnected)).toBe(true);
+  expect(await page.locator('main').getAttribute('data-console-revision')).toBe(revision);
+
+  await page.locator('main#content').focus();
+  worker.advanceClock(300000);
+  await page.clock.fastForward(300000);
+  await expect(page.locator('[data-trend-plan="grok.production.responses"] .usage-metrics')).toContainText('Requests5');
+  await expect.poll(() => page.locator('main').getAttribute('data-console-revision')).not.toBe(revision);
+  await expect(page.locator('main#content')).toBeFocused();
+  await expect(page.locator('[data-console-status]')).toBeHidden();
+  expect(worker.requests.every(request => request.method === 'GET')).toBe(true);
 });
 
 test.describe('member draft during background reads', () => {

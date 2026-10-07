@@ -12,7 +12,7 @@ const memberViews = new Set(['home', 'keys', 'quota', 'usage', 'setup']);
 const adminFields: Record<string, readonly string[]> = {
   overview: [], credentials: ['account', 'task', 'q', 'page'],
   access: ['kind', 'person', 'key', 'task', 'q', 'page', 'page_size', 'key_q', 'key_page'],
-  setup: ['person', 'key', 'task', 'q', 'page'], usage: ['person', 'plan', 'model'],
+  setup: ['person', 'key', 'task', 'q', 'page'], usage: ['person', 'plan', 'model', 'q'],
   audit: ['record', 'audit_from', 'audit_to', 'audit_plan', 'audit_user', 'audit_result', 'audit_request', 'audit_cursor', 'audit_direction'],
   surfaces: [], quotas: [], 'control-audit': []
 };
@@ -30,7 +30,7 @@ export function consoleReturnTarget(value: string): string | null {
   if (url.hash && !CONSOLE_RETURN_SECTIONS.some(section => section === url.hash)) return null;
   const query = url.searchParams;
   for (const [field, content] of query) {
-    if (query.getAll(field).length !== 1 || content.length > 512 || content.includes('\ufffd')
+    if (query.getAll(field).length !== 1 || content.length > (field === 'q' ? 256 : 512) || content.includes('\ufffd')
       || /[\u0000-\u001f\u007f]/.test(content) || /(?:cfwd_|sk-|Bearer\s|https?:\/\/)/i.test(content)) return null;
   }
   if (query.has('area') && (service || query.get('area') !== 'me')) return null;
@@ -38,7 +38,7 @@ export function consoleReturnTarget(value: string): string | null {
   // An unqualified member view is retained for existing member links. Ambiguous
   // setup/usage addresses use the union of their actual owning HTML grammars.
   const personal = (): boolean => memberViews.has(view)
-    && [...query.keys()].every(field => ['view', ...(service ? [] : ['area']), ...(['keys', 'setup'].includes(view) ? ['key'] : []), ...(view === 'usage' ? ['range'] : [])].includes(field))
+    && [...query.keys()].every(field => ['view', ...(service ? [] : ['area']), ...(['keys', 'setup'].includes(view) ? ['key'] : []), ...(view === 'usage' ? ['range', 'q'] : [])].includes(field))
     && (!query.has('key') || Boolean(query.get('key')?.trim()))
     && (!query.has('range') || ['7d', '30d'].includes(query.get('range')!));
   if (service || query.has('area') || ['home', 'keys', 'quota'].includes(view)) return personal() ? value : null;

@@ -127,7 +127,7 @@ function parseDashboardRange(url: URL, now: Date): DashboardRange {
   for (const field of ["q", "page", "key_q", "key_page"]) {
     if (!url.searchParams.has(field)) continue;
     if (url.searchParams.getAll(field).length !== 1
-      || (!["access", "setup"].includes(url.searchParams.get("view") ?? "") && !(url.searchParams.get("view") === "credentials" && (field === "q" || field === "page" && url.searchParams.has("account"))))
+      || (!["access", "setup"].includes(url.searchParams.get("view") ?? "") && !(url.searchParams.get("view") === "usage" && field === "q") && !(url.searchParams.get("view") === "credentials" && (field === "q" || field === "page" && url.searchParams.has("account"))))
       || field.startsWith("key_") && (url.searchParams.get("view") !== "access" || !url.searchParams.get("person")?.trim())) throw new DashboardInputError("invalid inventory query");
     const value = url.searchParams.get(field)!;
     if (field.endsWith("page")) {
@@ -137,9 +137,11 @@ function parseDashboardRange(url: URL, now: Date): DashboardRange {
   if (["overview", "usage"].includes(url.searchParams.get("view") ?? "overview")) {
     try {
       const usage = url.searchParams.get("view") === "usage";
-      if ([...url.searchParams.keys()].some(key => !(usage ? ["view", "range", "person", "plan", "model"] : ["view", "range"]).includes(key))) throw new Error("Unsupported usage page parameter");
+      if ([...url.searchParams.keys()].some(key => !(usage ? ["view", "range", "person", "plan", "model", "q"] : ["view", "range"]).includes(key))) throw new Error("Unsupported usage page parameter");
       const trend = parseUsageTrendRange(url, now);
       const params = new URLSearchParams({from: trend.from, to: trend.to, limit: "1000"});
+      if (url.searchParams.has("q")) params.set("q", url.searchParams.get("q")!);
+      if (url.searchParams.getAll("q").length > 1) throw new Error("Repeated usage search");
       for (const [page, api] of [["person", "user_id"], ["plan", "route_profile_id"], ["model", "response_model"]]) {
         if (url.searchParams.getAll(page).length > 1) throw new Error("Repeated usage filter");
         if (url.searchParams.has(page)) params.set(api, url.searchParams.get(page)!);

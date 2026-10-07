@@ -15,7 +15,7 @@ import { initializeSetup, initializeView } from "./setup";
 import { AccessChoiceView, AddAccountView, MemberKeyForm } from "../ui/forms";
 import { CapabilityComparison } from "../ui/capabilities";
 import { UsageReport } from "../ui/usage-report";
-import { UsageSeriesView, readUsageSeries } from "../ui/usage-series";
+import { UsageComparison, readUsageComparison } from "../ui/usage-comparison";
 import { CopySecretView, DisclosureView } from "../ui/secrets";
 import { readAccessChoice, readAddAccount, readCapabilityComparison, readCopySecret, readDisclosure, readMemberKeyForm, readUsageReport } from "../ui/models";
 import { AccountMenuView, readAccountMenu } from "../ui/account-menu";
@@ -140,10 +140,10 @@ function hydrateControl(node: HTMLScriptElement): void {
     if (routes && root && !hydrated.has(root)) hydrated.set(root, hydrateRoot(root, <RoutesView routes={routes}/>));
     return;
   }
-  if (node.dataset.uiProps === "usage-series") {
-    const control = readUsageSeries(value); const root = control && document.getElementById(`${control.id}-root`);
+  if (node.dataset.uiProps === "usage-comparison") {
+    const control = readUsageComparison(value); const root = control && document.getElementById(`${control.id}-root`);
     if (!control || !root || hydrated.has(root)) return;
-    hydrated.set(root, hydrateRoot(root, <UsageSeriesView control={control}/>));
+    hydrated.set(root, hydrateRoot(root, <UsageComparison control={control}/>));
     return;
   }
   if (node.dataset.uiProps === "request-filters") {

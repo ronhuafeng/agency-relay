@@ -1,6 +1,4 @@
-import { Button } from "./components/button";
 import { InfoPopover } from "./components/info-popover";
-import { VisibleRowFilter } from "./chrome";
 import type { UsageFact, UsageRecord, UsageReportControl } from "./models";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "./components/table";
 
@@ -34,16 +32,7 @@ export function UsageReport({control}: {readonly control: UsageReportControl}) {
     <section aria-label="用量" className="usage-report view-stack" data-dashboard-mode="observe" data-view-role="usage">
       {control.records.length > 0 ? <>
         {control.truncated ? <p className="usage-report-tools">当前列表未显示全部记录。</p> : null}
-        <VisibleRowFilter
-          shownRowsOnly
-          label="用量"
-          placeholder={control.filterPlaceholder}
-          countLabel={`${control.records.length} 条`}
-          rowCount={control.records.length}
-          action={<Button asChild variant="link"><a href={control.exportUrl} download="usage.json">导出数据</a></Button>}
-        >
           <div className="table-wrap usage-detail-table"><Table role="table" aria-label="按人员和服务的用量"><TableHeader role="rowgroup"><TableRow role="row"><TableHead role="columnheader" scope="col">人员 / 模型</TableHead><TableHead role="columnheader" scope="col">服务</TableHead><TableHead role="columnheader" scope="col" className="number">请求 / 开始</TableHead><TableHead role="columnheader" scope="col" className="number">令牌 / 输出</TableHead><TableHead role="columnheader" scope="col" className="number">失败</TableHead>{costColumn ? <TableHead role="columnheader" scope="col" className="number">金额（USD）</TableHead> : null}<TableHead role="columnheader" scope="col"><span className="sr-only">明细</span></TableHead></TableRow></TableHeader><TableBody role="rowgroup" className="usage-records">{control.records.map(record => <Record key={record.id} record={record} costColumn={costColumn} />)}</TableBody></Table></div>
-        </VisibleRowFilter>
         {control.truncated ? <p className="caption">{control.limitNote}</p> : null}
       </> : <p className="empty">{control.emptyLabel}</p>}
     </section>
