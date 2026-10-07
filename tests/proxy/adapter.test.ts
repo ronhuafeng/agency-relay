@@ -548,7 +548,7 @@ describe("Native Provider Execution adapter", () => {
         input_tokens: 3,
         output_tokens: 5,
         total_tokens: 8,
-        input_tokens_details: { cached_tokens: 1 },
+        input_tokens_details: { cached_tokens: 1, cache_write_tokens: 2 },
         output_tokens_details: { reasoning_tokens: 2 },
         cost_in_usd_ticks: 11344000
       }
@@ -578,6 +578,7 @@ describe("Native Provider Execution adapter", () => {
     const outcome = await outcomePromise;
     expect(outcome.usage?.model).toBe("grok-4.5");
     expect(outcome.usage?.usage?.total_tokens).toBe(8);
+    expect(outcome.usage?.usage?.cache_write_input_tokens).toBe(2);
     expect(outcome.usage?.usage?.provider_cost_usd_ticks).toBe(11344000);
   });
 

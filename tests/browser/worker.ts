@@ -302,6 +302,8 @@ export async function startConsoleWorker(options: { measure?: boolean } = {}) {
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
       response.run(owner, "2026-06-24", "grok.production.responses", "grok-observed-zero", 4, 3, 1, 0, 1, 0, 1, NOW, NOW);
       response.run(owner, "2026-06-23", "codex.responses", "codex-unmeasured", 2, 2, 0, 0, 0, 0, 0, NOW, NOW);
+      db.sqlite.prepare(`INSERT INTO usage_daily (user_id,day,route_profile_id,response_model,requests,ok_requests,total_tokens,token_measurements,api_equivalent_usd_ticks,api_equivalent_measurements,first_seen_at,last_seen_at)
+        VALUES (?,'2026-06-24','codex.responses','gpt-5.5',2,2,110,1,7100000,1,?,?)`).run(owner,NOW,NOW);
       response.run(owner, "2026-05-30", "grok.production.responses", "older-observation", 8, 8, 0, 80, 8, 100, 8, NOW, NOW);
       response.run("other", "2026-06-24", "codex.responses", "other-private-model", 900, 900, 0, 0, 0, 0, 0, NOW, NOW);
       db.sqlite.prepare(`INSERT INTO media_usage_daily

@@ -37,7 +37,7 @@ Visible Usage pages read their current scoped Agency Relay ledgers in the backgr
 
 | Ledger | Grouping | Meaning |
 | --- | --- | --- |
-| `usage_daily` | User + UTC day + Execution Plan + response model | Responses outcomes, tokens, provider cost ticks and coverage |
+| `usage_daily` | User + UTC day + Execution Plan + response model | Responses outcomes, tokens, separate provider / API-equivalent USD ticks and coverage |
 | `media_usage_daily` | User + UTC day + Execution Plan + capability | Image/video outcomes, outputs, duration, cost ticks and coverage |
 | Surface Credit usage | User + surface + UTC month | Agency Relay admission units; not provider measurement |
 | `operator_mutation_audit` | Actor + operation + target + time | Canonical control-plane changes; not a usage ledger |
@@ -55,6 +55,7 @@ Read aggregates alongside their measurement counts:
 ```text
 total_tokens                 + token_measurements
 provider_cost_usd_ticks       + cost_measurements
+api_equivalent_usd_ticks      + api_equivalent_measurements
 outputs                      + output_measurements
 video_seconds                + duration_measurements
 ```
@@ -63,15 +64,21 @@ Zero coverage means unknown, not free and not an observed zero. Preserve accumul
 
 Responses cache read share is `cached_input_tokens / input_tokens`, only with token measurement coverage and a positive denominator. Display coverage with the ratio; no coverage or zero denominator gives an em dash. Browser-local filters describe only displayed rows and cannot alter server totals or user scope.
 
+The Token metric's “已记录 N/M 次请求” describes measurement coverage, not cache usage. Cache read share is separate. Amounts have independent coverage; token coverage does not establish price coverage.
+
 ## Provisional Billing
 
-`provider_cost_usd_ticks` retains the exact provider-returned integer from `usage.cost_in_usd_ticks`. The existing reporting contract converts one tick as `10^-10` USD and labels the result **Billing · Provisional / Provider-reported metered value**. No amount is derived from public prices, tokens, media size, model name or guesses.
+`provider_cost_usd_ticks` retains the exact provider-returned integer from final `usage.cost_in_usd_ticks`. One tick is `10^-10` USD. Grok/xAI display **上游计量金额**: provisional provider-reported value, not a settled invoice. It already includes measured hosted-tool fees. Do not add a token-price estimate or sum cumulative stream totals.
 
-Keep ChatGPT and Grok subscription authorities distinct. ChatGPT backend rows without a per-request amount have unavailable billing, not an estimate. Grok/xAI measured values may be subtotaled within their subscription authority while retaining exact surface/capability breakdown and coverage. Multiple physical credentials do not justify inventing per-account dollar attribution absent ledger evidence. There is no fake unified cross-provider bill, account balance, savings total, settled charge or invoice.
+Codex Responses display **API 费率折算**: recorded text-token usage valued at official OpenAI **Standard API-key rates**, not ChatGPT subscription cash spend. The fixed Standard policy does not assert the upstream's actual service tier. It excludes separately charged tools, media and unobserved categories. It is stored in `api_equivalent_usd_ticks` with independent coverage and never fills a missing provider amount.
+
+The versioned snapshot lives in [the pricing module](../../src/usage/api-value.ts). Each physical request uses its provider-reported exact model ID and sufficient input/cache/output buckets. GPT-5.6+ requires explicit cache-write tokens. Unknown models, missing/invalid buckets and unsafe values remain unpriced. Reasoning is already in output. Eligible models use the full-request long-context rate only above 272,000 input tokens. Calculate before daily aggregation, in integer ticks; store price version and cache writes beside the audit amount. Price updates affect new observations only. No inferred historical backfill.
+
+Keep ChatGPT and Grok authorities distinct, including exact surface/capability breakdown and coverage. Multiple physical credentials do not justify inventing per-account dollar attribution absent ledger evidence. There is no unified cross-provider bill, balance, savings total or invoice. Surface Credits remain admission units, not USD.
 
 ## Cost calibration evidence
 
-This bounded research was checked on 2026-10-07. It does not change the Provisional Billing contract above or add a runtime price table. Public prices can check an amount; they cannot replace an absent measurement.
+This research was checked on 2026-10-07 and supports the separate API-equivalent policy above. Public prices cannot replace an absent provider measurement or prove a settled subscription charge.
 
 ### xAI API and Grok Build
 
@@ -128,17 +135,17 @@ Codex credit billing has no separate cache-write charge. Credit purchase prices 
 
 The current observer preserves integer provider ticks, and the formatter uses decimal digits rather than rounding each request to cents. Responses and media have separate ledgers and cost coverage. These mechanisms support precise **observed metered value**, not a complete bill across unobserved routes or interrupted streams. A paid upstream attempt can have no final measurement. [Observer](../../src/proxy/observation.ts#L311-L334), [Accounting](../../src/db.ts#L777-L831), [USD formatter](../../src/admin/format.ts#L39-L44)
 
-Current Responses capture omits cache-write counts and actual service tier. Daily model totals also erase individual long-context thresholds. Therefore the existing ledger cannot reconstruct exact OpenAI API list-price valuation for all requests; a price table alone cannot repair missing history. Grok Build session totals are not an independent complete reconciliation source because of the gaps above. [Captured fields](../../src/proxy/observation.ts#L311-L322), [Daily aggregation](../../src/db.ts#L709-L728)
+Responses capture preserves reported cache-write counts for new observations. Fixed Standard valuation does not need actual service tier. Historical daily model totals erase per-request thresholds and may lack write counts, so a price table alone cannot repair missing history. Grok Build totals are not an independent complete reconciliation source because of the gaps above. [Capture](../../src/proxy/observation.ts), [Per-request accounting](../../src/db.ts)
 
-Integer precision also has a limit. The observer accepts only JavaScript safe integers. At `10^10` ticks per USD, the maximum safe value is $900,719.9254740991. Aggregate normalization returns zero for an unsafe integer, so exactness is not guaranteed for a larger subtotal. A future financial implementation must preserve exact integer/decimal values throughout storage, aggregation and API output; a float conversion alone is not sufficient. [Capture validation](../../src/proxy/observation.ts#L332-L334), [Summary normalization](../../src/db.ts#L1096-L1108), [Integer guard](../../src/db.ts#L1163-L1165)
+Integer precision has a limit. The observer and per-request valuation accept only JavaScript safe integers. At `10^10` ticks per USD, the maximum safe amount is $900,719.9254740991. Responses summary normalization rejects an unsafe amount instead of presenting zero; the formatter also rejects unsafe amounts. This is bounded exact metering, not unbounded financial arithmetic. [Capture](../../src/proxy/observation.ts), [Summary normalization](../../src/db.ts), [USD formatting](../../src/admin/format.ts)
 
 The calibration decision is to keep three meanings separate:
 
 - **Provider-reported metered value:** use final ticks once per physical request; retain measured, missing and partial coverage. Do not add prices or hosted-tool fees to an already inclusive amount.
-- **API-equivalent value:** if separately implemented, use versioned official rates and sufficient per-request metadata before daily aggregation. Label its assumed tier, included cost categories and coverage; never write it into `provider_cost_usd_ticks` or use it to fill a missing provider measurement.
+- **API-equivalent value:** use versioned official Standard rates and sufficient per-request metadata before daily aggregation. Label its assumed tier, included cost categories and coverage; never write it into `provider_cost_usd_ticks` or use it to fill a missing provider measurement.
 - **Settled charge:** require the relevant provider's financial authority and account contract. Neither public prices nor subscription ticks establish a cash invoice. Agency Relay Surface Credits remain admission units, not USD.
 
-This research changes documentation only. It does not add estimation, change observation/zero semantics, reconcile production data, call a paid endpoint or change the Worker.
+No historical recalculation or settled-bill reconciliation is part of this reporting contract.
 
 ## Observation boundary
 

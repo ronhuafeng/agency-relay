@@ -12,8 +12,10 @@ for (const scenario of [
     const path = scenario.identity === "member" ? "/admin?area=me&view=usage&range=7d" : "/admin?view=usage&range=7d";
     await page.goto(path);
     await expect(page.getByRole('region', {name: '按日用量趋势'})).toBeVisible();
-    expect(await page.locator('[data-trend-plan="grok.production.responses"] .usage-metrics').textContent()).toContain('0 · 部分 1/4');
-    expect(await page.locator('[data-trend-plan="codex.responses"] .usage-metrics').textContent()).toContain('未记录');
+    expect(await page.locator('[data-trend-plan="grok.production.responses"] .usage-metrics').textContent()).toContain('0 · 已记录 1/4 次请求');
+    expect(await page.locator('[data-trend-plan="codex.responses"] .usage-metrics').textContent()).toContain(`API 费率折算$0.00071 · 已记录 1/${scenario.identity === "member" ? 4 : 904} 次请求`);
+    await expect(page.locator('[data-trend-plan="codex.responses"]')).toContainText('OpenAI Standard');
+    await expect(page.locator('.usage-record[data-usage-plan="codex.responses"]').filter({hasText: 'gpt-5.5'}).locator('.usage-record-cost')).toContainText('$0.00071');
     if (scenario.identity === "member") expect((await page.locator('main').textContent())?.includes('other-private-model')).toBe(false);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
     const disclosure = page.locator('[data-trend-plan="grok.production.responses"] .usage-data-trigger');

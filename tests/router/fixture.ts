@@ -735,8 +735,9 @@ export class RouterTestDatabase {
          (user_id, day, route_profile_id, response_model, requests, ok_requests,
           error_requests, input_tokens, cached_input_tokens, output_tokens,
           reasoning_tokens, total_tokens, token_measurements,
-          provider_cost_usd_ticks, cost_measurements, first_seen_at, last_seen_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          provider_cost_usd_ticks, cost_measurements, first_seen_at, last_seen_at,
+          api_equivalent_usd_ticks, api_equivalent_measurements)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     ).run(...sqliteValues(
       userId,
       row.day,
@@ -754,7 +755,9 @@ export class RouterTestDatabase {
       row.provider_cost_usd_ticks ?? 0,
       row.cost_measurements ?? 0,
       row.first_seen_at ?? row.last_seen_at ?? `${String(row.day)}T00:00:00.000Z`,
-      row.last_seen_at ?? `${String(row.day)}T00:00:00.000Z`
+      row.last_seen_at ?? `${String(row.day)}T00:00:00.000Z`,
+      row.api_equivalent_usd_ticks ?? 0,
+      row.api_equivalent_measurements ?? 0
     ));
   }
 

@@ -37,9 +37,11 @@ export function personLabel(person: { readonly id: string; readonly email?: stri
 }
 
 export function formatUsdTicks(ticks: number): string {
-  const scale = 10_000_000_000;
-  const whole = Math.floor(ticks / scale);
-  const fractional = String(ticks % scale).padStart(10, "0").replace(/0+$/, "");
+  if (!Number.isSafeInteger(ticks) || ticks < 0) return "超出精确范围";
+  const scale = 10_000_000_000n;
+  const amount = BigInt(ticks);
+  const whole = amount / scale;
+  const fractional = String(amount % scale).padStart(10, "0").replace(/0+$/, "");
   return fractional ? `$${whole}.${fractional}` : `$${whole}`;
 }
 

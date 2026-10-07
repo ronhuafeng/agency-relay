@@ -17,9 +17,9 @@ export const snapshotColumns: Record<string, string[]> = {
 // Reports contain counters and display evidence, never traffic or session IDs.
 export const reportSnapshotColumns: Record<string, string[]> = {
   user_surface_credit_usage: "user_id,surface_grant,period_start,consumed_credits,admitted_attempts,last_seen_at".split(","),
-  usage_daily: "user_id,day,route_profile_id,response_model,requests,ok_requests,error_requests,input_tokens,cached_input_tokens,output_tokens,reasoning_tokens,total_tokens,token_measurements,provider_cost_usd_ticks,cost_measurements,first_seen_at,last_seen_at".split(","),
+  usage_daily: "user_id,day,route_profile_id,response_model,requests,ok_requests,error_requests,input_tokens,cached_input_tokens,output_tokens,reasoning_tokens,total_tokens,token_measurements,provider_cost_usd_ticks,cost_measurements,first_seen_at,last_seen_at,api_equivalent_usd_ticks,api_equivalent_measurements".split(","),
   media_usage_daily: "user_id,day,route_profile_id,capability,started_jobs,completed_jobs,failed_jobs,expired_jobs,outputs,video_seconds,output_measurements,duration_measurements,first_seen_at,last_seen_at,provider_cost_usd_ticks,cost_measurements".split(","),
-  request_audit: "id,route_profile_id,route,user_id,key_id,codex_auth_id,response_model,status,upstream_status,error_code,latency_ms,input_tokens,cached_input_tokens,output_tokens,reasoning_tokens,total_tokens,created_at,ingress_profile_id,ingress_protocol,resolved_model,capability_source,subscription_account_id,egress_profile_id,provider_cost_usd_ticks".split(",")
+  request_audit: "id,route_profile_id,route,user_id,key_id,codex_auth_id,response_model,status,upstream_status,error_code,latency_ms,input_tokens,cached_input_tokens,output_tokens,reasoning_tokens,total_tokens,created_at,ingress_profile_id,ingress_protocol,resolved_model,capability_source,subscription_account_id,egress_profile_id,provider_cost_usd_ticks,cache_write_input_tokens,api_equivalent_usd_ticks,api_price_version".split(",")
 };
 export interface SnapshotQuery { table: string; columns: string[]; sql: string; countSql?: string }
 export function snapshotQueries(email?: string, requestLimit?: number): SnapshotQuery[] {
