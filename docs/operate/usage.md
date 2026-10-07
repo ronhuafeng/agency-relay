@@ -69,6 +69,77 @@ Responses cache read share is `cached_input_tokens / input_tokens`, only with to
 
 Keep ChatGPT and Grok subscription authorities distinct. ChatGPT backend rows without a per-request amount have unavailable billing, not an estimate. Grok/xAI measured values may be subtotaled within their subscription authority while retaining exact surface/capability breakdown and coverage. Multiple physical credentials do not justify inventing per-account dollar attribution absent ledger evidence. There is no fake unified cross-provider bill, account balance, savings total, settled charge or invoice.
 
+## Cost calibration evidence
+
+This bounded research was checked on 2026-10-07. It does not change the Provisional Billing contract above or add a runtime price table. Public prices can check an amount; they cannot replace an absent measurement.
+
+### xAI API and Grok Build
+
+The [official xAI price page](https://docs.x.ai/developers/pricing) lists these standard global API rates in USD per million tokens. `grok-build-0.1` is a model ID, not a price for every request made by the Grok Build client.
+
+| Model | Prompt below 200k: input / cached input / output | Prompt at least 200k: input / cached input / output |
+| --- | --- | --- |
+| `grok-4.7`, `grok-4.6` | 2 / 0.50 / 6 | 4 / 1 / 12 |
+| `grok-build-0.1` | 1 / 0.20 / 2 | 2 / 0.40 / 4 |
+
+Long-context rates apply to all tokens in the request. The same page lists a 2x priority multiplier and a 1.1x US regional multiplier. Grok 4.7 Fast is available only in Build/Cursor and uses their plan billing: below 200k, 4 / 1 / 12; above 200k, 6 / 1.50 / 18. Its section says “above”/“exceeds” 200k, unlike the standard table's inclusive threshold; the exact Fast boundary is not resolved here. These are different billing contexts, not interchangeable model prices. [xAI pricing](https://docs.x.ai/developers/pricing)
+
+For the official xAI API, `usage.cost_in_usd_ticks` is the request's charge after discounts and includes token and server-side tool costs. Image and video responses use this field too. One USD is `10^10` ticks. The xAI SDK's streaming chunks carry running request totals; only the final total must be added across requests. REST Chat Completions needs `stream_options.include_usage=true` and reports cost in its final usage chunk. Do not add hosted-tool fees again. [xAI cost tracking](https://docs.x.ai/developers/cost-tracking)
+
+The source review below is pinned to upstream [Grok Build `f0e3be1100ef5252488e3be8bb0e91cf68d8c305`](https://github.com/xai-org/grok-build/commit/f0e3be1100ef5252488e3be8bb0e91cf68d8c305). The installed executable reports `1.0.44 (5b807183dd79)`, but its matching source was not resolved from local Git objects or the public repository. These findings do not establish that installed build's behavior. No paid request was made.
+
+- The reviewed normal response path uses the provider's amount, not token counts multiplied by a hardcoded model price. Responses extracts a signed integer from terminal `response.completed`/`response.incomplete` metadata. It also replaces `usage.total_tokens` with live context length where available; that context count is not a dollar measurement. Chat Completions keeps the last valid cumulative cost instead of summing stream chunks. [Responses capture](https://github.com/xai-org/grok-build/blob/f0e3be1100ef5252488e3be8bb0e91cf68d8c305/crates/codegen/xai-grok-sampler/src/client.rs#L124-L157), [Chat Completions capture](https://github.com/xai-org/grok-build/blob/f0e3be1100ef5252488e3be8bb0e91cf68d8c305/crates/codegen/xai-grok-sampler/src/stream/chat_completions.rs#L116-L125)
+- Conversion uses ticks divided by `1e10`. Build discards wire costs of zero or less as unreported; its source comment says the REST layer supplies zero for absent cost. Agency Relay instead counts an explicit zero as measured. The comment alone does not prove the installed Gateway's zero semantics or justify changing Agency Relay's contract; resolve that exact contract before copying either rule. Exact decimal representation requires integer ticks, not the USD float. [Normalization](https://github.com/xai-org/grok-build/blob/f0e3be1100ef5252488e3be8bb0e91cf68d8c305/crates/codegen/xai-grok-sampling-types/src/conversation.rs#L858-L863), [USD conversion](https://github.com/xai-org/grok-build/blob/f0e3be1100ef5252488e3be8bb0e91cf68d8c305/crates/codegen/xai-grok-shell/src/extensions/notification.rs#L308-L314)
+- Main model calls and completed subagent usage feed the session ledger; prompt attribution can be narrower. Integer addition is saturating, not unbounded. Persisted turn rows are deltas, and the session is their aggregate. Adding a parent total to its children, or adding session totals to turn/model breakdowns, can double-count the same cost. [Ledger arithmetic](https://github.com/xai-org/grok-build/blob/f0e3be1100ef5252488e3be8bb0e91cf68d8c305/crates/codegen/xai-chat-state/src/usage.rs#L45-L152), [Subagent folding](https://github.com/xai-org/grok-build/blob/f0e3be1100ef5252488e3be8bb0e91cf68d8c305/crates/codegen/xai-chat-state/src/actor/mutations.rs#L449-L493), [Turn persistence](https://github.com/xai-org/grok-build/blob/f0e3be1100ef5252488e3be8bb0e91cf68d8c305/crates/codegen/xai-grok-shell/src/session/usage_file.rs#L253-L315)
+- Partial/incomplete prompt reports withhold cost. Headless JSON exposes exact ticks beside USD only when its trust checks pass; `streaming-messages-json` instead substitutes `0.0` for unavailable cost. The TUI session block rounds USD to four decimals; the status line uses two and hides values below $0.005. None of these displays proves zero charge. [Cost projection](https://github.com/xai-org/grok-build/blob/f0e3be1100ef5252488e3be8bb0e91cf68d8c305/crates/codegen/xai-grok-shell/src/extensions/notification.rs#L321-L406), [Messages fallback](https://github.com/xai-org/grok-build/blob/f0e3be1100ef5252488e3be8bb0e91cf68d8c305/crates/codegen/xai-grok-pager/src/headless/reducer/messages/usage.rs#L65-L112), [Session display](https://github.com/xai-org/grok-build/blob/f0e3be1100ef5252488e3be8bb0e91cf68d8c305/crates/codegen/xai-grok-pager/src/app/status_blocks.rs#L234-L241), [Status display](https://github.com/xai-org/grok-build/blob/f0e3be1100ef5252488e3be8bb0e91cf68d8c305/crates/codegen/xai-grok-pager/src/views/status_line/segments.rs#L18-L104)
+- A complete flag does not prove complete spend. The source notes an ordinary missing-usage response can remain unmarked. Its compaction output and standalone image/video response types omit cost, so these paths do not establish coverage in the session USD ledger. Failed or cancelled requests without final usage also cannot be priced from these totals. [Missing-usage gap](https://github.com/xai-org/grok-build/blob/f0e3be1100ef5252488e3be8bb0e91cf68d8c305/crates/codegen/xai-grok-shell/src/session/acp_session_impl/sampler_turn.rs#L2171-L2198), [Compaction output](https://github.com/xai-org/grok-build/blob/f0e3be1100ef5252488e3be8bb0e91cf68d8c305/crates/codegen/xai-grok-shell/src/session/helpers/session_compact.rs#L627-L696), [Image response](https://github.com/xai-org/grok-build/blob/f0e3be1100ef5252488e3be8bb0e91cf68d8c305/crates/codegen/xai-grok-tools/src/implementations/grok_build/image_gen/mod.rs#L381-L395), [Video response](https://github.com/xai-org/grok-build/blob/f0e3be1100ef5252488e3be8bb0e91cf68d8c305/crates/codegen/xai-grok-tools/src/implementations/grok_build/video_gen/mod.rs#L862-L878)
+
+Do not apply the API's actual-charge claim to subscription OAuth. Grok's included usage is a shared plan allowance; Extra Usage Credits are separate. Build's billing API has percentage and USD-cent fields, distinct from per-response ticks. The inspected sources do not prove that OAuth ticks equal extra cash paid, invoice totals or allowance depletion. [Grok usage FAQ](https://docs.x.ai/grok/faq), [Build billing fields](https://github.com/xai-org/grok-build/blob/f0e3be1100ef5252488e3be8bb0e91cf68d8c305/crates/codegen/xai-grok-shell/src/extensions/billing.rs#L19-L96)
+
+Build's headless `usage.input_tokens` is the ordinary-input bucket: full input minus cache reads and cache writes. Agency Relay retains full input, with cached input as a subset. Do not subtract cache reads twice when comparing these reports. [Headless token projection](https://github.com/xai-org/grok-build/blob/f0e3be1100ef5252488e3be8bb0e91cf68d8c305/crates/codegen/xai-grok-shell/src/extensions/notification.rs#L321-L366), [Agency Relay observer](../../src/proxy/observation.ts#L311-L322)
+
+### OpenAI API and ChatGPT subscriptions
+
+“ChatGPT API pricing” needs an exact authority: the public OpenAI API has a USD price table; ChatGPT-authenticated Codex has a subscription/credit contract. They are not the same bill. The [official OpenAI API price table](https://developers.openai.com/api/docs/pricing) lists these Standard text rates in USD per million tokens:
+
+| Model | Short input | Cache read | Cache write | Short output | Long input | Long cache read | Long cache write | Long output |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `gpt-6.1-sol` | 2 | 0.10 | 2.50 | 10 | 4 | 0.20 | 5 | 15 |
+| `gpt-6-sol` | 2 | 0.20 | 2.50 | 10 | 4 | 0.40 | 5 | 15 |
+| `gpt-5.5` | 5 | 0.50 | — | 30 | 10 | 1 | — | 45 |
+| `gpt-5.4` | 2.50 | 0.25 | — | 15 | 5 | 0.50 | — | 22.50 |
+| `gpt-5.3-codex` | 1.75 | 0.175 | — | 14 | — | — | — | — |
+
+Short context is at most 272K input tokens; long context is above 272K. A dash is no separately listed rate, not a measured zero or a claim that the model supports that context. Select the exact model and price version. Fast, Ultrafast, Batch, Flex, regional processing and tool/media prices are separate; do not apply one universal multiplier or use Standard rates to assert actual spend. [OpenAI pricing](https://developers.openai.com/api/docs/pricing)
+
+For text-only API list-price valuation, let `I` be full input, `C` cache reads, `W` cache writes, and `O` full output. The disjoint input buckets are ordinary input `I-C-W`, read `C`, and write `W`. Cache-write pricing applies to GPT-5.6 and later; it replaces the ordinary rate for those tokens, not an added full-price charge. Use the reported `input_tokens_details.cache_write_tokens`; do not assume an absent count is zero where that bucket can be charged. [Prompt caching](https://developers.openai.com/api/docs/guides/prompt-caching)
+
+```text
+API-equivalent USD = ((I-C-W)*input_rate + C*read_rate
+                      + W*write_rate + O*output_rate) / 1,000,000
+                     + separately proven tool/media charges
+```
+
+For a model without separate cache-write pricing, use its documented input/read contract instead. Reasoning tokens are already part of output tokens; do not charge them a second time. A returned service tier may differ from the requested tier. [Reasoning usage](https://developers.openai.com/api/docs/guides/reasoning), [Returned service tier](https://developers.openai.com/api/docs/guides/prompt-caching/diagnostics)
+
+Codex credit billing has no separate cache-write charge. Credit purchase prices and discounts depend on the plan/agreement, and public credit rates alone do not determine included subscription usage. Thus API-equivalent USD is a reference valuation, not ChatGPT subscription cash spend. API-key organizations can reconcile financial totals through `GET /v1/organization/costs` with an OpenAI admin key; Agency Relay's `ADMIN_SECRET` and ChatGPT OAuth are not that credential. Its grouped cost data does not by itself establish per-Agency-Relay-user charges. [Codex pricing](https://learn.chatgpt.com/docs/pricing), [Organization Costs API](https://developers.openai.com/api/reference/resources/admin/subresources/organization/subresources/usage/methods/costs)
+
+### Agency Relay calibration result
+
+The current observer preserves integer provider ticks, and the formatter uses decimal digits rather than rounding each request to cents. Responses and media have separate ledgers and cost coverage. These mechanisms support precise **observed metered value**, not a complete bill across unobserved routes or interrupted streams. A paid upstream attempt can have no final measurement. [Observer](../../src/proxy/observation.ts#L311-L334), [Accounting](../../src/db.ts#L777-L831), [USD formatter](../../src/admin/format.ts#L39-L44)
+
+Current Responses capture omits cache-write counts and actual service tier. Daily model totals also erase individual long-context thresholds. Therefore the existing ledger cannot reconstruct exact OpenAI API list-price valuation for all requests; a price table alone cannot repair missing history. Grok Build session totals are not an independent complete reconciliation source because of the gaps above. [Captured fields](../../src/proxy/observation.ts#L311-L322), [Daily aggregation](../../src/db.ts#L709-L728)
+
+Integer precision also has a limit. The observer accepts only JavaScript safe integers. At `10^10` ticks per USD, the maximum safe value is $900,719.9254740991. Aggregate normalization returns zero for an unsafe integer, so exactness is not guaranteed for a larger subtotal. A future financial implementation must preserve exact integer/decimal values throughout storage, aggregation and API output; a float conversion alone is not sufficient. [Capture validation](../../src/proxy/observation.ts#L332-L334), [Summary normalization](../../src/db.ts#L1096-L1108), [Integer guard](../../src/db.ts#L1163-L1165)
+
+The calibration decision is to keep three meanings separate:
+
+- **Provider-reported metered value:** use final ticks once per physical request; retain measured, missing and partial coverage. Do not add prices or hosted-tool fees to an already inclusive amount.
+- **API-equivalent value:** if separately implemented, use versioned official rates and sufficient per-request metadata before daily aggregation. Label its assumed tier, included cost categories and coverage; never write it into `provider_cost_usd_ticks` or use it to fill a missing provider measurement.
+- **Settled charge:** require the relevant provider's financial authority and account contract. Neither public prices nor subscription ticks establish a cash invoice. Agency Relay Surface Credits remain admission units, not USD.
+
+This research changes documentation only. It does not add estimation, change observation/zero semantics, reconcile production data, call a paid endpoint or change the Worker.
+
 ## Observation boundary
 
 Only plans declaring `responses`, `image` or `video` inspect bounded provider metadata. Opaque Chat, speech, catalogs, Files and realtime routes do not acquire measurement because the UI wants a total. `none` stays none until an exact usage contract is proven.
