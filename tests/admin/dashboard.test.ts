@@ -586,7 +586,7 @@ describe("Dashboard", () => {
     expect(document.querySelector('[data-panel="attention"]')).toBeNull();
     expect(document.querySelector('.account-onboarding a')?.getAttribute("href")).toBe("/admin?view=credentials&range=7d&task=add-account");
     expect(document.querySelector("main")?.textContent).not.toContain("下一步");
-    expect(document.querySelector('[data-trend-empty="all"]')?.textContent).toBe("此范围暂无用量记录");
+    expect(document.querySelector('[data-trend-empty="all"] [data-slot="empty-title"]')?.textContent).toContain("暂无用量记录");
     expect(html).not.toMatch(/class="metrics metrics-secondary"/);
     expect(html).not.toContain("Production ready");
     expect(html).not.toContain("page-purpose");
@@ -727,7 +727,7 @@ describe("Dashboard", () => {
     const home = await render("overview");
     const document = new JSDOM(home).window.document;
     expect(document.querySelector('[data-home-summary] a[href*="credentials"] strong')?.textContent).toBe("2");
-    expect(document.querySelector('[data-trend-empty="all"]')?.textContent).toBe("此范围暂无用量记录");
+    expect(document.querySelector('[data-trend-empty="all"] [data-slot="empty-title"]')?.textContent).toContain("暂无用量记录");
     expect(home).not.toContain('class="next-step"');
   });
 

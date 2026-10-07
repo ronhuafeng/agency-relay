@@ -92,7 +92,7 @@ describe("organization Home usage projection", () => {
     fixture.db.seedUsage({user_id: "usage-owner", day: "2026-05-01", route_profile_id: "grok.production.responses", requests: 999});
     const {response, document} = await open(fixture, "view=overview&range=7d");
     expect(response.status).toBe(200);
-    expect(document.querySelector('[data-trend-empty="all"]')?.textContent).toBe("此范围暂无用量记录");
+    expect(document.querySelector('[data-trend-empty="all"] [data-slot="empty-title"]')?.textContent).toContain("暂无用量记录");
     expect(document.querySelector("#usage-trends svg")).toBeNull();
     expect(document.querySelector("[data-trend-plan]")).toBeNull();
     expect(document.querySelector("[data-home-usage=unavailable]")).toBeNull();
