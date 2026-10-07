@@ -44,7 +44,7 @@ function Navigation({model}: {readonly model: AdminDashboardPageModelBase}) {
 }
 function PageHeader({model}: {readonly model: AdminDashboardPageModelBase}) {
   const titles = {overview:"组织概览",credentials:"上游连接",access:"成员与服务",setup:"客户端配置",audit:"请求记录",usage:"用量报告",surfaces:"服务路由",quotas:"额度政策","control-audit":"管理记录"};
-  return <h1 className="sr-only">{titles[model.view]}</h1>;
+  return <h1 className={model.view === "usage" ? "usage-page-heading" : "sr-only"}>{titles[model.view]}</h1>;
 }
 function DashboardDocument({model, nonce, children, revision}: {readonly model: AdminDashboardPageModelBase; readonly nonce: string; readonly children: ReactNode; readonly revision?: string}) {
   return <html lang="zh-CN"><head><meta charSet="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" /><meta name="color-scheme" content="light dark" /><meta name="robots" content="noindex,nofollow" /><title>{model.documentTitle}</title><meta name="description" content="Agency Relay 管理控制台。" />{model.appEnabled ? <AppHead /> : null}<style nonce={nonce}>{consoleStyles}</style></head><body id="top">

@@ -5,7 +5,8 @@ import { executionPlanPresentation } from "../../plans/execution-plans";
 import { formatNumber, formatUsdTicks, formatUsageSeconds } from "../format";
 import type { UsageTrendRange } from "../usage-query";
 import { inventoryUrl } from "./href";
-import { Empty, EmptyHeader, EmptyTitle } from "./components/empty";
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "./components/empty";
+import { Button } from "./components/button";
 import { usageCost } from "../usage-cost";
 
 export interface UsageTrendsModel {
@@ -70,7 +71,7 @@ function mediaSeries(plan: string, capability: MediaUsageDailyPoint["capability"
     rows: rows.map(row => ({day: row.day, current: row.day === range.to, count: row.started_jobs, failure: row.failed_jobs, values: [number(row.started_jobs), `${number(row.completed_jobs)} / ${number(row.failed_jobs)} / ${number(row.expired_jobs)}`, measurement(row.outputs, row.output_measurements, opportunities(row)), ...(video ? [measurement(row.video_seconds, row.duration_measurements, opportunities(row), false, " 秒")] : []), ...(cost ? [measurement(row.provider_cost_usd_ticks, row.cost_measurements, opportunities(row), true)] : [])]}))
   };
 }
-export function UsageTrends({model}: {model: UsageTrendsModel}) {
+export function UsageTrends({model, rangeInToolbar = false}: {model: UsageTrendsModel; rangeInToolbar?: boolean}) {
   const {daily, range} = model;
   const plans = [...new Set(daily.responses.map(row => row.route_profile_id))];
   const mediaGroups = [...new Map(daily.media.map(row => [`${row.route_profile_id}:${row.capability}`, {plan: row.route_profile_id, capability: row.capability}])).values()];
@@ -81,9 +82,9 @@ export function UsageTrends({model}: {model: UsageTrendsModel}) {
   const navigation = model.navigationUrl ? {key: range.key, href7: inventoryUrl(model.navigationUrl, {range: "7d"}), href30: inventoryUrl(model.navigationUrl, {range: "30d"})} : undefined;
   return <section id="usage-trends" tabIndex={-1} className="usage-trends view-stack" aria-label="按日用量趋势" data-usage-range-label={`${range.from} 至 ${range.to} UTC`} data-usage-search={model.search ?? ""}>
     <h2 className="sr-only">{model.scopeLabel}</h2>{model.filterLabel ? <p className="usage-filter-context">{model.filterLabel}</p> : null}
-    {plans.length + mediaGroups.length > 0 ? <UsageComparisonIsland control={{id: "usage-comparison", range: navigation,
+    {plans.length + mediaGroups.length > 0 ? <UsageComparisonIsland control={{id: "usage-comparison", range: rangeInToolbar ? undefined : navigation,
       series: distinctSeries
-    }}/> : <><header className="usage-empty-range">{navigation ? <nav className="ranges" aria-label="UTC 时间范围"><a href={navigation.href7} data-dashboard-link="" aria-current={range.key === "7d" ? "true" : undefined}>7 天</a><a href={navigation.href30} data-dashboard-link="" aria-current={range.key === "30d" ? "true" : undefined}>30 天</a></nav> : null}</header><Empty data-trend-empty="all"><EmptyHeader><EmptyTitle>此范围暂无用量记录</EmptyTitle></EmptyHeader></Empty></>}
+    }}/> : <>{!rangeInToolbar ? <header className="usage-empty-range"><span className="usage-query-dates">{range.from} 至 {range.to} UTC</span>{navigation ? <nav className="ranges" aria-label="UTC 时间范围"><a href={navigation.href7} data-dashboard-link="" aria-current={range.key === "7d" ? "true" : undefined}>7 天</a><a href={navigation.href30} data-dashboard-link="" aria-current={range.key === "30d" ? "true" : undefined}>30 天</a></nav> : null}</header> : null}<Empty data-trend-empty="all"><EmptyHeader><EmptyTitle>{model.search ? "没有匹配的用量记录" : `最近 ${range.key === "7d" ? "7" : "30"} 天暂无用量记录`}</EmptyTitle><EmptyDescription>{model.search ? <>当前时间范围内没有匹配“{model.search}”的用量记录。</> : "当前范围没有用量记录。完成请求后，用量会显示在这里。"}</EmptyDescription></EmptyHeader>{navigation && (model.search || range.key === "7d") ? <EmptyContent><Button asChild><a data-dashboard-link="" href={model.search ? inventoryUrl(model.navigationUrl!, {q: null}) : navigation.href30}>{model.search ? "清除搜索" : "查看 30 天"}</a></Button></EmptyContent> : null}</Empty></>}
 
   </section>;
 }

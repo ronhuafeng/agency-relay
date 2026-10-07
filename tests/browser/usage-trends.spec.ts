@@ -107,11 +107,21 @@ test.describe('personal native empty and unavailable usage', () => {
   test.use({identity: 'member', script: false, viewport: {width: 390, height: 900}});
   test('an empty ledger has one empty state; failed reads remain unavailable', async ({page, worker}) => {
     await page.goto('/admin?area=me&view=usage&range=7d');
-    await expect(page.locator('[data-trend-empty="all"]')).toHaveText('此范围暂无用量记录');
+    await expect(page.locator('[data-trend-empty="all"]')).toBeVisible();
     await expect(page.locator('#usage-trends svg')).toHaveCount(0);
     expect(await page.locator('[data-trend-plan]').count()).toBe(0);
-    await page.getByRole('link', {name: '30 天', exact: true}).click();
+    await page.getByRole('link', {name: '查看 30 天', exact: true}).click();
     await expect(page.locator('[data-usage-range-label]')).toHaveAttribute('data-usage-range-label', '2026-05-26 至 2026-06-24 UTC');
+    const query = 'A'.repeat(256);
+    await page.getByRole('searchbox').fill(query);
+    await page.getByRole('button', {name: '搜索', exact: true}).click();
+    const exportHref = await page.getByRole('link', {name: '导出数据', exact: true}).getAttribute('href');
+    expect(new URL(exportHref!, page.url()).searchParams.get('q')).toBe(query);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+    await page.locator('[data-trend-empty="all"]').getByRole('link', {name: '清除搜索', exact: true}).click();
+    await expect(page.getByRole('searchbox')).toHaveValue('');
+    expect(new URL(page.url()).searchParams.get('area')).toBe('me');
+    expect(new URL(page.url()).searchParams.get('range')).toBe('30d');
     worker.failMemberRead('usage');
     await page.reload();
     expect(await page.locator('[data-trend-empty]').count()).toBe(0);

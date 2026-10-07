@@ -195,7 +195,7 @@ describe("usage router scope and failure boundaries", () => {
     const empty = makeFixture();
     const daily = await queryUsageDaily(empty.env, {mode: "range", from: "2026-06-18", to: "2026-06-24", limit: 1});
     const html = renderToStaticMarkup(createElement(UsageTrends, {model: {range: parseUsageTrendRange(url(""), now), daily, scopeLabel: "我的用量"}}));
-    expect(doc(html).querySelector('[data-trend-empty="all"]')?.textContent).toBe('此范围暂无用量记录');
+    expect(doc(html).querySelector('[data-trend-empty="all"]')).not.toBeNull();
     expect(doc(html).querySelector('svg')).toBeNull();
     expect(doc(html).querySelectorAll('[data-trend-plan]')).toHaveLength(0);
   });

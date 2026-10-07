@@ -662,10 +662,11 @@ form[aria-busy=true] :is(button,a)[aria-disabled=true],form[aria-busy=true] butt
 .confirmation-fallback input:checked,.radix-check input[type=checkbox]:checked,.access-choice input[type=checkbox]:checked{background:var(--foreground) center/14px no-repeat url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23f4f6f8' stroke-width='3' stroke-linejoin='miter'><path d='M5 12.5 10 17.5 19 7'/></svg>")}
 .radix-check input[type=checkbox]:disabled{opacity:.5;cursor:not-allowed}
 @media (prefers-color-scheme: dark){.confirmation-fallback input:checked,.radix-check input[type=checkbox]:checked,.access-choice input[type=checkbox]:checked{background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%230d121a' stroke-width='3' stroke-linejoin='miter'><path d='M5 12.5 10 17.5 19 7'/></svg>")}}
-.console-simple [data-member-view] form,.console-simple [data-member-view] .radix-field{max-width:420px}
+.console-simple [data-member-view] form:not([data-dashboard-search]),.console-simple [data-member-view] .radix-field{max-width:420px}
 
 /* Member objects sit in the shared shell. */
 .console-simple h1 { margin:0; font-size:clamp(24px,6vw,28px); letter-spacing:-.045em; line-height:1.2; font-weight:750; }
+.console-simple h1.usage-page-heading { margin-bottom:var(--space-4); }
 .console-simple h2 { margin:0; font-size:20px; font-weight:650; letter-spacing:-.03em; line-height:1.3; }
 .console-simple .lede, .console-simple .note { margin:0; color:var(--muted-foreground); font-size:14px; line-height:1.6; }
 .console-simple [data-member-view] > h1 + .lede { margin-top:-16px; }
@@ -702,7 +703,7 @@ form[aria-busy=true] :is(button,a)[aria-disabled=true],form[aria-busy=true] butt
 .console-simple .meta { white-space:normal; overflow-wrap:anywhere; font:13px/1.45 var(--font-sans); }
 .console-simple .actions { display:grid; grid-template-columns:minmax(0,420px); justify-content:start; gap:20px; align-items:start; }
 .console-simple .actions form,.console-simple .revoke-all { min-width:0; width:100%; }
-.console-simple form { display:grid; gap:12px; }
+.console-simple form:not([data-dashboard-search]) { display:grid; gap:12px; }
 .console-simple form :is([data-slot=button],[data-variant][data-size]:not([data-slot=switch])) { justify-self:start; width:auto; }
 .console-simple .gate :is([data-slot=button],[data-variant][data-size]:not([data-slot=switch])) { justify-self:stretch; width:100%; }
 .console-simple label { display:grid; gap:8px; font-size:14px; }

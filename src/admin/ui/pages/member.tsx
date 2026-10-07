@@ -134,7 +134,7 @@ export function MemberKeysPage({model,now,selectedId}: {model:MemberAccessModel;
     </section>
   </div></>;
 }
-export function MemberUsagePage({model}: {model:UsagePageModel}) {const scope = useMemberScope(); return <><h1 className="sr-only">{scope.label("用量")}</h1><UsagePage model={model}/></>;}
+export function MemberUsagePage({model}: {model:UsagePageModel}) {const scope = useMemberScope(); return <><h1 className="usage-page-heading">{scope.label("用量")}</h1><UsagePage model={model}/></>;}
 export function MemberSetupPage() {
   const scope = useMemberScope();
   return <><h1 className="sr-only">{scope.service ? scope.label("客户端配置") : "客户端配置"}</h1><section className="member-setup-config" aria-label="本机配置"><SyncTask recoveryHref={scope.href}/></section></>;

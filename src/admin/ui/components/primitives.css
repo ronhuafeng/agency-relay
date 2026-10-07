@@ -52,6 +52,7 @@
   :is([data-slot=input],[data-slot=input-group-control],[data-slot=native-select],[data-slot=textarea]) { font:var(--typography-input-phone); letter-spacing:var(--typography-input-phone-letter-spacing); }
 }
 [data-slot=empty] {   border-radius:var(--radius); }
+[data-slot=empty-header],[data-slot=empty-description],[data-slot=empty-content] { min-width:0; max-width:100%; overflow-wrap:anywhere; }
 [data-slot=pagination-content] { margin:0; list-style:none; padding:0; }
 .pagination-current { display:flex; align-items:center; min-height:var(--control-target); padding:8px 12px; font:600 13px/1.4 var(--font-mono); }
 [data-slot=alert-dialog-overlay] { background:rgb(0 0 0 / 46%); }
