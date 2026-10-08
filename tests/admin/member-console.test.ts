@@ -227,7 +227,9 @@ describe("role-aware console", () => {
     expect(reportDoc.querySelectorAll('.usage-record')).toHaveLength(1);
     expect(reportDoc.querySelector('.usage-metrics')?.textContent).toContain('Requests2');
     expect(reportDoc.querySelector('.usage-metrics')?.textContent).toContain('Token10');
-    expect(reportDoc.querySelector('.usage-record [popover] p')?.textContent).toContain('1 次请求未记录');
+    expect(reportDoc.querySelector('.usage-record')?.textContent).toContain('gpt-5');
+    expect(reportDoc.querySelector('.usage-record')?.textContent).not.toContain('未记录令牌用量');
+    expect(reportDoc.querySelector('.usage-record [popover]')).toBeNull();
     expect(reportDoc.querySelector('a[download]')?.getAttribute('href')).toBe('/me/usage?from=2026-06-18&to=2026-06-24');
     expect(reportDoc.querySelector('input[type="search"]')?.getAttribute('placeholder')).toBe('搜索模型');
     expect(reportHtml).not.toContain(other.user.id);

@@ -18,6 +18,7 @@ interface ConsoleDocumentInput {
   readonly nonce?: string;
   readonly role?: "admin" | "user";
   readonly current?: string;
+  readonly switches?: readonly {readonly href: string; readonly label: string}[];
   readonly appEnabled?: boolean;
   readonly extra?: ReactNode;
 }
@@ -39,7 +40,7 @@ export function consoleDocument(input: ConsoleDocumentInput): string {
         <a className="skip-link" href="#content">跳到正文</a>
         <ConsoleHeader email={input.email} role={input.role} actorId={input.actorId} />
         <SidebarProvider className="shell" data-dashboard-nav={input.navigationUrl ? "vertical" : undefined}>
-          {input.nav ? <ConsoleNavigation member current={input.current ?? input.title} email={input.email} role={input.role} actorId={input.actorId}><div className="primary-nav">{input.nav}</div></ConsoleNavigation> : null}
+          {input.nav ? <ConsoleNavigation member current={input.current ?? input.title} email={input.email} role={input.role} actorId={input.actorId} switches={input.switches}><div className="primary-nav">{input.nav}</div></ConsoleNavigation> : null}
           <main id="content" tabIndex={-1} data-dashboard-view={input.view ?? (input.navigationUrl ? "usage" : undefined)} data-dashboard-url={input.navigationUrl} data-console-read-url={input.readUrl} data-console-revision={input.dataRevision}>
             {input.navigationUrl ? <div className="dashboard-notice" data-dashboard-notice="" role="status" aria-live="polite" aria-atomic="true" hidden><span data-notice-message=""/><a hidden>打开页面</a></div> : null}
             {input.main}</main>

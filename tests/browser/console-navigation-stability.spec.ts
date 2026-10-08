@@ -39,7 +39,7 @@ for (const width of [390, 1440]) test(`navigation keeps its rail and paints enha
   expect(await nav!.evaluate(node => node === document.querySelector(".nav-rail"))).toBe(true);
   expect(await account!.evaluate(node => node.isConnected)).toBe(true);
   expect(await firstMain!.evaluate(node => node.isConnected)).toBe(false);
-  await expect(page.locator(".nav-toggle-label strong")).toHaveText("组织管理 · 额度政策");
+  await expect(page.locator(".nav-toggle-label strong")).toHaveText("额度政策");
 
   await page.getByRole("navigation", { name: "控制台页面" }).getByRole("link", { name: "成员与服务", exact: true }).click();
   await expect(page.locator("#people-create-root [data-slot=collapsible-trigger]")).toHaveCount(2);

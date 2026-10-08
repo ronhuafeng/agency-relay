@@ -67,21 +67,16 @@ describe("typed console controls", () => {
   it("rejects malformed island input at its boundary", () => {
     expect(readMemberKeyForm({...model, canCreate: "true"})).toBe(null); expect(readCapabilityComparison({view: {surfaces: [{}], groups: []}, routesHref: "?view=surfaces"})).toBe(null);
   });
-  it("shows usage numbers directly and connects each detail trigger to its native popover", () => {
+  it("shows usage numbers directly and does not open a detail popover", () => {
     document.body.innerHTML = renderToString(createElement(UsageReport, {control: usage}));
     expect(element(".usage-record-measurement", HTMLElement).textContent).toContain("24,500");
-    const details = element(".usage-record [popover]", HTMLElement);
-    const trigger = element(".usage-record button[popovertarget]", HTMLButtonElement);
-    expect(trigger.getAttribute("popovertarget")).toBe(details.id);
-    expect(details.textContent).toContain("member_preview");
+    expect(document.querySelector(".usage-record [popover],.usage-record button[popovertarget]")).toBeNull();
+    expect(document.body.textContent).not.toContain("member_preview");
   });
-  it("keeps primary numbers and authorized detail metadata after enhancement", async () => {
+  it("keeps primary numbers after enhancement without a detail popover", async () => {
     document.body.innerHTML = '<div id="root"></div>'; root = createRoot(element("#root", HTMLElement));
     await act(() => {root?.render(createElement(UsageReport, {control: usage}));});
-    const trigger = element(".usage-record button", HTMLButtonElement);
-    expect(trigger.getAttribute("popovertarget")).toBe("usage-details-responses-0");
-    expect(element("#usage-details-responses-0", HTMLElement).getAttribute("popover")).toBe("auto");
-    expect(element(".usage-facts", HTMLElement).textContent).toContain("member_preview");
+    expect(document.querySelector(".usage-record button,[popover],.usage-facts")).toBeNull();
     expect(element(".usage-record-measurement", HTMLElement).textContent).toContain("24,500");
   });
   it("keeps an empty usage view free of unrelated controls and billing explanations", () => {

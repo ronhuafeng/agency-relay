@@ -8,11 +8,11 @@ for (const width of [320, 390, 1440]) test.describe(`organization Home ${width}p
     const trends = page.getByRole("region", {name: "按日用量趋势"});
     await expect(trends).toBeVisible();
     const grok = page.locator('[data-trend-plan="grok.production.responses"]');
-    const description = trends.locator("details.usage-chart-description");
-    await expect(description).toHaveJSProperty("open", false);
+    await expect(trends.locator("details.usage-chart-description")).toHaveCount(0);
     await expect(trends.locator(".usage-bar-plot")).toHaveCount(1);
     expect(await grok.locator(".usage-metrics").textContent()).toContain("0 · 已记录 1/4 次请求");
-    const initialMetrics = await trends.locator(".usage-metrics").allTextContents();
+    await expect(grok).not.toContainText("上游计量金额");
+    const initialDays = await trends.locator("[data-chart-day]").count();
     const rail = await page.locator(".nav-rail").elementHandle();
     const account = await page.getByRole("button", {name: "账号菜单", exact: true}).elementHandle();
     await expect(page.locator("[data-console-actor-id]")).toHaveAttribute("data-console-actor-id", "admin");
@@ -25,35 +25,27 @@ for (const width of [320, 390, 1440]) test.describe(`organization Home ${width}p
     expect(await account!.evaluate(node => node === document.querySelector('button[aria-label="账号菜单"]'))).toBe(true);
     await expect(page.locator("[data-console-actor-id]")).toHaveAttribute("data-console-actor-id", "admin");
     await expectAccountRole(page, "管理员");
-    const homeMetrics = await trends.locator(".usage-metrics").allTextContents();
-    expect(homeMetrics).not.toEqual(initialMetrics);
+    const homeDays = await trends.locator("[data-chart-day]").count();
+    expect(homeDays).not.toBe(initialDays);
     const homeBars = await trends.locator(".usage-chart-bar").evaluateAll(nodes => nodes.map(node => ({x: node.getAttribute("x"), y: node.getAttribute("y"), height: node.getAttribute("height")})));
 
-    await description.locator("summary").focus();
-    await page.keyboard.press("Enter");
-    await expect(description).toHaveJSProperty("open", true);
-    const grokDays = description.locator('[data-text-plan="grok.production.responses"] dl>div');
-    await expect(grokDays).toHaveCount(30);
-    await expect(grokDays.first()).toContainText("2026-05-26 UTC");
-    await expect(grokDays.last()).toContainText("2026-06-24 UTC · 未结束");
-    await expect(grokDays.last()).toContainText("已记录 1/4 次请求");
-    await expect(description.locator("table")).toHaveCount(0);
-    await description.locator("summary").click();
+    await expect(trends.locator("[data-chart-day]")).toHaveCount(30);
+    await expect(trends.locator(".usage-trend-endpoints")).toHaveCount(0);
 
     const geometry = await page.evaluate(() => {
       const boxes = Array.from(document.querySelectorAll<HTMLElement>("#usage-trends .usage-comparison"));
       const overlaps = (first: DOMRect, second: DOMRect) => Math.min(first.right, second.right) - Math.max(first.left, second.left) > 1 && Math.min(first.bottom, second.bottom) - Math.max(first.top, second.top) > 1;
       let overlapping = 0;
       for (const comparison of boxes) {
-        const title = comparison.querySelector<HTMLElement>("h3")!;
+        const title = comparison.querySelector<HTMLElement>("h3");
         const ranges = comparison.querySelector<HTMLElement>(".ranges");
-        if (ranges && overlaps(title.getBoundingClientRect(), ranges.getBoundingClientRect())) overlapping++;
+        if (title && ranges && overlaps(title.getBoundingClientRect(), ranges.getBoundingClientRect())) overlapping++;
         const fields = Array.from(comparison.querySelectorAll<HTMLElement>(".usage-chart-controls>label"));
         for (let first = 0; first < fields.length; first++) for (let second = first + 1; second < fields.length; second++) if (overlaps(fields[first].getBoundingClientRect(), fields[second].getBoundingClientRect())) overlapping++;
         const plot = comparison.querySelector<HTMLElement>(".usage-chart-frame")!.getBoundingClientRect();
         if (fields.some(field => overlaps(field.getBoundingClientRect(), plot))) overlapping++;
       }
-      const controls = Array.from(document.querySelectorAll<HTMLElement>('#usage-trends .ranges a,#usage-trends .usage-chart-controls select,#usage-trends .usage-chart-legend button,#usage-trends .usage-chart-description>summary,[data-home-summary] a,.home-overview-grid .action-link')).filter(control => control.checkVisibility());
+      const controls = Array.from(document.querySelectorAll<HTMLElement>('#usage-trends .ranges a,[data-home-summary] a,.home-overview-grid .action-link')).filter(control => control.checkVisibility());
       return {
         overflowing: document.documentElement.scrollWidth > innerWidth + 1,
         overlapping,
@@ -74,7 +66,7 @@ for (const width of [320, 390, 1440]) test.describe(`organization Home ${width}p
     await page.getByRole("navigation", {name: "控制台页面"}).getByRole("link", {name: "用量报告", exact: true}).click();
     await expect(page.locator('main[data-dashboard-view="usage"]')).toBeVisible();
     await expect(page.locator("[data-usage-range-label]")).toHaveAttribute("data-usage-range-label", "2026-05-26 至 2026-06-24 UTC");
-    expect(await page.locator("#usage-trends .usage-metrics").allTextContents()).toEqual(homeMetrics);
+    expect(await page.locator("#usage-trends [data-chart-day]").count()).toBe(homeDays);
     expect(await page.locator("#usage-trends .usage-chart-bar").evaluateAll(nodes => nodes.map(node => ({x: node.getAttribute("x"), y: node.getAttribute("y"), height: node.getAttribute("height")})))).toEqual(homeBars);
     expect(await rail!.evaluate(node => node === document.querySelector(".nav-rail"))).toBe(true);
     expect(await account!.evaluate(node => node.isConnected)).toBe(true);

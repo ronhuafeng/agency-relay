@@ -74,13 +74,13 @@ describe("daily SQL and honest projections", () => {
   });
   it("distinguishes coexisting exact plans and uses integral low-count axis ticks", async () => {
     const fixture = makeFixture();
-    for (const plan of ["codex.responses", "codex.responses_compact", "codex.historical.responses"]) fixture.db.seedUsage({user_id: "mine", day: "2026-06-24", route_profile_id: plan, requests: 1});
+    for (const plan of ["codex.responses", "codex.responses_compact", "codex.historical.responses"]) fixture.db.seedUsage({user_id: "mine", day: "2026-06-24", route_profile_id: plan, requests: 1, total_tokens: 1, token_measurements: 1});
     const daily = await queryUsageDaily(fixture.env, {mode: "range", from: "2026-06-18", to: "2026-06-24", user_id: "mine", limit: 1});
     const document = doc(renderToStaticMarkup(createElement(UsageTrends, {model: {range: parseUsageTrendRange(url(""), now), daily, scopeLabel: "我的用量"}})));
     const series = [...document.querySelectorAll('[data-trend-plan]')];
     expect(new Set(series.map(node => node.querySelector('button')?.textContent)).size).toBe(3);
     expect(new Set(series.map(node => node.querySelector('[data-series-color]')?.getAttribute('data-series-color'))).size).toBe(3);
-    for (const node of series) expect(node.querySelector('code')?.textContent).toBe(node.getAttribute('data-trend-plan'));
+    expect(series.map(node => node.getAttribute("data-trend-plan")).sort()).toEqual(["codex.historical.responses", "codex.responses", "codex.responses_compact"]);
     expect([...document.querySelectorAll('.usage-chart-y span')].map(node => node.textContent)).toEqual(["2", "1", "0"]);
     for (const bar of document.querySelectorAll('[data-chart-day="2026-06-24"] .usage-chart-bar')) {
       expect(bar.getAttribute('y')).toBe("120");
@@ -105,11 +105,9 @@ describe("daily SQL and honest projections", () => {
     const grok = document.querySelector('[data-trend-plan="grok.production.responses"]')!;
     expect(textFor(grok, "Requests")).toBe("503");
     expect(textFor(grok, "Token")).toBe("100 · 已记录 252/503 次请求");
-    expect(textFor(grok, "上游计量金额")).toBe("$0.0000000012 · 已记录 252/503 次请求");
-    const rows = [...document.querySelectorAll('[data-text-plan="grok.production.responses"] dl>div')];
-    expect(rows).toHaveLength(7);
-    expect(rows[0].textContent).toContain("未记录 · 覆盖 0/0");
-    expect(rows.at(-1)!.textContent).toContain("0 · 已记录 251/502 次请求");
+    expect(textFor(grok, "上游计量金额")).toBeUndefined();
+    expect(document.querySelector("[data-text-plan]")).toBeNull();
+    expect(document.querySelectorAll("[data-chart-day]")).toHaveLength(7);
     expect(document.querySelectorAll('[data-trend-plan]')).toHaveLength(2);
     const filtered = await queryUsageDaily(fixture.env, {...query, route_profile_id: "grok.production.responses", response_model: "previous"});
     expect(filtered.responses).toHaveLength(1);
@@ -140,13 +138,10 @@ describe("daily SQL and honest projections", () => {
     expect(textFor(video, "开始")).toBe("3");
     expect(textFor(video, "输出")).toBe("0 · 已记录 1/3 次终态");
     expect(textFor(video, "时长")).toBe("1.5 秒 · 已记录 1/3 次终态");
-    expect(textFor(video, "上游计量金额")).toBe("$0 · 已记录 1/3 次终态");
+    expect(textFor(video, "上游计量金额")).toBeUndefined();
     const image = document.querySelector('[data-trend-capability="image_generation"]')!;
     expect(textFor(image, "输出")).toBe("1 · 已记录 1/2 次请求");
-    const videoRows = document.querySelectorAll('[data-text-plan="xai.production.videos_generations"] dl>div');
-    const start = videoRows[5];
-    expect(start.textContent).toContain("未提供 · 覆盖 0/0");
-    expect(videoRows[6].textContent).toContain("完成 / 失败 / 过期：1 / 1 / 1");
+    expect(document.body.textContent).not.toContain("不是结算账单");
   });
 });
 
@@ -195,8 +190,9 @@ describe("usage router scope and failure boundaries", () => {
     const empty = makeFixture();
     const daily = await queryUsageDaily(empty.env, {mode: "range", from: "2026-06-18", to: "2026-06-24", limit: 1});
     const html = renderToStaticMarkup(createElement(UsageTrends, {model: {range: parseUsageTrendRange(url(""), now), daily, scopeLabel: "我的用量"}}));
-    expect(doc(html).querySelector('[data-trend-empty="all"]')).not.toBeNull();
-    expect(doc(html).querySelector('svg')).toBeNull();
+    expect(doc(html).querySelector('[data-trend-empty]')).toBeNull();
+    expect(doc(html).querySelector('.usage-bar-plot')).not.toBeNull();
     expect(doc(html).querySelectorAll('[data-trend-plan]')).toHaveLength(0);
+    expect(html).not.toContain("查看 30 天");
   });
 });

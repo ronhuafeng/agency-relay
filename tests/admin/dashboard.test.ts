@@ -586,7 +586,8 @@ describe("Dashboard", () => {
     expect(document.querySelector('[data-panel="attention"]')).toBeNull();
     expect(document.querySelector('.account-onboarding a')?.getAttribute("href")).toBe("/admin?view=credentials&range=7d&task=add-account");
     expect(document.querySelector("main")?.textContent).not.toContain("下一步");
-    expect(document.querySelector('[data-trend-empty="all"] [data-slot="empty-title"]')?.textContent).toContain("暂无用量记录");
+    expect(document.querySelector("[data-trend-empty]")).toBeNull();
+    expect(document.querySelector("#usage-trends .usage-bar-plot")).not.toBeNull();
     expect(html).not.toMatch(/class="metrics metrics-secondary"/);
     expect(html).not.toContain("Production ready");
     expect(html).not.toContain("page-purpose");
@@ -727,7 +728,8 @@ describe("Dashboard", () => {
     const home = await render("overview");
     const document = new JSDOM(home).window.document;
     expect(document.querySelector('[data-home-summary] a[href*="credentials"] strong')?.textContent).toBe("2");
-    expect(document.querySelector('[data-trend-empty="all"] [data-slot="empty-title"]')?.textContent).toContain("暂无用量记录");
+    expect(document.querySelector("[data-trend-empty]")).toBeNull();
+    expect(document.querySelector("#usage-trends .usage-bar-plot")).not.toBeNull();
     expect(home).not.toContain('class="next-step"');
   });
 
@@ -849,7 +851,7 @@ describe("Dashboard", () => {
     expect(record("grok.production.responses")?.getAttribute("data-subscription-authority")).toBe("grok");
     expect(record("xai.production.images_generations")?.getAttribute("data-subscription-authority")).toBe("xai");
     expect(record("codex.responses")?.querySelector(".usage-record-measurement")?.textContent).toContain("150");
-    expect(record("codex.responses")?.querySelector(".usage-facts")?.textContent).toContain("10.0%");
+    expect(record("codex.responses")?.querySelector("[popover]")).toBeNull();
     expect(record("grok.production.responses")?.querySelector(".usage-record-cost")?.textContent).toContain("$0.0005944");
     expect(record("xai.production.images_generations")?.querySelector(".usage-record-cost")?.textContent).toContain("$0.05");
     expect(record("codex.historical.responses")?.querySelector(".usage-record-measurement")?.textContent).toContain("未记录");
@@ -1245,6 +1247,7 @@ describe("Dashboard", () => {
     const totals = Object.fromEntries(facts.map(fact => [fact.querySelector("dt")?.textContent, fact.querySelector("dd")?.textContent]));
     expect(totals["Requests"]).toBe("2");
     expect(totals["Token"]).toMatch(/^40(?:\s|$)/);
+    expect(totals["API 费率折算"]).toBeUndefined();
   });
 
   it("does not present a unified token total or prior-period delta", async () => {

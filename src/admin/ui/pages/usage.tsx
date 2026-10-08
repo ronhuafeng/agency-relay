@@ -6,8 +6,7 @@ import { UsageReportIsland } from "../islands";
 import type { UsageFact, UsageRecord } from "../models";
 import { usageCost } from "../../usage-cost";
 import { Button } from "../components/button";
-import { Input } from "../components/input";
-import { Label } from "../components/label";
+import { InputGroup, InputGroupInput } from "../components/input-group";
 import { Download, Search } from "lucide-react";
 import { inventoryUrl } from "../href";
 
@@ -45,12 +44,12 @@ function responseRecord(row: UsageSummaryRow, index: number): UsageRecord {
   return {
     id: `responses-${index}`, authority: source.authority, service: source.label, plan: row.route_profile_id,
     owner: presentText(row.email ?? row.user_id), title: presentText(row.response_model), metrics,
-    note: measured && row.token_measurements < row.requests ? `${formatNumber(row.requests - row.token_measurements)} 次请求未记录令牌用量。` : null,
+    note: null,
     details: [
       {label: "成功请求", value: formatNumber(row.ok_requests)}, {label: "失败请求", value: formatNumber(row.error_requests)},
       {label: "输入令牌", value: measured ? formatNumber(row.input_tokens) : "未记录"}, {label: "输出令牌", value: measured ? formatNumber(row.output_tokens) : "未记录"},
       {label: "缓存读取占比", value: cache}, {label: "令牌记录覆盖", value: `${formatRatioPercent(row.token_measurements, row.requests)} · ${formatNumber(row.token_measurements)} / ${formatNumber(row.requests)} 次请求`},
-      ...(cost ? [{label: "金额来源", value: cost.help}, {label: "金额记录覆盖", value: `${formatNumber(cost.measurements)} / ${formatNumber(row.requests)} 次请求`}] : []),
+      ...(cost ? [{label: "金额记录覆盖", value: `${formatNumber(cost.measurements)} / ${formatNumber(row.requests)} 次请求`}] : []),
       {label: "最近使用", value: formatOperatorInstantOrDash(row.last_seen_at)}, {label: "服务", value: executionPlanPresentation(row.route_profile_id).usageLabel}
     ]
   };
@@ -78,12 +77,15 @@ export function UsagePage({model}: {readonly model: UsagePageModel}) {
   const url = new URL(model.searchUrl ?? model.trends?.navigationUrl ?? "/admin?view=usage", "https://console.invalid");
   return <div className="usage-page view-stack"><form method="get" action={url.pathname} data-dashboard-search="" data-search-anchor="usage-trends" className="usage-toolbar" aria-label="筛选全部用量">
     {[...url.searchParams].filter(([key]) => key !== "q").map(([key, value]) => <input key={key} type="hidden" name={key} value={value}/>)}
-    {model.trends ? <div className="usage-query-range"><nav className="ranges" aria-label="UTC 时间范围"><a href={inventoryUrl(`${url.pathname}${url.search}`, {range: "7d"})} data-dashboard-link="" aria-current={model.trends.range.key === "7d" ? "true" : undefined}>7 天</a><a href={inventoryUrl(`${url.pathname}${url.search}`, {range: "30d"})} data-dashboard-link="" aria-current={model.trends.range.key === "30d" ? "true" : undefined}>30 天</a></nav><span className="usage-query-dates">{model.trends.range.from} 至 {model.trends.range.to} UTC</span></div> : null}
-    <Label className="usage-search"><span className="sr-only">{model.filterPlaceholder ?? "搜索人员或模型"}</span><Input type="search" name="q" placeholder={model.filterPlaceholder ?? "搜索人员或模型"} defaultValue={model.search ?? ""} maxLength={256} autoComplete="off"/></Label>
-    <Button type="submit" variant="outline"><Search className="ui-icon" aria-hidden="true"/>搜索</Button>
-    {model.search ? <Button asChild variant="ghost"><a data-dashboard-link="" href={inventoryUrl(`${url.pathname}${url.search}`, {q: null})}>清除</a></Button> : null}
-    <Button asChild variant="outline"><a href={model.range.rawUsageUrl} download="usage.json"><Download className="ui-icon" aria-hidden="true"/>导出数据</a></Button>
-  </form>{model.trends ? <UsageTrends model={model.trends} rangeInToolbar/> : null}{model.rows.length + model.mediaRows.length > 0 || !model.trends ? <section id="usage-details" tabIndex={-1} aria-label="用量明细"><UsageReportIsland control={{
+    <div className="usage-search">
+      <InputGroup>
+        <InputGroupInput type="search" name="q" aria-label={model.filterPlaceholder ?? "搜索人员或模型"} placeholder={model.filterPlaceholder ?? "搜索人员或模型"} defaultValue={model.search ?? ""} maxLength={256} autoComplete="off"/>
+        {model.search ? <a className="usage-search-clear" data-dashboard-link="" href={inventoryUrl(`${url.pathname}${url.search}`, {q: null})}>清除</a> : null}
+        <button type="submit" className="usage-search-icon" aria-label="搜索"><Search aria-hidden="true"/></button>
+      </InputGroup>
+    </div>
+    <div className="usage-export"><Button asChild variant="outline" size="icon"><a href={model.range.rawUsageUrl} download="usage.json" aria-label="导出数据" title="导出数据"><Download className="ui-icon" aria-hidden="true"/></a></Button></div>
+  </form>{model.trends ? <UsageTrends model={model.trends}/> : null}{model.rows.length + model.mediaRows.length > 0 || !model.trends ? <section id="usage-details" tabIndex={-1} aria-label="用量明细"><UsageReportIsland control={{
     records: [...model.rows.map(responseRecord), ...model.mediaRows.map(mediaRecord)],
     emptyLabel: model.range.emptyLabel,
     exportUrl: model.range.rawUsageUrl,

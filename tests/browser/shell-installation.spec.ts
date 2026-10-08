@@ -62,8 +62,8 @@ for (const identity of ['member', 'admin'] as const) {
       await testInfo.attach('shell geometry', { path, contentType: 'application/json' });
       await page.setViewportSize({ width: 390, height: 900 });
       if (identity === 'admin') {
-        if (!await page.getByRole('checkbox', { name: '显示导航' }).isChecked()) await page.locator('.nav-toggle-label').click();
-        await page.getByRole('link', { name: '我的空间', exact: true }).click();
+        await page.getByRole('button', { name: '账号菜单', exact: true }).click();
+        await page.getByRole('menuitem', { name: '我的空间', exact: true }).click();
         await expect(page).toHaveURL(/area=me&view=home/);
         await expect(page.locator('[data-member-view="home"]')).toBeVisible();
       }
@@ -229,6 +229,7 @@ test('administrator personal content keeps its own area through ordinary links',
   await expect(page.locator('[data-dashboard-panel]')).toHaveCount(0);
   await page.getByRole('navigation',{name:'成员页面'}).getByRole('link',{name:'客户端配置',exact:true}).click();
   await expect(page).toHaveURL(/area=me&view=setup/);
-  await page.getByRole('link',{name:'组织管理',exact:true}).click();
+  await page.getByRole('button',{name:'账号菜单',exact:true}).click();
+  await page.getByRole('menuitem',{name:'组织管理',exact:true}).click();
   await expect(page.locator('[data-dashboard-panel]')).toBeVisible();
 });

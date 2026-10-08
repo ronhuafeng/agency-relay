@@ -36,27 +36,19 @@ test('quiet reads retain unchanged content and apply changed SQL data without mo
   expect(worker.requests.every(request => request.method === 'GET')).toBe(true);
 });
 
-test('changed ledger data waits while its native chart explanation is open', async ({page, worker}) => {
+test('changed ledger data waits while a chart control is focused', async ({page, worker}) => {
   await page.clock.install({time: new Date(NOW)});
   worker.seedUsageTrends();
   await page.goto('/admin?view=usage&range=7d');
-  const disclosure = page.locator('details.usage-chart-description');
-  const summary = disclosure.locator('summary');
-  await summary.focus();
-  await page.keyboard.press('Enter');
-  await expect(disclosure).toHaveJSProperty('open', true);
-  await expect(disclosure.locator('[data-text-plan="grok.production.responses"] dl>div')).toHaveCount(7);
-  const heading = page.locator('.usage-comparison-head h3');
-  await heading.evaluate(node => { (node as HTMLElement).tabIndex = -1; (node as HTMLElement).focus(); });
+  const metric = page.getByRole('searchbox');
+  await metric.focus();
   const revision = await page.locator('main').getAttribute('data-console-revision');
   worker.recordObservedRequest();
   worker.advanceClock(300000);
   await page.clock.fastForward(300000);
   await expect(page.locator('[data-console-status]')).toHaveText('有新数据');
-  await expect(disclosure).toHaveJSProperty('open', true);
-  await expect(heading).toBeFocused();
+  await expect(metric).toBeFocused();
   expect(await page.locator('main').getAttribute('data-console-revision')).toBe(revision);
-  await summary.click();
   await page.locator('main#content').focus();
   worker.advanceClock(300000);
   await page.clock.fastForward(300000);
@@ -68,13 +60,12 @@ test('changed ledger data waits while keyboard focus is on a compared day bar', 
   await page.clock.install({time: new Date(NOW)});
   worker.seedUsageTrends();
   await page.goto('/admin?view=usage&range=7d');
-  const bar = page.locator('[data-chart-day="2026-06-23"] [data-daily-plan="codex.responses"] .usage-chart-bar');
+  const bar = page.locator('[data-chart-day="2026-06-24"] [data-daily-plan="codex.responses"] .usage-chart-bar');
   expect(Number(await bar.getAttribute('height'))).toBeGreaterThan(0);
   await bar.focus();
   await page.keyboard.press('Shift+Tab');
   await page.keyboard.press('Tab');
   await expect(bar).toBeFocused();
-  await expect(page.locator('.usage-day-values')).toContainText('2026-06-23 UTC');
   const originalBar = await bar.elementHandle();
   const revision = await page.locator('main').getAttribute('data-console-revision');
 
@@ -83,7 +74,6 @@ test('changed ledger data waits while keyboard focus is on a compared day bar', 
   await page.clock.fastForward(300000);
   await expect(page.locator('[data-console-status]')).toHaveText('有新数据');
   await expect(bar).toBeFocused();
-  await expect(page.locator('.usage-day-values')).toContainText('2026-06-23 UTC');
   expect(await originalBar!.evaluate(node => node.isConnected)).toBe(true);
   expect(await page.locator('main').getAttribute('data-console-revision')).toBe(revision);
 

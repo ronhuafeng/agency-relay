@@ -69,17 +69,17 @@ describe("organization Home usage projection", () => {
     expect(metric(grok, "Requests")).toBe(requests);
     expect(metric(grok, "Failure")).toBe("251");
     expect(metric(grok, "Token")).toBe(`100 · 已记录 252/${requests} 次请求`);
-    expect(metric(grok, "上游计量金额")).toBe(`$0.0000000012 · 已记录 252/${requests} 次请求`);
-    const days = home.document.querySelectorAll('[data-text-plan="grok.production.responses"] dl>div');
-    expect(days).toHaveLength(range === "7d" ? 7 : 30);
-    expect(days[days.length - 1].textContent).toContain("2026-06-24 UTC · 未结束");
+    expect(metric(grok, "上游计量金额")).toBeUndefined();
+    expect(home.document.querySelector("[data-text-plan]")).toBeNull();
+    expect(home.document.querySelectorAll("#usage-comparison-root [data-chart-day]")).toHaveLength(range === "7d" ? 7 : 30);
+    expect(home.document.querySelector(".usage-trend-endpoints")).toBeNull();
+    expect(home.document.body.textContent).not.toContain("OpenAI Standard");
+    expect(home.document.body.textContent).not.toContain("不是结算账单");
     expect(metric(home.document.querySelector('[data-trend-plan="xai.production.responses"]')!, "Token")).toBe("未记录 · 覆盖 0/3");
-    expect(metric(home.document.querySelector('[data-trend-plan="xai.production.responses"]')!, "上游计量金额")).toBe("未提供 · 覆盖 0/3");
-    expect(metric(home.document.querySelector('[data-trend-plan="codex.responses"]')!, "API 费率折算")).toContain("未提供 · 覆盖 0/");
     const video = home.document.querySelector('[data-trend-capability="video_generation"]')!;
     expect(metric(video, "输出")).toBe("0 · 已记录 1/3 次终态");
     expect(metric(video, "时长")).toBe("1.5 秒 · 已记录 1/3 次终态");
-    expect(metric(video, "上游计量金额")).toBe("$0 · 已记录 1/3 次终态");
+    expect(metric(video, "上游计量金额")).toBeUndefined();
     expect(metric(home.document.querySelector('[data-trend-capability="image_generation"]')!, "输出")).toBe("未记录 · 覆盖 0/2");
     const rangeLinks = [...home.document.querySelectorAll('#usage-trends a[data-dashboard-link]')];
     expect(rangeLinks.map(link => new URL(link.getAttribute("href")!, "https://console.invalid").searchParams.get("view"))).toEqual(["overview", "overview"]);
@@ -92,9 +92,10 @@ describe("organization Home usage projection", () => {
     fixture.db.seedUsage({user_id: "usage-owner", day: "2026-05-01", route_profile_id: "grok.production.responses", requests: 999});
     const {response, document} = await open(fixture, "view=overview&range=7d");
     expect(response.status).toBe(200);
-    expect(document.querySelector('[data-trend-empty="all"] [data-slot="empty-title"]')?.textContent).toContain("暂无用量记录");
-    expect(document.querySelector("#usage-trends svg")).toBeNull();
+    expect(document.querySelector("[data-trend-empty]")).toBeNull();
+    expect(document.querySelector("#usage-trends .usage-bar-plot")).not.toBeNull();
     expect(document.querySelector("[data-trend-plan]")).toBeNull();
+    expect(document.querySelector("#usage-trends")?.textContent).not.toContain("至");
     expect(document.querySelector("[data-home-usage=unavailable]")).toBeNull();
   });
 

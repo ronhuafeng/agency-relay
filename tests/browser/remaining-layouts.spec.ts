@@ -113,14 +113,9 @@ test.describe('200 percent CSS magnification',()=>{
       await page.goto(url);await page.evaluate(()=>{document.documentElement.style.zoom='2';});
       await inspect(page,info,`zoom-${new URL(page.url()).searchParams.get('view')}`,'admin',2);
     }
-    const layout=page.getByRole('combobox',{name:'柱状图布局',exact:true});await layout.focus();await layout.selectOption('stacked');
-    const comparison=page.getByRole('group',{name:'堆叠柱状图 · 请求（次）',exact:true});await expect(comparison).toBeVisible();
-    const bar=comparison.locator('[data-chart-day="2026-06-23"] [data-daily-plan="codex.responses"] .usage-chart-bar');await bar.focus();await expect(bar).toBeFocused();
-    await expect(page.locator('.usage-day-values')).toContainText('2026-06-23 UTC');
-    const description=page.locator('details.usage-chart-description');const summary=description.locator('summary');await summary.focus();await page.keyboard.press('Enter');
-    await expect(description).toHaveJSProperty('open',true);await expect(description.locator('[data-text-plan="grok.production.responses"] dl>div')).toHaveCount(7);
-    await expect(description.locator('table')).toHaveCount(0);
-    await page.keyboard.press('Enter');await expect(description).toHaveJSProperty('open',false);
+    const comparison=page.getByRole('group',{name:'分组柱状图 · 已记录令牌',exact:true});await expect(comparison).toBeVisible();
+    const bar=comparison.locator('[data-chart-day="2026-06-23"] [data-daily-plan="codex.responses"] .usage-unknown-mark');await bar.focus();await expect(bar).toBeFocused();
+    await expect(page.locator('details.usage-chart-description')).toHaveCount(0);
     await screenshot(page,info,'usage-css-zoom-200');
     await page.keyboard.press('Escape');
     await authenticate(context,worker,'member');

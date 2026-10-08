@@ -173,7 +173,9 @@ reading a report first. Related facts and controls form one workspace. Content
 density comes from useful comparison and grouping, not smaller text.
 
 Use cyan for actions and selection, a cool-gray canvas with white task surfaces in
-light mode, and deep indigo surfaces in dark mode. Keep readable system Chinese
+light mode, and deep indigo surfaces in dark mode. Navigation keeps the surface
+color. Do not repaint the page to match the navigation, and do not wrap the page
+in a nested frame. Keep readable system Chinese
 fonts, 2px corners, crisp ink boundaries and hard offset shadows. Pixel character
 appears in edges, icons, sliding switches, selected states and press feedback. It
 does not require low-resolution Chinese text or game decoration.
@@ -211,8 +213,9 @@ The format follows the [Google design.md specification](https://github.com/googl
 
 ## Colors
 
-Use the page background as the quiet outer layer and the surface color for a task
-region. Use the foreground for names and facts; muted text is secondary, not a
+Use the page background as the canvas. A task object, such as a record card or a
+form, uses the surface color and one boundary. A page, and a section that only
+groups those objects, has no extra frame. Use the foreground for names and facts; muted text is secondary, not a
 substitute for a missing label. Input borders are stronger than section dividers.
 Cyan identifies the primary action and current selection. The darker teal focus
 outline stays visible against white; dark mode uses a light cyan outline. Action
@@ -256,11 +259,10 @@ become a product font-installation requirement.
 
 Use one shell with a compact brand, navigation and account-menu trigger. Email,
 current role appear in the sidebar footer trigger; the menu contains full identity and sign-out. The trigger remains identifiable
-and keyboard reachable. Organization and personal areas retain visible context.
+and keyboard reachable. Organization and personal areas retain visible context. An administrator switches between them from the account menu, not from a separate navigation row.
 The desktop shell uses a compact fixed rail, with its brand at the top and account
 menu at the bottom. Its accepted exact width belongs to the canonical component
-token, not a second number in this prose. There is no separate reserved header. Narrow organization screens
-use the same links in a native menu. Personal screens show five short task links
+token, not a second number in this prose. There is no separate reserved header. Narrow organization screens keep the same links in a capsule centered on the navigation line. When that line cannot also show the brand name, only the mark remains. The capsule opens downward into tight clusters, one for each task domain. Each choice is a fixed icon tile with its short label, and the gaps stay constant. Clusters wrap to the width instead of stretching into an empty bar. The tile keeps the console pixel shape. The wide rail stays a vertical rail. Personal screens show five short task links
 in one horizontal row, with the complete accessible names retained.
 
 Narrow screens place the brand and account menu in one compact navigation line. There is no global refresh
@@ -313,7 +315,7 @@ areas. Never hide document overflow to conceal a broken layout.
 | Upstream accounts | Provider-qualified account rows remain with creation and exact connection tasks. One continuous inspector holds identity, lifecycle actions, actual disconnection blockers and linked keys. Account name, provider and connection state align horizontally. Manual OAuth opens externally and completes inside the retained task. A separate service/default table below the workspace identifies the connection used for new keys; existing bindings stay unchanged. Unread upstream datasets use compact rows; they do not become empty metric cards or imply a disconnected account. |
 | Client configuration | A compact top disclosure retains server search and pagination for exact account/key selection. One configuration workbench below it uses client tabs for the destination, public placeholder template and local download. Held-key local generation is the initial mode. Exact selection adds explicit replacement and held-key modes without clearing selection; only the selected-key mode shows that key's dated task evidence and authorized clients. Templates expand with the document, without an inner vertical scroll region. Replacement remains a separately confirmed consequential action. Personal and delegated-service configuration reuse the workbench with held-key generation only. |
 | Request activity | One date/service/result filter and one request table use the same server scope and remain visible during exact inspection. Member and request-ID fields use an explicit precision-filter expansion; populated conditions remain open. Requests remain flat table rows with separate UTC time, person, service, path, result, upstream status and latency columns. Narrow collections keep a labelled, keyboard-scrollable table instead of changing rows into cards; the page itself stays within its viewport. Exact-request detail leads with service/path, current labels and recorded reason. Closing preserves filters and cursor; exact detail need not belong to the displayed page. Internal identifiers stay in field help. Scope help stays at the far right of the filter action row. |
-| Usage | A visible page heading and one responsive query bar combine the UTC range, exact dates, search and export for the full authorized report. One grouped bar chart follows, with an optional stacked view, response count/failure/token or separate media-start selection, service toggles and UTC day comparison. Source-specific amount and coverage remain in service help; accessible daily text expands on demand. The next section is the existing person/model detail table; do not insert a second summary or daily table. Exact dates stay on chart axes. Empty ranges show one condition and a relevant next action to expand the range or clear the search, without chart/table scaffolds. Do not render unobserved media panels or repeat read time. |
+| Usage | The navigation already names the report, so the page heading stays available without being drawn again. One query bar uses the body text size for search. The export is only an icon at that text size, centered on the text line, with no larger button box. The 7/30-day control sits on the legend row, aligned to the end, at that same text size and height; it does not stretch into its own row. A coarse pointer may raise the search to 16px so the browser does not zoom. The export icon stays at the text size. The bar is not a card. Focusing the search hides the export and expands the field in that same row; an empty blur restores it. One grouped bar chart shows recorded tokens, or media starts when that is the only series. There is no chart title, metric caption, metric switch, stacked layout, date picker, selected-day repeat, pricing explanation or expandable data table. The legend uses the same body size as those controls. Axis labels stay caption-sized. Do not show a per-record note about unrecorded tokens. The axis labels use only their own width. Each day has one small trapezoid relief on the axis. Unrecorded values do not show a question mark. Wide detail is one table without a service column: the model name distinguishes Codex from Grok. Narrow detail is one card: model and person on the left, recorded tokens as the primary number, request count and amount quiet, and a failure only when it is not zero, in the error color. There is no per-record detail popover. Exact dates stay on chart axes. An empty range still shows the chart axes and the 7/30 control, without a date line or a second range action. Do not render unobserved media panels or repeat read time. |
 | Routes | Service tabs select one hostname and method/path/recorded-result table, with exact native hash links retained. Phone rows keep the result and diagnostic action beside each route; secondary authority and recorded times remain on demand. |
 | Management records | An aligned operation/object, historical actor, time and result table that stacks on phones; secondary recorded identifiers on demand. |
 | Organization allowance | One settings table compares monthly defaults, with one Save below the table at the right. Accessible service-specific field labels do not repeat visibly. Rules sit in table-header help; the shared-team badge and repeated title are absent. One pre-save confirmation names effects on inheriting accounts, retained use and xAI shared-team authority. |
@@ -331,7 +333,7 @@ defined in the product contract.
 
 ## Elevation & Depth
 
-Use a calm 1px boundary and surface contrast for ordinary task regions. Internal
+Use a calm 1px boundary for an object that is itself a task. Do not add another frame around the page or around a section that only groups those objects. Internal
 rows use a softer 1px divider. Primary and destructive buttons, use a 2px boundary and a
 `2px 2px 0` ink shadow; dark mode uses a near-black shadow. Pressed buttons move by 2px and lose
 the shadow. Secondary buttons have a 1px outline and no offset shadow. The page

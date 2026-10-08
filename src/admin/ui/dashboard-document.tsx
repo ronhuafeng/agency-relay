@@ -17,7 +17,7 @@ import { Icon } from "./icon";
 import { viewHref } from "./href";
 import { AppHead, ConsoleHeader, ConsoleNavigation } from "./console-chrome";
 import { memberHref } from "../member-href";
-import { SidebarFooter, SidebarGroup, SidebarGroupLabel, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider } from "./components/sidebar";
+import { SidebarGroup, SidebarGroupLabel, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider } from "./components/sidebar";
 function DashboardPage({model}: {readonly model: AdminDashboardPageModel}) {
   switch (model.view) {
     case "overview": return <HomePage model={model} />;
@@ -37,14 +37,14 @@ export function DashboardContent({model}: {readonly model: AdminDashboardPageMod
 }
 function Navigation({model}: {readonly model: AdminDashboardPageModelBase}) {
   const groups = {workspace:"工作台",resources:"资源",observation:"观察",advanced:"高级"};
-  return <ConsoleNavigation current={`组织管理 · ${dashboardViewTitle(model.view)}`} email={model.operatorLabel} role="admin" actorId={model.operatorId}>{(["workspace", "resources", "observation", "advanced"] as const).map((group) => <SidebarGroup key={group} className="console-nav-group" data-nav-group={group}>
+  return <ConsoleNavigation current={dashboardViewTitle(model.view)} email={model.operatorLabel} role="admin" actorId={model.operatorId} switches={[{href: memberHref("home"), label: "我的空间"}]}>{(["workspace", "resources", "observation", "advanced"] as const).map((group) => <SidebarGroup key={group} className="console-nav-group" data-nav-group={group}>
     <SidebarGroupLabel>{groups[group]}</SidebarGroupLabel>
     <SidebarMenu>{DASHBOARD_VIEW_DEFINITIONS.filter((item) => item.group === group).map((item) => <SidebarMenuItem key={item.key}><SidebarMenuButton asChild isActive={item.key === model.view}><a href={viewHref(item.key, model.range.key)} data-dashboard-link="" aria-current={item.key === model.view ? "page" : undefined}><Icon name={item.key} /><span>{item.title}</span></a></SidebarMenuButton></SidebarMenuItem>)}</SidebarMenu>
-  </SidebarGroup>)}<SidebarFooter className="nav-area-switch"><SidebarMenu><SidebarMenuItem><SidebarMenuButton asChild><a href={memberHref("home")}><Icon name="keys" /><span>我的空间</span></a></SidebarMenuButton></SidebarMenuItem></SidebarMenu></SidebarFooter></ConsoleNavigation>;
+  </SidebarGroup>)}</ConsoleNavigation>;
 }
 function PageHeader({model}: {readonly model: AdminDashboardPageModelBase}) {
   const titles = {overview:"组织概览",credentials:"上游连接",access:"成员与服务",setup:"客户端配置",audit:"请求记录",usage:"用量报告",surfaces:"服务路由",quotas:"额度政策","control-audit":"管理记录"};
-  return <h1 className={model.view === "usage" ? "usage-page-heading" : "sr-only"}>{titles[model.view]}</h1>;
+  return <h1 className="sr-only">{titles[model.view]}</h1>;
 }
 function DashboardDocument({model, nonce, children, revision}: {readonly model: AdminDashboardPageModelBase; readonly nonce: string; readonly children: ReactNode; readonly revision?: string}) {
   return <html lang="zh-CN"><head><meta charSet="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" /><meta name="color-scheme" content="light dark" /><meta name="robots" content="noindex,nofollow" /><title>{model.documentTitle}</title><meta name="description" content="Agency Relay 管理控制台。" />{model.appEnabled ? <AppHead /> : null}<style nonce={nonce}>{consoleStyles}</style></head><body id="top">
