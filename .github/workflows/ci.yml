@@ -12,8 +12,8 @@ permissions:
   contents: read
 
 jobs:
-  ci:
-    name: ci
+  source-integrity:
+    name: Source integrity
     runs-on: ubuntu-latest
 
     steps:
@@ -40,22 +40,71 @@ jobs:
       - name: Check generated Worker bindings
         run: pnpm run types:check
 
-      - name: Typecheck TypeScript
-        run: pnpm run typecheck
+      - name: Typecheck Worker and console TypeScript
+        run: |
+          pnpm exec tsc --noEmit
+          pnpm exec tsc -p tsconfig.client.json --noEmit
 
-      - name: Lint authored console CSS
+  design-enforcement:
+    name: Design enforcement
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: 10.28.2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 26
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Validate generated design projections
+        run: pnpm run console:check
+
+      - name: Enforce authored console CSS contracts
         run: pnpm run lint:css
 
-      - name: Lint console Tailwind classes
+      - name: Enforce console class and inline-style policy
         run: pnpm run lint:classes
 
-      - name: Worker unit tests
+  runtime-contracts:
+    name: Runtime contracts
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: 10.28.2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 26
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Worker unit and contract tests
         run: pnpm exec vitest run
 
-      - name: Egress shim tests
+      - name: Egress shim contracts
         run: pnpm run egress:test
 
-      - name: Wrangler dry-run
+      - name: Wrangler deploy dry-run
         run: pnpm run deploy:dry-run
         env:
           WRANGLER_SEND_METRICS: "false"
