@@ -10,43 +10,9 @@ permissions:
   contents: read
 
 jobs:
-  changes:
-    runs-on: ubuntu-24.04
-    outputs:
-      relevant: ${{ steps.paths.outputs.relevant }}
-      webkit: ${{ steps.paths.outputs.webkit }}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-      - id: paths
-        name: Select the browser boundary
-        env:
-          BASE: ${{ github.event.pull_request.base.sha }}
-        run: |
-          if [ "${{ github.event_name }}" = "push" ]; then
-            echo "relevant=true" >> "$GITHUB_OUTPUT"
-            echo "webkit=true" >> "$GITHUB_OUTPUT"
-          else
-            git diff --name-only "$BASE" HEAD > "$RUNNER_TEMP/console-browser-paths"
-            if grep -E '^(src/admin/(app|return-target)\.ts|src/admin/client/(main\.tsx|recovery\.ts|authority\.ts)|src/auth/feishu-login\.ts|tests/browser/(worker|fixtures)\.ts|tests/browser/(core|member-keys|secrets|shell-installation|service-accounts|service-delegation|login-recovery|authority-recovery|page-restoration)\.spec\.ts|\.github/workflows/console-browser\.yml)$' "$RUNNER_TEMP/console-browser-paths" > /dev/null; then
-              echo "webkit=true" >> "$GITHUB_OUTPUT"
-            else
-              echo "webkit=false" >> "$GITHUB_OUTPUT"
-            fi
-            if grep -E '^(src/|tokens/|migrations/|tests/(browser|support)/|scripts/|deploy/codex-egress-shim/egress-protocol.json$|package.json$|pnpm-lock.yaml$|tsconfig[^/]*\.json$|playwright.config.ts$|worker-configuration.d.ts$|wrangler[^/]*$|\.github/workflows/)' "$RUNNER_TEMP/console-browser-paths" > /dev/null; then
-              echo "relevant=true" >> "$GITHUB_OUTPUT"
-            else
-              echo "relevant=false" >> "$GITHUB_OUTPUT"
-              echo "Browser suite not selected: no runtime, projection, fixture, build, type, dependency or workflow inputs changed." >> "$GITHUB_STEP_SUMMARY"
-            fi
-          fi
 
-  regression:
-    needs: changes
-    if: needs.changes.outputs.relevant == 'true'
-    name: browser-${{ matrix.project }}
+  browser-contracts:
+    name: ${{ matrix.name }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     env:
@@ -54,7 +20,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        project: ${{ fromJSON(needs.changes.outputs.webkit == 'true' && '["chromium","webkit"]' || '["chromium"]') }}
+        include:
+          - project: chromium
+            name: Chromium browser contracts
+          - project: webkit
+            name: WebKit cross-engine contracts
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -208,21 +178,3 @@ jobs:
           ARTIFACT_URL: ${{ steps.artifact.outputs.artifact-url }}
         run: printf '\n[Download display-only preview evidence](%s) (repository access required; retained seven days)\n' "$ARTIFACT_URL" >> "$GITHUB_STEP_SUMMARY"
 
-  browser:
-    if: always()
-    needs: [changes, regression]
-    runs-on: ubuntu-24.04
-    steps:
-      - name: Report browser gate selection and result
-        env:
-          SELECTED: ${{ needs.changes.outputs.relevant }}
-          CHANGES: ${{ needs.changes.result }}
-          RESULT: ${{ needs.regression.result }}
-        run: |
-          if [ "$CHANGES" != success ]; then exit 1; fi
-          if [ "$SELECTED" != true ]; then
-            echo "Browser suite explicitly not selected for this documentation-only change." >> "$GITHUB_STEP_SUMMARY"
-          elif [ "$RESULT" != success ]; then
-            echo "Selected browser suite did not pass: $RESULT" >> "$GITHUB_STEP_SUMMARY"
-            exit 1
-          fi
