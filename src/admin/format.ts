@@ -45,5 +45,19 @@ export function formatUsdTicks(ticks: number): string {
   return fractional ? `$${whole}.${fractional}` : `$${whole}`;
 }
 
+/** One column width. Exact tick text stays on formatUsdTicks. */
+export function formatUsdColumn(ticks: number): string {
+  if (!Number.isSafeInteger(ticks) || ticks < 0) return "超出精确范围";
+  const scale = 10_000_000_000n;
+  const places = 4n;
+  const unit = scale / 10n ** places;
+  const amount = BigInt(ticks);
+  const rounded = (amount + unit / 2n) / unit;
+  if (amount > 0n && rounded === 0n) return "<$0.0001";
+  const whole = rounded / 10n ** places;
+  const fraction = String(rounded % 10n ** places).padStart(Number(places), "0");
+  return `$${whole}.${fraction}`;
+}
+
 const USAGE_SECONDS_FORMAT = new Intl.NumberFormat("en-US", {maximumFractionDigits: 3});
 export function formatUsageSeconds(value: number): string { return `${USAGE_SECONDS_FORMAT.format(value)} 秒`; }

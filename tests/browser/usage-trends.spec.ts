@@ -15,7 +15,7 @@ for (const scenario of [
     expect(await page.locator('[data-trend-plan="grok.production.responses"] .usage-metrics').textContent()).toContain('0 · 已记录 1/4 次请求');
     await expect(page.locator('[data-trend-plan="codex.responses"]')).not.toContainText('OpenAI Standard');
     await expect(page.locator('[data-trend-plan="codex.responses"]')).not.toContainText('API 费率折算');
-    await expect(page.locator('.usage-record[data-usage-plan="codex.responses"]').filter({hasText: 'gpt-5.5'}).locator('.usage-record-cost')).toContainText('$0.00071');
+    await expect(page.locator('.usage-record[data-usage-plan="codex.responses"]').filter({hasText: 'gpt-5.5'}).locator('.usage-record-cost')).toContainText('$0.0007');
     if (scenario.identity === "member") expect((await page.locator('main').textContent())?.includes('other-private-model')).toBe(false);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
     await expect(page.locator('.usage-comparison table')).toHaveCount(0);

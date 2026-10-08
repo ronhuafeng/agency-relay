@@ -852,8 +852,8 @@ describe("Dashboard", () => {
     expect(record("xai.production.images_generations")?.getAttribute("data-subscription-authority")).toBe("xai");
     expect(record("codex.responses")?.querySelector(".usage-record-measurement")?.textContent).toContain("150");
     expect(record("codex.responses")?.querySelector("[popover]")).toBeNull();
-    expect(record("grok.production.responses")?.querySelector(".usage-record-cost")?.textContent).toContain("$0.0005944");
-    expect(record("xai.production.images_generations")?.querySelector(".usage-record-cost")?.textContent).toContain("$0.05");
+    expect(record("grok.production.responses")?.querySelector(".usage-record-cost")?.textContent).toContain("$0.0006");
+    expect(record("xai.production.images_generations")?.querySelector(".usage-record-cost")?.textContent).toContain("$0.0500");
     expect(record("codex.historical.responses")?.querySelector(".usage-record-measurement")?.textContent).toContain("未记录");
     expect(record("N/A")?.querySelector(".usage-record-measurement")?.textContent).toContain("未记录");
     expect(record("N/A")?.getAttribute("data-subscription-authority")).toBe("unattributed");

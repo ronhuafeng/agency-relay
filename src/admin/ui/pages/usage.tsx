@@ -1,5 +1,5 @@
 import { UsageTrends, type UsageTrendsModel } from "../usage-trends";
-import { formatNumber, formatOperatorInstantOrDash, formatUsdTicks, formatUsageSeconds, presentText } from "../../format";
+import { formatNumber, formatOperatorInstantOrDash, formatUsdColumn, formatUsageSeconds, presentText } from "../../format";
 import { executionPlanPresentation } from "../../../plans/execution-plans";
 import type { MediaUsageSummaryRow, UsageSummaryRow } from "../../../types";
 import { UsageReportIsland } from "../islands";
@@ -38,7 +38,7 @@ function responseRecord(row: UsageSummaryRow, index: number): UsageRecord {
   const measured = row.token_measurements > 0;
   const metrics: UsageFact[] = [{label: "请求", value: formatNumber(row.requests)}, {label: "已记录令牌", value: measured ? formatNumber(row.total_tokens) : "未记录"}];
   const cost = usageCost(row.route_profile_id, row);
-  if (cost) metrics.push({label: cost.label, value: cost.measurements > 0 ? formatUsdTicks(cost.ticks) : "未提供"});
+  if (cost) metrics.push({label: cost.label, value: cost.measurements > 0 ? formatUsdColumn(cost.ticks) : "未提供"});
   if (row.error_requests > 0) metrics.push({label: "失败请求", value: formatNumber(row.error_requests), tone: "bad"});
   const cache = measured && row.input_tokens > 0 ? formatRatioPercent(row.cached_input_tokens, row.input_tokens) : "—";
   return {
@@ -61,7 +61,7 @@ function mediaRecord(row: MediaUsageSummaryRow, index: number): UsageRecord {
   const metrics: UsageFact[] = [{label: "已开始", value: formatNumber(row.started_jobs)}, {label: "已记录输出", value: row.output_measurements > 0 ? formatNumber(row.outputs) : "未记录"}];
   if (row.capability.startsWith("video")) metrics.push({label: "已记录时长", value: row.duration_measurements > 0 ? formatUsageSeconds(row.video_seconds) : "未记录"});
   const cost = usageCost(row.route_profile_id, row);
-  if (cost) metrics.push({label: cost.label, value: cost.measurements > 0 ? formatUsdTicks(cost.ticks) : "未提供"});
+  if (cost) metrics.push({label: cost.label, value: cost.measurements > 0 ? formatUsdColumn(cost.ticks) : "未提供"});
   return {
     id: `media-${index}`, authority: source.authority, service: source.label, plan: row.route_profile_id,
     owner: presentText(row.email ?? row.user_id), title: titles[row.capability], metrics, note: null,
@@ -75,7 +75,7 @@ function mediaRecord(row: MediaUsageSummaryRow, index: number): UsageRecord {
 }
 export function UsagePage({model}: {readonly model: UsagePageModel}) {
   const url = new URL(model.searchUrl ?? model.trends?.navigationUrl ?? "/admin?view=usage", "https://console.invalid");
-  return <div className="usage-page view-stack"><form method="get" action={url.pathname} data-dashboard-search="" data-search-anchor="usage-trends" className="usage-toolbar" aria-label="筛选全部用量">
+  return <div className="usage-page view-stack">{model.trends ? <UsageTrends model={model.trends}/> : null}<section id="usage-details" tabIndex={-1} aria-label="用量明细"><form method="get" action={url.pathname} data-dashboard-search="" data-search-anchor="usage-details" className="usage-toolbar" aria-label="筛选用量明细">
     {[...url.searchParams].filter(([key]) => key !== "q").map(([key, value]) => <input key={key} type="hidden" name={key} value={value}/>)}
     <div className="usage-search">
       <InputGroup>
@@ -85,12 +85,12 @@ export function UsagePage({model}: {readonly model: UsagePageModel}) {
       </InputGroup>
     </div>
     <div className="usage-export"><Button asChild variant="outline" size="icon"><a href={model.range.rawUsageUrl} download="usage.json" aria-label="导出数据" title="导出数据"><Download className="ui-icon" aria-hidden="true"/></a></Button></div>
-  </form>{model.trends ? <UsageTrends model={model.trends}/> : null}{model.rows.length + model.mediaRows.length > 0 || !model.trends ? <section id="usage-details" tabIndex={-1} aria-label="用量明细"><UsageReportIsland control={{
+  </form><UsageReportIsland control={{
     records: [...model.rows.map(responseRecord), ...model.mediaRows.map(mediaRecord)],
     emptyLabel: model.range.emptyLabel,
     exportUrl: model.range.rawUsageUrl,
     truncated: model.rowsTruncated || model.mediaRowsTruncated,
     filterPlaceholder: model.filterPlaceholder ?? "搜索人员或模型",
     limitNote: model.limitNote ?? "请求和媒体记录分别显示最多 250 条，导出文件中各保留最多 1,000 条。"
-  }} /></section> : null}</div>;
+  }} /></section></div>;
 }

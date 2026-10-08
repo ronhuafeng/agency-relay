@@ -83,8 +83,8 @@ describe("daily SQL and honest projections", () => {
     expect(series.map(node => node.getAttribute("data-trend-plan")).sort()).toEqual(["codex.historical.responses", "codex.responses", "codex.responses_compact"]);
     expect([...document.querySelectorAll('.usage-chart-y span')].map(node => node.textContent)).toEqual(["2", "1", "0"]);
     for (const bar of document.querySelectorAll('[data-chart-day="2026-06-24"] .usage-chart-bar')) {
-      expect(bar.getAttribute('y')).toBe("120");
-      expect(bar.getAttribute('height')).toBe("100");
+      expect(bar.getAttribute('y')).toBe("75");
+      expect(bar.getAttribute('height')).toBe("67");
     }
   });
   it("sums every matching ledger row beyond the display/export limit and keeps exact plans apart", async () => {

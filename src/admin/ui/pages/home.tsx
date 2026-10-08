@@ -98,11 +98,7 @@ export function HomePage({ model }: { readonly model: HomeModel }) {
       {items.length > 0 || model.accounts.length > 0 ? <Panel className="attention-panel" panel="attention" hidden={items.length === 0} title="需要处理" meta={<span data-attention-count="">{`${items.length} 项`}</span>}><ul className="attention-list" data-attention-queue="true">
         {items.map(item => <AttentionRow key={`${item.kind}:${item.href}:${item.title}`} item={item}/>)}
       </ul></Panel> : null}
-      <div className="home-readiness">
-      <Panel title="上游连接" action={<DashLink className="action-link" href={viewHref("credentials", model.range.key)}>管理<Icon name="arrow"/></DashLink>}>
-        <div className="route-card-grid" data-home-accounts="true">{model.accounts.length > 0 ? <AccountCards accounts={model.accounts} base={model.canonicalUrl}/> : <div className="account-onboarding"><p>还没有上游连接。</p><Button asChild><DashLink href={`${viewHref("credentials", model.range.key)}&task=add-account`}>连接账号</DashLink></Button></div>}</div>
-      </Panel>
-      </div>
+      {model.accounts.length > 0 ? <div className="home-account-host" hidden data-home-accounts="true"><AccountCards accounts={model.accounts} base={model.canonicalUrl}/></div> : <div className="account-onboarding"><p>还没有上游连接。</p><Button asChild><DashLink href={`${viewHref("credentials", model.range.key)}&task=add-account`}>连接账号</DashLink></Button></div>}
     </div>
   </View>;
 }

@@ -76,7 +76,7 @@ test("Home keeps connection status and recovery actions consistent as an account
   worker.setBoundCredentialStatus("active"); channel!.send(JSON.stringify({type: "credentials-changed"}));
   await expect(account.locator("[data-credential-status]")).toHaveText("已连接");
   await expect(attention).toBeHidden();
-  await expect(account.getByRole("link")).toBeFocused();
+  await expect(page.locator(".home-resource-summary a[href*='view=credentials']")).toBeFocused();
   await expect(page.locator('[data-panel="attention"]')).toBeHidden();
   expect(worker.requests.filter(request => request.method === "GET" && request.path === "/admin")).toHaveLength(priorPageReads);
   expect(worker.requests.filter(request => request.method !== "GET")).toHaveLength(0);

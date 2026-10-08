@@ -86,7 +86,7 @@ export function initializeCredentialStatus(): () => void {
     let item = Array.from(queue.querySelectorAll<HTMLElement>("[data-attention-account]"))
       .find(candidate => candidate.dataset.attentionAccount === status.key);
     if (status.tone !== "warn" && status.tone !== "bad") {
-      if (item?.contains(document.activeElement)) root.querySelector<HTMLAnchorElement>("a")?.focus({preventScroll: true});
+      if (item?.contains(document.activeElement)) document.querySelector<HTMLAnchorElement>(".home-resource-summary a[href*='view=credentials']")?.focus({preventScroll: true});
       item?.remove();
       return;
     }

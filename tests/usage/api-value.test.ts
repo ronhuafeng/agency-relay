@@ -3,7 +3,7 @@ import { apiEquivalentValue, OPENAI_PRICE_VERSION } from "../../src/usage/api-va
 import { commitProviderAttemptAccounting, queryUsageDaily, queryUsageSummary } from "../../src/db";
 import { makeFixture } from "../router/fixture";
 import type { CapturedProviderUsage } from "../../src/types";
-import { formatUsdTicks } from "../../src/admin/format";
+import { formatUsdColumn, formatUsdTicks } from "../../src/admin/format";
 
 const usage: CapturedProviderUsage = {
   input_tokens: 100, cached_input_tokens: 20, output_tokens: 10,
@@ -17,6 +17,9 @@ describe("OpenAI Standard API-equivalent USD", () => {
     expect(formatUsdTicks(1)).toBe("$0.0000000001");
     expect(formatUsdTicks(Number.MAX_SAFE_INTEGER)).toBe("$900719.9254740991");
     expect(formatUsdTicks(Number.MAX_SAFE_INTEGER + 1)).toBe("超出精确范围");
+    expect(formatUsdColumn(5_944_000)).toBe("$0.0006");
+    expect(formatUsdColumn(500_000_000)).toBe("$0.0500");
+    expect(formatUsdColumn(1)).toBe("<$0.0001");
   });
   it("charges disjoint input and full output, without adding reasoning again", () => {
     expect(value("gpt-5.5")).toEqual({ticks: 7100000, version: OPENAI_PRICE_VERSION});

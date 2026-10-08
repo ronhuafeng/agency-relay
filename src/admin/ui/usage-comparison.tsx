@@ -74,7 +74,7 @@ export function UsageComparison({control}: {readonly control: UsageComparisonCon
   const maximum = Math.max(2, Math.ceil(peak / step)) * step;
   const ticks = Array.from({length: maximum / step + 1}, (_, index) => maximum - index * step);
   const band = 600 / days.length;
-  const y = (value: number) => 220 - value * 200 / maximum;
+  const y = (value: number) => 142 - value * 134 / maximum;
   return <section className="usage-comparison" aria-label="用量比较">
     <div className="usage-chart-legend" aria-label="显示的服务">{control.series.map(series => <div key={series.id} className="usage-legend-item" data-trend-plan={series.plan} data-trend-capability={series.capability}>
       <Button type="button" variant="ghost" disabled={!enhanced || !compatible.includes(series)} aria-pressed={!hidden.includes(series.id) && compatible.includes(series)} onClick={() => setHidden(hidden.includes(series.id) ? hidden.filter(id => id !== series.id) : [...hidden, series.id])}><svg viewBox="0 0 12 12" className="usage-series-swatch" aria-hidden="true"><rect width="12" height="12" data-series-color={colors.get(series.id)}/></svg>{series.title}</Button>
@@ -82,11 +82,11 @@ export function UsageComparison({control}: {readonly control: UsageComparisonCon
     </div>)}{control.range ? <nav className="ranges usage-legend-range" aria-label="UTC 时间范围"><a href={control.range.href7} data-dashboard-link="" aria-current={control.range.key === "7d" ? "true" : undefined}>7 天</a><a href={control.range.href30} data-dashboard-link="" aria-current={control.range.key === "30d" ? "true" : undefined}>30 天</a></nav> : null}</div>
     {days.length ? <div className="usage-chart-frame">
       <div className="usage-chart-y" aria-hidden="true">{ticks.map(tick => <span key={tick}>{formatNumber(tick)}</span>)}</div>
-      <div className="usage-chart-body"><svg className="usage-bar-plot" viewBox="0 0 600 240" preserveAspectRatio="none" role="group" aria-label={`分组柱状图 · ${metricLabels[metric]}`}>
+      <div className="usage-chart-body"><svg className="usage-bar-plot" viewBox="0 0 600 150" preserveAspectRatio="none" role="group" aria-label={`分组柱状图 · ${metricLabels[metric]}`}>
         {ticks.map(tick => <path key={tick} className="usage-chart-grid" d={`M0 ${y(tick)} H600`}/>)}
         {days.map((dayRow, dayIndex) => {
           return <g key={dayRow.day} data-chart-day={dayRow.day}>
-            <rect aria-hidden="true" className="usage-day-hit" x={dayIndex * band} y="20" width={band} height="200"/>
+            <rect aria-hidden="true" className="usage-day-hit" x={dayIndex * band} y="8" width={band} height="134"/>
             {visible.map((series, seriesIndex) => {
               const row = series.rows[dayIndex];
               const value = valueOf(row, metric);
@@ -94,7 +94,7 @@ export function UsageComparison({control}: {readonly control: UsageComparisonCon
               const barWidth = band * .8 / visible.length;
               const left = dayIndex * band + band * .1 + seriesIndex * barWidth;
               return <g key={series.id} data-chart-series={series.id} data-daily-plan={series.plan} data-daily-capability={series.capability}>
-                {value === null ? <rect className="usage-unknown-mark" x={left} y="212" width={Math.max(.5, barWidth - 1)} height="8" tabIndex={0} role="img" aria-label={pointLabel(series, row, metric)}/> : <rect className="usage-chart-bar" data-series-color={colors.get(series.id)} x={left} y={y(top)} width={Math.max(.5, barWidth - 1)} height={y(0) - y(top)} tabIndex={0} role="img" aria-label={pointLabel(series, row, metric)}><title>{pointLabel(series, row, metric)}</title></rect>}
+                {value === null ? <rect className="usage-unknown-mark" x={left} y="134" width={Math.max(.5, barWidth - 1)} height="8" tabIndex={0} role="img" aria-label={pointLabel(series, row, metric)}/> : <rect className="usage-chart-bar" data-series-color={colors.get(series.id)} x={left} y={y(top)} width={Math.max(.5, barWidth - 1)} height={y(0) - y(top)} tabIndex={0} role="img" aria-label={pointLabel(series, row, metric)}><title>{pointLabel(series, row, metric)}</title></rect>}
               </g>;
             })}
           </g>;
