@@ -45,6 +45,15 @@ protection may enforce this signal; it is not a separate correctness proof.
 Passing design checks establishes the covered deterministic contracts, not visual
 approval.
 
+Local/task verification and repository admission have different scopes. During
+implementation, select the smallest native evidence that can falsify the changed
+boundary. For repository admission, every pull request targeting `main` and every
+push to `main` runs all mandatory CI contract groups plus the full Chromium and
+WebKit console-browser suites. A hard prerequisite failure may block dependent
+evidence; that is a blocked candidate, not a pass and not a reason for a manual
+one-off substitute. Repair or update the candidate and let the normal workflow run
+again.
+
 
 ## Layers and selection
 
@@ -224,13 +233,17 @@ main run is not product success evidence. Origin shutdown proves server
 unavailability, not device-wide offline mode or protected HTTPS installation;
 no certificate exception or trust change is introduced.
 
-### CI selection and safe evidence
+### CI admission and safe evidence
 
-The [browser workflow](../../.github/workflows/console-browser.yml) owns path
-selection, additional WebKit PR coverage, both-engine main runs and the stable
-`browser` result for explicit non-selection. [Runner configuration](../../playwright.config.ts)
-keeps automatic retries off. Intentional reruns retain separate native attempts
-and cannot turn a failed selected head suite into success.
+The [browser workflow](../../.github/workflows/console-browser.yml) is full
+repository-admission evidence: every pull request targeting `main` and every push
+to `main` runs the complete console suite in both Chromium and WebKit. It does
+not use changed-path selection or a partial-engine shortcut. Local development may
+still run only the engine and scenario needed for the current task.
+
+[Runner configuration](../../playwright.config.ts) keeps automatic retries off.
+Intentional reruns retain separate native attempts and cannot turn a failed
+candidate into success.
 
 Native local reports stay in ignored `tmp/browser-report` and
 `tmp/browser-results`. Trace, video and automatic screenshots are disabled.
