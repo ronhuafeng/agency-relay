@@ -17,7 +17,7 @@ import { Icon } from "./icon";
 import { viewHref } from "./href";
 import { AppHead, ConsoleHeader, ConsoleNavigation } from "./console-chrome";
 import { memberHref } from "../member-href";
-import { SidebarGroup, SidebarGroupLabel, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider } from "./components/sidebar";
+import { SidebarGroup, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider } from "./components/sidebar";
 function DashboardPage({model}: {readonly model: AdminDashboardPageModel}) {
   switch (model.view) {
     case "overview": return <HomePage model={model} />;
@@ -36,9 +36,7 @@ export function DashboardContent({model}: {readonly model: AdminDashboardPageMod
   return <>{!noticeOwnedByPage ? <MutationNotice flash={model.mutationFlash} /> : null}<DashboardPage model={model} /></>;
 }
 function Navigation({model}: {readonly model: AdminDashboardPageModelBase}) {
-  const groups = {workspace:"工作台",resources:"资源",observation:"观察",advanced:"高级"};
   return <ConsoleNavigation current={dashboardViewTitle(model.view)} email={model.operatorLabel} role="admin" actorId={model.operatorId} switches={[{href: memberHref("home"), label: "我的空间"}]}>{(["workspace", "resources", "observation", "advanced"] as const).map((group) => <SidebarGroup key={group} className="console-nav-group" data-nav-group={group}>
-    <SidebarGroupLabel>{groups[group]}</SidebarGroupLabel>
     <SidebarMenu>{DASHBOARD_VIEW_DEFINITIONS.filter((item) => item.group === group).map((item) => <SidebarMenuItem key={item.key}><SidebarMenuButton asChild isActive={item.key === model.view}><a href={viewHref(item.key, model.range.key)} data-dashboard-link="" aria-current={item.key === model.view ? "page" : undefined}><Icon name={item.key} /><span>{item.title}</span></a></SidebarMenuButton></SidebarMenuItem>)}</SidebarMenu>
   </SidebarGroup>)}</ConsoleNavigation>;
 }
