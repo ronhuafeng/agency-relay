@@ -111,7 +111,7 @@ it("measures local storage operations for one authorization and one resource rea
     await runtime.dispatchFetch(`${ISSUER}/budget-reset`, { method: "POST", body: "{}" });
     expect((await runtime.dispatchFetch(`${MCP}/mcp`, { method: "POST", headers: { Authorization: `Bearer ${issued.access_token}`, "Content-Type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize" }) })).status).toBe(200);
     const read = ((await (await runtime.dispatchFetch(`${ISSUER}/budget`, { method: "POST", body: "{}" })).json()) as { storage_operations: number }).storage_operations;
-    expect({ authorized, read }).toEqual({ authorized: 13, read: 2 });
+    expect({ authorized, read }).toEqual({ authorized: 15, read: 2 });
   } finally { await runtime.dispose(); }
 }, 20000);
 
@@ -260,5 +260,16 @@ it("keeps authorization-code use atomic and rejects another resource's token", a
     expect(reboundToken.account).toBe("account-b");
     expect((await runtime.dispatchFetch(`${MCP}/mcp`, { method: "POST", headers: { Authorization: `Bearer ${reboundToken.access_token}`, "Content-Type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 8, method: "initialize" }) })).status).toBe(200);
     expect((await runtime.dispatchFetch(`${MCP}/mcp`, { method: "POST", headers: { Authorization: `Bearer ${renewedToken.access_token}`, "Content-Type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 9, method: "initialize" }) })).status).toBe(401);
+    const limited: number[] = [];
+    let firstLimited = -1;
+    for (let attempt = 0; attempt < 24 && limited.length < 2; attempt += 1) {
+      const status = (await runtime.dispatchFetch(`${ISSUER}/register`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ redirect_uris: [`http://127.0.0.1:${9000 + attempt}/callback`] }) })).status;
+      if (status === 429) {
+        if (firstLimited < 0) firstLimited = attempt;
+        limited.push(status);
+      }
+    }
+    expect(firstLimited).toBe(9);
+    expect(limited).toEqual([429, 429]);
   } finally { await runtime.dispose(); }
 }, 20000);

@@ -5,6 +5,7 @@ import { HttpError, jsonResponse } from "../../src/errors";
 const REQUIRED_SCOPE = "relay.read";
 const MAX_BODY_BYTES = 4096;
 const BODY_READ_DEADLINE_MS = 1000;
+const MAX_REGISTRATION_ATTEMPTS = 16;
 
 interface FixtureEnv extends Env {
   GRANTS: DurableObjectNamespace<RuntimeGrantAuthority>;
@@ -30,6 +31,7 @@ interface ConsentRecord {
 interface AuthorityState {
   generation: number;
   account: string;
+  registrationAttempts?: number;
 }
 
 interface CodeRecord {
@@ -71,6 +73,7 @@ export class RuntimeGrantAuthority extends DurableObject<FixtureEnv> {
     try {
       const body = await request.json() as Record<string, unknown>;
       const action = new URL(request.url).pathname;
+      if (action === "/register-attempt") return jsonResponse(await this.registerAttempt());
       if (action === "/register") return jsonResponse(await this.register(body));
       if (action === "/begin") return jsonResponse(await this.begin(body));
       if (action === "/decide") return jsonResponse(await this.decide(body));
@@ -87,6 +90,16 @@ export class RuntimeGrantAuthority extends DurableObject<FixtureEnv> {
       const status = typeof error === "object" && error !== null && "status" in error && error.status === 400 ? 400 : 500;
       return jsonResponse({ error: status === 400 ? "invalid_request" : "server_error" }, { status });
     }
+  }
+
+  private async registerAttempt(): Promise<{ ok: boolean }> {
+    return this.ctx.storage.transaction(async (txn) => {
+      const authority = await this.readAuthority(txn);
+      const registrationAttempts = (authority.registrationAttempts ?? 0) + 1;
+      this.storageOps += 1;
+      await txn.put("authority", { ...authority, registrationAttempts });
+      return { ok: registrationAttempts <= MAX_REGISTRATION_ATTEMPTS };
+    });
   }
 
   private async register(body: Record<string, unknown>): Promise<{ client_id: string; redirect_uris: string[]; grant_types: string[]; response_types: string[]; token_endpoint_auth_method: "none" }> {
@@ -206,7 +219,7 @@ export class RuntimeGrantAuthority extends DurableObject<FixtureEnv> {
     await this.ctx.storage.transaction(async (txn) => {
       const authority = await this.readAuthority(txn);
       this.storageOps += 1;
-      await txn.put("authority", { generation: authority.generation + 1, account: authority.account });
+      await txn.put("authority", { generation: authority.generation + 1, account: authority.account, registrationAttempts: authority.registrationAttempts ?? 0 });
     });
     return { revoked: true };
   }
@@ -217,7 +230,7 @@ export class RuntimeGrantAuthority extends DurableObject<FixtureEnv> {
       const authority = await this.readAuthority(txn);
       if (authority.account === account) throw Object.assign(new Error("same account"), { status: 400 });
       this.storageOps += 1;
-      await txn.put("authority", { generation: authority.generation + 1, account });
+      await txn.put("authority", { generation: authority.generation + 1, account, registrationAttempts: authority.registrationAttempts ?? 0 });
       return { account };
     });
   }
@@ -282,6 +295,8 @@ export default {
         return jsonResponse({ issuer, authorization_endpoint: `${issuer}/authorize`, token_endpoint: `${issuer}/token`, registration_endpoint: `${issuer}/register`, response_types_supported: ["code"], grant_types_supported: ["authorization_code", "refresh_token"], code_challenge_methods_supported: ["S256"], token_endpoint_auth_methods_supported: ["none"] });
       }
       if (issuerOrigin && request.method === "POST" && url.pathname === "/register") {
+        const attempt = await (await callAuthority(env, "/register-attempt", {})).json() as { ok?: boolean };
+        if (!attempt.ok) return jsonResponse({ error: "invalid_request" }, { status: 429 });
         const body = JSON.parse(await readBounded(request)) as Record<string, unknown>;
         if ("client_secret" in body || "jwks" in body || "jwks_uri" in body) throw Object.assign(new Error("credential metadata"), { status: 400 });
         return callAuthority(env, "/register", body);
