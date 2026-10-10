@@ -116,6 +116,22 @@ Observation failure leaves coverage unknown and cannot replace the client result
 
 Details: [usage](../operate/usage.md), [Responses development](../develop/responses.md), and the exact source/test catalog.
 
+## Runtime MCP authorization
+
+Provider profiles above do not admit an MCP client. A Runtime client presents a resource-bound OAuth bearer to one exact resource. That grant is separate from an Agency Relay API key, a console session, and a Provider credential.
+
+The selected target uses one Worker and separate origins for the authorization service and the MCP resource. Public discovery, registration, and token routes stay outside the console browser-write guard. Consent, revocation, and account rebind stay inside it. [Organization access](organization-access.md) owns that guard. A path under `/oauth/` receives no exemption.
+
+The protected resource is the exact `/mcp` URL. A descendant path is a different resource. A bearer for one resource is rejected by another. The resource handler rejects a token whose scope lacks `relay.read`. Advertising that scope does not enforce it.
+
+Discovery advertises only the authorization-code response, the authorization-code and refresh-token grants, PKCE `S256`, and public-client authentication `none`. Registration accepts one redirect URI. A loopback redirect on `127.0.0.1`, `localhost`, or `::1` may change port and keeps scheme, host, path, and query. Registration rejects a client secret, `jwks`, `jwks_uri`, and a body larger than 4096 bytes. It does not fetch client metadata.
+
+The selected data plane is one request-scoped `POST /mcp` with a bearer and a JSON-RPC body. `GET /mcp`, a `GET` with `Accept: text/event-stream`, and `Mcp-Session-Id` do not authenticate or resume a session. The synthetic `initialize` result reports protocol version `2025-06-18`. That marker does not import session, resumption, or cancellation rules from any other MCP transport.
+
+Codex may still authenticate to the existing Provider surface with a static API key or access token. Those Provider plans stay unchanged.
+
+The grant authority is one Durable Object transaction, as stated in [Security](../../SECURITY.md). This section records that target. It does not open a production route or call Stitch.
+
 ## Non-product ingress and health
 
 Staging hostnames are not product ingress; subscription environment remains metadata where present. Antigravity, Claude and Gemini are not added by this design. `GET /healthz` on Worker/egress proves process liveness only, not organization admission, credential readiness, catalogs or a completed task.
