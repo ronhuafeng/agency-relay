@@ -58,6 +58,8 @@ for (const scenario of [
     await expect(page.getByRole('searchbox')).toHaveValue('gpt-5.5');
     await expect(page.locator('[data-trend-plan="codex.responses"] .usage-metrics')).toContainText('Requests2');
     await page.getByRole('link', {name: '清除', exact: true}).click();
+    await expect(page.getByRole('searchbox')).toHaveValue('');
+    await expect(page).toHaveURL(url => !new URL(url).searchParams.has('q'));
     await page.getByRole('navigation', {name: 'UTC 时间范围'}).getByRole('link', {name: '7 天', exact: true}).click();
 
     const stale = worker.hold({method: 'GET', path: '/admin', view: 'usage'});
