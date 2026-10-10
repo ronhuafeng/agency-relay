@@ -36,7 +36,7 @@ jobs:
           node-version: 26
 
       - name: Check revision updater
-        run: node --test scripts/update-plugin-revisions.test.mjs
+        run: node --test scripts/update-plugin-revisions.test.mjs scripts/plugin-update-proposal.test.mjs
 
       - name: Install Codex CLI
         run: npm install --global @openai/codex@0.156.1
@@ -75,7 +75,7 @@ jobs:
           node-version: 26
 
       - name: Check revision updater
-        run: node --test scripts/update-plugin-revisions.test.mjs
+        run: node --test scripts/update-plugin-revisions.test.mjs scripts/plugin-update-proposal.test.mjs
 
       - name: Resolve tracked upstream branches
         run: node scripts/update-plugin-revisions.mjs
@@ -104,15 +104,26 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          if git diff --quiet -- .agents/plugins/marketplace.json; then
-            echo 'No upstream plugin changes; no PR needed.' >> "$GITHUB_STEP_SUMMARY"
-            exit 0
+          changed=0
+          if ! git diff --quiet -- .agents/plugins/marketplace.json; then changed=1; fi
+          if [ "$changed" -eq 1 ]; then
+            open_refs=$(gh api --paginate "/repos/${GITHUB_REPOSITORY}/pulls?state=open&per_page=100" --jq '.[].head.ref')
+          else
+            open_refs=''
           fi
-          pending=$(gh pr list --state open --limit 100 --json headRefName --jq '[.[] | select(.headRefName | startswith("automation/plugin-revisions-"))] | length')
-          if [ "$pending" -gt 0 ]; then
-            echo "An automated plugin-update PR is already open. Review it before generating another." >> "$GITHUB_STEP_SUMMARY"
-            exit 0
-          fi
+          action=$(PLUGIN_UPDATE_CHANGED="$changed" PLUGIN_UPDATE_OPEN_REFS="$open_refs" node scripts/plugin-update-proposal.mjs)
+          case "$action" in
+            skip)
+              if [ "$changed" -eq 0 ]; then
+                echo 'No upstream plugin changes; no PR needed.' >> "$GITHUB_STEP_SUMMARY"
+              else
+                echo 'An automated plugin-update PR is already open. Review it before generating another.' >> "$GITHUB_STEP_SUMMARY"
+              fi
+              exit 0
+              ;;
+            open) ;;
+            *) echo "Unexpected plugin proposal decision: $action" >&2; exit 1 ;;
+          esac
           branch="automation/plugin-revisions-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
           git switch -c "$branch"
           git config user.name 'github-actions[bot]'
