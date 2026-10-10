@@ -241,7 +241,7 @@ function redirectsMatch(registered: string, requested: string): boolean {
     return false;
   }
   const loopback = allowed.hostname === "127.0.0.1" || allowed.hostname === "localhost" || allowed.hostname === "::1";
-  return loopback && actual.hostname === allowed.hostname && actual.protocol === allowed.protocol && actual.pathname === allowed.pathname && actual.search === allowed.search;
+  return loopback && actual.hostname === allowed.hostname && actual.protocol === allowed.protocol && actual.username === allowed.username && actual.password === allowed.password && actual.pathname === allowed.pathname && actual.search === allowed.search && actual.hash === allowed.hash;
 }
 
 function stringList(value: unknown): string[] {
