@@ -4,7 +4,8 @@
  * Product surfaces: Codex (ChatGPT), Grok, and admin-authorized xAI API.
  * Staging hostnames/grants/slots are not product surfaces; environment remains a
  * data-model field for subscription metadata only.
- * No Ingress API family type — classification is hostname+method+path only.
+ * Route selection is hostname+method+path only. Shared host, grant, protocol
+ * and credential slot have one Provider profile declaration.
  */
 export const EXECUTION_PLAN_SET_VERSION = "adr-0017.v1";
 export const CODEX_API_HOSTNAME = "api.trustedtunnel.app";
@@ -85,21 +86,77 @@ export function publicExecutionPlanPath(plan: ExecutionPlan): string {
   return path;
 }
 
+/** Provider relay is the only current domain. The value does not select a credential or an authentication mechanism. */
+export type RelayDomain = "provider";
+
+/** One writable declaration of the facts shared by every operation on a surface. */
+export interface ProviderRelayProfile {
+  readonly id: "codex" | "grok" | "xai";
+  readonly domain: RelayDomain;
+  readonly hostname: string;
+  readonly environment: PlanEnvironment;
+  readonly surfaceGrant: `surface:${string}:${PlanEnvironment}`;
+  readonly protocol: IngressProtocol;
+  readonly credentialSlot: CredentialSlotId;
+  readonly clientLabel: "Codex" | "Grok" | "xAI API";
+}
+
+export const PROVIDER_RELAY_PROFILES = {
+  codex: {
+    id: "codex",
+    domain: "provider",
+    hostname: CODEX_API_HOSTNAME,
+    environment: "production",
+    surfaceGrant: "surface:codex:production",
+    protocol: "openai/codex",
+    credentialSlot: "chatgpt_production",
+    clientLabel: "Codex"
+  },
+  grok: {
+    id: "grok",
+    domain: "provider",
+    hostname: "grok.trustedtunnel.app",
+    environment: "production",
+    surfaceGrant: "surface:grok:production",
+    protocol: "xai/grok",
+    credentialSlot: "grok_production",
+    clientLabel: "Grok"
+  },
+  xai: {
+    id: "xai",
+    domain: "provider",
+    hostname: XAI_API_HOSTNAME,
+    environment: "production",
+    surfaceGrant: "surface:xai:production",
+    protocol: "xai/api",
+    credentialSlot: "grok_production",
+    clientLabel: "xAI API"
+  }
+} as const satisfies Record<ProviderRelayProfile["id"], ProviderRelayProfile>;
+
+type PlanOperation = Omit<ExecutionPlan, "hostname" | "environment" | "surfaceGrant" | "protocol" | "credentialSlot">;
+
+function bindProfile(profile: ProviderRelayProfile, operation: PlanOperation): ExecutionPlan {
+  return {
+    ...operation,
+    hostname: profile.hostname,
+    environment: profile.environment,
+    surfaceGrant: profile.surfaceGrant,
+    protocol: profile.protocol,
+    credentialSlot: profile.credentialSlot
+  };
+}
+
+const PROFILE_BY_GRANT = new Map<string, ProviderRelayProfile>(
+  Object.values(PROVIDER_RELAY_PROFILES).map(profile => [profile.surfaceGrant, profile])
+);
+
 function codexProductionPlans(): ExecutionPlan[] {
-  const hostname = CODEX_API_HOSTNAME;
-  const environment = "production" as const;
-  const grant = "surface:codex:production" as const;
-  const slot = "chatgpt_production" as const;
-  const plans: ExecutionPlan[] = [
+  const plans: PlanOperation[] = [
     {
       id: "codex.models",
-      hostname,
-      environment,
-      surfaceGrant: grant,
       method: "GET",
       pathname: "/v1/models",
-      protocol: "openai/codex",
-      credentialSlot: slot,
       mode: "transparent",
       upstreamClientIdentity: "codex_cli",
       usageObserver: "none",
@@ -110,13 +167,8 @@ function codexProductionPlans(): ExecutionPlan[] {
     },
     {
       id: "codex.responses",
-      hostname,
-      environment,
-      surfaceGrant: grant,
       method: "POST",
       pathname: "/v1/responses",
-      protocol: "openai/codex",
-      credentialSlot: slot,
       mode: "transparent",
       upstreamClientIdentity: "codex_cli",
       usageObserver: "responses",
@@ -128,13 +180,8 @@ function codexProductionPlans(): ExecutionPlan[] {
     },
     {
       id: "codex.responses_compact",
-      hostname,
-      environment,
-      surfaceGrant: grant,
       method: "POST",
       pathname: "/v1/responses/compact",
-      protocol: "openai/codex",
-      credentialSlot: slot,
       mode: "transparent",
       upstreamClientIdentity: "codex_cli",
       usageObserver: "responses",
@@ -146,14 +193,9 @@ function codexProductionPlans(): ExecutionPlan[] {
     },
     {
       id: "codex.responses_websocket",
-      hostname,
-      environment,
-      surfaceGrant: grant,
       method: "GET",
       pathname: "/v1/responses",
       upgrade: "websocket",
-      protocol: "openai/codex",
-      credentialSlot: slot,
       mode: "websocket_426",
       upstreamClientIdentity: "none",
       usageObserver: "none",
@@ -164,13 +206,8 @@ function codexProductionPlans(): ExecutionPlan[] {
     },
     {
       id: "codex.audio_speech",
-      hostname,
-      environment,
-      surfaceGrant: grant,
       method: "POST",
       pathname: "/v1/audio/speech",
-      protocol: "openai/codex",
-      credentialSlot: slot,
       mode: "transparent",
       upstreamClientIdentity: "none",
       usageObserver: "none",
@@ -183,13 +220,8 @@ function codexProductionPlans(): ExecutionPlan[] {
     },
     {
       id: "codex.audio_transcriptions",
-      hostname,
-      environment,
-      surfaceGrant: grant,
       method: "POST",
       pathname: "/v1/audio/transcriptions",
-      protocol: "openai/codex",
-      credentialSlot: slot,
       mode: "transparent",
       upstreamClientIdentity: "none",
       usageObserver: "none",
@@ -202,14 +234,9 @@ function codexProductionPlans(): ExecutionPlan[] {
     },
     {
       id: "codex.realtime_websocket",
-      hostname,
-      environment,
-      surfaceGrant: grant,
       method: "GET",
       pathname: "/v1/realtime",
       upgrade: "websocket",
-      protocol: "openai/codex",
-      credentialSlot: slot,
       mode: "websocket_transparent",
       upstreamClientIdentity: "none",
       usageObserver: "none",
@@ -222,13 +249,8 @@ function codexProductionPlans(): ExecutionPlan[] {
     },
     {
       id: "codex.realtime_calls",
-      hostname,
-      environment,
-      surfaceGrant: grant,
       method: "POST",
       pathname: "/v1/realtime/calls",
-      protocol: "openai/codex",
-      credentialSlot: slot,
       mode: "transparent",
       upstreamClientIdentity: "none",
       usageObserver: "none",
@@ -241,13 +263,8 @@ function codexProductionPlans(): ExecutionPlan[] {
     },
     {
       id: "codex.live",
-      hostname,
-      environment,
-      surfaceGrant: grant,
       method: "POST",
       pathname: "/v1/live",
-      protocol: "openai/codex",
-      credentialSlot: slot,
       mode: "transparent",
       upstreamClientIdentity: "none",
       usageObserver: "none",
@@ -260,14 +277,9 @@ function codexProductionPlans(): ExecutionPlan[] {
     },
     {
       id: "codex.live_websocket",
-      hostname,
-      environment,
-      surfaceGrant: grant,
       method: "GET",
       pathname: "/v1/live",
       upgrade: "websocket",
-      protocol: "openai/codex",
-      credentialSlot: slot,
       mode: "websocket_transparent",
       upstreamClientIdentity: "none",
       usageObserver: "none",
@@ -280,14 +292,9 @@ function codexProductionPlans(): ExecutionPlan[] {
     },
     {
       id: "codex.live_call_websocket",
-      hostname,
-      environment,
-      surfaceGrant: grant,
       method: "GET",
       pathname: /^\/v1\/live\/(?![^/]*%2[fF])[^/]{1,200}$/,
       upgrade: "websocket",
-      protocol: "openai/codex",
-      credentialSlot: slot,
       mode: "websocket_transparent",
       upstreamClientIdentity: "none",
       usageObserver: "none",
@@ -299,29 +306,20 @@ function codexProductionPlans(): ExecutionPlan[] {
       notes: "Codex Realtime v3 sideband — opaque OpenAI API"
     }
   ];
-  return plans;
+  return plans.map(operation => bindProfile(PROVIDER_RELAY_PROFILES.codex, operation));
 }
 
 function grokProductionPlans(): ExecutionPlan[] {
-  const hostname = "grok.trustedtunnel.app";
-  const environment = "production" as const;
-  const grant = "surface:grok:production" as const;
-  const slot = "grok_production" as const;
   const providerPathSegment = "(?![^/]*%2[fF])[^/]{1,200}";
   const fileId = "file_[A-Za-z0-9_-]{1,200}";
-  const plans: ExecutionPlan[] = [
+  const plans: PlanOperation[] = [
     {
       id: "grok.production.models",
       creditCharge: 0,
       usageObserver: "none",
       realTask: false,
-      hostname,
-      environment,
-      surfaceGrant: grant,
       method: "GET",
       pathname: "/v1/models",
-      protocol: "xai/grok",
-      credentialSlot: slot,
       mode: "transparent",
       upstreamClientIdentity: "grok_build",
       providerBaseUrl: GROK_CLI_PROVIDER_BASE_URL,
@@ -334,13 +332,8 @@ function grokProductionPlans(): ExecutionPlan[] {
       creditCharge: 0,
       usageObserver: "none",
       realTask: false,
-      hostname,
-      environment,
-      surfaceGrant: grant,
       method: "GET",
       pathname: "/v1/language-models",
-      protocol: "xai/grok",
-      credentialSlot: slot,
       mode: "transparent",
       upstreamClientIdentity: "none",
       providerBaseUrl: XAI_API_PROVIDER_BASE_URL,
@@ -353,13 +346,8 @@ function grokProductionPlans(): ExecutionPlan[] {
       creditCharge: 0,
       usageObserver: "none",
       realTask: false,
-      hostname,
-      environment,
-      surfaceGrant: grant,
       method: "GET",
       pathname: "/v1/image-generation-models",
-      protocol: "xai/grok",
-      credentialSlot: slot,
       mode: "transparent",
       upstreamClientIdentity: "none",
       providerBaseUrl: XAI_API_PROVIDER_BASE_URL,
@@ -372,13 +360,8 @@ function grokProductionPlans(): ExecutionPlan[] {
       creditCharge: 0,
       usageObserver: "none",
       realTask: false,
-      hostname,
-      environment,
-      surfaceGrant: grant,
       method: "GET",
       pathname: "/v1/video-generation-models",
-      protocol: "xai/grok",
-      credentialSlot: slot,
       mode: "transparent",
       upstreamClientIdentity: "none",
       providerBaseUrl: XAI_API_PROVIDER_BASE_URL,
@@ -391,13 +374,8 @@ function grokProductionPlans(): ExecutionPlan[] {
       creditCharge: 0,
       usageObserver: "none",
       realTask: false,
-      hostname,
-      environment,
-      surfaceGrant: grant,
       method: "GET",
       pathname: "/v1/tts/voices",
-      protocol: "xai/grok",
-      credentialSlot: slot,
       mode: "transparent",
       upstreamClientIdentity: "none",
       providerBaseUrl: XAI_API_PROVIDER_BASE_URL,
@@ -410,13 +388,8 @@ function grokProductionPlans(): ExecutionPlan[] {
       creditCharge: 0,
       usageObserver: "none",
       realTask: false,
-      hostname,
-      environment,
-      surfaceGrant: grant,
       method: "GET",
       pathname: new RegExp(`^/v1/language-models/${providerPathSegment}$`),
-      protocol: "xai/grok",
-      credentialSlot: slot,
       mode: "transparent",
       upstreamClientIdentity: "none",
       providerBaseUrl: XAI_API_PROVIDER_BASE_URL,
@@ -429,13 +402,8 @@ function grokProductionPlans(): ExecutionPlan[] {
       creditCharge: 0,
       usageObserver: "none",
       realTask: false,
-      hostname,
-      environment,
-      surfaceGrant: grant,
       method: "GET",
       pathname: new RegExp(`^/v1/image-generation-models/${providerPathSegment}$`),
-      protocol: "xai/grok",
-      credentialSlot: slot,
       mode: "transparent",
       upstreamClientIdentity: "none",
       providerBaseUrl: XAI_API_PROVIDER_BASE_URL,
@@ -448,13 +416,8 @@ function grokProductionPlans(): ExecutionPlan[] {
       creditCharge: 0,
       usageObserver: "none",
       realTask: false,
-      hostname,
-      environment,
-      surfaceGrant: grant,
       method: "GET",
       pathname: new RegExp(`^/v1/video-generation-models/${providerPathSegment}$`),
-      protocol: "xai/grok",
-      credentialSlot: slot,
       mode: "transparent",
       upstreamClientIdentity: "none",
       providerBaseUrl: XAI_API_PROVIDER_BASE_URL,
@@ -467,13 +430,8 @@ function grokProductionPlans(): ExecutionPlan[] {
       creditCharge: 0,
       usageObserver: "none",
       realTask: false,
-      hostname,
-      environment,
-      surfaceGrant: grant,
       method: "GET",
       pathname: new RegExp(`^/v1/tts/voices/${providerPathSegment}$`),
-      protocol: "xai/grok",
-      credentialSlot: slot,
       mode: "transparent",
       upstreamClientIdentity: "none",
       providerBaseUrl: XAI_API_PROVIDER_BASE_URL,
@@ -486,13 +444,8 @@ function grokProductionPlans(): ExecutionPlan[] {
       creditCharge: 1,
       usageObserver: "none",
       realTask: false,
-      hostname,
-      environment,
-      surfaceGrant: grant,
       method: "POST",
       pathname: "/v1/tokenize-text",
-      protocol: "xai/grok",
-      credentialSlot: slot,
       mode: "transparent",
       upstreamClientIdentity: "none",
       providerBaseUrl: XAI_API_PROVIDER_BASE_URL,
@@ -505,13 +458,8 @@ function grokProductionPlans(): ExecutionPlan[] {
       creditCharge: 1,
       usageObserver: "none",
       realTask: true,
-      hostname,
-      environment,
-      surfaceGrant: grant,
       method: "POST",
       pathname: "/v1/chat/completions",
-      protocol: "xai/grok",
-      credentialSlot: slot,
       mode: "transparent",
       upstreamClientIdentity: "none",
       providerBaseUrl: XAI_API_PROVIDER_BASE_URL,
@@ -524,13 +472,8 @@ function grokProductionPlans(): ExecutionPlan[] {
       creditCharge: 1,
       usageObserver: "none",
       realTask: true,
-      hostname,
-      environment,
-      surfaceGrant: grant,
       method: "POST",
       pathname: "/v1/tts",
-      protocol: "xai/grok",
-      credentialSlot: slot,
       mode: "transparent",
       upstreamClientIdentity: "none",
       providerBaseUrl: XAI_API_PROVIDER_BASE_URL,
@@ -543,13 +486,8 @@ function grokProductionPlans(): ExecutionPlan[] {
       creditCharge: 1,
       usageObserver: "none",
       realTask: true,
-      hostname,
-      environment,
-      surfaceGrant: grant,
       method: "POST",
       pathname: "/v1/stt",
-      protocol: "xai/grok",
-      credentialSlot: slot,
       mode: "transparent",
       upstreamClientIdentity: "none",
       providerBaseUrl: XAI_API_PROVIDER_BASE_URL,
@@ -561,13 +499,8 @@ function grokProductionPlans(): ExecutionPlan[] {
       id: "grok.production.responses",
       creditCharge: 1,
       realTask: true,
-      hostname,
-      environment,
-      surfaceGrant: grant,
       method: "POST",
       pathname: "/v1/responses",
-      protocol: "xai/grok",
-      credentialSlot: slot,
       mode: "transparent",
       upstreamClientIdentity: "grok_build",
       usageObserver: "responses",
@@ -581,13 +514,8 @@ function grokProductionPlans(): ExecutionPlan[] {
       id: "grok.production.images_generations",
       creditCharge: 1,
       realTask: true,
-      hostname,
-      environment,
-      surfaceGrant: grant,
       method: "POST",
       pathname: "/v1/images/generations",
-      protocol: "xai/grok",
-      credentialSlot: slot,
       mode: "transparent",
       upstreamClientIdentity: "none",
       usageObserver: "image",
@@ -600,13 +528,8 @@ function grokProductionPlans(): ExecutionPlan[] {
       id: "grok.production.images_edits",
       creditCharge: 1,
       realTask: true,
-      hostname,
-      environment,
-      surfaceGrant: grant,
       method: "POST",
       pathname: "/v1/images/edits",
-      protocol: "xai/grok",
-      credentialSlot: slot,
       mode: "transparent",
       upstreamClientIdentity: "none",
       usageObserver: "image",
@@ -619,13 +542,8 @@ function grokProductionPlans(): ExecutionPlan[] {
       id: "grok.production.videos_generations",
       creditCharge: 1,
       realTask: true,
-      hostname,
-      environment,
-      surfaceGrant: grant,
       method: "POST",
       pathname: "/v1/videos/generations",
-      protocol: "xai/grok",
-      credentialSlot: slot,
       mode: "video_start",
       upstreamClientIdentity: "none",
       usageObserver: "video",
@@ -639,13 +557,8 @@ function grokProductionPlans(): ExecutionPlan[] {
       id: "grok.production.videos_edits",
       creditCharge: 1,
       realTask: true,
-      hostname,
-      environment,
-      surfaceGrant: grant,
       method: "POST",
       pathname: "/v1/videos/edits",
-      protocol: "xai/grok",
-      credentialSlot: slot,
       mode: "video_start",
       upstreamClientIdentity: "none",
       usageObserver: "video",
@@ -659,13 +572,8 @@ function grokProductionPlans(): ExecutionPlan[] {
       id: "grok.production.videos_extensions",
       creditCharge: 1,
       realTask: true,
-      hostname,
-      environment,
-      surfaceGrant: grant,
       method: "POST",
       pathname: "/v1/videos/extensions",
-      protocol: "xai/grok",
-      credentialSlot: slot,
       mode: "video_start",
       upstreamClientIdentity: "none",
       usageObserver: "video",
@@ -679,13 +587,8 @@ function grokProductionPlans(): ExecutionPlan[] {
       id: "grok.production.videos_poll",
       creditCharge: 1,
       realTask: false,
-      hostname,
-      environment,
-      surfaceGrant: grant,
       method: "GET",
       pathname: /^\/v1\/videos\/[A-Za-z0-9_-]{1,200}$/,
-      protocol: "xai/grok",
-      credentialSlot: slot,
       mode: "video_poll",
       upstreamClientIdentity: "none",
       usageObserver: "video",
@@ -699,13 +602,8 @@ function grokProductionPlans(): ExecutionPlan[] {
       creditCharge: 1,
       usageObserver: "none",
       realTask: false,
-      hostname,
-      environment,
-      surfaceGrant: grant,
       method: "POST",
       pathname: "/v1/files",
-      protocol: "xai/grok",
-      credentialSlot: slot,
       mode: "file_upload",
       upstreamClientIdentity: "none",
       providerBaseUrl: XAI_API_PROVIDER_BASE_URL,
@@ -718,13 +616,8 @@ function grokProductionPlans(): ExecutionPlan[] {
       creditCharge: 1,
       usageObserver: "none",
       realTask: false,
-      hostname,
-      environment,
-      surfaceGrant: grant,
       method: "GET",
       pathname: new RegExp(`^/v1/files/${fileId}$`),
-      protocol: "xai/grok",
-      credentialSlot: slot,
       mode: "file_owner",
       upstreamClientIdentity: "none",
       providerBaseUrl: XAI_API_PROVIDER_BASE_URL,
@@ -737,13 +630,8 @@ function grokProductionPlans(): ExecutionPlan[] {
       creditCharge: 1,
       usageObserver: "none",
       realTask: false,
-      hostname,
-      environment,
-      surfaceGrant: grant,
       method: "GET",
       pathname: new RegExp(`^/v1/files/${fileId}/content$`),
-      protocol: "xai/grok",
-      credentialSlot: slot,
       mode: "file_owner",
       upstreamClientIdentity: "none",
       providerBaseUrl: XAI_API_PROVIDER_BASE_URL,
@@ -756,13 +644,8 @@ function grokProductionPlans(): ExecutionPlan[] {
       creditCharge: 1,
       usageObserver: "none",
       realTask: false,
-      hostname,
-      environment,
-      surfaceGrant: grant,
       method: "DELETE",
       pathname: new RegExp(`^/v1/files/${fileId}$`),
-      protocol: "xai/grok",
-      credentialSlot: slot,
       mode: "file_owner",
       upstreamClientIdentity: "none",
       providerBaseUrl: XAI_API_PROVIDER_BASE_URL,
@@ -771,14 +654,10 @@ function grokProductionPlans(): ExecutionPlan[] {
       notes: "Owner-bound xAI file deletion"
     }
   ];
-  return plans;
+  return plans.map(operation => bindProfile(PROVIDER_RELAY_PROFILES.grok, operation));
 }
 
 function xaiProductionPlans(): ExecutionPlan[] {
-  const hostname = XAI_API_HOSTNAME;
-  const environment = "production" as const;
-  const grant = "surface:xai:production" as const;
-  const slot = "grok_production" as const;
   const providerPathSegment = "(?![^/]*%2[fF])[^/]{1,200}";
   type XaiRoute = Pick<ExecutionPlan,
     | "id"
@@ -1223,13 +1102,8 @@ function xaiProductionPlans(): ExecutionPlan[] {
     }
   ];
 
-  return routes.map((route) => ({
+  return routes.map((route) => bindProfile(PROVIDER_RELAY_PROFILES.xai, {
     ...route,
-    hostname,
-    environment,
-    surfaceGrant: grant,
-    protocol: "xai/api",
-    credentialSlot: slot,
     mode: route.mode ?? "transparent",
     upstreamClientIdentity: "none",
     providerBaseUrl: XAI_API_PROVIDER_BASE_URL,
@@ -1294,21 +1168,8 @@ export function executionPlanPresentation(planId: string): ExecutionPlanPresenta
     };
   }
 
-  if (plan.surfaceGrant === "surface:codex:production") {
-    return {
-      clientLabel: "Codex",
-      usageLabel: "Codex",
-      usageObserver: plan.usageObserver,
-      costBasis: plan.usageObserver === "responses" ? "openai_standard" : "none"
-    };
-  }
-
-  const clientLabel = plan.surfaceGrant === "surface:grok:production"
-    ? "Grok"
-    : plan.surfaceGrant === "surface:xai:production"
-      ? "xAI API"
-      : null;
-  if (!clientLabel) {
+  const profile = PROFILE_BY_GRANT.get(plan.surfaceGrant);
+  if (!profile) {
     return {
       clientLabel: "Client",
       usageLabel: plan.id,
@@ -1316,6 +1177,15 @@ export function executionPlanPresentation(planId: string): ExecutionPlanPresenta
       costBasis: "none"
     };
   }
+  if (profile.id === "codex") {
+    return {
+      clientLabel: profile.clientLabel,
+      usageLabel: profile.clientLabel,
+      usageObserver: plan.usageObserver,
+      costBasis: plan.usageObserver === "responses" ? "openai_standard" : "none"
+    };
+  }
+  const clientLabel = profile.clientLabel;
   const usagePrefix = clientLabel === "xAI API" ? "xAI" : clientLabel;
   const usageLabel = plan.usageObserver === "responses"
     ? `${usagePrefix} 响应`
@@ -1386,11 +1256,9 @@ export function slotSourceEnvironment(slot: CredentialSlotId): {
 }
 
 /** Documented surface grants issuable to new API keys. Each grant maps to at least one plan. */
-export const ISSUABLE_SURFACE_GRANTS: ReadonlySet<string> = new Set([
-  "surface:codex:production",
-  "surface:grok:production",
-  "surface:xai:production"
-]);
+export const ISSUABLE_SURFACE_GRANTS: ReadonlySet<string> = new Set(
+  Object.values(PROVIDER_RELAY_PROFILES).map(profile => profile.surfaceGrant)
+);
 
 function pathnameMatches(pattern: string | RegExp, pathname: string): boolean {
   if (typeof pattern === "string") {
