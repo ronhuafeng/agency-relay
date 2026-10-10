@@ -70,13 +70,15 @@ it("keeps authorization-code use atomic and rejects another resource's token", a
     expect(code).toBeTruthy();
     const wrongVerifier = new URLSearchParams({ grant_type: "authorization_code", code: code!, code_verifier: "wrong-verifier-with-enough-entropy", redirect_uri: REDIRECT, resource: `${MCP}/mcp` });
     expect((await runtime.dispatchFetch(`${ISSUER}/token`, { method: "POST", body: wrongVerifier })).status).toBe(400);
-    const exchange = () => runtime.dispatchFetch(`${ISSUER}/token`, { method: "POST", body: new URLSearchParams({ grant_type: "authorization_code", code: code!, code_verifier: verifier, redirect_uri: REDIRECT, resource: `${MCP}/mcp` }) });
+    const exchange = async () => {
+      const response = await runtime.dispatchFetch(`${ISSUER}/token`, { method: "POST", body: new URLSearchParams({ grant_type: "authorization_code", code: code!, code_verifier: verifier, redirect_uri: REDIRECT, resource: `${MCP}/mcp` }) });
+      return { status: response.status, body: await response.json() as { access_token?: string; refresh_token?: string } };
+    };
     const [first, second] = await Promise.all([exchange(), exchange()]);
     expect([first.status, second.status]).toEqual([200, 200]);
-    const issued = await first.json() as { access_token: string; refresh_token: string };
-    const repeated = await second.json() as { access_token: string; refresh_token: string };
-    expect(repeated).toEqual(issued);
-    const replay = await (await exchange()).json() as { access_token: string; refresh_token: string };
+    const issued = first.body as { access_token: string; refresh_token: string };
+    expect(second.body).toEqual(issued);
+    const replay = (await exchange()).body as { access_token: string; refresh_token: string };
     expect(replay).toEqual(issued);
     expect((await runtime.dispatchFetch(`${ISSUER}/token`, { method: "POST", body: wrongVerifier })).status).toBe(400);
 
@@ -86,9 +88,16 @@ it("keeps authorization-code use atomic and rejects another resource's token", a
 
     const rotated = await runtime.dispatchFetch(`${ISSUER}/token`, { method: "POST", body: new URLSearchParams({ grant_type: "refresh_token", refresh_token: issued.refresh_token, resource: `${MCP}/mcp` }) });
     expect(rotated.status).toBe(200);
-    const next = await rotated.json() as { refresh_token: string };
-    const lostRotation = await (await runtime.dispatchFetch(`${ISSUER}/token`, { method: "POST", body: new URLSearchParams({ grant_type: "refresh_token", refresh_token: issued.refresh_token, resource: `${MCP}/mcp` }) })).json() as { refresh_token: string };
-    expect(lostRotation.refresh_token).toBe(next.refresh_token);
+    const next = await rotated.json() as { access_token: string; refresh_token: string };
+    const lostRotation = await (await runtime.dispatchFetch(`${ISSUER}/token`, { method: "POST", body: new URLSearchParams({ grant_type: "refresh_token", refresh_token: issued.refresh_token, resource: `${MCP}/mcp` }) })).json() as { access_token: string; refresh_token: string };
+    expect(lostRotation).toEqual(next);
+    const rotatedAccess = { method: "POST", headers: { Authorization: `Bearer ${next.access_token}`, "Content-Type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 4, method: "initialize" }) };
+    expect((await runtime.dispatchFetch(`${MCP}/mcp`, rotatedAccess)).status).toBe(200);
+    expect((await runtime.dispatchFetch(`${OTHER}/mcp`, rotatedAccess)).status).toBe(401);
+    expect((await runtime.dispatchFetch(`${MCP}/mcp`, initialize)).status).toBe(200);
+    expect((await runtime.dispatchFetch(`${MCP}/mcp`, { method: "POST", headers: { "Content-Type": "application/json", "Mcp-Session-Id": "legacy-session" }, body: JSON.stringify({ jsonrpc: "2.0", id: 5, method: "initialize" }) })).status).toBe(401);
+    expect((await runtime.dispatchFetch(`${MCP}/mcp`, { method: "POST", headers: { Authorization: `Bearer ${issued.access_token}`, "Content-Type": "application/json", "Mcp-Session-Id": "legacy-session" }, body: JSON.stringify({ jsonrpc: "2.0", id: 6, method: "initialize" }) })).status).toBe(200);
+    expect((await runtime.dispatchFetch(`${MCP}/mcp`, { headers: { Accept: "text/event-stream" } })).status).toBe(404);
     expect((await runtime.dispatchFetch(`${ISSUER}/token`, { method: "POST", body: new URLSearchParams({ grant_type: "refresh_token", refresh_token: next.refresh_token, resource: `${OTHER}/mcp` }) })).status).toBe(400);
     const [refreshA, refreshB] = await Promise.all([0, 1].map(() => runtime.dispatchFetch(`${ISSUER}/token`, { method: "POST", body: new URLSearchParams({ grant_type: "refresh_token", refresh_token: next.refresh_token, resource: `${MCP}/mcp` }) })));
     expect([refreshA.status, refreshB.status]).toEqual([200, 200]);
