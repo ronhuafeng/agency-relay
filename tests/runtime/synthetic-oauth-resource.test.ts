@@ -107,6 +107,12 @@ it("keeps authorization-code use atomic and rejects another resource's token", a
 
     const initialize = { method: "POST", headers: { Authorization: `Bearer ${issued.access_token}`, "Content-Type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize" }) };
     expect((await runtime.dispatchFetch(`${MCP}/mcp`, initialize)).status).toBe(200);
+    const oversizedMcp = JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", pad: "a".repeat(4096) });
+    expect(new TextEncoder().encode(oversizedMcp).length).toBeGreaterThan(4096);
+    expect((await runtime.dispatchFetch(`${MCP}/mcp`, { method: "POST", headers: { "Content-Type": "application/json" }, body: oversizedMcp })).status).toBe(401);
+    expect((await runtime.dispatchFetch(`${MCP}/mcp`, { method: "POST", headers: { Authorization: `Bearer ${issued.access_token}`, "Content-Type": "application/json" }, body: oversizedMcp })).status).toBe(400);
+    const [concurrentA, concurrentB] = await Promise.all([runtime.dispatchFetch(`${MCP}/mcp`, initialize), runtime.dispatchFetch(`${MCP}/mcp`, initialize)]);
+    expect([concurrentA.status, concurrentB.status]).toEqual([200, 200]);
     expect((await runtime.dispatchFetch(`${OTHER}/mcp`, initialize)).status).toBe(401);
 
     const rotated = await runtime.dispatchFetch(`${ISSUER}/token`, { method: "POST", body: new URLSearchParams({ grant_type: "refresh_token", refresh_token: issued.refresh_token, resource: `${MCP}/mcp` }) });

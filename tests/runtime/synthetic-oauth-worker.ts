@@ -286,8 +286,8 @@ export default {
       if (request.method === "POST" && url.pathname === "/rebind") return callAuthority(env, "/rebind", JSON.parse(await readBounded(request)) as Record<string, unknown>);
       if (request.method === "POST" && url.pathname === "/budget") return callAuthority(env, "/budget", {});
       if (request.method === "POST" && url.pathname === "/budget-reset") return callAuthority(env, "/budget-reset", {});
-      if (request.method === "POST" && url.pathname === "/token") return token(await readBounded(request), env);
-      if (request.method === "POST" && url.pathname === "/mcp") return resourceRequest(request, env, `${url.origin}/mcp`);
+      if (request.method === "POST" && url.pathname === "/token") return await token(await readBounded(request), env);
+      if (request.method === "POST" && url.pathname === "/mcp") return await resourceRequest(request, env, `${url.origin}/mcp`);
       return new Response(null, { status: 404 });
     } catch (error) {
       if (error instanceof HttpError) return jsonResponse({ error: error.code ?? error.message }, { status: error.status });
@@ -298,9 +298,32 @@ export default {
 };
 
 async function readBounded(request: Request): Promise<string> {
-  const text = await request.text();
-  if (new TextEncoder().encode(text).length > MAX_BODY_BYTES) throw Object.assign(new Error("body"), { status: 400 });
-  return text;
+  const declared = Number(request.headers.get("content-length"));
+  if (Number.isFinite(declared) && declared > MAX_BODY_BYTES) {
+    await request.body?.cancel();
+    throw Object.assign(new Error("body"), { status: 400 });
+  }
+  const reader = request.body?.getReader();
+  if (!reader) return "";
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > MAX_BODY_BYTES) {
+      await reader.cancel();
+      throw Object.assign(new Error("body"), { status: 400 });
+    }
+    chunks.push(value);
+  }
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return new TextDecoder().decode(bytes);
 }
 
 async function token(body: string, env: FixtureEnv): Promise<Response> {
@@ -330,8 +353,14 @@ async function resourceRequest(request: Request, env: FixtureEnv, resource: stri
   const header = request.headers.get("Authorization") ?? "";
   const token = header.startsWith("Bearer ") ? header.slice("Bearer ".length) : "";
   const access = token ? await (await callAuthority(env, "/access", { token })).json() as AccessRecord | null : null;
-  if (!access || access.resource !== resource) return jsonResponse({ error: "invalid_token" }, { status: 401, headers: { "WWW-Authenticate": "Bearer error=\"invalid_token\"" } });
-  if (!access.scope.split(" ").includes(REQUIRED_SCOPE)) return jsonResponse({ error: "insufficient_scope" }, { status: 403, headers: { "WWW-Authenticate": `Bearer error="insufficient_scope", scope="${REQUIRED_SCOPE}"` } });
-  const body = await request.json() as { method?: string };
+  if (!access || access.resource !== resource) {
+    await request.body?.cancel();
+    return jsonResponse({ error: "invalid_token" }, { status: 401, headers: { "WWW-Authenticate": "Bearer error=\"invalid_token\"" } });
+  }
+  if (!access.scope.split(" ").includes(REQUIRED_SCOPE)) {
+    await request.body?.cancel();
+    return jsonResponse({ error: "insufficient_scope" }, { status: 403, headers: { "WWW-Authenticate": `Bearer error="insufficient_scope", scope="${REQUIRED_SCOPE}"` } });
+  }
+  const body = JSON.parse(await readBounded(request)) as { method?: string };
   return jsonResponse({ jsonrpc: "2.0", result: body.method === "initialize" ? { protocolVersion: "2025-06-18", capabilities: {}, serverInfo: { name: "synthetic", version: "0" } } : {} });
 }
