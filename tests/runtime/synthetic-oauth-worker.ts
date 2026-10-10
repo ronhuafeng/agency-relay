@@ -4,6 +4,7 @@ import { HttpError, jsonResponse } from "../../src/errors";
 
 const REQUIRED_SCOPE = "relay.read";
 const MAX_BODY_BYTES = 4096;
+const BODY_READ_DEADLINE_MS = 1000;
 
 interface FixtureEnv extends Env {
   GRANTS: DurableObjectNamespace<RuntimeGrantAuthority>;
@@ -312,14 +313,24 @@ async function discardRequest(request: Request): Promise<void> {
   await discardReader(reader);
 }
 
-async function discardReader(reader: ReadableStreamDefaultReader<Uint8Array>): Promise<void> {
+async function readChunk(reader: ReadableStreamDefaultReader<Uint8Array>): Promise<ReadableStreamReadResult<Uint8Array>> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
   try {
-    for (;;) {
-      const { done } = await reader.read();
-      if (done) break;
-    }
-  } catch {
-    // The sender closed the upload.
+    return await Promise.race([
+      reader.read(),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(Object.assign(new Error("body"), { status: 400 })), BODY_READ_DEADLINE_MS);
+      })
+    ]);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
+}
+
+async function discardReader(reader: ReadableStreamDefaultReader<Uint8Array>): Promise<void> {
+  for (;;) {
+    const { done } = await readChunk(reader);
+    if (done) break;
   }
 }
 
@@ -334,7 +345,7 @@ async function readBounded(request: Request): Promise<string> {
   const chunks: Uint8Array[] = [];
   let total = 0;
   for (;;) {
-    const { done, value } = await reader.read();
+    const { done, value } = await readChunk(reader);
     if (done) break;
     total += value.byteLength;
     if (total > MAX_BODY_BYTES) {

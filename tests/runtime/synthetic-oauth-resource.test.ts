@@ -1,4 +1,6 @@
 import { createRequire } from "node:module";
+import { request as httpRequest } from "node:http";
+import { createServer } from "node:net";
 import { build } from "esbuild";
 import { expect, it } from "vitest";
 
@@ -39,6 +41,59 @@ async function start(): Promise<{ runtime: { dispatchFetch: typeof fetch; dispos
   }));
   return { runtime };
 }
+
+function freePort(): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const server = createServer();
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", () => {
+      const address = server.address();
+      const port = typeof address === "object" && address !== null ? address.port : 0;
+      server.close(() => resolve(port));
+    });
+  });
+}
+
+it("rejects a registration body that stops arriving", async () => {
+  const port = await freePort();
+  const issuer = `http://127.0.0.1:${port}`;
+  const compiled = await build({
+    stdin: {
+      contents: `export { RuntimeGrantAuthority } from "./tests/runtime/synthetic-oauth-worker";
+        import worker from "./tests/runtime/synthetic-oauth-worker";
+        export default worker;`,
+      resolveDir: process.cwd(),
+      sourcefile: "synthetic-oauth-stall.ts"
+    },
+    bundle: true, write: false, format: "esm", platform: "browser", external: ["cloudflare:workers", "node:*"],
+    define: { "process.env.NODE_ENV": '"production"' }, logLevel: "silent"
+  });
+  const runtime = new Miniflare(convertV4MiniflareOptions({
+    modules: true, script: compiled.outputFiles[0]!.text, compatibilityDate: "2026-06-24", compatibilityFlags: ["nodejs_compat"],
+    host: "127.0.0.1", port,
+    bindings: {
+      ADMIN_DASHBOARD_HOST: "127.0.0.1",
+      OAUTH_ISSUER_ORIGIN: issuer,
+      OAUTH_RESOURCE_ORIGIN: MCP,
+      OAUTH_OTHER_RESOURCE_ORIGIN: OTHER
+    },
+    durableObjects: { GRANTS: { className: "RuntimeGrantAuthority", useSQLite: true } }
+  }));
+  try {
+    await runtime.ready;
+    const status = await new Promise<number>((resolve, reject) => {
+      const fail = setTimeout(() => reject(new Error("registration body was not rejected")), 3000);
+      const req = httpRequest({ hostname: "127.0.0.1", port, path: "/register", method: "POST", headers: { "content-type": "application/json", host: `127.0.0.1:${port}` } }, (res) => {
+        clearTimeout(fail);
+        res.resume();
+        resolve(res.statusCode ?? 0);
+      });
+      req.on("error", (error) => { clearTimeout(fail); reject(error); });
+      req.write("{");
+    });
+    expect(status).toBe(400);
+  } finally { await runtime.dispose(); }
+}, 10000);
 
 it("measures local storage operations for one authorization and one resource read", async () => {
   const { runtime } = await start();
