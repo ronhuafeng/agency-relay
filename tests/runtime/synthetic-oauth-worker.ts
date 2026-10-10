@@ -55,6 +55,8 @@ interface AccessRecord {
 type ConsumeResult = { ok: true; access: string; refresh: string; scope: string; resource: string } | { ok: false; reason: "replay" | "pkce" | "redirect" | "resource" | "missing" };
 
 export class RuntimeGrantAuthority extends DurableObject<FixtureEnv> {
+  private storageOps = 0;
+
   async fetch(request: Request): Promise<Response> {
     try {
       const body = await request.json() as Record<string, unknown>;
@@ -66,6 +68,8 @@ export class RuntimeGrantAuthority extends DurableObject<FixtureEnv> {
       if (action === "/refresh") return jsonResponse(await this.refresh(body));
       if (action === "/access") return jsonResponse(await this.access(body));
       if (action === "/revoke") return jsonResponse(await this.revoke());
+      if (action === "/budget") return jsonResponse({ storage_operations: this.storageOps });
+      if (action === "/budget-reset") { this.storageOps = 0; return jsonResponse({ storage_operations: 0 }); }
       return new Response(null, { status: 404 });
     } catch (error) {
       const status = typeof error === "object" && error !== null && "status" in error && error.status === 400 ? 400 : 500;
@@ -76,11 +80,13 @@ export class RuntimeGrantAuthority extends DurableObject<FixtureEnv> {
   private async register(body: Record<string, unknown>): Promise<{ client_id: string; redirect_uris: string[]; grant_types: string[]; response_types: string[]; token_endpoint_auth_method: "none" }> {
     const redirects = stringList(body.redirect_uris);
     if (redirects.length !== 1) throw new Error("one redirect");
+    this.storageOps += 1;
     await this.ctx.storage.put("client", { redirects } satisfies ClientRecord);
     return { client_id: "synthetic-public-client", redirect_uris: redirects, grant_types: ["authorization_code", "refresh_token"], response_types: ["code"], token_endpoint_auth_method: "none" };
   }
 
   private async begin(body: Record<string, unknown>): Promise<{ consent_id: string }> {
+    this.storageOps += 1;
     const client = await this.ctx.storage.get<ClientRecord>("client");
     const redirect = stringField(body, "redirect");
     const resource = stringField(body, "resource");
@@ -91,6 +97,7 @@ export class RuntimeGrantAuthority extends DurableObject<FixtureEnv> {
       redirect, challenge: stringField(body, "challenge"), resource, scope: stringField(body, "scope"), state: stringField(body, "state"), decision: "pending"
     };
     const consentId = crypto.randomUUID();
+    this.storageOps += 1;
     await this.ctx.storage.put(`consent:${consentId}`, consent);
     return { consent_id: consentId };
   }
@@ -99,9 +106,11 @@ export class RuntimeGrantAuthority extends DurableObject<FixtureEnv> {
     const consentId = stringField(body, "consent_id");
     const decision = stringField(body, "decision");
     return this.ctx.storage.transaction(async (txn) => {
+      this.storageOps += 1;
       const consent = await txn.get<ConsentRecord>(`consent:${consentId}`);
       if (!consent || consent.decision !== "pending") return { error: "invalid_request" };
       if (decision === "deny") {
+        this.storageOps += 1;
         await txn.put(`consent:${consentId}`, { ...consent, decision: "deny" });
         return { error: "access_denied" };
       }
@@ -109,8 +118,10 @@ export class RuntimeGrantAuthority extends DurableObject<FixtureEnv> {
       const code = crypto.randomUUID();
       const refresh = crypto.randomUUID();
       const access = crypto.randomUUID();
+      this.storageOps += 1;
       const generation = (await txn.get<number>("generation")) ?? 1;
       const issued: ConsentRecord = { ...consent, decision: "allow", code };
+      this.storageOps += 4;
       await txn.put(`consent:${consentId}`, issued);
       await txn.put(`code:${code}`, { challenge: consent.challenge, redirect: consent.redirect, resource: consent.resource, scope: consent.scope, generation, consumed: false, refresh, access } satisfies CodeRecord);
       await txn.put(`refresh:${refresh}`, { resource: consent.resource, scope: consent.scope, access, generation, spent: false } satisfies RefreshRecord);
@@ -125,6 +136,7 @@ export class RuntimeGrantAuthority extends DurableObject<FixtureEnv> {
   private async consume(body: Record<string, unknown>): Promise<ConsumeResult> {
     const code = stringField(body, "code");
     return this.ctx.storage.transaction(async (txn) => {
+      this.storageOps += 2;
       const row = await txn.get<CodeRecord>(`code:${code}`);
       const generation = (await txn.get<number>("generation")) ?? 1;
       if (!row || row.generation !== generation) return { ok: false, reason: "missing" };
@@ -133,6 +145,7 @@ export class RuntimeGrantAuthority extends DurableObject<FixtureEnv> {
       if (row.challenge !== stringField(body, "challenge")) return { ok: false, reason: "pkce" };
       if (row.redirect !== stringField(body, "redirect")) return { ok: false, reason: "redirect" };
       if (row.resource !== stringField(body, "resource")) return { ok: false, reason: "resource" };
+      this.storageOps += 1;
       await txn.put(`code:${code}`, { ...row, consumed: true });
       return { ok: true, access: row.access, refresh: row.refresh, scope: row.scope, resource: row.resource };
     });
@@ -141,17 +154,20 @@ export class RuntimeGrantAuthority extends DurableObject<FixtureEnv> {
   private async refresh(body: Record<string, unknown>): Promise<{ ok: true; access: string; refresh: string } | { ok: false }> {
     const current = stringField(body, "refresh");
     return this.ctx.storage.transaction(async (txn) => {
+      this.storageOps += 2;
       const row = await txn.get<RefreshRecord>(`refresh:${current}`);
       const generation = (await txn.get<number>("generation")) ?? 1;
       if (!row || row.generation !== generation || row.resource !== stringField(body, "resource")) return { ok: false };
       if (row.spent) {
         if (!row.replacement) return { ok: false };
+        this.storageOps += 1;
         const successor = await txn.get<RefreshRecord>(`refresh:${row.replacement}`);
         if (!successor || successor.spent || successor.generation !== generation) return { ok: false };
         return { ok: true, access: successor.access, refresh: row.replacement };
       }
       const next = crypto.randomUUID();
       const access = crypto.randomUUID();
+      this.storageOps += 3;
       await txn.put(`refresh:${current}`, { ...row, spent: true, replacement: next });
       await txn.put(`refresh:${next}`, { resource: row.resource, scope: row.scope, access, generation, spent: false } satisfies RefreshRecord);
       await txn.put(`access:${access}`, { resource: row.resource, scope: row.scope, generation } satisfies AccessRecord);
@@ -162,6 +178,7 @@ export class RuntimeGrantAuthority extends DurableObject<FixtureEnv> {
   private async access(body: Record<string, unknown>): Promise<AccessRecord | null> {
     const token = stringField(body, "token");
     return this.ctx.storage.transaction(async (txn) => {
+      this.storageOps += 2;
       const row = await txn.get<AccessRecord>(`access:${token}`);
       const generation = (await txn.get<number>("generation")) ?? 1;
       return row && row.generation === generation ? row : null;
@@ -170,6 +187,7 @@ export class RuntimeGrantAuthority extends DurableObject<FixtureEnv> {
 
   private async revoke(): Promise<{ revoked: true }> {
     await this.ctx.storage.transaction(async (txn) => {
+      this.storageOps += 2;
       await txn.put("generation", ((await txn.get<number>("generation")) ?? 1) + 1);
     });
     return { revoked: true };
@@ -237,6 +255,8 @@ export default {
       }
       if (request.method === "POST" && url.pathname === "/consent") return callAuthority(env, "/decide", JSON.parse(await readBounded(request)) as Record<string, unknown>);
       if (request.method === "POST" && url.pathname === "/revoke") return callAuthority(env, "/revoke", {});
+      if (request.method === "POST" && url.pathname === "/budget") return callAuthority(env, "/budget", {});
+      if (request.method === "POST" && url.pathname === "/budget-reset") return callAuthority(env, "/budget-reset", {});
       if (request.method === "POST" && url.pathname === "/token") return token(await readBounded(request), env);
       if (request.method === "POST" && url.pathname === "/mcp") return resourceRequest(request, env, `${url.origin}/mcp`);
       return new Response(null, { status: 404 });

@@ -40,6 +40,26 @@ async function start(): Promise<{ runtime: { dispatchFetch: typeof fetch; dispos
   return { runtime };
 }
 
+it("measures local storage operations for one authorization and one resource read", async () => {
+  const { runtime } = await start();
+  try {
+    await runtime.dispatchFetch(`${ISSUER}/budget-reset`, { method: "POST", body: "{}" });
+    expect((await runtime.dispatchFetch(`${ISSUER}/register`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ redirect_uris: [REDIRECT] }) })).status).toBe(200);
+    const verifier = "synthetic-verifier-with-enough-entropy";
+    const challenge = await challengeFor(verifier);
+    const consent = await runtime.dispatchFetch(`${ISSUER}/authorize?response_type=code&redirect_uri=${encodeURIComponent(REDIRECT)}&code_challenge=${challenge}&code_challenge_method=S256&resource=${encodeURIComponent(`${MCP}/mcp`)}&scope=relay.read&state=budget`);
+    const consentId = ((await consent.json()) as { consent_id: string }).consent_id;
+    const allowed = await runtime.dispatchFetch(`${ISSUER}/consent`, { method: "POST", headers: { "Content-Type": "application/json", ...BROWSER }, body: JSON.stringify({ consent_id: consentId, decision: "allow" }) });
+    const code = new URL(((await allowed.json()) as { redirect: string }).redirect).searchParams.get("code");
+    const issued = await (await runtime.dispatchFetch(`${ISSUER}/token`, { method: "POST", body: new URLSearchParams({ grant_type: "authorization_code", code: code!, code_verifier: verifier, redirect_uri: REDIRECT, resource: `${MCP}/mcp` }) })).json() as { access_token: string };
+    const authorized = ((await (await runtime.dispatchFetch(`${ISSUER}/budget`, { method: "POST", body: "{}" })).json()) as { storage_operations: number }).storage_operations;
+    await runtime.dispatchFetch(`${ISSUER}/budget-reset`, { method: "POST", body: "{}" });
+    expect((await runtime.dispatchFetch(`${MCP}/mcp`, { method: "POST", headers: { Authorization: `Bearer ${issued.access_token}`, "Content-Type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize" }) })).status).toBe(200);
+    const read = ((await (await runtime.dispatchFetch(`${ISSUER}/budget`, { method: "POST", body: "{}" })).json()) as { storage_operations: number }).storage_operations;
+    expect({ authorized, read }).toEqual({ authorized: 12, read: 2 });
+  } finally { await runtime.dispose(); }
+}, 20000);
+
 it("keeps authorization-code use atomic and rejects another resource's token", async () => {
   const { runtime } = await start();
   try {
