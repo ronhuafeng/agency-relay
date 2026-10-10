@@ -43,6 +43,11 @@ it("keeps authorization-code use atomic and rejects another resource's token", a
       body: JSON.stringify({ redirect_uris: [REDIRECT] })
     });
     expect(crossSite.status).toBe(200);
+    const oversized = JSON.stringify({ redirect_uris: [REDIRECT], pad: "a".repeat(4096) });
+    expect(new TextEncoder().encode(oversized).length).toBeGreaterThan(4096);
+    expect((await runtime.dispatchFetch(`${ISSUER}/register`, { method: "POST", headers: { "Content-Type": "application/json" }, body: oversized })).status).toBe(400);
+    expect((await runtime.dispatchFetch(`${ISSUER}/register`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ redirect_uris: ["https://evil.example/callback"], client_secret: "not-stored" }) })).status).toBe(400);
+    expect((await runtime.dispatchFetch(`${ISSUER}/register`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ redirect_uris: ["https://evil.example/callback"], jwks_uri: "https://evil.example/jwks" }) })).status).toBe(400);
     const verifier = "synthetic-verifier-with-enough-entropy";
     const challenge = await challengeFor(verifier);
     const deniedConsent = await runtime.dispatchFetch(`${ISSUER}/authorize?response_type=code&redirect_uri=${encodeURIComponent(REDIRECT)}&code_challenge=${challenge}&code_challenge_method=S256&resource=${encodeURIComponent(`${MCP}/mcp`)}&scope=relay.read&state=denied`);
@@ -79,6 +84,7 @@ it("keeps authorization-code use atomic and rejects another resource's token", a
     const next = await rotated.json() as { refresh_token: string };
     const lostRotation = await (await runtime.dispatchFetch(`${ISSUER}/token`, { method: "POST", body: new URLSearchParams({ grant_type: "refresh_token", refresh_token: issued.refresh_token, resource: `${MCP}/mcp` }) })).json() as { refresh_token: string };
     expect(lostRotation.refresh_token).toBe(next.refresh_token);
+    expect((await runtime.dispatchFetch(`${ISSUER}/token`, { method: "POST", body: new URLSearchParams({ grant_type: "refresh_token", refresh_token: next.refresh_token, resource: `${OTHER}/mcp` }) })).status).toBe(400);
     const [refreshA, refreshB] = await Promise.all([0, 1].map(() => runtime.dispatchFetch(`${ISSUER}/token`, { method: "POST", body: new URLSearchParams({ grant_type: "refresh_token", refresh_token: next.refresh_token, resource: `${MCP}/mcp` }) })));
     expect([refreshA.status, refreshB.status]).toEqual([200, 200]);
     const rotatedAgain = await refreshA.json() as { access_token: string; refresh_token: string };

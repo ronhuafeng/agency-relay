@@ -5,6 +5,7 @@ import { HttpError, jsonResponse } from "../../src/errors";
 const RESOURCE = "https://mcp.example.test/mcp";
 const OTHER_RESOURCE = "https://other.example.test/mcp";
 const REQUIRED_SCOPE = "relay.read";
+const MAX_BODY_BYTES = 4096;
 
 interface FixtureEnv extends Env {
   GRANTS: DurableObjectNamespace<RuntimeGrantAuthority>;
@@ -225,13 +226,17 @@ export default {
         const issuer = `https://${env.ADMIN_DASHBOARD_HOST}`;
         return jsonResponse({ issuer, authorization_endpoint: `${issuer}/authorize`, token_endpoint: `${issuer}/token`, registration_endpoint: `${issuer}/register`, response_types_supported: ["code"], grant_types_supported: ["authorization_code", "refresh_token"], code_challenge_methods_supported: ["S256"], token_endpoint_auth_methods_supported: ["none"] });
       }
-      if (request.method === "POST" && url.pathname === "/register") return callAuthority(env, "/register", await request.json());
+      if (request.method === "POST" && url.pathname === "/register") {
+        const body = JSON.parse(await readBounded(request)) as Record<string, unknown>;
+        if ("client_secret" in body || "jwks" in body || "jwks_uri" in body) throw Object.assign(new Error("credential metadata"), { status: 400 });
+        return callAuthority(env, "/register", body);
+      }
       if (request.method === "GET" && url.pathname === "/authorize") {
         return callAuthority(env, "/begin", { redirect: url.searchParams.get("redirect_uri"), challenge: url.searchParams.get("code_challenge"), method: url.searchParams.get("code_challenge_method"), resource: url.searchParams.get("resource"), scope: url.searchParams.get("scope"), state: url.searchParams.get("state") });
       }
-      if (request.method === "POST" && url.pathname === "/consent") return callAuthority(env, "/decide", await request.json());
+      if (request.method === "POST" && url.pathname === "/consent") return callAuthority(env, "/decide", JSON.parse(await readBounded(request)) as Record<string, unknown>);
       if (request.method === "POST" && url.pathname === "/revoke") return callAuthority(env, "/revoke", {});
-      if (request.method === "POST" && url.pathname === "/token") return token(request, env);
+      if (request.method === "POST" && url.pathname === "/token") return token(await readBounded(request), env);
       if (request.method === "POST" && url.pathname === "/mcp") return resourceRequest(request, env, `${url.origin}/mcp`);
       return new Response(null, { status: 404 });
     } catch (error) {
@@ -242,8 +247,14 @@ export default {
   }
 };
 
-async function token(request: Request, env: FixtureEnv): Promise<Response> {
-  const form = await request.formData();
+async function readBounded(request: Request): Promise<string> {
+  const text = await request.text();
+  if (new TextEncoder().encode(text).length > MAX_BODY_BYTES) throw Object.assign(new Error("body"), { status: 400 });
+  return text;
+}
+
+async function token(body: string, env: FixtureEnv): Promise<Response> {
+  const form = new URLSearchParams(body);
   const grant = form.get("grant_type");
   const resource = form.get("resource");
   if (grant === "authorization_code") {
