@@ -88,7 +88,7 @@ export class RuntimeGrantAuthority extends DurableObject<FixtureEnv> {
 
   private async register(body: Record<string, unknown>): Promise<{ client_id: string; redirect_uris: string[]; grant_types: string[]; response_types: string[]; token_endpoint_auth_method: "none" }> {
     const redirects = stringList(body.redirect_uris);
-    if (redirects.length !== 1) throw new Error("one redirect");
+    if (redirects.length !== 1) throw Object.assign(new Error("one redirect"), { status: 400 });
     this.storageOps += 1;
     await this.ctx.storage.put("client", { redirects } satisfies ClientRecord);
     return { client_id: "synthetic-public-client", redirect_uris: redirects, grant_types: ["authorization_code", "refresh_token"], response_types: ["code"], token_endpoint_auth_method: "none" };
@@ -278,6 +278,7 @@ export default {
         return callAuthority(env, "/register", body);
       }
       if (request.method === "GET" && url.pathname === "/authorize") {
+        if (url.searchParams.get("response_type") !== "code") throw Object.assign(new Error("response_type"), { status: 400 });
         return callAuthority(env, "/begin", { redirect: url.searchParams.get("redirect_uri"), challenge: url.searchParams.get("code_challenge"), method: url.searchParams.get("code_challenge_method"), resource: url.searchParams.get("resource"), scope: url.searchParams.get("scope"), state: url.searchParams.get("state") });
       }
       if (request.method === "POST" && url.pathname === "/consent") return callAuthority(env, "/decide", JSON.parse(await readBounded(request)) as Record<string, unknown>);

@@ -73,6 +73,8 @@ it("keeps authorization-code use atomic and rejects another resource's token", a
     expect((await runtime.dispatchFetch(`${ISSUER}/register`, { method: "POST", headers: { "Content-Type": "application/json" }, body: oversized })).status).toBe(400);
     expect((await runtime.dispatchFetch(`${ISSUER}/register`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ redirect_uris: ["https://evil.example/callback"], client_secret: "not-stored" }) })).status).toBe(400);
     expect((await runtime.dispatchFetch(`${ISSUER}/register`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ redirect_uris: ["https://evil.example/callback"], jwks_uri: "https://evil.example/jwks" }) })).status).toBe(400);
+    expect((await runtime.dispatchFetch(`${ISSUER}/register`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ redirect_uris: [REDIRECT], jwks: { keys: [] } }) })).status).toBe(400);
+    expect((await runtime.dispatchFetch(`${ISSUER}/register`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ redirect_uris: [REDIRECT, "http://127.0.0.1:9/other"] }) })).status).toBe(400);
     const verifier = "synthetic-verifier-with-enough-entropy";
     const challenge = await challengeFor(verifier);
     const deniedConsent = await runtime.dispatchFetch(`${ISSUER}/authorize?response_type=code&redirect_uri=${encodeURIComponent(REDIRECT)}&code_challenge=${challenge}&code_challenge_method=S256&resource=${encodeURIComponent(`${MCP}/mcp`)}&scope=relay.read&state=denied`);
@@ -148,6 +150,11 @@ it("keeps authorization-code use atomic and rejects another resource's token", a
     expect(portConsent.status).toBe(200);
     expect((await runtime.dispatchFetch(`${ISSUER}/authorize?response_type=code&redirect_uri=${encodeURIComponent("http://127.0.0.1:43111/other")}&code_challenge=${challenge}&code_challenge_method=S256&resource=${encodeURIComponent(`${MCP}/mcp`)}&scope=relay.read&state=path`)).status).toBe(400);
     expect((await runtime.dispatchFetch(`${ISSUER}/authorize?response_type=code&redirect_uri=${encodeURIComponent("https://evil.example/callback")}&code_challenge=${challenge}&code_challenge_method=S256&resource=${encodeURIComponent(`${MCP}/mcp`)}&scope=relay.read&state=host`)).status).toBe(400);
+    expect((await runtime.dispatchFetch(`${ISSUER}/authorize?response_type=token&redirect_uri=${encodeURIComponent(REDIRECT)}&code_challenge=${challenge}&code_challenge_method=S256&resource=${encodeURIComponent(`${MCP}/mcp`)}&scope=relay.read&state=implicit`)).status).toBe(400);
+    expect((await runtime.dispatchFetch(`${ISSUER}/authorize?response_type=code&redirect_uri=${encodeURIComponent(REDIRECT)}&code_challenge=${challenge}&code_challenge_method=plain&resource=${encodeURIComponent(`${MCP}/mcp`)}&scope=relay.read&state=plain`)).status).toBe(400);
+    expect((await runtime.dispatchFetch(`${ISSUER}/authorize?response_type=code&redirect_uri=${encodeURIComponent("https://127.0.0.1:43111/callback")}&code_challenge=${challenge}&code_challenge_method=S256&resource=${encodeURIComponent(`${MCP}/mcp`)}&scope=relay.read&state=scheme`)).status).toBe(400);
+    expect((await runtime.dispatchFetch(`${ISSUER}/authorize?response_type=code&redirect_uri=${encodeURIComponent("http://127.0.0.1:43111/callback?extra=1")}&code_challenge=${challenge}&code_challenge_method=S256&resource=${encodeURIComponent(`${MCP}/mcp`)}&scope=relay.read&state=query`)).status).toBe(400);
+    expect((await runtime.dispatchFetch(`${ISSUER}/token`, { method: "POST", body: new URLSearchParams({ grant_type: "client_credentials", resource: `${MCP}/mcp` }) })).status).toBe(400);
 
     const admitted = await runtime.dispatchFetch(`${MCP}/mcp`, initialize);
     expect(admitted.status).toBe(200);
