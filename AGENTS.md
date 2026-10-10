@@ -4,6 +4,8 @@
 
 Read [docs/README.md](docs/README.md), the sole documentation map, and select the authority for the changed boundary. Inspect the current source and owning issue before interpreting documentation as an implemented capability. For executable changes also read [verification gates](docs/develop/gates.md). Frontend work uses [Console design](design.md) and the map's local-preview workflow; read the [Design System Governance Loop](docs/develop/design-system.md) when tokens, CSS, primitives or style ownership change. Tests alone do not establish design approval.
 
+For any test addition, review, repair or removal, read [test authoring and refinement](tests/AGENTS.md). That scoped file owns independent test oracles, counterexamples, asynchronous test ownership and refinement; [verification gates](docs/develop/gates.md) remains the sole owner of test selection, CI and release evidence.
+
 For Agency Relay UI/product-design work, use the in-repository
 [product-design-loop](.agents/skills/product-design-loop/SKILL.md) skill as the
 project-agnostic procedure. Resolve Agency Relay-specific execution answers from this

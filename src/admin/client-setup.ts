@@ -1,18 +1,24 @@
+import { PROVIDER_RELAY_PROFILES } from "../plans/execution-plans";
+
+const codexProfile = PROVIDER_RELAY_PROFILES.codex;
+const grokProfile = PROVIDER_RELAY_PROFILES.grok;
+const xaiProfile = PROVIDER_RELAY_PROFILES.xai;
+
 export const PRODUCT_ACCESS = {
   codex: {
-    id: "codex",
-    label: "Codex",
-    grant: "surface:codex:production"
+    id: codexProfile.id,
+    label: codexProfile.clientLabel,
+    grant: codexProfile.surfaceGrant
   },
   grok: {
-    id: "grok",
-    label: "Grok",
-    grant: "surface:grok:production"
+    id: grokProfile.id,
+    label: grokProfile.clientLabel,
+    grant: grokProfile.surfaceGrant
   },
   xai: {
-    id: "xai",
-    label: "xAI API",
-    grant: "surface:xai:production"
+    id: xaiProfile.id,
+    label: xaiProfile.clientLabel,
+    grant: xaiProfile.surfaceGrant
   }
 } as const;
 
@@ -29,9 +35,9 @@ export interface ClientSetupFile {
 
 export const CLIENT_SETUP_TOKEN_PLACEHOLDER = "__MINI_END_USER_KEY__";
 
-const CODEX_BASE_URL = "https://api.trustedtunnel.app/v1";
-const GROK_BASE_URL = "https://grok.trustedtunnel.app/v1";
-const XAI_BASE_URL = "https://xai.trustedtunnel.app/v1";
+const CODEX_BASE_URL = `https://${codexProfile.hostname}/v1`;
+const GROK_BASE_URL = `https://${grokProfile.hostname}/v1`;
+const XAI_BASE_URL = `https://${xaiProfile.hostname}/v1`;
 
 const CODEX_HEADER = `# Agency Relay Codex CLI 安装
 # 地址：${CODEX_BASE_URL}
