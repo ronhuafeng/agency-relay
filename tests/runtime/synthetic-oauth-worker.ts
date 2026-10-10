@@ -2,13 +2,14 @@ import { DurableObject } from "cloudflare:workers";
 import { assertConsoleBrowserWrite } from "../../src/admin/browser-write";
 import { HttpError, jsonResponse } from "../../src/errors";
 
-const RESOURCE = "https://mcp.example.test/mcp";
-const OTHER_RESOURCE = "https://other.example.test/mcp";
 const REQUIRED_SCOPE = "relay.read";
 const MAX_BODY_BYTES = 4096;
 
 interface FixtureEnv extends Env {
   GRANTS: DurableObjectNamespace<RuntimeGrantAuthority>;
+  OAUTH_ISSUER_ORIGIN: string;
+  OAUTH_RESOURCE_ORIGIN: string;
+  OAUTH_OTHER_RESOURCE_ORIGIN: string;
 }
 
 interface ClientRecord {
@@ -72,11 +73,11 @@ export class RuntimeGrantAuthority extends DurableObject<FixtureEnv> {
     }
   }
 
-  private async register(body: Record<string, unknown>): Promise<{ client_id: string }> {
+  private async register(body: Record<string, unknown>): Promise<{ client_id: string; redirect_uris: string[]; grant_types: string[]; response_types: string[]; token_endpoint_auth_method: "none" }> {
     const redirects = stringList(body.redirect_uris);
     if (redirects.length !== 1) throw new Error("one redirect");
     await this.ctx.storage.put("client", { redirects } satisfies ClientRecord);
-    return { client_id: "synthetic-public-client" };
+    return { client_id: "synthetic-public-client", redirect_uris: redirects, grant_types: ["authorization_code", "refresh_token"], response_types: ["code"], token_endpoint_auth_method: "none" };
   }
 
   private async begin(body: Record<string, unknown>): Promise<{ consent_id: string }> {
@@ -84,7 +85,7 @@ export class RuntimeGrantAuthority extends DurableObject<FixtureEnv> {
     const redirect = stringField(body, "redirect");
     const resource = stringField(body, "resource");
     if (!client?.redirects.some((registered) => redirectsMatch(registered, redirect))) throw Object.assign(new Error("unregistered redirect"), { status: 400 });
-    if (resource !== RESOURCE && resource !== OTHER_RESOURCE) throw Object.assign(new Error("unknown resource"), { status: 400 });
+    if (resource !== `${this.env.OAUTH_RESOURCE_ORIGIN}/mcp` && resource !== `${this.env.OAUTH_OTHER_RESOURCE_ORIGIN}/mcp`) throw Object.assign(new Error("unknown resource"), { status: 400 });
     if (stringField(body, "method") !== "S256") throw Object.assign(new Error("pkce"), { status: 400 });
     const consent: ConsentRecord = {
       redirect, challenge: stringField(body, "challenge"), resource, scope: stringField(body, "scope"), state: stringField(body, "state"), decision: "pending"
@@ -220,10 +221,10 @@ export default {
       if (url.pathname === "/consent" || url.pathname === "/revoke") assertConsoleBrowserWrite(request, env, url);
       if (request.method === "GET" && url.pathname === "/.well-known/oauth-protected-resource/mcp") {
         const resource = `${url.origin}/mcp`;
-        return jsonResponse({ resource, authorization_servers: [`https://${env.ADMIN_DASHBOARD_HOST}`], bearer_methods_supported: ["header"], scopes_supported: [REQUIRED_SCOPE] });
+        return jsonResponse({ resource, authorization_servers: [env.OAUTH_ISSUER_ORIGIN], bearer_methods_supported: ["header"], scopes_supported: [REQUIRED_SCOPE] });
       }
       if (request.method === "GET" && url.pathname === "/.well-known/oauth-authorization-server") {
-        const issuer = `https://${env.ADMIN_DASHBOARD_HOST}`;
+        const issuer = env.OAUTH_ISSUER_ORIGIN;
         return jsonResponse({ issuer, authorization_endpoint: `${issuer}/authorize`, token_endpoint: `${issuer}/token`, registration_endpoint: `${issuer}/register`, response_types_supported: ["code"], grant_types_supported: ["authorization_code", "refresh_token"], code_challenge_methods_supported: ["S256"], token_endpoint_auth_methods_supported: ["none"] });
       }
       if (request.method === "POST" && url.pathname === "/register") {

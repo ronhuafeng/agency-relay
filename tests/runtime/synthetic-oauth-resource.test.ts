@@ -29,7 +29,12 @@ async function start(): Promise<{ runtime: { dispatchFetch: typeof fetch; dispos
   });
   const runtime = new Miniflare(convertV4MiniflareOptions({
     modules: true, script: compiled.outputFiles[0]!.text, compatibilityDate: "2026-06-24", compatibilityFlags: ["nodejs_compat"],
-    bindings: { ADMIN_DASHBOARD_HOST: "console.example.test" },
+    bindings: {
+      ADMIN_DASHBOARD_HOST: "console.example.test",
+      OAUTH_ISSUER_ORIGIN: ISSUER,
+      OAUTH_RESOURCE_ORIGIN: MCP,
+      OAUTH_OTHER_RESOURCE_ORIGIN: OTHER
+    },
     durableObjects: { GRANTS: { className: "RuntimeGrantAuthority", useSQLite: true } }
   }));
   return { runtime };
