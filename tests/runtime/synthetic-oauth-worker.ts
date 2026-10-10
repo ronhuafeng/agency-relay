@@ -26,12 +26,18 @@ interface ConsentRecord {
   code?: string;
 }
 
+interface AuthorityState {
+  generation: number;
+  account: string;
+}
+
 interface CodeRecord {
   challenge: string;
   redirect: string;
   resource: string;
   scope: string;
   generation: number;
+  account: string;
   consumed: boolean;
   refresh: string;
   access: string;
@@ -42,6 +48,7 @@ interface RefreshRecord {
   scope: string;
   access: string;
   generation: number;
+  account: string;
   spent: boolean;
   replacement?: string;
 }
@@ -50,9 +57,10 @@ interface AccessRecord {
   resource: string;
   scope: string;
   generation: number;
+  account: string;
 }
 
-type ConsumeResult = { ok: true; access: string; refresh: string; scope: string; resource: string } | { ok: false; reason: "replay" | "pkce" | "redirect" | "resource" | "missing" };
+type ConsumeResult = { ok: true; access: string; refresh: string; scope: string; resource: string; account: string } | { ok: false; reason: "replay" | "pkce" | "redirect" | "resource" | "missing" };
 
 export class RuntimeGrantAuthority extends DurableObject<FixtureEnv> {
   private storageOps = 0;
@@ -68,6 +76,7 @@ export class RuntimeGrantAuthority extends DurableObject<FixtureEnv> {
       if (action === "/refresh") return jsonResponse(await this.refresh(body));
       if (action === "/access") return jsonResponse(await this.access(body));
       if (action === "/revoke") return jsonResponse(await this.revoke());
+      if (action === "/rebind") return jsonResponse(await this.rebind(body));
       if (action === "/budget") return jsonResponse({ storage_operations: this.storageOps });
       if (action === "/budget-reset") { this.storageOps = 0; return jsonResponse({ storage_operations: 0 }); }
       return new Response(null, { status: 404 });
@@ -118,14 +127,15 @@ export class RuntimeGrantAuthority extends DurableObject<FixtureEnv> {
       const code = crypto.randomUUID();
       const refresh = crypto.randomUUID();
       const access = crypto.randomUUID();
-      this.storageOps += 1;
-      const generation = (await txn.get<number>("generation")) ?? 1;
+      const authority = await this.readAuthority(txn);
+      const generation = authority.generation;
+      const account = authority.account;
       const issued: ConsentRecord = { ...consent, decision: "allow", code };
       this.storageOps += 4;
       await txn.put(`consent:${consentId}`, issued);
-      await txn.put(`code:${code}`, { challenge: consent.challenge, redirect: consent.redirect, resource: consent.resource, scope: consent.scope, generation, consumed: false, refresh, access } satisfies CodeRecord);
-      await txn.put(`refresh:${refresh}`, { resource: consent.resource, scope: consent.scope, access, generation, spent: false } satisfies RefreshRecord);
-      await txn.put(`access:${access}`, { resource: consent.resource, scope: consent.scope, generation } satisfies AccessRecord);
+      await txn.put(`code:${code}`, { challenge: consent.challenge, redirect: consent.redirect, resource: consent.resource, scope: consent.scope, generation, account, consumed: false, refresh, access } satisfies CodeRecord);
+      await txn.put(`refresh:${refresh}`, { resource: consent.resource, scope: consent.scope, access, generation, account, spent: false } satisfies RefreshRecord);
+      await txn.put(`access:${access}`, { resource: consent.resource, scope: consent.scope, generation, account } satisfies AccessRecord);
       const redirect = new URL(consent.redirect);
       redirect.searchParams.set("code", code);
       redirect.searchParams.set("state", consent.state);
@@ -136,61 +146,78 @@ export class RuntimeGrantAuthority extends DurableObject<FixtureEnv> {
   private async consume(body: Record<string, unknown>): Promise<ConsumeResult> {
     const code = stringField(body, "code");
     return this.ctx.storage.transaction(async (txn) => {
-      this.storageOps += 2;
+      this.storageOps += 1;
       const row = await txn.get<CodeRecord>(`code:${code}`);
-      const generation = (await txn.get<number>("generation")) ?? 1;
-      if (!row || row.generation !== generation) return { ok: false, reason: "missing" };
+      const authority = await this.readAuthority(txn);
+      if (!row || row.generation !== authority.generation) return { ok: false, reason: "missing" };
       const matches = row.challenge === stringField(body, "challenge") && row.redirect === stringField(body, "redirect") && row.resource === stringField(body, "resource");
-      if (row.consumed) return matches ? { ok: true, access: row.access, refresh: row.refresh, scope: row.scope, resource: row.resource } : { ok: false, reason: "replay" };
+      if (row.consumed) return matches ? { ok: true, access: row.access, refresh: row.refresh, scope: row.scope, resource: row.resource, account: row.account } : { ok: false, reason: "replay" };
       if (row.challenge !== stringField(body, "challenge")) return { ok: false, reason: "pkce" };
       if (row.redirect !== stringField(body, "redirect")) return { ok: false, reason: "redirect" };
       if (row.resource !== stringField(body, "resource")) return { ok: false, reason: "resource" };
       this.storageOps += 1;
       await txn.put(`code:${code}`, { ...row, consumed: true });
-      return { ok: true, access: row.access, refresh: row.refresh, scope: row.scope, resource: row.resource };
+      return { ok: true, access: row.access, refresh: row.refresh, scope: row.scope, resource: row.resource, account: row.account };
     });
   }
 
-  private async refresh(body: Record<string, unknown>): Promise<{ ok: true; access: string; refresh: string } | { ok: false }> {
+  private async refresh(body: Record<string, unknown>): Promise<{ ok: true; access: string; refresh: string; account: string } | { ok: false }> {
     const current = stringField(body, "refresh");
     return this.ctx.storage.transaction(async (txn) => {
-      this.storageOps += 2;
+      this.storageOps += 1;
       const row = await txn.get<RefreshRecord>(`refresh:${current}`);
-      const generation = (await txn.get<number>("generation")) ?? 1;
-      if (!row || row.generation !== generation || row.resource !== stringField(body, "resource")) return { ok: false };
+      const authority = await this.readAuthority(txn);
+      if (!row || row.generation !== authority.generation || row.resource !== stringField(body, "resource")) return { ok: false };
       if (row.spent) {
         if (!row.replacement) return { ok: false };
         this.storageOps += 1;
         const successor = await txn.get<RefreshRecord>(`refresh:${row.replacement}`);
-        if (!successor || successor.spent || successor.generation !== generation) return { ok: false };
-        return { ok: true, access: successor.access, refresh: row.replacement };
+        if (!successor || successor.spent || successor.generation !== authority.generation) return { ok: false };
+        return { ok: true, access: successor.access, refresh: row.replacement, account: successor.account };
       }
       const next = crypto.randomUUID();
       const access = crypto.randomUUID();
       this.storageOps += 3;
       await txn.put(`refresh:${current}`, { ...row, spent: true, replacement: next });
-      await txn.put(`refresh:${next}`, { resource: row.resource, scope: row.scope, access, generation, spent: false } satisfies RefreshRecord);
-      await txn.put(`access:${access}`, { resource: row.resource, scope: row.scope, generation } satisfies AccessRecord);
-      return { ok: true, access, refresh: next };
+      await txn.put(`refresh:${next}`, { resource: row.resource, scope: row.scope, access, generation: row.generation, account: row.account, spent: false } satisfies RefreshRecord);
+      await txn.put(`access:${access}`, { resource: row.resource, scope: row.scope, generation: row.generation, account: row.account } satisfies AccessRecord);
+      return { ok: true, access, refresh: next, account: row.account };
     });
   }
 
   private async access(body: Record<string, unknown>): Promise<AccessRecord | null> {
     const token = stringField(body, "token");
     return this.ctx.storage.transaction(async (txn) => {
-      this.storageOps += 2;
+      this.storageOps += 1;
       const row = await txn.get<AccessRecord>(`access:${token}`);
-      const generation = (await txn.get<number>("generation")) ?? 1;
-      return row && row.generation === generation ? row : null;
+      const authority = await this.readAuthority(txn);
+      return row && row.generation === authority.generation ? row : null;
     });
   }
 
   private async revoke(): Promise<{ revoked: true }> {
     await this.ctx.storage.transaction(async (txn) => {
-      this.storageOps += 2;
-      await txn.put("generation", ((await txn.get<number>("generation")) ?? 1) + 1);
+      const authority = await this.readAuthority(txn);
+      this.storageOps += 1;
+      await txn.put("authority", { generation: authority.generation + 1, account: authority.account });
     });
     return { revoked: true };
+  }
+
+  private async rebind(body: Record<string, unknown>): Promise<{ account: string }> {
+    const account = stringField(body, "account");
+    return this.ctx.storage.transaction(async (txn) => {
+      const authority = await this.readAuthority(txn);
+      if (authority.account === account) throw Object.assign(new Error("same account"), { status: 400 });
+      this.storageOps += 1;
+      await txn.put("authority", { generation: authority.generation + 1, account });
+      return { account };
+    });
+  }
+
+  private async readAuthority(txn: { get<T>(key: string): Promise<T | undefined> }): Promise<AuthorityState> {
+    this.storageOps += 1;
+    return (await txn.get<AuthorityState>("authority")) ?? { generation: 1, account: "account-a" };
   }
 }
 
@@ -236,7 +263,7 @@ export default {
   async fetch(request: Request, env: FixtureEnv): Promise<Response> {
     const url = new URL(request.url);
     try {
-      if (url.pathname === "/consent" || url.pathname === "/revoke") assertConsoleBrowserWrite(request, env, url);
+      if (url.pathname === "/consent" || url.pathname === "/revoke" || url.pathname === "/rebind") assertConsoleBrowserWrite(request, env, url);
       if (request.method === "GET" && url.pathname === "/.well-known/oauth-protected-resource/mcp") {
         const resource = `${url.origin}/mcp`;
         return jsonResponse({ resource, authorization_servers: [env.OAUTH_ISSUER_ORIGIN], bearer_methods_supported: ["header"], scopes_supported: [REQUIRED_SCOPE] });
@@ -255,6 +282,7 @@ export default {
       }
       if (request.method === "POST" && url.pathname === "/consent") return callAuthority(env, "/decide", JSON.parse(await readBounded(request)) as Record<string, unknown>);
       if (request.method === "POST" && url.pathname === "/revoke") return callAuthority(env, "/revoke", {});
+      if (request.method === "POST" && url.pathname === "/rebind") return callAuthority(env, "/rebind", JSON.parse(await readBounded(request)) as Record<string, unknown>);
       if (request.method === "POST" && url.pathname === "/budget") return callAuthority(env, "/budget", {});
       if (request.method === "POST" && url.pathname === "/budget-reset") return callAuthority(env, "/budget-reset", {});
       if (request.method === "POST" && url.pathname === "/token") return token(await readBounded(request), env);
@@ -285,14 +313,14 @@ async function token(body: string, env: FixtureEnv): Promise<Response> {
     if (typeof verifier !== "string" || typeof code !== "string" || typeof redirect !== "string" || typeof resource !== "string") return jsonResponse({ error: "invalid_request" }, { status: 400 });
     const result = await (await callAuthority(env, "/consume", { code, challenge: await s256(verifier), redirect, resource })).json() as ConsumeResult;
     if (!result.ok) return jsonResponse({ error: "invalid_grant" }, { status: 400 });
-    return jsonResponse({ access_token: result.access, refresh_token: result.refresh, token_type: "bearer", scope: result.scope, resource: result.resource });
+    return jsonResponse({ access_token: result.access, refresh_token: result.refresh, token_type: "bearer", scope: result.scope, resource: result.resource, account: result.account });
   }
   if (grant === "refresh_token") {
     const refreshToken = form.get("refresh_token");
     if (typeof refreshToken !== "string" || typeof resource !== "string") return jsonResponse({ error: "invalid_request" }, { status: 400 });
-    const result = await (await callAuthority(env, "/refresh", { refresh: refreshToken, resource })).json() as { ok: true; access: string; refresh: string } | { ok: false };
+    const result = await (await callAuthority(env, "/refresh", { refresh: refreshToken, resource })).json() as { ok: true; access: string; refresh: string; account: string } | { ok: false };
     if (!result.ok) return jsonResponse({ error: "invalid_grant" }, { status: 400 });
-    return jsonResponse({ access_token: result.access, refresh_token: result.refresh, token_type: "bearer" });
+    return jsonResponse({ access_token: result.access, refresh_token: result.refresh, token_type: "bearer", account: result.account });
   }
   return jsonResponse({ error: "unsupported_grant_type" }, { status: 400 });
 }

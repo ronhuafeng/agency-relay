@@ -96,7 +96,8 @@ it("keeps authorization-code use atomic and rejects another resource's token", a
     };
     const [first, second] = await Promise.all([exchange(), exchange()]);
     expect([first.status, second.status]).toEqual([200, 200]);
-    const issued = first.body as { access_token: string; refresh_token: string };
+    const issued = first.body as { access_token: string; refresh_token: string; account: string };
+    expect(issued.account).toBe("account-a");
     expect(second.body).toEqual(issued);
     const replay = (await exchange()).body as { access_token: string; refresh_token: string };
     expect(replay).toEqual(issued);
@@ -108,7 +109,8 @@ it("keeps authorization-code use atomic and rejects another resource's token", a
 
     const rotated = await runtime.dispatchFetch(`${ISSUER}/token`, { method: "POST", body: new URLSearchParams({ grant_type: "refresh_token", refresh_token: issued.refresh_token, resource: `${MCP}/mcp` }) });
     expect(rotated.status).toBe(200);
-    const next = await rotated.json() as { access_token: string; refresh_token: string };
+    const next = await rotated.json() as { access_token: string; refresh_token: string; account: string };
+    expect(next.account).toBe(issued.account);
     const lostRotation = await (await runtime.dispatchFetch(`${ISSUER}/token`, { method: "POST", body: new URLSearchParams({ grant_type: "refresh_token", refresh_token: issued.refresh_token, resource: `${MCP}/mcp` }) })).json() as { access_token: string; refresh_token: string };
     expect(lostRotation).toEqual(next);
     const rotatedAccess = { method: "POST", headers: { Authorization: `Bearer ${next.access_token}`, "Content-Type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 4, method: "initialize" }) };
@@ -161,8 +163,21 @@ it("keeps authorization-code use atomic and rejects another resource's token", a
     const renewedId = ((await renewedConsent.json()) as { consent_id: string }).consent_id;
     const renewed = await runtime.dispatchFetch(`${ISSUER}/consent`, { method: "POST", headers: { "Content-Type": "application/json", ...BROWSER }, body: JSON.stringify({ consent_id: renewedId, decision: "allow" }) });
     const renewedCode = new URL(((await renewed.json()) as { redirect: string }).redirect).searchParams.get("code");
-    const renewedToken = await (await runtime.dispatchFetch(`${ISSUER}/token`, { method: "POST", body: new URLSearchParams({ grant_type: "authorization_code", code: renewedCode!, code_verifier: verifier, redirect_uri: REDIRECT, resource: `${MCP}/mcp` }) })).json() as { access_token: string };
+    const renewedToken = await (await runtime.dispatchFetch(`${ISSUER}/token`, { method: "POST", body: new URLSearchParams({ grant_type: "authorization_code", code: renewedCode!, code_verifier: verifier, redirect_uri: REDIRECT, resource: `${MCP}/mcp` }) })).json() as { access_token: string; account: string };
+    expect(renewedToken.account).toBe("account-a");
     expect((await runtime.dispatchFetch(`${MCP}/mcp`, initialize)).status).toBe(401);
     expect((await runtime.dispatchFetch(`${MCP}/mcp`, { method: "POST", headers: { Authorization: `Bearer ${renewedToken.access_token}`, "Content-Type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 3, method: "initialize" }) })).status).toBe(200);
+    expect((await runtime.dispatchFetch(`${ISSUER}/rebind`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ account: "account-b" }) })).status).toBe(403);
+    expect((await runtime.dispatchFetch(`${ISSUER}/rebind`, { method: "POST", headers: { "Content-Type": "application/json", ...BROWSER }, body: JSON.stringify({ account: "account-a" }) })).status).toBe(400);
+    expect((await runtime.dispatchFetch(`${ISSUER}/rebind`, { method: "POST", headers: { "Content-Type": "application/json", ...BROWSER }, body: JSON.stringify({ account: "account-b" }) })).status).toBe(200);
+    expect((await runtime.dispatchFetch(`${MCP}/mcp`, { method: "POST", headers: { Authorization: `Bearer ${renewedToken.access_token}`, "Content-Type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 7, method: "initialize" }) })).status).toBe(401);
+    const reboundConsent = await runtime.dispatchFetch(`${ISSUER}/authorize?response_type=code&redirect_uri=${encodeURIComponent(REDIRECT)}&code_challenge=${challenge}&code_challenge_method=S256&resource=${encodeURIComponent(`${MCP}/mcp`)}&scope=relay.read&state=rebound`);
+    const reboundId = ((await reboundConsent.json()) as { consent_id: string }).consent_id;
+    const rebound = await runtime.dispatchFetch(`${ISSUER}/consent`, { method: "POST", headers: { "Content-Type": "application/json", ...BROWSER }, body: JSON.stringify({ consent_id: reboundId, decision: "allow" }) });
+    const reboundCode = new URL(((await rebound.json()) as { redirect: string }).redirect).searchParams.get("code");
+    const reboundToken = await (await runtime.dispatchFetch(`${ISSUER}/token`, { method: "POST", body: new URLSearchParams({ grant_type: "authorization_code", code: reboundCode!, code_verifier: verifier, redirect_uri: REDIRECT, resource: `${MCP}/mcp` }) })).json() as { access_token: string; account: string };
+    expect(reboundToken.account).toBe("account-b");
+    expect((await runtime.dispatchFetch(`${MCP}/mcp`, { method: "POST", headers: { Authorization: `Bearer ${reboundToken.access_token}`, "Content-Type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 8, method: "initialize" }) })).status).toBe(200);
+    expect((await runtime.dispatchFetch(`${MCP}/mcp`, { method: "POST", headers: { Authorization: `Bearer ${renewedToken.access_token}`, "Content-Type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 9, method: "initialize" }) })).status).toBe(401);
   } finally { await runtime.dispose(); }
 }, 20000);
