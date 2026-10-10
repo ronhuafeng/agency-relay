@@ -2,6 +2,7 @@ import { generateId, nowIso } from "../crypto";
 import { readTokenResult } from "./token-result";
 import { HttpError } from "../errors";
 import type { SurfaceCredentialSelection } from "./bindings";
+import { PROVIDER_RELAY_PROFILES } from "../plans/execution-plans";
 import { serviceAdminAuthorityBindings, serviceAdminAuthoritySql } from "./service-accounts";
 
 export const PROVIDER_RESOURCE_BOUNDARY =
@@ -87,9 +88,9 @@ export interface RetirementPreview {
 }
 
 const SURFACES: OrganizationSurface[] = [
-  "surface:codex:production",
-  "surface:grok:production",
-  "surface:xai:production"
+  PROVIDER_RELAY_PROFILES.codex.surfaceGrant,
+  PROVIDER_RELAY_PROFILES.grok.surfaceGrant,
+  PROVIDER_RELAY_PROFILES.xai.surfaceGrant
 ];
 
 export async function readServiceAvailability(env: Env, probe: UsabilityProbe, now = new Date()): Promise<ServiceAvailability[]> {
