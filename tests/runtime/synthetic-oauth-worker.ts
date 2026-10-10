@@ -262,32 +262,34 @@ async function callAuthority(env: FixtureEnv, path: string, body: unknown): Prom
 export default {
   async fetch(request: Request, env: FixtureEnv): Promise<Response> {
     const url = new URL(request.url);
+    const issuerOrigin = url.origin === env.OAUTH_ISSUER_ORIGIN;
+    const resourceOrigin = url.origin === env.OAUTH_RESOURCE_ORIGIN || url.origin === env.OAUTH_OTHER_RESOURCE_ORIGIN;
     try {
       if (url.pathname === "/consent" || url.pathname === "/revoke" || url.pathname === "/rebind") assertConsoleBrowserWrite(request, env, url);
-      if (request.method === "GET" && url.pathname === "/.well-known/oauth-protected-resource/mcp") {
+      if (resourceOrigin && request.method === "GET" && url.pathname === "/.well-known/oauth-protected-resource/mcp") {
         const resource = `${url.origin}/mcp`;
         return jsonResponse({ resource, authorization_servers: [env.OAUTH_ISSUER_ORIGIN], bearer_methods_supported: ["header"], scopes_supported: [REQUIRED_SCOPE] });
       }
-      if (request.method === "GET" && url.pathname === "/.well-known/oauth-authorization-server") {
+      if (issuerOrigin && request.method === "GET" && url.pathname === "/.well-known/oauth-authorization-server") {
         const issuer = env.OAUTH_ISSUER_ORIGIN;
         return jsonResponse({ issuer, authorization_endpoint: `${issuer}/authorize`, token_endpoint: `${issuer}/token`, registration_endpoint: `${issuer}/register`, response_types_supported: ["code"], grant_types_supported: ["authorization_code", "refresh_token"], code_challenge_methods_supported: ["S256"], token_endpoint_auth_methods_supported: ["none"] });
       }
-      if (request.method === "POST" && url.pathname === "/register") {
+      if (issuerOrigin && request.method === "POST" && url.pathname === "/register") {
         const body = JSON.parse(await readBounded(request)) as Record<string, unknown>;
         if ("client_secret" in body || "jwks" in body || "jwks_uri" in body) throw Object.assign(new Error("credential metadata"), { status: 400 });
         return callAuthority(env, "/register", body);
       }
-      if (request.method === "GET" && url.pathname === "/authorize") {
+      if (issuerOrigin && request.method === "GET" && url.pathname === "/authorize") {
         if (url.searchParams.get("response_type") !== "code") throw Object.assign(new Error("response_type"), { status: 400 });
         return callAuthority(env, "/begin", { redirect: url.searchParams.get("redirect_uri"), challenge: url.searchParams.get("code_challenge"), method: url.searchParams.get("code_challenge_method"), resource: url.searchParams.get("resource"), scope: url.searchParams.get("scope"), state: url.searchParams.get("state") });
       }
-      if (request.method === "POST" && url.pathname === "/consent") return callAuthority(env, "/decide", JSON.parse(await readBounded(request)) as Record<string, unknown>);
-      if (request.method === "POST" && url.pathname === "/revoke") return callAuthority(env, "/revoke", {});
-      if (request.method === "POST" && url.pathname === "/rebind") return callAuthority(env, "/rebind", JSON.parse(await readBounded(request)) as Record<string, unknown>);
-      if (request.method === "POST" && url.pathname === "/budget") return callAuthority(env, "/budget", {});
-      if (request.method === "POST" && url.pathname === "/budget-reset") return callAuthority(env, "/budget-reset", {});
-      if (request.method === "POST" && url.pathname === "/token") return await token(await readBounded(request), env);
-      if (request.method === "POST" && url.pathname === "/mcp") return await resourceRequest(request, env, `${url.origin}/mcp`);
+      if (issuerOrigin && request.method === "POST" && url.pathname === "/consent") return callAuthority(env, "/decide", JSON.parse(await readBounded(request)) as Record<string, unknown>);
+      if (issuerOrigin && request.method === "POST" && url.pathname === "/revoke") return callAuthority(env, "/revoke", {});
+      if (issuerOrigin && request.method === "POST" && url.pathname === "/rebind") return callAuthority(env, "/rebind", JSON.parse(await readBounded(request)) as Record<string, unknown>);
+      if (issuerOrigin && request.method === "POST" && url.pathname === "/budget") return callAuthority(env, "/budget", {});
+      if (issuerOrigin && request.method === "POST" && url.pathname === "/budget-reset") return callAuthority(env, "/budget-reset", {});
+      if (issuerOrigin && request.method === "POST" && url.pathname === "/token") return await token(await readBounded(request), env);
+      if (resourceOrigin && request.method === "POST" && url.pathname === "/mcp") return await resourceRequest(request, env, `${url.origin}/mcp`);
       return new Response(null, { status: 404 });
     } catch (error) {
       if (error instanceof HttpError) return jsonResponse({ error: error.code ?? error.message }, { status: error.status });

@@ -151,6 +151,14 @@ it("keeps authorization-code use atomic and rejects another resource's token", a
     expect(metadata.grant_types_supported).toEqual(["authorization_code", "refresh_token"]);
     expect(metadata.code_challenge_methods_supported).toEqual(["S256"]);
     expect(metadata.token_endpoint_auth_methods_supported).toEqual(["none"]);
+    expect((await runtime.dispatchFetch(`${ISSUER}/.well-known/oauth-protected-resource/mcp`)).status).toBe(404);
+    expect((await runtime.dispatchFetch(`${MCP}/.well-known/oauth-authorization-server`)).status).toBe(404);
+    const resourceMetadata = await (await runtime.dispatchFetch(`${MCP}/.well-known/oauth-protected-resource/mcp`)).json() as { resource: string; authorization_servers: string[] };
+    expect(resourceMetadata.resource).toBe(`${MCP}/mcp`);
+    expect(resourceMetadata.authorization_servers).toEqual([ISSUER]);
+    expect(((await (await runtime.dispatchFetch(`${OTHER}/.well-known/oauth-protected-resource/mcp`)).json()) as { resource: string }).resource).toBe(`${OTHER}/mcp`);
+    expect((await runtime.dispatchFetch(`${MCP}/token`, { method: "POST", body: new URLSearchParams({ grant_type: "authorization_code" }) })).status).toBe(404);
+    expect((await runtime.dispatchFetch(`${ISSUER}/mcp`, initialize)).status).toBe(404);
     const otherPort = "http://127.0.0.1:43111/callback";
     const portConsent = await runtime.dispatchFetch(`${ISSUER}/authorize?response_type=code&redirect_uri=${encodeURIComponent(otherPort)}&code_challenge=${challenge}&code_challenge_method=S256&resource=${encodeURIComponent(`${MCP}/mcp`)}&scope=relay.read&state=port`);
     expect(portConsent.status).toBe(200);

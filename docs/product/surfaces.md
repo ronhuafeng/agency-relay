@@ -120,7 +120,7 @@ Details: [usage](../operate/usage.md), [Responses development](../develop/respon
 
 Provider profiles above do not admit an MCP client. A Runtime client presents a resource-bound OAuth bearer to one exact resource. That grant is separate from an Agency Relay API key, a console session, and a Provider credential.
 
-The selected target uses one Worker and separate origins for the authorization service and the MCP resource. Public discovery, registration, and token routes stay outside the console browser-write guard. Consent, revocation, and account rebind stay inside it. [Organization access](organization-access.md) owns that guard. A path under `/oauth/` receives no exemption.
+The selected target uses one Worker and separate origins for the authorization service and the MCP resource. The resource origin serves protected-resource metadata and `POST /mcp`. The authorization origin serves authorization-server metadata, registration, authorization, token, consent, revocation, and rebind. Neither origin answers the other's routes. Public discovery, registration, and token routes stay outside the console browser-write guard. Consent, revocation, and account rebind stay inside it. [Organization access](organization-access.md) owns that guard. A path under `/oauth/` receives no exemption.
 
 The protected resource is the exact `/mcp` URL. A descendant path is a different resource. A bearer for one resource is rejected by another. The resource handler rejects a token whose scope lacks `relay.read`. Advertising that scope does not enforce it.
 
