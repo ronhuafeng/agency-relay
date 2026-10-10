@@ -137,7 +137,7 @@ jobs:
             --title 'chore(plugins): update upstream plugin revisions' \
             --body 'Automated plugin revision proposal for human review. Related: #16, roadmap #15. Do not merge until all required checks on the candidate pass; bot-created PR checks may require Actions approval.'; then
             echo "Pull request creation failed. Deleting $branch so it is not left without a review PR." >&2
-            git push origin --delete "refs/heads/$branch"
+            git -c credential.helper= -c 'credential.helper=!gh auth git-credential' push origin --delete "refs/heads/$branch"
             exit 1
           fi
           actual_sha=$(gh pr view "$branch" --json headRefOid --jq '.headRefOid')
