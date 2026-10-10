@@ -401,9 +401,7 @@ table[data-slot=table] tbody tr:hover { background:color-mix(in srgb,var(--secon
 .usage-toolbar>.usage-export { margin-left:auto; flex:0 0 auto; }
 .usage-page .usage-export a[data-slot=button][data-variant=outline][data-size=icon] { width:1em; min-width:0; height:1em; min-height:0; padding:0; border:0; background:transparent; box-shadow:none; color:var(--foreground); line-height:1; }
 .usage-page .usage-export a[data-slot=button][data-size=icon] .ui-icon { width:1em; height:1em; }
-.usage-toolbar:has(>.usage-search input:focus)>.usage-query-range,
-.usage-toolbar:has(>.usage-search input:focus)>.usage-export { display:none; }
-.usage-toolbar:has(>.usage-search input:focus)>.usage-search { flex:1 1 auto; width:100%; }
+.usage-toolbar:has(>.usage-search:focus-within)>.usage-export { visibility:hidden; }
 .usage-search [data-slot=input-group] { position:relative; width:100%; height:36px; min-height:36px; }
 .usage-search :is([data-slot=input],[data-slot=input-group-control]) { min-height:0; padding-block:6px; padding-left:12px; font:400 14px/1.5 var(--font-sans); }
 .usage-search [data-slot=input-group-control] { padding-right:36px; }
@@ -713,7 +711,7 @@ table.member-quota-table [data-slot=progress] { height:6px; margin-top:8px; }
 /* Object tables and task editors own their space; the sidebar owns identity. */
 body:has(.console-nav-account) { --header-h:0px; }
 .console-status-header { display:none; }
-.console-status-header:has([data-console-status]:not([hidden])) { display:flex; position:fixed; top:8px; right:16px; z-index:40; min-height:36px; max-width:calc(100vw - 32px); padding:8px 12px; border:1px solid var(--border); border-radius:var(--radius); box-shadow:2px 2px 0 var(--pixel); }
+.console-status-header:has([data-console-status]:not([hidden])) { display:flex; position:fixed; top:8px; right:16px; z-index:40; min-height:36px; max-width:calc(100vw - 32px); padding:8px 12px; border:1px solid var(--border); border-radius:var(--radius); box-shadow:2px 2px 0 var(--pixel); pointer-events:none; }
 .shell:has(.console-nav-account) { min-height:100svh; }
 .nav-rail:has(.console-nav-account) { top:0; height:100svh; }
 .console-nav-brand { padding:4px 0 16px; }
