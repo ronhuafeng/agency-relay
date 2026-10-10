@@ -53,6 +53,7 @@ for (const scenario of [
     await expect(exportLink).toBeHidden();
     await page.locator('#usage-details').focus();
     await expect(exportLink).toBeVisible();
+    await exportLink.click({ trial: true });
     const exportHref = await exportLink.getAttribute('href');
     const exportResponse = await page.request.get(exportHref!);
     expect(exportResponse.status()).toBe(200);
