@@ -94,6 +94,18 @@ it("keeps authorization-code use atomic and rejects another resource's token", a
     expect(missingScope.status).toBe(403);
     expect(await missingScope.json()).toEqual({ error: "insufficient_scope" });
     expect((await runtime.dispatchFetch(`${MCP}/mcp`)).status).toBe(404);
+    expect((await runtime.dispatchFetch(`${MCP}/mcp/extra`, initialize)).status).toBe(404);
+    expect((await runtime.dispatchFetch(`${ISSUER}/oauth/token`, { method: "POST", body: new URLSearchParams() })).status).toBe(404);
+    const metadata = await (await runtime.dispatchFetch(`${ISSUER}/.well-known/oauth-authorization-server`)).json() as { response_types_supported: string[]; grant_types_supported: string[]; code_challenge_methods_supported: string[]; token_endpoint_auth_methods_supported: string[] };
+    expect(metadata.response_types_supported).toEqual(["code"]);
+    expect(metadata.grant_types_supported).toEqual(["authorization_code", "refresh_token"]);
+    expect(metadata.code_challenge_methods_supported).toEqual(["S256"]);
+    expect(metadata.token_endpoint_auth_methods_supported).toEqual(["none"]);
+    const otherPort = "http://127.0.0.1:43111/callback";
+    const portConsent = await runtime.dispatchFetch(`${ISSUER}/authorize?response_type=code&redirect_uri=${encodeURIComponent(otherPort)}&code_challenge=${challenge}&code_challenge_method=S256&resource=${encodeURIComponent(`${MCP}/mcp`)}&scope=relay.read&state=port`);
+    expect(portConsent.status).toBe(200);
+    expect((await runtime.dispatchFetch(`${ISSUER}/authorize?response_type=code&redirect_uri=${encodeURIComponent("http://127.0.0.1:43111/other")}&code_challenge=${challenge}&code_challenge_method=S256&resource=${encodeURIComponent(`${MCP}/mcp`)}&scope=relay.read&state=path`)).status).toBe(400);
+    expect((await runtime.dispatchFetch(`${ISSUER}/authorize?response_type=code&redirect_uri=${encodeURIComponent("https://evil.example/callback")}&code_challenge=${challenge}&code_challenge_method=S256&resource=${encodeURIComponent(`${MCP}/mcp`)}&scope=relay.read&state=host`)).status).toBe(400);
 
     const admitted = await runtime.dispatchFetch(`${MCP}/mcp`, initialize);
     expect(admitted.status).toBe(200);

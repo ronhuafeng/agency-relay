@@ -82,7 +82,7 @@ export class RuntimeGrantAuthority extends DurableObject<FixtureEnv> {
     const client = await this.ctx.storage.get<ClientRecord>("client");
     const redirect = stringField(body, "redirect");
     const resource = stringField(body, "resource");
-    if (!client?.redirects.includes(redirect)) throw Object.assign(new Error("unregistered redirect"), { status: 400 });
+    if (!client?.redirects.some((registered) => redirectsMatch(registered, redirect))) throw Object.assign(new Error("unregistered redirect"), { status: 400 });
     if (resource !== RESOURCE && resource !== OTHER_RESOURCE) throw Object.assign(new Error("unknown resource"), { status: 400 });
     if (stringField(body, "method") !== "S256") throw Object.assign(new Error("pkce"), { status: 400 });
     const consent: ConsentRecord = {
@@ -178,6 +178,20 @@ function stringField(body: Record<string, unknown>, key: string): string {
   const value = body[key];
   if (typeof value !== "string" || value.length === 0) throw new Error(`missing ${key}`);
   return value;
+}
+
+function redirectsMatch(registered: string, requested: string): boolean {
+  if (registered === requested) return true;
+  let allowed: URL;
+  let actual: URL;
+  try {
+    allowed = new URL(registered);
+    actual = new URL(requested);
+  } catch {
+    return false;
+  }
+  const loopback = allowed.hostname === "127.0.0.1" || allowed.hostname === "localhost" || allowed.hostname === "::1";
+  return loopback && actual.hostname === allowed.hostname && actual.protocol === allowed.protocol && actual.pathname === allowed.pathname && actual.search === allowed.search;
 }
 
 function stringList(value: unknown): string[] {
