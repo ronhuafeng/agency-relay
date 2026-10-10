@@ -9,6 +9,8 @@ on:
       - '.agents/plugins/marketplace.json'
       - '.github/workflows/plugin-updates.yml'
       - 'scripts/update-plugin-revisions*.mjs'
+      - 'scripts/plugin-update-proposal.mjs'
+      - 'scripts/plugin-update-proposal.test.mjs'
 
 permissions:
   contents: read
