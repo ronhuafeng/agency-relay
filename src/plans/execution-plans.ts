@@ -151,6 +151,11 @@ const PROFILE_BY_GRANT = new Map<string, ProviderRelayProfile>(
   Object.values(PROVIDER_RELAY_PROFILES).map(profile => [profile.surfaceGrant, profile])
 );
 
+/** Read projection of the one profile declaration. Unknown grants stay unknown. */
+export function profileForSurfaceGrant(grant: string): ProviderRelayProfile | undefined {
+  return PROFILE_BY_GRANT.get(grant);
+}
+
 function codexProductionPlans(): ExecutionPlan[] {
   const plans: PlanOperation[] = [
     {
