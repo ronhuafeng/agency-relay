@@ -93,5 +93,24 @@ it("keeps authorization-code use atomic and rejects another resource's token", a
     const missingScope = await runtime.dispatchFetch(`${MCP}/mcp`, { method: "POST", headers: { Authorization: `Bearer ${narrowToken.access_token}`, "Content-Type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 2, method: "initialize" }) });
     expect(missingScope.status).toBe(403);
     expect(await missingScope.json()).toEqual({ error: "insufficient_scope" });
+    expect((await runtime.dispatchFetch(`${MCP}/mcp`)).status).toBe(404);
+
+    const admitted = await runtime.dispatchFetch(`${MCP}/mcp`, initialize);
+    expect(admitted.status).toBe(200);
+    const liveRefresh = await runtime.dispatchFetch(`${ISSUER}/token`, { method: "POST", body: new URLSearchParams({ grant_type: "refresh_token", refresh_token: rotatedAgain.refresh_token, resource: `${MCP}/mcp` }) });
+    expect(liveRefresh.status).toBe(200);
+    const live = await liveRefresh.json() as { refresh_token: string };
+    expect((await runtime.dispatchFetch(`${ISSUER}/revoke`, { method: "POST", body: "{}" })).status).toBe(403);
+    expect((await runtime.dispatchFetch(`${ISSUER}/revoke`, { method: "POST", headers: BROWSER, body: "{}" })).status).toBe(200);
+    expect(admitted.status).toBe(200);
+    expect((await runtime.dispatchFetch(`${MCP}/mcp`, initialize)).status).toBe(401);
+    expect((await runtime.dispatchFetch(`${ISSUER}/token`, { method: "POST", body: new URLSearchParams({ grant_type: "refresh_token", refresh_token: live.refresh_token, resource: `${MCP}/mcp` }) })).status).toBe(400);
+    const renewedConsent = await runtime.dispatchFetch(`${ISSUER}/authorize?response_type=code&redirect_uri=${encodeURIComponent(REDIRECT)}&code_challenge=${challenge}&code_challenge_method=S256&resource=${encodeURIComponent(`${MCP}/mcp`)}&scope=relay.read&state=renewed`);
+    const renewedId = ((await renewedConsent.json()) as { consent_id: string }).consent_id;
+    const renewed = await runtime.dispatchFetch(`${ISSUER}/consent`, { method: "POST", headers: { "Content-Type": "application/json", ...BROWSER }, body: JSON.stringify({ consent_id: renewedId, decision: "allow" }) });
+    const renewedCode = new URL(((await renewed.json()) as { redirect: string }).redirect).searchParams.get("code");
+    const renewedToken = await (await runtime.dispatchFetch(`${ISSUER}/token`, { method: "POST", body: new URLSearchParams({ grant_type: "authorization_code", code: renewedCode!, code_verifier: verifier, redirect_uri: REDIRECT, resource: `${MCP}/mcp` }) })).json() as { access_token: string };
+    expect((await runtime.dispatchFetch(`${MCP}/mcp`, initialize)).status).toBe(401);
+    expect((await runtime.dispatchFetch(`${MCP}/mcp`, { method: "POST", headers: { Authorization: `Bearer ${renewedToken.access_token}`, "Content-Type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 3, method: "initialize" }) })).status).toBe(200);
   } finally { await runtime.dispose(); }
 }, 20000);
