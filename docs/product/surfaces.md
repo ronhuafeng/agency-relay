@@ -23,6 +23,8 @@ The console session lasts 8 hours. Alternate hosts must not bypass the same Work
 | Grok | `grok.trustedtunnel.app` | `surface:grok:production` | `grok_production` |
 | Explicit xAI API | `xai.trustedtunnel.app` | `surface:xai:production` | `grok_production` |
 
+Each row is one Provider profile in [`src/plans/execution-plans.ts`](../../src/plans/execution-plans.ts). A plan derives its host, grant, protocol and credential slot from that profile. Explicit xAI keeps the Grok production slot and shared-team authority. This classification does not add Runtime OAuth or a second route selector.
+
 All use Agency Relay bearer API keys. Browser Access cookies, application role and another surface's grant never imply a client grant. No interactive login redirect is inserted into client API paths.
 
 Admission requires a valid/unexpired key, active owning user, exact key grant, supported Execution Plan, usable stored binding, and an effective credit policy that permits the plan's charge. A personal policy overrides the organization default; a missing final policy fails closed. A finite zero cap permits otherwise-authorized zero-charge operations. See [credits](../operate/credits.md) for policy and issuance rules.

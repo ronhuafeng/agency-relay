@@ -8,6 +8,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "../components/tabs";
 import { useEnhanced } from "../use-enhanced";
 import { RoutesIsland } from "../islands";
 import { initializeVisibleRowFilters } from "../../client/filters";
+import { profileForSurfaceGrant } from "../../../plans/execution-plans";
 
 export interface RouteRow {
   readonly id: string;
@@ -33,10 +34,7 @@ function healthLabel(health: "ok" | "warn" | "neutral"): string {
 }
 
 function grantLabel(grant: string): string {
-  if (grant === "surface:codex:production") return "Codex";
-  if (grant === "surface:grok:production") return "Grok";
-  if (grant === "surface:xai:production") return "xAI API";
-  return "未记录授权";
+  return profileForSurfaceGrant(grant)?.clientLabel ?? "未记录授权";
 }
 
 function slotLabel(slot: string): string {
