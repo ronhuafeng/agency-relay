@@ -90,6 +90,9 @@ export class RuntimeGrantAuthority extends DurableObject<FixtureEnv> {
     const redirects = stringList(body.redirect_uris);
     if (redirects.length !== 1) throw Object.assign(new Error("one redirect"), { status: 400 });
     this.storageOps += 1;
+    const existing = await this.ctx.storage.get<ClientRecord>("client");
+    if (existing) throw Object.assign(new Error("registered"), { status: 400 });
+    this.storageOps += 1;
     await this.ctx.storage.put("client", { redirects } satisfies ClientRecord);
     return { client_id: "synthetic-public-client", redirect_uris: redirects, grant_types: ["authorization_code", "refresh_token"], response_types: ["code"], token_endpoint_auth_method: "none" };
   }
@@ -336,7 +339,7 @@ async function token(body: string, env: FixtureEnv): Promise<Response> {
     const verifier = form.get("code_verifier");
     const code = form.get("code");
     const redirect = form.get("redirect_uri");
-    if (typeof verifier !== "string" || typeof code !== "string" || typeof redirect !== "string" || typeof resource !== "string") return jsonResponse({ error: "invalid_request" }, { status: 400 });
+    if (typeof verifier !== "string" || verifier.length < 43 || verifier.length > 128 || typeof code !== "string" || typeof redirect !== "string" || typeof resource !== "string") return jsonResponse({ error: "invalid_request" }, { status: 400 });
     const result = await (await callAuthority(env, "/consume", { code, challenge: await s256(verifier), redirect, resource })).json() as ConsumeResult;
     if (!result.ok) return jsonResponse({ error: "invalid_grant" }, { status: 400 });
     return jsonResponse({ access_token: result.access, refresh_token: result.refresh, token_type: "bearer", scope: result.scope, resource: result.resource, account: result.account });

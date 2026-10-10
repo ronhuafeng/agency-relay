@@ -45,7 +45,7 @@ it("measures local storage operations for one authorization and one resource rea
   try {
     await runtime.dispatchFetch(`${ISSUER}/budget-reset`, { method: "POST", body: "{}" });
     expect((await runtime.dispatchFetch(`${ISSUER}/register`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ redirect_uris: [REDIRECT] }) })).status).toBe(200);
-    const verifier = "synthetic-verifier-with-enough-entropy";
+    const verifier = "synthetic-verifier-with-enough-entropy-ok!!";
     const challenge = await challengeFor(verifier);
     const consent = await runtime.dispatchFetch(`${ISSUER}/authorize?response_type=code&redirect_uri=${encodeURIComponent(REDIRECT)}&code_challenge=${challenge}&code_challenge_method=S256&resource=${encodeURIComponent(`${MCP}/mcp`)}&scope=relay.read&state=budget`);
     const consentId = ((await consent.json()) as { consent_id: string }).consent_id;
@@ -56,7 +56,7 @@ it("measures local storage operations for one authorization and one resource rea
     await runtime.dispatchFetch(`${ISSUER}/budget-reset`, { method: "POST", body: "{}" });
     expect((await runtime.dispatchFetch(`${MCP}/mcp`, { method: "POST", headers: { Authorization: `Bearer ${issued.access_token}`, "Content-Type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize" }) })).status).toBe(200);
     const read = ((await (await runtime.dispatchFetch(`${ISSUER}/budget`, { method: "POST", body: "{}" })).json()) as { storage_operations: number }).storage_operations;
-    expect({ authorized, read }).toEqual({ authorized: 12, read: 2 });
+    expect({ authorized, read }).toEqual({ authorized: 13, read: 2 });
   } finally { await runtime.dispose(); }
 }, 20000);
 
@@ -68,6 +68,7 @@ it("keeps authorization-code use atomic and rejects another resource's token", a
       body: JSON.stringify({ redirect_uris: [REDIRECT] })
     });
     expect(crossSite.status).toBe(200);
+    expect((await runtime.dispatchFetch(`${ISSUER}/register`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ redirect_uris: ["http://127.0.0.1:9/other"] }) })).status).toBe(400);
     const oversized = JSON.stringify({ redirect_uris: [REDIRECT], pad: "a".repeat(4096) });
     expect(new TextEncoder().encode(oversized).length).toBeGreaterThan(4096);
     expect((await runtime.dispatchFetch(`${ISSUER}/register`, { method: "POST", headers: { "Content-Type": "application/json" }, body: oversized })).status).toBe(400);
@@ -75,7 +76,7 @@ it("keeps authorization-code use atomic and rejects another resource's token", a
     expect((await runtime.dispatchFetch(`${ISSUER}/register`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ redirect_uris: ["https://evil.example/callback"], jwks_uri: "https://evil.example/jwks" }) })).status).toBe(400);
     expect((await runtime.dispatchFetch(`${ISSUER}/register`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ redirect_uris: [REDIRECT], jwks: { keys: [] } }) })).status).toBe(400);
     expect((await runtime.dispatchFetch(`${ISSUER}/register`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ redirect_uris: [REDIRECT, "http://127.0.0.1:9/other"] }) })).status).toBe(400);
-    const verifier = "synthetic-verifier-with-enough-entropy";
+    const verifier = "synthetic-verifier-with-enough-entropy-ok!!";
     const challenge = await challengeFor(verifier);
     const deniedConsent = await runtime.dispatchFetch(`${ISSUER}/authorize?response_type=code&redirect_uri=${encodeURIComponent(REDIRECT)}&code_challenge=${challenge}&code_challenge_method=S256&resource=${encodeURIComponent(`${MCP}/mcp`)}&scope=relay.read&state=denied`);
     expect(deniedConsent.status).toBe(200);
