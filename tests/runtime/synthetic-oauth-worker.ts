@@ -1,0 +1,235 @@
+import { DurableObject } from "cloudflare:workers";
+import { assertConsoleBrowserWrite } from "../../src/admin/browser-write";
+import { HttpError, jsonResponse } from "../../src/errors";
+
+const RESOURCE = "https://mcp.example.test/mcp";
+const OTHER_RESOURCE = "https://other.example.test/mcp";
+const REQUIRED_SCOPE = "relay.read";
+
+interface FixtureEnv extends Env {
+  GRANTS: DurableObjectNamespace<RuntimeGrantAuthority>;
+}
+
+interface ClientRecord {
+  redirects: string[];
+}
+
+interface ConsentRecord {
+  redirect: string;
+  challenge: string;
+  resource: string;
+  scope: string;
+  state: string;
+  decision: "pending" | "allow" | "deny";
+  code?: string;
+}
+
+interface CodeRecord {
+  challenge: string;
+  redirect: string;
+  resource: string;
+  scope: string;
+  consumed: boolean;
+  refresh: string;
+  access: string;
+}
+
+interface RefreshRecord {
+  resource: string;
+  scope: string;
+  access: string;
+  spent: boolean;
+  replacement?: string;
+}
+
+interface AccessRecord {
+  resource: string;
+  scope: string;
+}
+
+type ConsumeResult = { ok: true; access: string; refresh: string; scope: string; resource: string } | { ok: false; reason: "replay" | "pkce" | "redirect" | "resource" | "missing" };
+
+export class RuntimeGrantAuthority extends DurableObject<FixtureEnv> {
+  async fetch(request: Request): Promise<Response> {
+    try {
+      const body = await request.json() as Record<string, unknown>;
+      const action = new URL(request.url).pathname;
+      if (action === "/register") return jsonResponse(await this.register(body));
+      if (action === "/begin") return jsonResponse(await this.begin(body));
+      if (action === "/decide") return jsonResponse(await this.decide(body));
+      if (action === "/consume") return jsonResponse(await this.consume(body));
+      if (action === "/refresh") return jsonResponse(await this.refresh(body));
+      if (action === "/access") return jsonResponse(await this.access(body));
+      return new Response(null, { status: 404 });
+    } catch (error) {
+      const status = typeof error === "object" && error !== null && "status" in error && error.status === 400 ? 400 : 500;
+      return jsonResponse({ error: status === 400 ? "invalid_request" : "server_error" }, { status });
+    }
+  }
+
+  private async register(body: Record<string, unknown>): Promise<{ client_id: string }> {
+    const redirects = stringList(body.redirect_uris);
+    if (redirects.length !== 1) throw new Error("one redirect");
+    await this.ctx.storage.put("client", { redirects } satisfies ClientRecord);
+    return { client_id: "synthetic-public-client" };
+  }
+
+  private async begin(body: Record<string, unknown>): Promise<{ consent_id: string }> {
+    const client = await this.ctx.storage.get<ClientRecord>("client");
+    const redirect = stringField(body, "redirect");
+    const resource = stringField(body, "resource");
+    if (!client?.redirects.includes(redirect)) throw Object.assign(new Error("unregistered redirect"), { status: 400 });
+    if (resource !== RESOURCE && resource !== OTHER_RESOURCE) throw Object.assign(new Error("unknown resource"), { status: 400 });
+    if (stringField(body, "method") !== "S256") throw Object.assign(new Error("pkce"), { status: 400 });
+    const consent: ConsentRecord = {
+      redirect, challenge: stringField(body, "challenge"), resource, scope: stringField(body, "scope"), state: stringField(body, "state"), decision: "pending"
+    };
+    const consentId = crypto.randomUUID();
+    await this.ctx.storage.put(`consent:${consentId}`, consent);
+    return { consent_id: consentId };
+  }
+
+  private async decide(body: Record<string, unknown>): Promise<{ error?: string; code?: string; redirect?: string }> {
+    const consentId = stringField(body, "consent_id");
+    const decision = stringField(body, "decision");
+    return this.ctx.storage.transaction(async (txn) => {
+      const consent = await txn.get<ConsentRecord>(`consent:${consentId}`);
+      if (!consent || consent.decision !== "pending") return { error: "invalid_request" };
+      if (decision === "deny") {
+        await txn.put(`consent:${consentId}`, { ...consent, decision: "deny" });
+        return { error: "access_denied" };
+      }
+      if (decision !== "allow") return { error: "invalid_request" };
+      const code = crypto.randomUUID();
+      const refresh = crypto.randomUUID();
+      const access = crypto.randomUUID();
+      const issued: ConsentRecord = { ...consent, decision: "allow", code };
+      await txn.put(`consent:${consentId}`, issued);
+      await txn.put(`code:${code}`, { challenge: consent.challenge, redirect: consent.redirect, resource: consent.resource, scope: consent.scope, consumed: false, refresh, access } satisfies CodeRecord);
+      await txn.put(`refresh:${refresh}`, { resource: consent.resource, scope: consent.scope, access, spent: false } satisfies RefreshRecord);
+      await txn.put(`access:${access}`, { resource: consent.resource, scope: consent.scope } satisfies AccessRecord);
+      const redirect = new URL(consent.redirect);
+      redirect.searchParams.set("code", code);
+      redirect.searchParams.set("state", consent.state);
+      return { code, redirect: redirect.toString() };
+    });
+  }
+
+  private async consume(body: Record<string, unknown>): Promise<ConsumeResult> {
+    const code = stringField(body, "code");
+    return this.ctx.storage.transaction(async (txn) => {
+      const row = await txn.get<CodeRecord>(`code:${code}`);
+      if (!row) return { ok: false, reason: "missing" };
+      if (row.consumed) return { ok: false, reason: "replay" };
+      if (row.challenge !== stringField(body, "challenge")) return { ok: false, reason: "pkce" };
+      if (row.redirect !== stringField(body, "redirect")) return { ok: false, reason: "redirect" };
+      if (row.resource !== stringField(body, "resource")) return { ok: false, reason: "resource" };
+      await txn.put(`code:${code}`, { ...row, consumed: true });
+      return { ok: true, access: row.access, refresh: row.refresh, scope: row.scope, resource: row.resource };
+    });
+  }
+
+  private async refresh(body: Record<string, unknown>): Promise<{ ok: true; access: string; refresh: string } | { ok: false }> {
+    const current = stringField(body, "refresh");
+    return this.ctx.storage.transaction(async (txn) => {
+      const row = await txn.get<RefreshRecord>(`refresh:${current}`);
+      if (!row || row.spent || row.resource !== stringField(body, "resource")) return { ok: false };
+      const next = crypto.randomUUID();
+      const access = crypto.randomUUID();
+      await txn.put(`refresh:${current}`, { ...row, spent: true, replacement: next });
+      await txn.put(`refresh:${next}`, { resource: row.resource, scope: row.scope, access, spent: false } satisfies RefreshRecord);
+      await txn.put(`access:${access}`, { resource: row.resource, scope: row.scope } satisfies AccessRecord);
+      return { ok: true, access, refresh: next };
+    });
+  }
+
+  private async access(body: Record<string, unknown>): Promise<AccessRecord | null> {
+    return await this.ctx.storage.get<AccessRecord>(`access:${stringField(body, "token")}`) ?? null;
+  }
+}
+
+function stringField(body: Record<string, unknown>, key: string): string {
+  const value = body[key];
+  if (typeof value !== "string" || value.length === 0) throw new Error(`missing ${key}`);
+  return value;
+}
+
+function stringList(value: unknown): string[] {
+  if (!Array.isArray(value) || value.some((item) => typeof item !== "string")) throw new Error("redirects");
+  return value as string[];
+}
+
+async function s256(verifier: string): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier));
+  return btoa(String.fromCharCode(...new Uint8Array(digest))).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/u, "");
+}
+
+function authority(env: FixtureEnv): DurableObjectStub<RuntimeGrantAuthority> {
+  return env.GRANTS.get(env.GRANTS.idFromName("authority"));
+}
+
+async function callAuthority(env: FixtureEnv, path: string, body: unknown): Promise<Response> {
+  return authority(env).fetch(`https://authority.internal${path}`, { method: "POST", body: JSON.stringify(body) });
+}
+
+export default {
+  async fetch(request: Request, env: FixtureEnv): Promise<Response> {
+    const url = new URL(request.url);
+    try {
+      if (url.pathname === "/consent") assertConsoleBrowserWrite(request, env, url);
+      if (request.method === "GET" && url.pathname === "/.well-known/oauth-protected-resource/mcp") {
+        const resource = `${url.origin}/mcp`;
+        return jsonResponse({ resource, authorization_servers: [`https://${env.ADMIN_DASHBOARD_HOST}`], bearer_methods_supported: ["header"], scopes_supported: [REQUIRED_SCOPE] });
+      }
+      if (request.method === "GET" && url.pathname === "/.well-known/oauth-authorization-server") {
+        const issuer = `https://${env.ADMIN_DASHBOARD_HOST}`;
+        return jsonResponse({ issuer, authorization_endpoint: `${issuer}/authorize`, token_endpoint: `${issuer}/token`, registration_endpoint: `${issuer}/register`, response_types_supported: ["code"], grant_types_supported: ["authorization_code", "refresh_token"], code_challenge_methods_supported: ["S256"], token_endpoint_auth_methods_supported: ["none"] });
+      }
+      if (request.method === "POST" && url.pathname === "/register") return callAuthority(env, "/register", await request.json());
+      if (request.method === "GET" && url.pathname === "/authorize") {
+        return callAuthority(env, "/begin", { redirect: url.searchParams.get("redirect_uri"), challenge: url.searchParams.get("code_challenge"), method: url.searchParams.get("code_challenge_method"), resource: url.searchParams.get("resource"), scope: url.searchParams.get("scope"), state: url.searchParams.get("state") });
+      }
+      if (request.method === "POST" && url.pathname === "/consent") return callAuthority(env, "/decide", await request.json());
+      if (request.method === "POST" && url.pathname === "/token") return token(request, env);
+      if (request.method === "POST" && url.pathname === "/mcp") return resourceRequest(request, env, `${url.origin}/mcp`);
+      return new Response(null, { status: 404 });
+    } catch (error) {
+      if (error instanceof HttpError) return jsonResponse({ error: error.code ?? error.message }, { status: error.status });
+      const status = typeof error === "object" && error !== null && "status" in error && error.status === 400 ? 400 : 500;
+      return jsonResponse({ error: status === 400 ? "invalid_request" : "server_error" }, { status });
+    }
+  }
+};
+
+async function token(request: Request, env: FixtureEnv): Promise<Response> {
+  const form = await request.formData();
+  const grant = form.get("grant_type");
+  const resource = form.get("resource");
+  if (grant === "authorization_code") {
+    const verifier = form.get("code_verifier");
+    const code = form.get("code");
+    const redirect = form.get("redirect_uri");
+    if (typeof verifier !== "string" || typeof code !== "string" || typeof redirect !== "string" || typeof resource !== "string") return jsonResponse({ error: "invalid_request" }, { status: 400 });
+    const result = await (await callAuthority(env, "/consume", { code, challenge: await s256(verifier), redirect, resource })).json() as ConsumeResult;
+    if (!result.ok) return jsonResponse({ error: "invalid_grant" }, { status: 400 });
+    return jsonResponse({ access_token: result.access, refresh_token: result.refresh, token_type: "bearer", scope: result.scope, resource: result.resource });
+  }
+  if (grant === "refresh_token") {
+    const refreshToken = form.get("refresh_token");
+    if (typeof refreshToken !== "string" || typeof resource !== "string") return jsonResponse({ error: "invalid_request" }, { status: 400 });
+    const result = await (await callAuthority(env, "/refresh", { refresh: refreshToken, resource })).json() as { ok: true; access: string; refresh: string } | { ok: false };
+    if (!result.ok) return jsonResponse({ error: "invalid_grant" }, { status: 400 });
+    return jsonResponse({ access_token: result.access, refresh_token: result.refresh, token_type: "bearer" });
+  }
+  return jsonResponse({ error: "unsupported_grant_type" }, { status: 400 });
+}
+
+async function resourceRequest(request: Request, env: FixtureEnv, resource: string): Promise<Response> {
+  const header = request.headers.get("Authorization") ?? "";
+  const token = header.startsWith("Bearer ") ? header.slice("Bearer ".length) : "";
+  const access = token ? await (await callAuthority(env, "/access", { token })).json() as AccessRecord | null : null;
+  if (!access || access.resource !== resource) return jsonResponse({ error: "invalid_token" }, { status: 401, headers: { "WWW-Authenticate": "Bearer error=\"invalid_token\"" } });
+  if (!access.scope.split(" ").includes(REQUIRED_SCOPE)) return jsonResponse({ error: "insufficient_scope" }, { status: 403, headers: { "WWW-Authenticate": `Bearer error="insufficient_scope", scope="${REQUIRED_SCOPE}"` } });
+  const body = await request.json() as { method?: string };
+  return jsonResponse({ jsonrpc: "2.0", result: body.method === "initialize" ? { protocolVersion: "2025-06-18", capabilities: {}, serverInfo: { name: "synthetic", version: "0" } } : {} });
+}
