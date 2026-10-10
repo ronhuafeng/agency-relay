@@ -220,6 +220,36 @@ describe("Execution Plans", () => {
     });
   });
 
+  it("uses one shared authority for every operation on a provider surface", () => {
+    const shared = {
+      "api.trustedtunnel.app": {
+        surfaceGrant: "surface:codex:production",
+        protocol: "openai/codex",
+        credentialSlot: "chatgpt_production"
+      },
+      "grok.trustedtunnel.app": {
+        surfaceGrant: "surface:grok:production",
+        protocol: "xai/grok",
+        credentialSlot: "grok_production"
+      },
+      "xai.trustedtunnel.app": {
+        surfaceGrant: "surface:xai:production",
+        protocol: "xai/api",
+        credentialSlot: "grok_production"
+      }
+    } as const;
+    const seenGrants = new Set<string>();
+    for (const [hostname, authority] of Object.entries(shared)) {
+      const plans = plansForHostname(hostname) ?? [];
+      expect(plans.length).toBeGreaterThan(0);
+      seenGrants.add(authority.surfaceGrant);
+      for (const plan of plans) {
+        expect(plan).toMatchObject({ hostname, environment: "production", ...authority });
+      }
+    }
+    expect(new Set(listExecutionPlans().map(plan => plan.surfaceGrant))).toEqual(seenGrants);
+  });
+
   it("keeps Codex, Grok, and explicitly granted xAI production hostnames only", () => {
     expect(listHostnames().sort()).toEqual([
       "api.trustedtunnel.app",

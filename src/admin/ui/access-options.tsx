@@ -3,12 +3,10 @@ import { projectCodexIdentity, projectGrokIdentity } from "../auth-management";
 import { AccessChoiceIsland } from "./islands";
 import { SelectView } from "./forms";
 import type { SurfaceCapabilitySurface } from "../../plans/capabilities";
+import { profileForSurfaceGrant } from "../../plans/execution-plans";
 export type Client = "codex" | "grok" | "xai";
 export function clientFromGrant(grant: string): Client | null {
-  if (grant === "surface:codex:production") return "codex";
-  if (grant === "surface:grok:production") return "grok";
-  if (grant === "surface:xai:production") return "xai";
-  return null;
+  return profileForSurfaceGrant(grant)?.id ?? null;
 }
 export function accountChoices(model: AdminDashboardAccessModel, client: Client) {
   const nowMs = Date.parse(model.dataAsOf);
