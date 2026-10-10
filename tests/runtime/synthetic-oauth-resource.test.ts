@@ -111,7 +111,7 @@ it("measures local storage operations for one authorization and one resource rea
     await runtime.dispatchFetch(`${ISSUER}/budget-reset`, { method: "POST", body: "{}" });
     expect((await runtime.dispatchFetch(`${MCP}/mcp`, { method: "POST", headers: { Authorization: `Bearer ${issued.access_token}`, "Content-Type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize" }) })).status).toBe(200);
     const read = ((await (await runtime.dispatchFetch(`${ISSUER}/budget`, { method: "POST", body: "{}" })).json()) as { storage_operations: number }).storage_operations;
-    expect({ authorized, read }).toEqual({ authorized: 15, read: 2 });
+    expect({ authorized, read }).toEqual({ authorized: 17, read: 2 });
   } finally { await runtime.dispose(); }
 }, 20000);
 
@@ -271,5 +271,16 @@ it("keeps authorization-code use atomic and rejects another resource's token", a
     }
     expect(firstLimited).toBe(9);
     expect(limited).toEqual([429, 429]);
+    const tokenLimited: number[] = [];
+    let firstTokenLimited = -1;
+    for (let attempt = 0; attempt < 40 && tokenLimited.length < 2; attempt += 1) {
+      const status = (await runtime.dispatchFetch(`${ISSUER}/token`, { method: "POST", body: new URLSearchParams({ grant_type: "client_credentials", resource: `${MCP}/mcp` }) })).status;
+      if (status === 429) {
+        if (firstTokenLimited < 0) firstTokenLimited = attempt;
+        tokenLimited.push(status);
+      }
+    }
+    expect(firstTokenLimited).toBe(15);
+    expect(tokenLimited).toEqual([429, 429]);
   } finally { await runtime.dispose(); }
 }, 20000);

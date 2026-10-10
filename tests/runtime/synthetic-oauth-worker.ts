@@ -6,6 +6,7 @@ const REQUIRED_SCOPE = "relay.read";
 const MAX_BODY_BYTES = 4096;
 const BODY_READ_DEADLINE_MS = 1000;
 const MAX_REGISTRATION_ATTEMPTS = 16;
+const MAX_TOKEN_ATTEMPTS = 32;
 
 interface FixtureEnv extends Env {
   GRANTS: DurableObjectNamespace<RuntimeGrantAuthority>;
@@ -32,6 +33,7 @@ interface AuthorityState {
   generation: number;
   account: string;
   registrationAttempts?: number;
+  tokenAttempts?: number;
 }
 
 interface CodeRecord {
@@ -73,7 +75,8 @@ export class RuntimeGrantAuthority extends DurableObject<FixtureEnv> {
     try {
       const body = await request.json() as Record<string, unknown>;
       const action = new URL(request.url).pathname;
-      if (action === "/register-attempt") return jsonResponse(await this.registerAttempt());
+      if (action === "/register-attempt") return jsonResponse(await this.attempt("registrationAttempts", MAX_REGISTRATION_ATTEMPTS));
+      if (action === "/token-attempt") return jsonResponse(await this.attempt("tokenAttempts", MAX_TOKEN_ATTEMPTS));
       if (action === "/register") return jsonResponse(await this.register(body));
       if (action === "/begin") return jsonResponse(await this.begin(body));
       if (action === "/decide") return jsonResponse(await this.decide(body));
@@ -92,13 +95,13 @@ export class RuntimeGrantAuthority extends DurableObject<FixtureEnv> {
     }
   }
 
-  private async registerAttempt(): Promise<{ ok: boolean }> {
+  private async attempt(field: "registrationAttempts" | "tokenAttempts", max: number): Promise<{ ok: boolean }> {
     return this.ctx.storage.transaction(async (txn) => {
       const authority = await this.readAuthority(txn);
-      const registrationAttempts = (authority.registrationAttempts ?? 0) + 1;
+      const count = (authority[field] ?? 0) + 1;
       this.storageOps += 1;
-      await txn.put("authority", { ...authority, registrationAttempts });
-      return { ok: registrationAttempts <= MAX_REGISTRATION_ATTEMPTS };
+      await txn.put("authority", { ...authority, [field]: count });
+      return { ok: count <= max };
     });
   }
 
@@ -219,7 +222,7 @@ export class RuntimeGrantAuthority extends DurableObject<FixtureEnv> {
     await this.ctx.storage.transaction(async (txn) => {
       const authority = await this.readAuthority(txn);
       this.storageOps += 1;
-      await txn.put("authority", { generation: authority.generation + 1, account: authority.account, registrationAttempts: authority.registrationAttempts ?? 0 });
+      await txn.put("authority", { generation: authority.generation + 1, account: authority.account, registrationAttempts: authority.registrationAttempts ?? 0, tokenAttempts: authority.tokenAttempts ?? 0 });
     });
     return { revoked: true };
   }
@@ -230,7 +233,7 @@ export class RuntimeGrantAuthority extends DurableObject<FixtureEnv> {
       const authority = await this.readAuthority(txn);
       if (authority.account === account) throw Object.assign(new Error("same account"), { status: 400 });
       this.storageOps += 1;
-      await txn.put("authority", { generation: authority.generation + 1, account, registrationAttempts: authority.registrationAttempts ?? 0 });
+      await txn.put("authority", { generation: authority.generation + 1, account, registrationAttempts: authority.registrationAttempts ?? 0, tokenAttempts: authority.tokenAttempts ?? 0 });
       return { account };
     });
   }
@@ -311,7 +314,11 @@ export default {
       if (issuerOrigin && request.method === "POST" && url.pathname === "/budget") return callAuthority(env, "/budget", {});
       if (issuerOrigin && request.method === "POST" && url.pathname === "/held") return callAuthority(env, "/held", {});
       if (issuerOrigin && request.method === "POST" && url.pathname === "/budget-reset") return callAuthority(env, "/budget-reset", {});
-      if (issuerOrigin && request.method === "POST" && url.pathname === "/token") return await token(await readBounded(request), env);
+      if (issuerOrigin && request.method === "POST" && url.pathname === "/token") {
+        const attempt = await (await callAuthority(env, "/token-attempt", {})).json() as { ok?: boolean };
+        if (!attempt.ok) return jsonResponse({ error: "invalid_request" }, { status: 429 });
+        return await token(await readBounded(request), env);
+      }
       if (resourceOrigin && request.method === "POST" && url.pathname === "/mcp") return await resourceRequest(request, env, `${url.origin}/mcp`);
       return new Response(null, { status: 404 });
     } catch (error) {
