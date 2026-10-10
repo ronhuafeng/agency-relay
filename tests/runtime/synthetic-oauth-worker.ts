@@ -120,7 +120,8 @@ export class RuntimeGrantAuthority extends DurableObject<FixtureEnv> {
     return this.ctx.storage.transaction(async (txn) => {
       const row = await txn.get<CodeRecord>(`code:${code}`);
       if (!row) return { ok: false, reason: "missing" };
-      if (row.consumed) return { ok: false, reason: "replay" };
+      const matches = row.challenge === stringField(body, "challenge") && row.redirect === stringField(body, "redirect") && row.resource === stringField(body, "resource");
+      if (row.consumed) return matches ? { ok: true, access: row.access, refresh: row.refresh, scope: row.scope, resource: row.resource } : { ok: false, reason: "replay" };
       if (row.challenge !== stringField(body, "challenge")) return { ok: false, reason: "pkce" };
       if (row.redirect !== stringField(body, "redirect")) return { ok: false, reason: "redirect" };
       if (row.resource !== stringField(body, "resource")) return { ok: false, reason: "resource" };
@@ -133,7 +134,13 @@ export class RuntimeGrantAuthority extends DurableObject<FixtureEnv> {
     const current = stringField(body, "refresh");
     return this.ctx.storage.transaction(async (txn) => {
       const row = await txn.get<RefreshRecord>(`refresh:${current}`);
-      if (!row || row.spent || row.resource !== stringField(body, "resource")) return { ok: false };
+      if (!row || row.resource !== stringField(body, "resource")) return { ok: false };
+      if (row.spent) {
+        if (!row.replacement) return { ok: false };
+        const successor = await txn.get<RefreshRecord>(`refresh:${row.replacement}`);
+        if (!successor || successor.spent) return { ok: false };
+        return { ok: true, access: successor.access, refresh: row.replacement };
+      }
       const next = crypto.randomUUID();
       const access = crypto.randomUUID();
       await txn.put(`refresh:${current}`, { ...row, spent: true, replacement: next });

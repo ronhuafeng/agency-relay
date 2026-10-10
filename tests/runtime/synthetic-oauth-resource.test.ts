@@ -62,11 +62,13 @@ it("keeps authorization-code use atomic and rejects another resource's token", a
     expect((await runtime.dispatchFetch(`${ISSUER}/token`, { method: "POST", body: wrongVerifier })).status).toBe(400);
     const exchange = () => runtime.dispatchFetch(`${ISSUER}/token`, { method: "POST", body: new URLSearchParams({ grant_type: "authorization_code", code: code!, code_verifier: verifier, redirect_uri: REDIRECT, resource: `${MCP}/mcp` }) });
     const [first, second] = await Promise.all([exchange(), exchange()]);
-    const statuses = [first.status, second.status].sort();
-    expect(statuses).toEqual([200, 400]);
-    const issued = (first.status === 200 ? await first.json() : await second.json()) as { access_token: string; refresh_token: string };
-    const replay = await exchange();
-    expect(replay.status).toBe(400);
+    expect([first.status, second.status]).toEqual([200, 200]);
+    const issued = await first.json() as { access_token: string; refresh_token: string };
+    const repeated = await second.json() as { access_token: string; refresh_token: string };
+    expect(repeated).toEqual(issued);
+    const replay = await (await exchange()).json() as { access_token: string; refresh_token: string };
+    expect(replay).toEqual(issued);
+    expect((await runtime.dispatchFetch(`${ISSUER}/token`, { method: "POST", body: wrongVerifier })).status).toBe(400);
 
     const initialize = { method: "POST", headers: { Authorization: `Bearer ${issued.access_token}`, "Content-Type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize" }) };
     expect((await runtime.dispatchFetch(`${MCP}/mcp`, initialize)).status).toBe(200);
@@ -75,8 +77,12 @@ it("keeps authorization-code use atomic and rejects another resource's token", a
     const rotated = await runtime.dispatchFetch(`${ISSUER}/token`, { method: "POST", body: new URLSearchParams({ grant_type: "refresh_token", refresh_token: issued.refresh_token, resource: `${MCP}/mcp` }) });
     expect(rotated.status).toBe(200);
     const next = await rotated.json() as { refresh_token: string };
+    const lostRotation = await (await runtime.dispatchFetch(`${ISSUER}/token`, { method: "POST", body: new URLSearchParams({ grant_type: "refresh_token", refresh_token: issued.refresh_token, resource: `${MCP}/mcp` }) })).json() as { refresh_token: string };
+    expect(lostRotation.refresh_token).toBe(next.refresh_token);
     const [refreshA, refreshB] = await Promise.all([0, 1].map(() => runtime.dispatchFetch(`${ISSUER}/token`, { method: "POST", body: new URLSearchParams({ grant_type: "refresh_token", refresh_token: next.refresh_token, resource: `${MCP}/mcp` }) })));
-    expect([refreshA.status, refreshB.status].sort()).toEqual([200, 400]);
+    expect([refreshA.status, refreshB.status]).toEqual([200, 200]);
+    const rotatedAgain = await refreshA.json() as { access_token: string; refresh_token: string };
+    expect(await refreshB.json()).toEqual(rotatedAgain);
     expect((await runtime.dispatchFetch(`${ISSUER}/token`, { method: "POST", body: new URLSearchParams({ grant_type: "refresh_token", refresh_token: issued.refresh_token, resource: `${MCP}/mcp` }) })).status).toBe(400);
 
     const narrowConsent = await runtime.dispatchFetch(`${ISSUER}/authorize?response_type=code&redirect_uri=${encodeURIComponent(REDIRECT)}&code_challenge=${challenge}&code_challenge_method=S256&resource=${encodeURIComponent(`${MCP}/mcp`)}&scope=other&state=narrow`);
