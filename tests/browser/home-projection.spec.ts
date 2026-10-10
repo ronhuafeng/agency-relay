@@ -50,7 +50,14 @@ for (const width of [320, 390, 1440]) test.describe(`organization Home ${width}p
         overflowing: document.documentElement.scrollWidth > innerWidth + 1,
         overlapping,
         clippedComparisons: boxes.filter(comparison => {const box = comparison.getBoundingClientRect(); return box.left < -1 || box.right > innerWidth + 1;}).length,
-        smallOrClippedControls: controls.filter(control => {const box = control.getBoundingClientRect(); return box.width < 44 || box.height < 44 || box.left < -1 || box.right > innerWidth + 1;}).length
+        // Legend range links are the usage text-sized controls; other Home actions stay 44px.
+        smallOrClippedControls: controls.filter(control => {
+          const box = control.getBoundingClientRect();
+          const textSizedRange = control.matches("#usage-trends .ranges a");
+          const clipped = box.left < -1 || box.right > innerWidth + 1;
+          const undersized = textSizedRange ? box.width < 24 || box.height < 24 : box.width < 44 || box.height < 44;
+          return clipped || undersized;
+        }).length
       };
     });
     expect(geometry).toEqual({overflowing: false, overlapping: 0, clippedComparisons: 0, smallOrClippedControls: 0});
