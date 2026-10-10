@@ -306,10 +306,27 @@ export default {
   }
 };
 
+async function discardRequest(request: Request): Promise<void> {
+  const reader = request.body?.getReader();
+  if (!reader) return;
+  await discardReader(reader);
+}
+
+async function discardReader(reader: ReadableStreamDefaultReader<Uint8Array>): Promise<void> {
+  try {
+    for (;;) {
+      const { done } = await reader.read();
+      if (done) break;
+    }
+  } catch {
+    // The sender closed the upload.
+  }
+}
+
 async function readBounded(request: Request): Promise<string> {
   const declared = Number(request.headers.get("content-length"));
   if (Number.isFinite(declared) && declared > MAX_BODY_BYTES) {
-    await request.body?.cancel();
+    await discardRequest(request);
     throw Object.assign(new Error("body"), { status: 400 });
   }
   const reader = request.body?.getReader();
@@ -321,7 +338,7 @@ async function readBounded(request: Request): Promise<string> {
     if (done) break;
     total += value.byteLength;
     if (total > MAX_BODY_BYTES) {
-      await reader.cancel();
+      await discardReader(reader);
       throw Object.assign(new Error("body"), { status: 400 });
     }
     chunks.push(value);
@@ -363,11 +380,11 @@ async function resourceRequest(request: Request, env: FixtureEnv, resource: stri
   const token = header.startsWith("Bearer ") ? header.slice("Bearer ".length) : "";
   const access = token ? await (await callAuthority(env, "/access", { token })).json() as AccessRecord | null : null;
   if (!access || access.resource !== resource) {
-    await request.body?.cancel();
+    await discardRequest(request);
     return jsonResponse({ error: "invalid_token" }, { status: 401, headers: { "WWW-Authenticate": "Bearer error=\"invalid_token\"" } });
   }
   if (!access.scope.split(" ").includes(REQUIRED_SCOPE)) {
-    await request.body?.cancel();
+    await discardRequest(request);
     return jsonResponse({ error: "insufficient_scope" }, { status: 403, headers: { "WWW-Authenticate": `Bearer error="insufficient_scope", scope="${REQUIRED_SCOPE}"` } });
   }
   const body = JSON.parse(await readBounded(request)) as { method?: string };
