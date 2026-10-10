@@ -122,6 +122,7 @@ it("keeps authorization-code use atomic and rejects another resource's token", a
     expect(next.account).toBe(issued.account);
     const lostRotation = await (await runtime.dispatchFetch(`${ISSUER}/token`, { method: "POST", body: new URLSearchParams({ grant_type: "refresh_token", refresh_token: issued.refresh_token, resource: `${MCP}/mcp` }) })).json() as { access_token: string; refresh_token: string };
     expect(lostRotation).toEqual(next);
+    expect(((await (await runtime.dispatchFetch(`${ISSUER}/held`, { method: "POST", body: "{}" })).json()) as { refresh: number }).refresh).toBe(2);
     const rotatedAccess = { method: "POST", headers: { Authorization: `Bearer ${next.access_token}`, "Content-Type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 4, method: "initialize" }) };
     expect((await runtime.dispatchFetch(`${MCP}/mcp`, rotatedAccess)).status).toBe(200);
     expect((await runtime.dispatchFetch(`${OTHER}/mcp`, rotatedAccess)).status).toBe(401);
@@ -135,6 +136,7 @@ it("keeps authorization-code use atomic and rejects another resource's token", a
     const rotatedAgain = await refreshA.json() as { access_token: string; refresh_token: string };
     expect(await refreshB.json()).toEqual(rotatedAgain);
     expect((await runtime.dispatchFetch(`${ISSUER}/token`, { method: "POST", body: new URLSearchParams({ grant_type: "refresh_token", refresh_token: issued.refresh_token, resource: `${MCP}/mcp` }) })).status).toBe(400);
+    expect(((await (await runtime.dispatchFetch(`${ISSUER}/held`, { method: "POST", body: "{}" })).json()) as { refresh: number }).refresh).toBe(2);
 
     const narrowConsent = await runtime.dispatchFetch(`${ISSUER}/authorize?response_type=code&redirect_uri=${encodeURIComponent(REDIRECT)}&code_challenge=${challenge}&code_challenge_method=S256&resource=${encodeURIComponent(`${MCP}/mcp`)}&scope=other&state=narrow`);
     const narrowId = ((await narrowConsent.json()) as { consent_id: string }).consent_id;

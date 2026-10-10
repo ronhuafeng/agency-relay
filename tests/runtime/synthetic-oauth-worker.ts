@@ -51,6 +51,7 @@ interface RefreshRecord {
   account: string;
   spent: boolean;
   replacement?: string;
+  previous?: string;
 }
 
 interface AccessRecord {
@@ -78,6 +79,7 @@ export class RuntimeGrantAuthority extends DurableObject<FixtureEnv> {
       if (action === "/revoke") return jsonResponse(await this.revoke());
       if (action === "/rebind") return jsonResponse(await this.rebind(body));
       if (action === "/budget") return jsonResponse({ storage_operations: this.storageOps });
+      if (action === "/held") return jsonResponse({ refresh: (await this.ctx.storage.list({ prefix: "refresh:" })).size });
       if (action === "/budget-reset") { this.storageOps = 0; return jsonResponse({ storage_operations: 0 }); }
       return new Response(null, { status: 404 });
     } catch (error) {
@@ -180,10 +182,11 @@ export class RuntimeGrantAuthority extends DurableObject<FixtureEnv> {
       }
       const next = crypto.randomUUID();
       const access = crypto.randomUUID();
-      this.storageOps += 3;
+      this.storageOps += row.previous === undefined ? 3 : 4;
       await txn.put(`refresh:${current}`, { ...row, spent: true, replacement: next });
-      await txn.put(`refresh:${next}`, { resource: row.resource, scope: row.scope, access, generation: row.generation, account: row.account, spent: false } satisfies RefreshRecord);
+      await txn.put(`refresh:${next}`, { resource: row.resource, scope: row.scope, access, generation: row.generation, account: row.account, spent: false, previous: current } satisfies RefreshRecord);
       await txn.put(`access:${access}`, { resource: row.resource, scope: row.scope, generation: row.generation, account: row.account } satisfies AccessRecord);
+      if (row.previous !== undefined) await txn.delete(`refresh:${row.previous}`);
       return { ok: true, access, refresh: next, account: row.account };
     });
   }
@@ -290,6 +293,7 @@ export default {
       if (issuerOrigin && request.method === "POST" && url.pathname === "/revoke") return callAuthority(env, "/revoke", {});
       if (issuerOrigin && request.method === "POST" && url.pathname === "/rebind") return callAuthority(env, "/rebind", JSON.parse(await readBounded(request)) as Record<string, unknown>);
       if (issuerOrigin && request.method === "POST" && url.pathname === "/budget") return callAuthority(env, "/budget", {});
+      if (issuerOrigin && request.method === "POST" && url.pathname === "/held") return callAuthority(env, "/held", {});
       if (issuerOrigin && request.method === "POST" && url.pathname === "/budget-reset") return callAuthority(env, "/budget-reset", {});
       if (issuerOrigin && request.method === "POST" && url.pathname === "/token") return await token(await readBounded(request), env);
       if (resourceOrigin && request.method === "POST" && url.pathname === "/mcp") return await resourceRequest(request, env, `${url.origin}/mcp`);
