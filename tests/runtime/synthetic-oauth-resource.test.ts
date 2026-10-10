@@ -148,6 +148,7 @@ it("keeps authorization-code use atomic and rejects another resource's token", a
     const racedBodies = await Promise.all(raced.map(async (response) => response.json() as Promise<{ error?: string; code?: string }>));
     expect(racedBodies.filter((body) => body.error === "invalid_request")).toHaveLength(1);
     expect(racedBodies.filter((body) => typeof body.code === "string")).toHaveLength(1);
+    const racedCode = racedBodies.find((body) => typeof body.code === "string")?.code;
 
     const allowedConsent = await runtime.dispatchFetch(`${ISSUER}/authorize?response_type=code&redirect_uri=${encodeURIComponent(REDIRECT)}&code_challenge=${challenge}&code_challenge_method=S256&resource=${encodeURIComponent(`${MCP}/mcp`)}&scope=relay.read&state=allowed`);
     const allowedId = ((await allowedConsent.json()) as { consent_id: string }).consent_id;
@@ -245,6 +246,7 @@ it("keeps authorization-code use atomic and rejects another resource's token", a
     const live = await liveRefresh.json() as { refresh_token: string };
     expect((await runtime.dispatchFetch(`${ISSUER}/revoke`, { method: "POST", body: "{}" })).status).toBe(403);
     expect((await runtime.dispatchFetch(`${ISSUER}/revoke`, { method: "POST", headers: BROWSER, body: "{}" })).status).toBe(200);
+    expect((await runtime.dispatchFetch(`${ISSUER}/token`, { method: "POST", body: new URLSearchParams({ grant_type: "authorization_code", code: racedCode!, code_verifier: verifier, redirect_uri: REDIRECT, resource: `${MCP}/mcp` }) })).status).toBe(400);
     expect(admitted.status).toBe(200);
     expect((await runtime.dispatchFetch(`${MCP}/mcp`, initialize)).status).toBe(401);
     expect((await runtime.dispatchFetch(`${ISSUER}/token`, { method: "POST", body: new URLSearchParams({ grant_type: "refresh_token", refresh_token: live.refresh_token, resource: `${MCP}/mcp` }) })).status).toBe(400);
@@ -288,7 +290,7 @@ it("keeps authorization-code use atomic and rejects another resource's token", a
         tokenLimited.push(status);
       }
     }
-    expect(firstTokenLimited).toBe(15);
+    expect(firstTokenLimited).toBe(14);
     expect(tokenLimited).toEqual([429, 429]);
   } finally { await runtime.dispose(); }
 }, 20000);
