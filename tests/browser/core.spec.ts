@@ -331,6 +331,8 @@ test.describe('native administrator issuance recovery',()=>{
     const issued=worker.keyMetadata().find(row=>row.id!=='member-key')!;
     expect(issued.expires_at).toBe('2026-07-24T12:00:00.000Z');
     expect(issued.family_id).toBe('member-family');
+    // The package element is visible before the previous-prefix caption is parsed.
+    await page.waitForLoadState('domcontentloaded');
     expect(await page.locator('[data-one-time-key]').evaluate(node=>{
       const codes=Array.from(node.querySelectorAll('.panel-caption code'));
       return codes.length===2 && codes[0].textContent!==codes[1].textContent && codes[1].textContent==='display_member';
