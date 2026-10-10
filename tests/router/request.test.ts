@@ -320,6 +320,7 @@ describe("router admission", () => {
     await expect(revokedModels.json()).resolves.toMatchObject({
       error: { code: "invalid_api_key" }
     });
+    expect(fixture.fetchCalls).toHaveLength(1);
   });
 
   it("does not admit Surface Credit when the Codex fallback version is missing", async () => {
