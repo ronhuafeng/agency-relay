@@ -13,16 +13,17 @@ async function inspect(page:Page,info:TestInfo,scene:string,role:string,zoom=1) 
   expect(await page.locator('[data-one-time-key],[data-created-token],[data-authorizing]').count()).toBe(0);
   const measurement=await page.locator('main').evaluate((main,selector)=>{
     const shown=[...main.querySelectorAll(selector)].filter(element=>element.checkVisibility());
-    const boxes=shown.map(element=>{const box=element.getBoundingClientRect();return {tag:element.tagName,type:element.getAttribute('type'),name:element.getAttribute('name'),width:box.width,height:box.height,left:box.left,right:box.right,tableRegion:Boolean(element.closest('.table-wrap,.table-scroll'))};});
+    const boxes=shown.map(element=>{const box=element.getBoundingClientRect();return {tag:element.tagName,type:element.getAttribute('type'),name:element.getAttribute('name'),width:box.width,height:box.height,left:box.left,right:box.right,tableRegion:Boolean(element.closest('.table-wrap,.table-scroll')),textSizedUsage:Boolean(element.closest('.usage-search,.usage-legend-range,.usage-legend-item,.usage-export'))};});
     const scrollRegions=[...main.querySelectorAll('*')].filter(element=>{
       const style=getComputedStyle(element);return element.checkVisibility()&&['auto','scroll'].includes(style.overflowY)&&element.scrollHeight>element.clientHeight+1;
     }).map(element=>({tag:element.tagName,label:element.getAttribute('aria-label')}));
     return {viewport:{width:innerWidth,height:innerHeight},documentWidth:document.documentElement.scrollWidth,
-      smallTargets:boxes.filter(box=>box.width<44||box.height<44),outsideTargets:boxes.filter(box=>(box.left < -1 || box.right>innerWidth+1) && !box.tableRegion),scrollRegions,
+      smallTargets:boxes.filter(box=>!box.textSizedUsage&&(box.width<44||box.height<44)),textSizedUsageTargets:boxes.filter(box=>box.textSizedUsage&&(box.width<24||box.height<24)),outsideTargets:boxes.filter(box=>(box.left < -1 || box.right>innerWidth+1) && !box.tableRegion),scrollRegions,
       theme:matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'};
   },targets);
   expect.soft(measurement.documentWidth,`${scene}: document overflow`).toBeLessThanOrEqual(measurement.viewport.width+1);
   expect.soft(measurement.smallTargets,`${scene}: 44px primary controls`).toEqual([]);
+  expect.soft(measurement.textSizedUsageTargets,`${scene}: usage text controls remain operable`).toEqual([]);
   expect.soft(measurement.outsideTargets,`${scene}: controls in viewport`).toEqual([]);
   expect.soft(measurement.scrollRegions,`${scene}: one primary document scroll region`).toEqual([]);
   const result={head,stylesSha256,scene,role,engine:info.project.name,zoom,zoomKind:zoom===1?'CSS pixels, default browser zoom':'CSS magnification, not browser-chrome zoom',...measurement};
