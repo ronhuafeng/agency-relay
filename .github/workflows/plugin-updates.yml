@@ -1,7 +1,6 @@
 name: Plugin updates
 
 on:
-  workflow_dispatch:
   schedule:
     - cron: '17 1 * * *' # Daily at 09:17 Asia/Shanghai; GitHub may delay scheduled runs.
   workflow_dispatch:
