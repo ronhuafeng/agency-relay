@@ -38,6 +38,8 @@ Agency Relay API key
 
 The diagram names required gates, not a mandate to reorder unrelated transport internals. All required authorization and admission must complete before provider dispatch. Browser login, API-key possession, application role, quota, and upstream readiness remain distinct facts.
 
+A Runtime MCP client is a separate admission path. It presents a resource-bound OAuth bearer decided by one Agency Relay grant authority. Provider Execution Plans remain the client data plane above. The target resource and grant rules live in [surfaces](surfaces.md).
+
 ## Organization boundary
 
 V1 serves one organization, potentially with more than one explicitly authorized email domain. It does not build multi-tenant memberships, organizations, billing plans, or cross-tenant administration. Keep stable identifiers and narrow policy seams so future multi-tenancy is possible without claiming it already exists.

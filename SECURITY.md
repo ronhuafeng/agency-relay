@@ -10,6 +10,12 @@ Safe evidence consists of reviewed metadata: Agency Relay object IDs, request co
 
 Identity, roles, ownership, JIT, and offboarding follow [organization-access.md](docs/product/organization-access.md).
 
+## Runtime grant authority
+
+Authorization-code consumption, refresh rotation, lost-response reconciliation, and grant revocation share one Durable Object transaction. KV read-modify-write is not that authority. The inspected package `@cloudflare/workers-oauth-provider@1.2.3` is not that authority either: its grants use `env.OAUTH_KV`, and its consent helper deletes after a separate read. The fixture runs on Workers compatibility date `2026-06-24` with `nodejs_compat` and a SQLite-backed Durable Object. The exercised client is Codex CLI `0.156.1`. A repeated exchange of a code that already succeeded returns the same issued tokens when the verifier, redirect, and resource still match. A lost refresh response returns the same replacement until that replacement is itself rotated. That replacement and its immediate predecessor stay for the reconciliation. The refresh record before that predecessor is removed in the same transaction. Refresh keeps the grant account and keeps the original resource.
+
+Revocation advances the grant generation. The next use of an old bearer or refresh is denied. A response already returned stays returned. A later allow does not revive the old bearer. Rebinding to a different account advances the generation and the account together. Rebinding to the current account is rejected. Refresh of the same account issues new refresh and access material and leaves the account in place. A previously issued access token remains usable until the grant generation changes.
+
 ## Browser protection
 
 Guard every console-session state-changing request, including JSON POST/PUT/PATCH/DELETE and native UI POST forms, with exact canonical same-origin verification and cross-site Fetch Metadata rejection. Missing/invalid Origin is rejected on the browser-only write interface. Confirmation dialogs and SameSite assumptions do not replace the guard. The operator bearer API is a distinct non-cookie boundary.

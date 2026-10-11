@@ -237,6 +237,8 @@ Apply one browser-mutation guard before all console-session writes, including JS
 
 The operator bearer API is a separate non-cookie interface. Do not make `ADMIN_SECRET` a dashboard fallback. Keep the canonical dashboard host and validate the console session at the Worker boundary; an alternate Worker URL must not bypass the console guard.
 
+Runtime consent, revocation, and account rebind are console-session writes and use this same guard. Public OAuth discovery, client registration, and token exchange stay outside it. A public path under `/oauth/` gains no exemption from the guard.
+
 Console responses and one-time secret responses are private and non-cacheable. No service-worker cache, local storage, history payload, analytics event, log, or background retry may retain credentials or privileged HTML. Full logout/deauthorization clears sensitive visible state; subsequent server requests always recheck authorization.
 
 ## 8. Audit and consistency
