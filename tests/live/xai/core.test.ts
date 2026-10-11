@@ -16,6 +16,7 @@ it("completes an xAI HTTP response and enforces surface isolation", async () => 
     body: JSON.stringify({ model, input: "Reply exactly OK.", stream: false })
   }, 180_000);
   expect(response.status).toBe(200);
+  expect(parseJson(response.text)).toMatchObject({ status: "completed" });
   assertResponseHasText(parseJson(response.text));
   const denied = await send(`${HOST.xai}/v1/models`, control);
   expect(denied.status).toBe(403);
