@@ -1,7 +1,7 @@
 import { consoleClientPath } from "../../src/admin/app";
 import { openNativeConfirmation, test, expect, authenticate, openMemberCreate, openKeyEditor, reopenRestoredConsolePage } from "./fixtures";
 import { ATTACKER_ORIGIN, ORIGIN } from "./worker";
-import { request as apiRequest, type Page } from "@playwright/test";
+import { request as apiRequest, type ConsoleMessage, type Page } from "@playwright/test";
 
 async function ready(page: Page) {
   await expect(page.locator('#console-dialog-root')).toBeAttached();
@@ -210,8 +210,28 @@ test('pending native Back can be dismissed or accepted without replaying the com
   await ready(page);
   const target = page.url();
   const held = worker.hold({method:'POST', path:'/admin/ui/users/other/status'});
+  const lifecycle: {event:string; trusted:boolean; prevented:boolean; pending:boolean; active:boolean; persisted:boolean}[] = [];
+  const probePrefix = 'NATIVE_BACK_LIFECYCLE ';
+  const onProbe = (message:ConsoleMessage): void => {
+    const text = message.text();
+    if (!text.startsWith(probePrefix)) return;
+    try {
+      const value = JSON.parse(text.slice(probePrefix.length));
+      if (!['beforeunload','pagehide','visibilitychange'].includes(value.event) || lifecycle.length >= 12) return;
+      // Retain only the probe's allowlisted booleans, never console text or DOM.
+      lifecycle.push({event:value.event, trusted:value.trusted === true, prevented:value.prevented === true,
+        pending:value.pending === true, active:value.active === true, persisted:value.persisted === true});
+    } catch { /* Unrelated or malformed console content is not diagnostic evidence. */ }
+  };
+  page.on('console', onProbe);
   const backWithConfirmation = async (choice:'dismiss'|'accept'): Promise<void> => {
-    const observed = {choice, dialogReceived:false, dialogSettled:false, historySettled:false};
+    const before = await page.evaluate(() => ({
+      oldDocument: typeof (window as unknown as {stopNativeBackProbe?:()=>void}).stopNativeBackProbe === 'function',
+      pending: document.querySelector('main')?.getAttribute('data-mutation-pending') === 'true',
+      activated: navigator.userActivation.hasBeenActive
+    }));
+    expect(before).toEqual({oldDocument:true, pending:true, activated:true});
+    const observed = {choice, before, dialogReceived:false, dialogSettled:false, historySettled:false};
     // The event wait removes its owned listener on timeout. Named steps bound
     // observation; a stalled browser evaluation may still need fixture teardown.
     const handled = test.step(`${choice}: receive and settle native confirmation`, async () => {
@@ -235,10 +255,12 @@ test('pending native Back can be dismissed or accepted without replaying the com
       const state = await test.step(`${choice}: read safe failure state`, () => page.evaluate(() => ({
         activated: navigator.userActivation.hasBeenActive,
         pending: document.querySelector('main')?.getAttribute('data-mutation-pending') === 'true',
+        oldDocument: typeof (window as unknown as {stopNativeBackProbe?:()=>void}).stopNativeBackProbe === 'function',
         unload: (window as unknown as {pendingUnload?: {trusted:boolean; prevented:boolean}}).pendingUnload ?? null,
         recovery: Boolean(document.querySelector('[data-console-recovery]'))
       })), {timeout:1000}).catch(() => null);
-      const diagnostic = JSON.stringify({...observed, state});
+      const destination = page.url() === previous ? 'previous' : page.url() === target ? 'target' : 'other';
+      const diagnostic = JSON.stringify({...observed, state, destination, lifecycle});
       console.error(`NATIVE_BACK_SAFE_STATE ${diagnostic}`);
       await testInfo.attach(`native-back-${choice}-state`, {
         body: diagnostic, contentType:'application/json'
@@ -255,13 +277,23 @@ test('pending native Back can be dismissed or accepted without replaying the com
     expect(worker.status('other')).toBe('disabled');
     await expect(page.locator('main')).toHaveAttribute('data-mutation-pending','true');
     expect(await page.evaluate(() => navigator.userActivation.hasBeenActive)).toBe(true);
-    await page.evaluate(() => {
+    await page.evaluate(probePrefix => {
+      const listeners = new AbortController();
+      (window as unknown as {stopNativeBackProbe?:()=>void}).stopNativeBackProbe = () => listeners.abort();
+      const observe = (event:Event): void => {
+        console.debug(probePrefix + JSON.stringify({event:event.type, trusted:event.isTrusted, prevented:event.defaultPrevented,
+          pending:document.querySelector('main')?.getAttribute('data-mutation-pending') === 'true',
+          active:navigator.userActivation.hasBeenActive, persisted:event instanceof PageTransitionEvent && event.persisted}));
+      };
+      window.addEventListener('beforeunload', observe, {signal:listeners.signal});
+      window.addEventListener('pagehide', observe, {signal:listeners.signal});
+      document.addEventListener('visibilitychange', observe, {signal:listeners.signal});
       window.addEventListener('beforeunload', event => {
         (window as unknown as {pendingUnload?: {trusted:boolean; prevented:boolean}}).pendingUnload = {
           trusted: event.isTrusted, prevented: event.defaultPrevented
         };
-      }, {once:true});
-    });
+      }, {once:true, signal:listeners.signal});
+    }, probePrefix);
     await test.step('dismiss native Back and retain pending operation', () => backWithConfirmation('dismiss'));
     expect(await page.evaluate(() => (window as unknown as {pendingUnload?: {trusted:boolean; prevented:boolean}}).pendingUnload))
       .toEqual({trusted:true, prevented:true});
@@ -279,7 +311,15 @@ test('pending native Back can be dismissed or accepted without replaying the com
       const url = new URL(previous);
       await expect(page.getByRole('link', {name:'查看当前页面',exact:true})).toHaveAttribute('href',url.pathname + url.search);
     } else await expect(page.locator('[data-view-role="quotas"]')).toBeVisible();
-  } finally { held.release(); }
+  } finally {
+    held.release();
+    page.off('console', onProbe);
+    // The probe is document-local. If the browser is stalled, context teardown
+    // owns remaining listeners; bounded cleanup cannot cancel protocol work.
+    await test.step('remove native Back observation', () => page.evaluate(() => {
+      (window as unknown as {stopNativeBackProbe?:()=>void}).stopNativeBackProbe?.();
+    }), {timeout:1000}).catch(() => {});
+  }
   await test.step('Forward reads current authority without replay', async () => {
     await page.goForward({waitUntil:'load', timeout:5000});
     await reopenRestoredConsolePage(page, target);

@@ -24,8 +24,11 @@ for (const width of [390, 1440]) test(`ordinary navigation loads a fresh server 
   await expect(page.locator("html")).not.toHaveAttribute("data-navigation-probe");
   if (width < 1000) {
     await expect(page.locator("#console-navigation-toggle")).not.toBeChecked();
-    await expect(page.getByRole("navigation", { name: "控制台页面" })).toBeHidden();
+    // The mobile rail keeps its label and account menu visible; the checkbox
+    // controls only the page-link panel, not the navigation landmark itself.
+    await expect(page.locator("#console-navigation-items")).toBeHidden();
     await page.locator(".nav-toggle-label").click();
+    await expect(page.locator("#console-navigation-items")).toBeVisible();
   }
   await expect(page.getByRole("navigation", { name: "控制台页面" }).getByRole("link", { name: "额度政策", exact: true })).toHaveAttribute("aria-current", "page");
   await expect(page.locator(".nav-toggle-label strong")).toHaveText("额度政策");
