@@ -232,6 +232,7 @@ jobs:
       - name: Verify Grok · Videos
         env:
           MINI_ONLY_GROK_SURFACE_API_KEY: ${{ secrets.MINI_ONLY_GROK_SURFACE_API_KEY }}
+          MINI_AGENCY_RELAY_2_GROK_SURFACE_API_KEY: ${{ secrets.MINI_AGENCY_RELAY_2_GROK_SURFACE_API_KEY }}
         run: pnpm exec vitest run --config vitest.live.config.ts tests/live/grok/videos.test.ts --no-file-parallelism
 
   grok_client_text:

@@ -10,7 +10,7 @@ All files under this directory use actual Agency Relay API keys and deployed Pro
 
 - Reachability is `/healthz` on the three production hosts. Every other Job waits for it.
 - Codex runs Catalog, then Contract, then Responses. Realtime and the Codex CLI wait for Responses.
-- Grok runs Catalog, then Responses. Audio, Files, Images, Videos and the Grok text CLI wait for Responses. The Grok image CLI waits for Images. The Grok video CLI waits for Videos.
+- Grok runs Catalog, then Responses. Audio, Files, Images, Videos and the Grok text CLI wait for Responses. The Grok image CLI waits for Images. The Grok video CLI waits for Videos. The video owner check uses the separate `agency-relay-2` Grok key. It does not create a user or use the admin secret.
 - xAI runs Catalog, then Responses. Audio, Files, Images, Videos, WebSocket, Resources and Public URL wait for Responses. Responses also receives the Grok surface key because that file checks cross-surface denial.
 - Authority · Access waits only for Reachability. Authority · Credits waits only for Reachability; it creates its own user.
 - Accounting · Billing waits until every Job that can write the Codex Responses, Grok Responses, Grok Images or Grok Videos ledgers has finished. It still runs when one of those Jobs failed, and it does not run after cancellation. Its own calls must be the only new rows in that window.

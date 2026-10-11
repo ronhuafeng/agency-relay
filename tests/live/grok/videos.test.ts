@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { admin, isRecord, newestModel, parseJson, requireEnv, send, sleep } from "../runtime";
+import { isRecord, newestModel, parseJson, requireEnv, send, sleep } from "../runtime";
 import { verifyVideoTransformations } from "../support";
 
 const HOST = "https://grok.trustedtunnel.app";
@@ -28,40 +28,9 @@ it("generates, edits, extends, and downloads Grok video with owner isolation", a
 }, 5_700_000);
 
 async function expectOtherUserRejected(jobId: string): Promise<void> {
-  const accounts = await admin("GET", "/admin/subscriptions");
-  expect(accounts.status).toBe(200);
-  expect(accounts.json).toEqual(expect.objectContaining({ accounts: expect.any(Array) }));
-  const account = isRecord(accounts.json) && Array.isArray(accounts.json.accounts)
-    ? accounts.json.accounts.filter(isRecord).find((row) => row.capability_source === "grok" && row.environment === "production" && row.status === "active")
-    : undefined;
-  expect(account).toEqual(expect.objectContaining({ id: expect.any(String) }));
-  const accountId = (account as { id: string }).id;
-  const created = await admin("POST", "/admin/users", {});
-  expect(created.status).toBe(201);
-  expect(created.json).toMatchObject({ user: { id: expect.any(String) } });
-  const userId = ((created.json as { user: { id: string } }).user).id;
-  let keyId = "";
-  try {
-    const credited = await admin("PUT", `/admin/users/${userId}/credits/grok`, { monthly_allowance: 1 });
-    expect(credited.status).toBe(200);
-    const issued = await admin("POST", `/admin/users/${userId}/keys`, {
-      name: "Live key",
-      scopes: ["surface:grok:production"],
-      credential_bindings: [{ surface_grant: "surface:grok:production", credential_account_id: accountId }]
-    });
-    expect(issued.status).toBe(201);
-    expect(issued.json).toMatchObject({ key: { id: expect.any(String) }, api_key: expect.any(String) });
-    const issuedBody = issued.json as { key: { id: string }; api_key: string };
-    keyId = issuedBody.key.id;
-    const denied = await send(`${HOST}/v1/videos/${jobId}`, issuedBody.api_key);
-    expect(denied.status).toBe(404);
-    expect(parseJson(denied.text)).toMatchObject({ error: { code: "video_job_not_found" } });
-  } finally {
-    if (keyId) {
-      await admin("DELETE", `/admin/keys/${keyId}`);
-    }
-    await admin("DELETE", `/admin/users/${userId}/credits/grok`);
-  }
+  const denied = await send(`${HOST}/v1/videos/${jobId}`, requireEnv("MINI_AGENCY_RELAY_2_GROK_SURFACE_API_KEY"));
+  expect(denied.status).toBe(404);
+  expect(parseJson(denied.text)).toMatchObject({ error: { code: "video_job_not_found" } });
 }
 
 async function poll(key: string, jobId: string): Promise<unknown> {
