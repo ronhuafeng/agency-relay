@@ -55,7 +55,6 @@ export function InventorySearchView({ control }: { readonly control: InventorySe
       method="get"
       action={control.action}
       data-dashboard-search="true"
-      data-search-anchor={control.anchor}
       role="search"
       aria-label={control.label}
     >

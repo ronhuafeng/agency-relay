@@ -1,6 +1,6 @@
 import { writeFileSync } from 'node:fs';
 import type { Page } from '@playwright/test';
-import { openNativeConfirmation, test, expect } from './fixtures';
+import { openNativeConfirmation, test, expect, reopenRestoredConsolePage } from './fixtures';
 
 async function geometry(page: Page) {
   return page.locator('main').evaluate(main => {
@@ -93,7 +93,7 @@ test('route filtering, exact provider selection and Back retain context', async 
   await expect(page.locator('[data-account-key="grok:fixture-codex"] a')).toBeFocused();
 });
 
-test('quota drafts survive navigation and cancellation never writes', async ({ page, worker }) => {
+test('quota cancellation preserves the draft until native document departure and never writes', async ({ page, worker }) => {
   await page.goto('/admin?view=quotas');
   await expect(page.locator('[data-confirmation-fallback]:not([hidden])')).toHaveCount(0);
   const quota = page.locator('[data-quota-default="codex"]');
@@ -105,11 +105,17 @@ test('quota drafts survive navigation and cancellation never writes', async ({ p
   await page.keyboard.press('Escape');
   await expect(page.locator('.organization-policy-form').getByRole('button', { name:'保存', exact:true })).toBeFocused();
   expect(worker.requests.filter(request => request.method === 'POST').length).toBe(0);
-  await page.getByRole('navigation', { name:'控制台页面' }).getByRole('link', { name:'管理记录', exact:true }).click();
-  await expect(page.locator('[data-view-role="control-audit"]')).toBeVisible();
-  await page.goBack();
   await expect(quota.getByRole('spinbutton')).toHaveValue('123');
-  await expect(page.locator('.organization-policy-form').getByText('有未保存的修改')).toBeVisible();
+  const saved = String(worker.quotaDefault('codex'));
+  const target = page.url();
+  await page.getByRole('navigation', { name:'控制台页面' }).getByRole('link', { name:'管理记录', exact:true }).click();
+  await page.waitForURL(/view=control-audit/, {waitUntil:'load'});
+  await expect(page.locator('[data-view-role="control-audit"]')).toBeVisible();
+  await page.goBack({waitUntil:'load'});
+  await reopenRestoredConsolePage(page, target);
+  await expect(quota.getByRole('spinbutton')).toHaveValue(saved);
+  await expect(page.locator('.organization-policy-form').getByText('有未保存的修改')).toBeHidden();
+  expect(worker.requests.filter(request => request.method === 'POST')).toHaveLength(0);
 });
 
 for(const script of [true,false]) test.describe(`administrator local configuration with script=${script}`,()=>{

@@ -5,7 +5,7 @@ import { Card } from "./components/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./components/tabs";
 import { ConfirmationFallback, Field, KeyExpiryField } from "./fields";
 import { SelectView } from "./forms";
-import { DashLink } from "./chrome";
+import { TaskLink } from "./chrome";
 import { TaskClose } from "./task-workspace";
 import { SetupFileTargetView, SetupTemplate, readSetupFiles, type SetupFileTarget } from "./setup-files";
 import { ConfigurationInstructions } from "./task-help";
@@ -125,9 +125,9 @@ export function SetupWorkbenchView({control}: {readonly control: SetupWorkbenchC
     {key ? <div className="setup-selected-action" hidden={mode !== "selected"}>
       {key.replacement ? <><p className="caption">换发会创建新密钥，不会自动撤销原密钥。配置包只包含此密钥获准使用的客户端。</p><form className="board-form" method="post" action={key.replacement.action} data-action="create-setup-package" data-dashboard-draft="replacement" data-draft-scope="setup" data-confirmation={key.replacement.confirmation}>
         <ConfirmationFallback message={key.replacement.confirmation}/><input type="hidden" name="confirm" value="1"/><input type="hidden" name="key_return" value={key.replacement.returnHref}/><KeyExpiryField/>
-        <div className="form-footer"><Button type="submit">换发密钥并下载配置包</Button><DashLink className="action-link" href={key.manageHref}>管理密钥</DashLink></div>
-      </form></> : key.newKeyHref ? <DashLink className="action-link" href={key.newKeyHref}>创建新密钥</DashLink> : <p className="caption">旧密钥无法重新显示明文。持有完整密钥时，可切换到“已有密钥”生成配置文件。</p>}
-      {!key.replacement ? <DashLink className="action-link" href={key.manageHref}>管理密钥</DashLink> : null}
+        <div className="form-footer"><Button type="submit">换发密钥并下载配置包</Button><TaskLink className="action-link" href={key.manageHref}>管理密钥</TaskLink></div>
+      </form></> : key.newKeyHref ? <TaskLink className="action-link" href={key.newKeyHref}>创建新密钥</TaskLink> : <p className="caption">旧密钥无法重新显示明文。持有完整密钥时，可切换到“已有密钥”生成配置文件。</p>}
+      {!key.replacement ? <TaskLink className="action-link" href={key.manageHref}>管理密钥</TaskLink> : null}
     </div> : null}
     <form ref={localForm} className="board-form setup-held-form" data-local-config-sync="true" data-workbench-local="" data-dashboard-draft="sync" hidden={mode !== "held"}>
       <fieldset disabled={!enhanced} className="setup-local-fields">

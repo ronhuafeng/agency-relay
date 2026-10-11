@@ -11,7 +11,7 @@ async function alignedPageSize(page: import('@playwright/test').Page): Promise<v
   })).toBe(true);
 }
 
-test('category reads retain the displayed collection while pending and keep the exact selected person', async ({page, worker}) => {
+test('native category reads keep the current collection until commit and preserve the exact selected person', async ({page, worker}) => {
   const service = await worker.seedDelegatedService();
   worker.seedLegacyService('unresolved-build');
   await page.goto('/admin?view=access&person=admin&range=30d&page_size=10&page=2');
@@ -25,7 +25,7 @@ test('category reads retain the displayed collection while pending and keep the 
   const original = await page.locator('#people-list').elementHandle();
   const gate = worker.hold({method:'GET',path:'/admin',view:'access'});
   try {
-    await kinds.getByRole('link', {name:'管理员',exact:true}).click();
+    await kinds.getByRole('link', {name:'管理员',exact:true}).click({noWaitAfter:true});
     await gate.entered;
     expect(await original?.evaluate(node=>node.isConnected)).toBe(true);
     await expect(page.locator('.people-table [data-user-id]')).toHaveCount(10);
@@ -38,7 +38,7 @@ test('category reads retain the displayed collection while pending and keep the 
   expect(current.searchParams.get('page_size')).toBe('10');
   expect(current.searchParams.get('range')).toBe('30d');
   expect(current.searchParams.has('page')).toBe(false);
-  expect(await page.evaluate(() => Boolean((window as unknown as {peopleDocumentRetained?:boolean}).peopleDocumentRetained))).toBe(true);
+  expect(await page.evaluate(() => Boolean((window as unknown as {peopleDocumentRetained?:boolean}).peopleDocumentRetained))).toBe(false);
   await kinds.getByRole('link', {name:'服务账号',exact:true}).click();
   await expect(page.locator('.people-table [data-user-id]')).toHaveCount(1);
   await expect(page.locator('.people-table [data-user-id]')).toHaveAttribute('data-user-id',service);
@@ -48,7 +48,7 @@ test('category reads retain the displayed collection while pending and keep the 
   expect(worker.requests.every(request=>request.method==='GET')).toBe(true);
 });
 
-test('chosen page size survives resize, search and safe draft restoration without changing selection', async ({page, worker}) => {
+test('chosen page size survives resize and native search while document departure clears drafts', async ({page, worker}) => {
   await page.goto('/admin?view=access&person=admin&page_size=10&page=2&range=30d');
   await expect(page.locator('.people-table [data-user-id]')).toHaveCount(10);
   await alignedPageSize(page);
@@ -80,7 +80,7 @@ test('chosen page size survives resize, search and safe draft restoration withou
   expect(current.searchParams.get('range')).toBe('30d');
   expect(current.searchParams.has('page')).toBe(false);
   await create.getByRole('button',{name:'添加成员',exact:true}).click();
-  await expect(page.locator('#add-person input[name=email]')).toHaveValue('unfinished@example.test');
+  await expect(page.locator('#add-person input[name=email]')).toHaveValue('');
   await page.locator('#add-person').getByRole('button',{name:'取消',exact:true}).click();
   const search = page.getByRole('search',{name:'搜索邮箱、名称或 ID',exact:true});
   await search.getByRole('searchbox').fill('person-');

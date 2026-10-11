@@ -1,4 +1,4 @@
-import { test, expect, expectAccountRole } from "./fixtures";
+import { test, expect, expectAccountRole, reopenRestoredConsolePage } from "./fixtures";
 
 for (const scenario of [
   {identity: "member", width: 390, colorScheme: "dark"},
@@ -7,7 +7,7 @@ for (const scenario of [
   {identity: "admin", width: 1440, colorScheme: "dark"}
 ] as const) test.describe(`usage ${scenario.identity} ${scenario.width}px ${scenario.colorScheme}`, () => {
   test.use({identity: scenario.identity, viewport: {width: scenario.width, height: 900}, colorScheme: scenario.colorScheme});
-  test("keeps full-range evidence readable and handles reordered range reads and stale failures", async ({page, worker}, testInfo) => {
+  test("keeps full-range evidence readable through native search, competing range navigation and unavailable reads", async ({page, worker}, testInfo) => {
     worker.seedUsageTrends();
     const path = scenario.identity === "member" ? "/admin?area=me&view=usage&range=7d" : "/admin?view=usage&range=7d";
     await page.goto(path);
@@ -39,9 +39,11 @@ for (const scenario of [
     await testInfo.attach('safe usage range', {path: image, contentType: 'image/png'});
 
     // The same server filter changes the complete chart, original details and export.
+    await page.evaluate(() => { document.documentElement.dataset.navigationProbe = 'unfiltered-usage'; });
     await page.getByRole('searchbox').fill('gpt-5.5');
     await page.getByRole('button', {name: '搜索', exact: true}).click();
     await expect(page.locator('[data-trend-plan]')).toHaveCount(1);
+    await expect(page.locator('html')).not.toHaveAttribute('data-navigation-probe');
     await expect(page.locator('.usage-record')).toHaveCount(1);
     await expect(page.locator('[data-trend-plan="codex.responses"] .usage-metrics')).toContainText('Requests2');
     const exportLink = page.getByRole('link', {name: '导出数据', exact: true});
@@ -72,28 +74,39 @@ for (const scenario of [
     await expect(page).toHaveURL(url => !new URL(url).searchParams.has('q'));
     await page.getByRole('navigation', {name: 'UTC 时间范围'}).getByRole('link', {name: '7 天', exact: true}).click();
 
+    const sevenDayUrl = page.url();
     const stale = worker.hold({method: 'GET', path: '/admin', view: 'usage'});
-    await page.getByRole('navigation', {name: 'UTC 时间范围'}).getByRole('link', {name: '30 天', exact: true}).click();
-    await stale.entered;
-    await page.getByRole('navigation', {name: 'UTC 时间范围'}).getByRole('link', {name: '7 天', exact: true}).click();
-    await expect(page.locator('[data-dashboard-notice]')).toHaveAttribute('data-state', 'success');
-    await expect(page.locator('[data-dashboard-notice]')).toBeHidden();
-    stale.release();
+    const firstRead = page.waitForRequest(request => request.isNavigationRequest()
+      && request.frame() === page.mainFrame() && new URL(request.url()).searchParams.get('range') === '30d');
+    try {
+      await page.getByRole('navigation', {name: 'UTC 时间范围'}).getByRole('link', {name: '30 天', exact: true}).click({noWaitAfter:true});
+      await stale.entered;
+      const firstRequest = await firstRead;
+      await page.getByRole('navigation', {name: 'UTC 时间范围'}).getByRole('link', {name: '7 天', exact: true}).click();
+      await page.waitForURL(/range=7d/, {waitUntil:'load'});
+      await expect.poll(() => firstRequest.failure()).not.toBeNull();
+    } finally { stale.release(); }
     await expect(page.locator('[data-usage-range-label]')).toHaveAttribute('data-usage-range-label', '2026-06-18 至 2026-06-24 UTC');
     expect((await page.locator('main').textContent())?.includes('older-observation')).toBe(false);
 
     await page.getByRole('navigation', {name: 'UTC 时间范围'}).getByRole('link', {name: '30 天', exact: true}).click();
+    await page.waitForURL(/range=30d/, {waitUntil:'load'});
     await expect(page.locator('[data-usage-range-label]')).toHaveAttribute('data-usage-range-label', '2026-05-26 至 2026-06-24 UTC');
     expect((await page.locator('main').textContent())?.includes('older-observation')).toBe(true);
-    await page.goBack();
+    await page.goBack({waitUntil:'load'});
+    await reopenRestoredConsolePage(page, sevenDayUrl);
     await expect(page.locator('[data-usage-range-label]')).toHaveAttribute('data-usage-range-label', '2026-06-18 至 2026-06-24 UTC');
     worker.failMemberRead('usage');
+    const failed = page.waitForResponse(response => response.request().isNavigationRequest()
+      && new URL(response.url()).searchParams.get('range') === '30d');
     await page.getByRole('navigation', {name: 'UTC 时间范围'}).getByRole('link', {name: '30 天', exact: true}).click();
-    await expect(page.locator('[data-dashboard-notice]')).toContainText('仍显示旧范围 2026-06-18 至 2026-06-24 UTC');
-    await expect(page.locator('[data-dashboard-notice]')).toContainText('已过期');
-    await expect(page.locator('[data-usage-range-label]')).toHaveAttribute('data-usage-range-label', '2026-06-18 至 2026-06-24 UTC');
+    expect((await failed).status()).toBe(503);
+    await expect(page).toHaveURL(/range=30d/);
+    const unavailable = page.locator(scenario.identity === 'member' ? '[data-read-state="unavailable"]' : '[data-dashboard-unavailable]');
+    await expect(unavailable).toBeVisible();
+    await expect(page.locator('[data-usage-range-label],[data-trend-plan],[data-trend-empty]')).toHaveCount(0);
     worker.failMemberRead(null);
-    await page.locator('[data-dashboard-notice]').getByRole('link', {name: '重试'}).click();
+    await unavailable.getByRole('link', {name:scenario.identity === 'member' ? '再试一次' : '重试',exact:true}).click();
     await expect(page.locator('[data-usage-range-label]')).toHaveAttribute('data-usage-range-label', '2026-05-26 至 2026-06-24 UTC');
     expect(worker.requests.every(request => request.method === 'GET')).toBe(true);
   });

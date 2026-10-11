@@ -78,7 +78,7 @@ export function RequestHistory({ model }: { readonly model: RequestHistoryModel 
         <TableCell role="cell"><Result value={row.status}/></TableCell>
         <TableCell role="cell" className="number">{row.upstreamStatus ?? "未记录"}</TableCell>
         <TableCell role="cell" className="number"><span className="sr-only">耗时 </span>{row.latencyMs===null?"未记录":`${formatNumber(row.latencyMs)} ms`}</TableCell>
-        <TableCell role="cell"><a className="action-link request-record-link" data-dashboard-link="" href={row.href} aria-label={`查看请求 ${row.id}`}><span>查看</span><ChevronRight className="ui-icon" aria-hidden="true" /></a></TableCell>
+        <TableCell role="cell"><a className="action-link request-record-link" data-dashboard-link="" data-task-link="" href={row.href} aria-label={`查看请求 ${row.id}`}><span>查看</span><ChevronRight className="ui-icon" aria-hidden="true" /></a></TableCell>
       </TableRow>)}
     </TableBody></Table></div>
     {!model.rows.length ? <p role="status" data-request-empty="">没有符合筛选的保留记录。不代表没有发生请求；也可清除筛选查看。</p> : null}

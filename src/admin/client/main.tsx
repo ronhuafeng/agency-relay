@@ -5,7 +5,7 @@ import { createRoot, hydrateRoot, type Root } from "react-dom/client";
 import { flushSync } from "react-dom";
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from "../ui/components/alert-dialog";
 import { createDrafts } from "./drafts";
-import { createNavigation } from "./navigation";
+import { createTaskController } from "./navigation";
 import { initializeBackgroundRefresh } from "./background-refresh";
 import { initializeCredentialStatus } from "./credential-status";
 import { initializeMutations } from "./mutations";
@@ -259,10 +259,10 @@ if (mount) {
     initialize(next);
   };
   if (document.querySelector('.shell[data-dashboard-nav]')) {
-    const navigation = createNavigation(initialize, createDrafts());
-    const stopMutations = initializeMutations(navigation);
-    acceptBackground = navigation.acceptBackground;
-    stop = () => { stopMutations(); navigation.dispose(); };
+    const tasks = createTaskController(initialize, createDrafts());
+    const stopMutations = initializeMutations(tasks);
+    acceptBackground = tasks.acceptBackground;
+    stop = () => { stopMutations(); tasks.dispose(); };
   } else if (document.querySelector("[data-member-nav]")) stop = initializeMemberMutations();
   const stopBackground = initializeBackgroundRefresh(doc => acceptBackground(doc));
   const stopCredentials = initializeCredentialStatus();

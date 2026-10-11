@@ -1,8 +1,8 @@
 /** @vitest-environment jsdom */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { initializeMutations } from "../../src/admin/client/mutations";
-import type { Navigation } from "../../src/admin/client/navigation";
-import { createNavigation } from "../../src/admin/client/navigation";
+import type { TaskController } from "../../src/admin/client/navigation";
+import { createTaskController } from "../../src/admin/client/navigation";
 import { createDrafts } from "../../src/admin/client/drafts";
 import { browserLayout, dashboardHtml, element, submit } from "../support/browser-dom";
 let dispose: (() => void) | null = null;
@@ -12,15 +12,15 @@ beforeEach(() => {
   browserLayout();
 });
 afterEach(() => { dispose?.(); dispose = null; vi.restoreAllMocks(); vi.unstubAllGlobals(); });
-function start(): Navigation {
-  const navigation: Navigation = {notice: vi.fn(), currentUrl: () => new URL(location.href), discardDraft: vi.fn(), setMutationPending: vi.fn(), showMutationResult: vi.fn(), acceptBackground: vi.fn(), dispose: () => {}};
+function start(): TaskController {
+  const navigation: TaskController = {notice: vi.fn(), currentUrl: () => new URL(location.href), discardDraft: vi.fn(), setMutationPending: vi.fn(), showMutationResult: vi.fn(), acceptBackground: vi.fn(), dispose: () => {}};
   dispose = initializeMutations(navigation); return navigation;
 }
 describe("bounded mutation outcomes", () => {
   it.each([422, 503])("restores the list search after a mutation returns %s", async (status) => {
     const main = element("main", HTMLElement);
     main.insertAdjacentHTML("beforeend", '<form method="get" action="/admin" data-dashboard-search><input name="q"><button type="submit">搜索人员</button></form>');
-    const navigation = createNavigation(() => {}, createDrafts());
+    const navigation = createTaskController(() => {}, createDrafts());
     const stopMutations = initializeMutations(navigation);
     dispose = () => {stopMutations(); navigation.dispose();};
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({error: {message: "invalid input"}}), {status, headers: {"Content-Type": "application/json"}})));

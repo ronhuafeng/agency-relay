@@ -22,7 +22,7 @@ import { CapabilityIsland } from "../islands";
 import { PersonCredits } from "../person-credits";
 import { KeyDetail } from "../key-detail";
 import { ObjectWorkspace, TaskClose } from "../task-workspace";
-import { DashLink } from "../chrome";
+import { DashLink, TaskLink } from "../chrome";
 import { Icon } from "../icon";
 import { inventoryUrl, DASHBOARD_PEOPLE_PAGE_SIZE } from "../href";
 import { InventoryPages, inventorySearchControl } from "../inventory";
@@ -75,7 +75,7 @@ function ClassifyService({model, personUrl}: {readonly model: AdminDashboardAcce
 function GiveAccess({model, personId, cancelHref}: {readonly model: AdminDashboardAccessModel; readonly personId: string; readonly cancelHref: string}) {
   return <><section className="workspace-section" id="give-access" tabIndex={-1} data-action="give-access" aria-label="创建密钥"><div className="task-card-head"><h3 className="task-title">创建密钥</h3><TaskClose href={cancelHref} label="收起创建密钥"/></div><form className="board-form" method="post" action="/admin/ui/keys" data-dashboard-draft="access" data-draft-scope={personId}>
     <input type="hidden" name="user_id" value={personId} /><Field control={{label: "密钥名称", name: "name", value: "客户端访问", required: true, maxLength: 64, autoComplete: "off"}} /><fieldset className="access-fieldset"><legend>新密钥包含的服务</legend><div className="access-choice-grid" data-access-choices="three" data-credential-selectors="three">{capabilityView.surfaces.map((access) => <ClientAccessOption key={access.id} access={access} model={model} />)}</div></fieldset>
-    <KeyExpiryField /><div className="person-form-actions"><Button type="submit">创建密钥</Button><a className="action-link" data-dashboard-link="" data-discard-draft="" href={cancelHref}>取消</a></div>
+    <KeyExpiryField /><div className="person-form-actions"><Button type="submit">创建密钥</Button><a className="action-link" data-dashboard-link="" data-discard-draft="" data-task-link="" href={cancelHref}>取消</a></div>
   </form></section><CapabilityIsland model={{view: capabilityView, routesHref: `?view=surfaces&range=${model.range.key}`}} /></>;
 }
 function PersonKeys({model, personId, base}: {readonly model: AdminDashboardAccessModel; readonly personId: string; readonly base: string}) {
@@ -86,12 +86,12 @@ function PersonKeys({model, personId, base}: {readonly model: AdminDashboardAcce
     <InventoryPages base={model.canonicalUrl} page={model.keyPage.page} hasNext={model.keyPage.hasNext} field="key_page" label="密钥" anchor="keys" />
     <Table className="member-keys-table person-keys-table" data-keys-table="true" aria-label="密钥"><TableHeader><TableRow><TableHead>名称 / 前缀</TableHead><TableHead>服务</TableHead><TableHead>状态</TableHead><TableHead>到期</TableHead><TableHead>最近使用</TableHead><TableHead><span className="sr-only">操作</span></TableHead></TableRow></TableHeader><TableBody>
       {keys.length === 0 ? <TableRow><TableCell colSpan={6}><p className="empty">{model.keyPage.page > 1 ? "这一页没有密钥。" : search.get("key_q") ? "没有匹配的密钥。" : "还没有密钥。"}</p></TableCell></TableRow> : keys.map(key => <Fragment key={key.id}><TableRow data-key-id={key.id} data-state={key.id === model.selectedKeyId ? "selected" : undefined}>
-        <TableCell><DashLink className="key-link" ariaLabel={`管理密钥 ${key.key_prefix}`} href={inventoryUrl(base, {key: key.id}, "key-detail")}><strong>{key.name ?? "未命名密钥"}</strong><code className="record-subline">{key.key_prefix}</code></DashLink></TableCell>
+        <TableCell><TaskLink className="key-link" ariaLabel={`管理密钥 ${key.key_prefix}`} href={inventoryUrl(base, {key: key.id}, "key-detail")}><strong>{key.name ?? "未命名密钥"}</strong><code className="record-subline">{key.key_prefix}</code></TaskLink></TableCell>
         <TableCell>{productAccessLabels(parseApiKeyScopes(key.scopes)).join("、") || "无服务权限"}</TableCell>
         <TableCell><Badge className="key-state" data-key-state={key.status !== "active" ? "revoked" : keyIsExpired(key, model.nowMs) ? "expired" : model.selectedUser?.status !== "active" ? "paused" : "active"}>{keyStateLabel(key, model.selectedUser ?? undefined, model.nowMs)}</Badge></TableCell>
         <TableCell>{key.expires_at ? <time dateTime={key.expires_at} title={key.expires_at}>{key.expires_at.slice(0,10)}</time> : "无到期时间"}</TableCell>
         <TableCell>{key.last_used_at ? <time dateTime={key.last_used_at} title={key.last_used_at}>{key.last_used_at.slice(0,10)}</time> : "尚未使用"}</TableCell>
-        <TableCell className="row-actions"><Button asChild variant="ghost" size="icon"><DashLink ariaLabel="配置客户端" href={inventoryUrl(base, {view:"setup", person:personId, key:key.id, task:null, kind:null, page_size:null, q:null, page:null, key_q:null, key_page:null})}><Icon name="configure"/></DashLink></Button><Button asChild variant="ghost" size="icon"><DashLink ariaLabel="管理密钥" href={inventoryUrl(base, {key:key.id}, "key-detail")}><Icon name="more"/></DashLink></Button></TableCell>
+        <TableCell className="row-actions"><Button asChild variant="ghost" size="icon"><TaskLink ariaLabel="配置客户端" href={inventoryUrl(base, {view:"setup", person:personId, key:key.id, task:null, kind:null, page_size:null, q:null, page:null, key_q:null, key_page:null})}><Icon name="configure"/></TaskLink></Button><Button asChild variant="ghost" size="icon"><TaskLink ariaLabel="管理密钥" href={inventoryUrl(base, {key:key.id}, "key-detail")}><Icon name="more"/></TaskLink></Button></TableCell>
       </TableRow>{key.id === model.selectedKeyId ? <TableRow className="member-key-expanded-row"><TableCell colSpan={6}><KeyDetail model={model}/></TableCell></TableRow> : null}</Fragment>)}
     </TableBody></Table>
     {model.selectedKeyId !== null && !keys.some(key => key.id === model.selectedKeyId) ? <KeyDetail model={model}/> : null}
@@ -136,7 +136,7 @@ function PersonDetail({model, giving, personUrl}: {readonly model: AdminDashboar
     <div className="task-head-actions"><form className="inline-form person-status-form" id="person-status" aria-label="账号访问状态" method="post" action={`/admin/ui/users/${encodeURIComponent(user.id)}/status`} data-action="user-status" data-confirmation={warning}><ConfirmationFallback message={warning} /><input type="hidden" name="person_return" value={personUrl} /><input type="hidden" name="status" value={next} /><input type="hidden" name="confirm" value="1" /><StatusSwitch enabled={user.status === "active"} label={name} /></form><TaskClose href={inventoryUrl(personUrl, {person:null,key_q:null,key_page:null}, "people-list")} label="收起人员详情"/></div>
     </header>
     <nav className="section-links" aria-label="人员内容"><a href="#keys">密钥</a><a href="#credits">额度</a><a href="#identity">{user.account_kind === "service" ? "身份与管理人" : "身份与权限"}</a>{model.assignedServiceImpact && (!model.assignedServiceImpact.known || model.assignedServiceImpact.services.length > 0) ? <a href="#assigned-services">管理的服务</a> : null}</nav>
-    <section className="workspace-section"><div className="person-access-head"><h2>密钥</h2>{giving ? null : <Button asChild><DashLink href={inventoryUrl(personUrl,{task:"give-access"},"give-access")}><Icon name="plus"/>创建密钥</DashLink></Button>}</div>
+    <section className="workspace-section"><div className="person-access-head"><h2>密钥</h2>{giving ? null : <Button asChild><TaskLink href={inventoryUrl(personUrl,{task:"give-access"},"give-access")}><Icon name="plus"/>创建密钥</TaskLink></Button>}</div>
       {giving ? <GiveAccess model={model} personId={user.id} cancelHref={`${personUrl}#keys`} /> : null}<PersonKeys model={model} personId={user.id} base={personUrl}/></section>
     <section className="workspace-section" id="credits" tabIndex={-1} data-credit-allowances="true"><PersonCredits model={model} personId={user.id} /></section><PersonIdentity model={model} personUrl={personUrl} /><AssignedServices model={model} personUrl={personUrl} />
   </>;
@@ -151,12 +151,12 @@ function PeopleRow({model, user, selected, href}: {
   const unresolved = user.account_kind === "legacy_unresolved";
   const name = unresolved && /^usr_[0-9a-f-]{36}$/i.test(user.id) ? "待确认账号" : personLabel(user);
   return <TableRow data-user-id={user.id} data-state={selected ? "selected" : undefined}>
-    <TableCell className="people-identity-cell"><DashLink className="person-link" href={href} current={selected}>
+    <TableCell className="people-identity-cell"><TaskLink className="person-link" href={href} current={selected}>
       <span className="person-identity"><strong>{name}</strong>{unresolved || user.account_kind === "service" ? <small title={user.id}>{user.id}</small> : null}</span>
-    </DashLink></TableCell>
+    </TaskLink></TableCell>
     <TableCell data-label="密钥授权"><span className="person-access-list">{marks.length === 0 ? <span className="meta">无服务密钥</span> : marks.map(({client, label, state}) => <Badge key={client} className="person-access" data-access-state={state}>{label}<span className="sr-only">：{stateLabels[state]}</span>{state === "expired" || state === "paused" ? <span aria-hidden="true">{state === "expired" ? " · 已过期" : " · 已暂停"}</span> : null}</Badge>)}</span></TableCell>
     <TableCell data-label="状态"><span className="person-state" data-enabled={user.status === "active"}>{user.status === "active" ? "已启用" : "已停用"}</span></TableCell>
-    <TableCell className="people-row-arrow"><Button asChild variant="ghost" size="icon"><DashLink href={href} ariaLabel={`查看 ${name} 的访问管理`}><Icon name="arrow" /></DashLink></Button></TableCell>
+    <TableCell className="people-row-arrow"><Button asChild variant="ghost" size="icon"><TaskLink href={href} ariaLabel={`查看 ${name} 的访问管理`}><Icon name="arrow" /></TaskLink></Button></TableCell>
   </TableRow>;
 }
 

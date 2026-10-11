@@ -17,11 +17,8 @@ test('an email draft stays visible for its exact person and regains focus after 
   await expect(email).toBeFocused(); await expect(email).toHaveValue('unfinished.other@example.test');
   await form.getByRole('button',{name:'取消',exact:true}).click();
   await expect(trigger).toBeFocused(); await expect(page.locator('[data-task-draft-indicator]')).toBeVisible();
-  await page.getByRole('navigation',{name:'控制台页面'}).getByRole('link',{name:'用量报告',exact:true}).click();
-  await expect(page.locator('[data-dashboard-view="usage"]')).toBeVisible();
-  await page.goBack();
-  await expect(form).toBeVisible(); await expect(email).toHaveValue('unfinished.other@example.test');
-  await expect(trigger).toHaveAttribute('aria-expanded','true');
+  // Exact-person selection is an in-document task transition. Its draft is
+  // isolated from the other person and survives returning to this exact task.
   await page.locator('[data-user-id="member"] a.person-link').click();
   await expect(page.locator('[data-person-detail]')).toHaveAttribute('data-person-detail','member');
   await page.getByRole('button',{name:'更改登录邮箱',exact:true}).click();

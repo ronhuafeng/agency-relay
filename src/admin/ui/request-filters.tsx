@@ -49,7 +49,7 @@ export function RequestFiltersView({control}: {readonly control: RequestFiltersC
     current.addEventListener("console:restore", restore);
     return () => current.removeEventListener("console:restore", restore);
   }, []);
-  return <form ref={form} method="get" action={control.action} data-dashboard-search="" data-search-anchor="request-history" className="board-form request-filters" aria-label="筛选请求记录">
+  return <form ref={form} method="get" action={`${control.action}#request-history`} data-dashboard-search="" className="board-form request-filters" aria-label="筛选请求记录">
     <input type="hidden" name="view" value="audit" />
     <div>
       <div className="request-filter-primary">

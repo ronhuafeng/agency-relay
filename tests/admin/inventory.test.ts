@@ -473,7 +473,7 @@ describe("complete dashboard inventories", () => {
     const { html } = await f.render(query);
     const searchForm = html.match(/<form class="inventory-search"[\s\S]*?<\/form>/)?.[0];
     expect(searchForm).toContain('method="get"');
-    expect(searchForm).toContain('action="/admin"');
+    expect(searchForm).toContain('action="/admin#people-list"');
     for (const [name, value] of [["view", "access"], ["range", "30d"], ["person", "person-100"], ["task", "give-access"], ["key_page", "3"], ["page_size", "10"]]) {
       expect(searchForm).toContain(`name="${name}" value="${value}"`);
     }

@@ -69,10 +69,28 @@ for (const scenario of [
       expect(worker.requests.every(request => request.method === 'GET')).toBe(true);
       expect(await page.locator('[data-one-time-key],[data-created-token]').count()).toBe(0);
       expect(await page.locator('[name="existing_key"]').evaluateAll(nodes => nodes.every(node => !(node as HTMLInputElement).value))).toBe(true);
-      await page.evaluate(() => scrollTo(0, 0));
+      await page.evaluate(async () => {
+        scrollTo(0, 0);
+        // Cross rendering opportunities after scrolling; a fixed delay cannot
+        // establish which scroll/focus state the browser is about to capture.
+        await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+      });
+      const assertCaptureState = async () => {
+        expect(await page.evaluate(() => scrollY), 'capture starts at the document top').toBe(0);
+        await expect(control).toBeFocused();
+        const skip = await page.getByRole('link', {name:'跳到正文',exact:true}).evaluate(link => {
+          const box = link.getBoundingClientRect();
+          return {focused:link.matches(':focus'), outsideViewport:box.bottom <= 0 || box.right <= 0 || box.left >= innerWidth};
+        });
+        expect(skip, 'unfocused skip link stays outside the live viewport').toEqual({focused:false,outsideViewport:true});
+      };
+      await assertCaptureState();
       const stem = `safe-${scenario.identity}-${scenario.subject.replaceAll(' ', '-')}-${scenario.width}-${scenario.colorScheme}`;
       const path = testInfo.outputPath(`${stem}.png`);
       await page.screenshot({ path, animations: 'disabled', fullPage: true });
+      // Full-page pixels are display evidence; verify capture did not alter the
+      // live focus/scroll contract or reveal the unfocused skip link.
+      await assertCaptureState();
       writeFileSync(testInfo.outputPath(`${stem}.json`), JSON.stringify({
         schema: 2, checkout_sha: execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(),
         tracked_dirty: execFileSync('git', ['status', '--porcelain', '--untracked-files=no'], { encoding: 'utf8' }).trim().length > 0,

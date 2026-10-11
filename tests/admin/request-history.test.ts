@@ -105,6 +105,9 @@ describe("request history protected router and HTML", () => {
     const html = await response.text(); const doc = new JSDOM(html).window.document;
     expect(doc.querySelector('[data-request-detail="audit-safe"]')).not.toBeNull();
     expect(doc.querySelector('[data-request-record="audit-safe"]')).not.toBeNull();
+    expect(doc.querySelector('form[data-dashboard-search]')?.getAttribute("action")).toBe("/admin#request-history");
+    expect(doc.querySelector('input[name="view"]')?.getAttribute("value")).toBe("audit");
+    expect(doc.querySelector('input[name="audit_request"]')?.getAttribute("value")).toBe("request-duplicate");
     expect(doc.querySelector('select[name="audit_result"]')?.getAttribute("name")).toBe("audit_result");
     expect(doc.querySelector('a[aria-label="收起请求详情"]')?.getAttribute("href")).toContain("audit_result=error");
     expect(html).toContain("不单独证明 SSE 终止成功");

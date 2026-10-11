@@ -13,16 +13,14 @@ for (const width of [320, 390, 1440]) test.describe(`organization Home ${width}p
     expect(await grok.locator(".usage-metrics").textContent()).toContain("0 · 已记录 1/4 次请求");
     await expect(grok).not.toContainText("上游计量金额");
     const initialDays = await trends.locator("[data-chart-day]").count();
-    const rail = await page.locator(".nav-rail").elementHandle();
-    const account = await page.getByRole("button", {name: "账号菜单", exact: true}).elementHandle();
+    await page.evaluate(() => { document.documentElement.dataset.navigationProbe = "home"; });
     await expect(page.locator("[data-console-actor-id]")).toHaveAttribute("data-console-actor-id", "admin");
 
     await trends.getByRole("link", {name: "30 天", exact: true}).click();
     await expect(page.locator("[data-usage-range-label]")).toHaveAttribute("data-usage-range-label", "2026-05-26 至 2026-06-24 UTC");
     await expect(trends.getByRole("link", {name: "30 天", exact: true})).toHaveAttribute("aria-current", "true");
     await expect(page).toHaveURL(/view=overview&range=30d/);
-    expect(await rail!.evaluate(node => node === document.querySelector(".nav-rail"))).toBe(true);
-    expect(await account!.evaluate(node => node === document.querySelector('button[aria-label="账号菜单"]'))).toBe(true);
+    await expect(page.locator("html")).not.toHaveAttribute("data-navigation-probe");
     await expect(page.locator("[data-console-actor-id]")).toHaveAttribute("data-console-actor-id", "admin");
     await expectAccountRole(page, "管理员");
     const homeDays = await trends.locator("[data-chart-day]").count();
@@ -69,14 +67,14 @@ for (const width of [320, 390, 1440]) test.describe(`organization Home ${width}p
     await page.screenshot({path: image, fullPage: true, animations: "disabled"});
     await testInfo.attach(`safe organization Home ${width}px`, {path: image, contentType: "image/png"});
 
+    await page.evaluate(() => { document.documentElement.dataset.navigationProbe = "home-range"; });
     if (width < 1000) await page.locator(".nav-toggle-label").click();
     await page.getByRole("navigation", {name: "控制台页面"}).getByRole("link", {name: "用量报告", exact: true}).click();
     await expect(page.locator('main[data-dashboard-view="usage"]')).toBeVisible();
     await expect(page.locator("[data-usage-range-label]")).toHaveAttribute("data-usage-range-label", "2026-05-26 至 2026-06-24 UTC");
     expect(await page.locator("#usage-trends [data-chart-day]").count()).toBe(homeDays);
     expect(await page.locator("#usage-trends .usage-chart-bar").evaluateAll(nodes => nodes.map(node => ({x: node.getAttribute("x"), y: node.getAttribute("y"), height: node.getAttribute("height")})))).toEqual(homeBars);
-    expect(await rail!.evaluate(node => node === document.querySelector(".nav-rail"))).toBe(true);
-    expect(await account!.evaluate(node => node.isConnected)).toBe(true);
+    await expect(page.locator("html")).not.toHaveAttribute("data-navigation-probe");
     expect(worker.requests.every(request => request.method === "GET")).toBe(true);
   });
 });
@@ -90,8 +88,7 @@ test.describe("organization Home partial read recovery", () => {
     await expect(page.locator('[data-attention="account"]')).toBeVisible();
     const resources = await page.locator("[data-home-summary] strong").allTextContents();
     const attention = await page.locator('[data-attention="account"] a').getAttribute("href");
-    const rail = await page.locator(".nav-rail").elementHandle();
-    const account = await page.getByRole("button", {name: "账号菜单", exact: true}).elementHandle();
+    await page.evaluate(() => { document.documentElement.dataset.navigationProbe = "home"; });
     worker.failMemberRead("usage");
     await page.getByRole("navigation", {name: "UTC 时间范围"}).getByRole("link", {name: "30 天", exact: true}).click();
     const unknown = page.locator('[data-home-usage="unavailable"]');
@@ -102,8 +99,7 @@ test.describe("organization Home partial read recovery", () => {
     const newAttention = await page.locator('[data-attention="account"] a').getAttribute("href");
     expect(new URL(newAttention!, worker.origin).searchParams.get("account")).toBe(new URL(attention!, worker.origin).searchParams.get("account"));
     expect(await page.locator("[data-trend-empty],[data-trend-plan]").count()).toBe(0);
-    expect(await rail!.evaluate(node => node === document.querySelector(".nav-rail"))).toBe(true);
-    expect(await account!.evaluate(node => node.isConnected)).toBe(true);
+    await expect(page.locator("html")).not.toHaveAttribute("data-navigation-probe");
     await expect(page.locator("[data-console-actor-id]")).toHaveAttribute("data-console-actor-id", "admin");
     worker.failMemberRead(null);
     await unknown.getByRole("link", {name: "重试", exact: true}).click();

@@ -167,7 +167,7 @@ describe("exact account tasks", () => {
     expect([...html.matchAll(/<li data-account-key=/g)]).toHaveLength(count);
     expect(html).toContain('class="inventory-search"');
     expect(html).toContain('method="get"');
-    expect(html).toContain('action="/admin"');
+    expect(html).toContain('action="/admin#accounts-list"');
     expect(html).toContain('data-dashboard-search');
     expect(new JSDOM(html).window.document.querySelector('#accounts-list form[method="post"]')).toBeNull();
     expect(f.load).not.toHaveBeenCalled();

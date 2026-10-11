@@ -1,9 +1,12 @@
 /** @vitest-environment jsdom */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createNavigation, type Navigation } from "../../src/admin/client/navigation";
+import { createTaskController, type TaskController } from "../../src/admin/client/navigation";
 import { createDrafts } from "../../src/admin/client/drafts";
-import { browserLayout, dashboardHtml, element } from "../support/browser-dom";
-let navigation: Navigation | null = null;
+import { browserLayout, dashboardHtml as pageHtml, element, submit } from "../support/browser-dom";
+function dashboardHtml(view = "access", body = ""): string {
+  return pageHtml(view, `${body}<a id="task-account-link" data-dashboard-link data-task-link href="/admin?view=credentials">Open account task</a><a id="task-usage-link" data-dashboard-link data-task-link href="/admin?view=usage">Open related task</a>`);
+}
+let navigation: TaskController | null = null;
 beforeEach(() => { history.replaceState(null, "", "/admin?view=access"); document.documentElement.innerHTML = new DOMParser().parseFromString(dashboardHtml(), "text/html").documentElement.innerHTML; browserLayout(); });
 afterEach(() => { navigation?.dispose(); navigation = null; vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 function deferred() {
@@ -11,10 +14,10 @@ function deferred() {
   const promise = new Promise<Response>((resolve) => {complete = resolve;});
   return {promise, resolve(response: Response): void { if (!complete) throw new Error("not ready"); complete(response); }};
 }
-function start(): Navigation { navigation = createNavigation(() => {}, createDrafts()); return navigation; }
-describe("fresh dashboard navigation", () => {
+function start(): TaskController { navigation = createTaskController(() => {}, createDrafts()); return navigation; }
+describe("fresh in-document task navigation", () => {
   it("uses a fresh GET, changes the current view and focuses its heading", async () => {
-    const fetch = vi.fn().mockResolvedValue(new Response(dashboardHtml("credentials"))); vi.stubGlobal("fetch", fetch); start(); element("#account-link", HTMLAnchorElement).click();
+    const fetch = vi.fn().mockResolvedValue(new Response(dashboardHtml("credentials"))); vi.stubGlobal("fetch", fetch); start(); element("#task-account-link", HTMLAnchorElement).click();
     await vi.waitFor(() => expect(document.querySelector("main")?.dataset.dashboardView).toBe("credentials"));
     expect(fetch).toHaveBeenCalledWith(expect.stringContaining("view=credentials"), expect.objectContaining({cache: "no-store", credentials: "same-origin"}));
     expect(document.activeElement?.tagName).toBe("H1"); expect(location.search).toBe("?view=credentials");
@@ -23,18 +26,18 @@ describe("fresh dashboard navigation", () => {
   it("ignores a delayed response after a later navigation has completed", async () => {
     const first = deferred(); const second = deferred();
     vi.stubGlobal("fetch", vi.fn().mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise)); start();
-    element("#account-link", HTMLAnchorElement).click(); element("#usage-link", HTMLAnchorElement).click(); second.resolve(new Response(dashboardHtml("usage")));
+    element("#task-account-link", HTMLAnchorElement).click(); element("#task-usage-link", HTMLAnchorElement).click(); second.resolve(new Response(dashboardHtml("usage")));
     await vi.waitFor(() => expect(document.querySelector("main")?.dataset.dashboardView).toBe("usage")); first.resolve(new Response(dashboardHtml("credentials")));
     await new Promise<void>((resolve) => setTimeout(resolve, 0)); expect(document.querySelector("main")?.dataset.dashboardView).toBe("usage");
   });
   it("keeps previous data on network failure and offers a retry", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("network"))); start(); element("#account-link", HTMLAnchorElement).click();
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("network"))); start(); element("#task-account-link", HTMLAnchorElement).click();
     await vi.waitFor(() => expect(element("[data-dashboard-notice]", HTMLElement).dataset.state).toBe("error"));
     expect(document.querySelector("main")?.dataset.dashboardView).toBe("access"); expect(document.body.textContent).toContain("仍显示上次的数据");
     expect(element("[data-dashboard-notice] a", HTMLAnchorElement).textContent).toBe("重试");
   });
   it("clears private content on confirmed session expiry and offers login recovery", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({error: {code: "admin_auth_required"}}), {status: 403}))); start(); element("#account-link", HTMLAnchorElement).click();
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({error: {code: "admin_auth_required"}}), {status: 403}))); start(); element("#task-account-link", HTMLAnchorElement).click();
     await vi.waitFor(() => expect(document.body.textContent).toContain("登录状态无法验证"));
     expect(element("[data-dashboard-notice] a", HTMLAnchorElement).pathname).toBe("/login"); expect(location.search).toBe("?view=access");
     expect(document.querySelector("main")?.dataset.dashboardView).toBeUndefined();
@@ -42,7 +45,7 @@ describe("fresh dashboard navigation", () => {
   });
   it("clears admin content for the authenticated member shell on a 404 admin-only route", async () => {
     vi.stubGlobal("fetch",vi.fn().mockResolvedValue(new Response('<nav data-member-nav></nav><main><h1>没有这个页面</h1></main>',{status:404,headers:{"Content-Type":"text/html"}})));
-    start();element("#account-link",HTMLAnchorElement).click();
+    start();element("#task-account-link",HTMLAnchorElement).click();
     await vi.waitFor(()=>expect(document.body.textContent).toContain("当前角色已改变"));
     expect(document.querySelector("main")?.dataset.dashboardView).toBeUndefined();
     expect(document.querySelector(".nav-rail")).toBeNull();
@@ -53,7 +56,7 @@ describe("fresh dashboard navigation", () => {
     const incoming = new DOMParser().parseFromString(dashboardHtml("usage"), "text/html");
     incoming.querySelector("nav")!.setAttribute("data-member-nav", "true");
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(incoming.documentElement.outerHTML, {headers: {"Content-Type": "text/html"}})));
-    start(); element("#usage-link", HTMLAnchorElement).click();
+    start(); element("#task-usage-link", HTMLAnchorElement).click();
     if (personal) {
       await vi.waitFor(() => expect(document.querySelector("main")?.dataset.dashboardView).toBe("usage"));
       expect(document.body.textContent).not.toContain("当前角色已改变");
@@ -71,7 +74,7 @@ describe("fresh dashboard navigation", () => {
     incoming.querySelector("nav")!.setAttribute("data-member-nav", "true");
     incoming.querySelector(".site-header")!.outerHTML = `<header class="site-header"><div class="identity" data-console-actor-id="actor-A" data-console-email="person@example.test" data-console-role="${currentRole === "管理员" ? "admin" : "user"}"><span class="identity-person"><strong>person@example.test</strong><span class="identity-role">${currentRole}</span></span></div></header>`;
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(incoming.documentElement.outerHTML, {headers: {"Content-Type": "text/html"}})));
-    start(); element("#usage-link", HTMLAnchorElement).click();
+    start(); element("#task-usage-link", HTMLAnchorElement).click();
     await vi.waitFor(() => expect(document.querySelector("main")?.dataset.dashboardView).toBe("usage"));
     expect(document.querySelector(".identity-role")?.textContent).toBe(currentRole);
     expect(document.querySelector<HTMLElement>(".identity")?.dataset.consoleRole).toBe(currentRole === "管理员" ? "admin" : "user");
@@ -82,7 +85,7 @@ describe("fresh dashboard navigation", () => {
     element(".shell nav", HTMLElement).setAttribute("data-member-nav", "true");
     document.querySelector("main")?.insertAdjacentHTML("beforeend", '<section data-usage-range-label="2026-06-18 至 2026-06-24 UTC">Own usage</section>');
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response('<nav data-member-nav></nav><main><h1>暂时不可用</h1></main>', {status: 503, headers: {"Content-Type": "text/html"}})));
-    start(); element("#account-link", HTMLAnchorElement).click();
+    start(); element("#task-account-link", HTMLAnchorElement).click();
     await vi.waitFor(() => expect(element("[data-dashboard-notice]", HTMLElement).dataset.state).toBe("error"));
     expect(document.body.textContent).toContain("仍显示旧范围 2026-06-18 至 2026-06-24 UTC");
     expect(document.body.textContent).toContain("已过期");
@@ -93,19 +96,19 @@ describe("fresh dashboard navigation", () => {
     element(".shell nav", HTMLElement).setAttribute("data-member-nav", "true");
     document.querySelector("main")?.insertAdjacentHTML("beforeend", '<section data-usage-range-label="old range">Own usage</section>');
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({error: {code: "user_inactive"}}), {status: 403, headers: {"Content-Type": "application/json"}})));
-    start(); element("#account-link", HTMLAnchorElement).click();
+    start(); element("#task-account-link", HTMLAnchorElement).click();
     await vi.waitFor(() => expect(document.body.textContent).toContain("登录状态无法验证"));
     expect(document.querySelector("[data-usage-range-label]")).toBeNull();
   });
   it("keeps unrelated private content for an object-specific denial", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({error: {code: "object_denied"}}), {status: 403}))); start(); element("#account-link", HTMLAnchorElement).click();
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({error: {code: "object_denied"}}), {status: 403}))); start(); element("#task-account-link", HTMLAnchorElement).click();
     await vi.waitFor(() => expect(document.body.textContent).toContain("没有这个页面的访问权限"));
     expect(document.querySelector("main")?.dataset.dashboardView).toBe("access");
   });
   it("clears private content when Back confirms that the session expired", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(new Response(dashboardHtml("credentials")))
       .mockResolvedValueOnce(new Response(JSON.stringify({error: {code: "admin_auth_required"}}), {status: 403})));
-    start(); element("#account-link", HTMLAnchorElement).click();
+    start(); element("#task-account-link", HTMLAnchorElement).click();
     await vi.waitFor(() => expect(document.querySelector("main")?.dataset.dashboardView).toBe("credentials"));
     history.back();
     await vi.waitFor(() => expect(document.body.textContent).toContain("登录状态无法验证"));
@@ -118,12 +121,12 @@ describe("fresh dashboard navigation", () => {
     expect(element("#keys", HTMLDetailsElement).open).toBe(true); expect(document.activeElement?.id).toBe("keys"); expect(fetch).not.toHaveBeenCalled();
   });
   it("blocks navigation while a mutation is pending", () => {
-    const fetch = vi.fn(); vi.stubGlobal("fetch", fetch); const current = start(); current.setMutationPending(true); element("#account-link", HTMLAnchorElement).click();
-    expect(fetch).not.toHaveBeenCalled(); expect(element("#account-link", HTMLAnchorElement).getAttribute("aria-disabled")).toBe("true");
-    current.setMutationPending(false); expect(element("#account-link", HTMLAnchorElement).getAttribute("aria-disabled")).toBeNull();
+    const fetch = vi.fn(); vi.stubGlobal("fetch", fetch); const current = start(); current.setMutationPending(true); element("#task-account-link", HTMLAnchorElement).click();
+    expect(fetch).not.toHaveBeenCalled(); expect(element("#task-account-link", HTMLAnchorElement).getAttribute("aria-disabled")).toBe("true");
+    current.setMutationPending(false); expect(element("#task-account-link", HTMLAnchorElement).getAttribute("aria-disabled")).toBeNull();
   });
   it("Back loads fresh HTML and restores the source link focus", async () => {
-    const access = dashboardHtml("access", '<a id="person-account" data-dashboard-link href="/admin?view=credentials">管理账号</a>');
+    const access = dashboardHtml("access", '<a id="person-account" data-dashboard-link data-task-link href="/admin?view=credentials">管理账号</a>');
     document.body.innerHTML = new DOMParser().parseFromString(access, "text/html").body.innerHTML;
     vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(new Response(dashboardHtml("credentials"))).mockResolvedValueOnce(new Response(access))); start(); element("#person-account", HTMLAnchorElement).click();
     await vi.waitFor(() => expect(location.search).toBe("?view=credentials")); history.back();
@@ -133,10 +136,36 @@ describe("fresh dashboard navigation", () => {
 
 it('ignores a completed old read after the document has discarded its navigation', async () => {
   const request = deferred(); vi.stubGlobal('fetch', vi.fn().mockReturnValue(request.promise));
-  const current = start(); element('#account-link', HTMLAnchorElement).click(); current.dispose();
+  const current = start(); element('#task-account-link', HTMLAnchorElement).click(); current.dispose();
   document.body.innerHTML = '<main id="content" data-console-recovery>Read again</main>';
   request.resolve(new Response(dashboardHtml('credentials')));
   await new Promise(done => setTimeout(done, 0));
   expect(document.querySelector('[data-console-recovery]')).not.toBeNull();
   expect(document.querySelector('[data-dashboard-view]')).toBeNull();
+});
+
+
+describe("native page navigation", () => {
+  it("leaves ordinary page links to the browser and fetches only explicit task links", () => {
+    const fetch = vi.fn(); vi.stubGlobal("fetch", fetch); start();
+    let prevented: boolean | undefined;
+    document.addEventListener("click", event => { prevented = event.defaultPrevented; event.preventDefault(); }, {once: true});
+    element("#account-link", HTMLAnchorElement).click();
+    expect(prevented).toBe(false); expect(fetch).not.toHaveBeenCalled();
+    expect(document.querySelector("main")?.dataset.dashboardView).toBe("access");
+  });
+  it("leaves GET search submission native but blocks page links and forms during a write", () => {
+    document.querySelector("main")!.insertAdjacentHTML("beforeend", '<form method="get" action="/admin#people-list" data-dashboard-search><input name="view" value="access"><input name="q" value="person"><button type="submit">Search</button></form>');
+    const fetch = vi.fn(); vi.stubGlobal("fetch", fetch); const current = start();
+    const form = element("form", HTMLFormElement);
+    expect(submit(form).defaultPrevented).toBe(false);
+    current.setMutationPending(true);
+    expect(submit(form).defaultPrevented).toBe(true);
+    let prevented: boolean | undefined;
+    document.addEventListener("click", event => { prevented = event.defaultPrevented; event.preventDefault(); }, {once: true});
+    element("#account-link", HTMLAnchorElement).click();
+    expect(prevented).toBe(true); expect(fetch).not.toHaveBeenCalled();
+    current.setMutationPending(false);
+    expect(submit(form).defaultPrevented).toBe(false);
+  });
 });

@@ -18,8 +18,7 @@ export function inventorySearchControl(
   url.searchParams.delete(pageField);
   return {
     id: `search-${anchor}-${field}`,
-    action: url.pathname,
-    anchor,
+    action: `${url.pathname}#${anchor}`,
     label,
     field,
     value,
@@ -56,7 +55,7 @@ export function InventoryPages(props: {
   url.searchParams.delete("page_size");
   url.searchParams.delete(props.field);
   return <div className="inventory-pagination">
-    <form className="inventory-page-size" method="get" action={`${url.pathname}#${props.anchor}`} data-dashboard-search="true" data-search-anchor={props.anchor} aria-label={`${props.label}每页数量`}>
+    <form className="inventory-page-size" method="get" action={`${url.pathname}#${props.anchor}`} data-dashboard-search="true" aria-label={`${props.label}每页数量`}>
       {[...url.searchParams].map(([name, value]) => <input key={name} type="hidden" name={name} value={value} />)}
       <label htmlFor={`page-size-${props.anchor}`}>每页</label>
       <NativeSelect id={`page-size-${props.anchor}`} name="page_size" defaultValue={String(props.pageSize)}>

@@ -20,6 +20,9 @@ export const test = base.extend<{ worker: ConsoleWorker; identity: Identity; scr
       // Observe real browser lifecycle events; never synthesize pagehide/pageshow.
       (window as unknown as { restoredFromCache: boolean }).restoredFromCache = false;
       (window as unknown as { pageShowObserved: boolean }).pageShowObserved = false;
+      addEventListener("pagehide", event => {
+        if (event.isTrusted) (window as unknown as { pageShowObserved: boolean }).pageShowObserved = false;
+      });
       addEventListener("pageshow", (event) => {
         if (!event.isTrusted) return;
         (window as unknown as { restoredFromCache: boolean }).restoredFromCache = (event as PageTransitionEvent).persisted;
@@ -64,4 +67,18 @@ export async function openNativeConfirmation(form: Locator): Promise<void> {
   const disclosure = form.locator('.confirmation-disclosure');
   if (await disclosure.getAttribute('open') === null) await disclosure.locator('summary').click();
   await expect(disclosure.getByRole('checkbox')).toBeVisible();
+}
+
+// A native history traversal may return a fresh response or a scrubbed BFCache
+// document. Both require a current authorized GET before asserting task content.
+export async function reopenRestoredConsolePage(page: Page, target: string): Promise<void> {
+  await expect.poll(() => page.evaluate(() => (window as unknown as {pageShowObserved?: boolean}).pageShowObserved === true)).toBe(true);
+  if (!await page.evaluate(() => (window as unknown as {restoredFromCache?: boolean}).restoredFromCache === true)) return;
+  await expect(page.locator('[data-console-recovery]')).toBeVisible();
+  expect(await page.locator('.shell,.identity,[data-ui-props],[data-one-time-key],[data-created-token]').count()).toBe(0);
+  const url = new URL(target, page.url());
+  const reopen = page.getByRole('link', {name:'查看当前页面',exact:true});
+  await expect(reopen).toHaveAttribute('href', url.pathname + url.search + url.hash);
+  await reopen.click();
+  await page.waitForURL(url.href, {waitUntil:'load'});
 }

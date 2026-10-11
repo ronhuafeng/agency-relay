@@ -128,7 +128,7 @@ test('HTTPS image credentials and Chromium manifest/worker requests use the brow
   } finally { await context.close(); }
 });
 
-for (const destination of ['用量报告', '上游连接', '成员与服务']) test(`a confirmed role change removes organization content before ${destination} recovery`, async ({ page, worker }, testInfo) => {
+for (const destination of ['用量报告', '上游连接', '成员与服务']) test(`native ${destination} navigation uses current role after demotion`, async ({ page, worker }, testInfo) => {
   await page.goto('/admin?view=access');
   await expect(page.locator('[data-user-id="other"]')).toContainText('other@example.test');
   const changed = await page.evaluate(async () => {
@@ -137,14 +137,18 @@ for (const destination of ['用量报告', '上游连接', '成员与服务']) t
   });
   expect(changed).toBe(true);
   expect(worker.person('admin@example.test')?.role).toBe('user');
+  const response = page.waitForResponse(response => response.request().isNavigationRequest()
+    && response.request().frame() === page.mainFrame() && new URL(response.url()).pathname === '/admin');
   await page.getByRole('navigation', { name: '控制台页面' }).getByRole('link', { name: destination, exact: true }).click();
-  await expect(page.locator('[data-dashboard-notice]')).toContainText('当前角色已改变');
-  await expect(page.locator('[data-user-id],[data-dashboard-view],.nav-rail,.identity-person strong')).toHaveCount(0);
+  expect((await response).status()).toBe(destination === '用量报告' ? 200 : 404);
+  await expect(page.locator('[data-user-id],[data-dashboard-view]')).toHaveCount(0);
+  await expect(page.locator('[data-console-role]')).toHaveAttribute('data-console-role','user');
+  await expect(page.getByRole('heading', {name:destination === '用量报告' ? '我的用量' : '没有这个页面',exact:true,level:1})).toBeVisible();
   await expect.poll(() => page.locator('[data-one-time-key],[data-created-token]').count()).toBe(0);
   const path = testInfo.outputPath('safe-role-changed.png');
   await page.screenshot({ path, animations: 'disabled' });
   await testInfo.attach('role changed recovery', { path, contentType: 'image/png' });
-  await page.getByRole('link', { name: '打开我的首页' }).click();
+  await page.getByRole('navigation', {name:'成员页面'}).getByRole('link', {name:'工作台',exact:true}).click();
   await expect(page.locator('[data-member-view="home"]')).toBeVisible();
   await expectAccountRole(page,'成员');
 });

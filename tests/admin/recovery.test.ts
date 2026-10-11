@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 import {afterEach, beforeEach, expect, it, vi} from 'vitest';
-import {createNavigation} from '../../src/admin/client/navigation';
+import {createTaskController} from '../../src/admin/client/navigation';
 import {createDrafts} from '../../src/admin/client/drafts';
 import {initializeMutations} from '../../src/admin/client/mutations';
 import {initializeMemberMutations} from '../../src/admin/client/member-mutations';
@@ -173,14 +173,14 @@ it('rejects a missing actor ID rather than falling back to a matching mailbox', 
 });
 
 it.each(['navigation','mutation'] as const)('keeps the document privacy boundary across an in-flight %s replacement', async operation => {
-  document.body.innerHTML=new DOMParser().parseFromString(dashboardHtml('access','<form method="post" action="/admin/ui/keys"><input name="name" value="private draft"><button type="submit">Create</button></form>'),'text/html').body.innerHTML;
+  document.body.innerHTML=new DOMParser().parseFromString(dashboardHtml('access','<a data-dashboard-link data-task-link href="/admin?view=credentials">Open task</a><form method="post" action="/admin/ui/keys"><input name="name" value="private draft"><button type="submit">Create</button></form>'),'text/html').body.innerHTML;
   browserLayout();
   let finishPage!:(response:Response)=>void; let finishMe!:(response:Response)=>void;
   const pageResult=new Promise<Response>(resolve=>{finishPage=resolve;}); const meResult=new Promise<Response>(resolve=>{finishMe=resolve;});
   vi.stubGlobal('fetch',vi.fn((url:string)=>url==='/me'?meResult:pageResult));
-  const navigation=createNavigation(()=>{},createDrafts()); const mutations=initializeMutations(navigation);
+  const navigation=createTaskController(()=>{},createDrafts()); const mutations=initializeMutations(navigation);
   const dispose=()=>{mutations();navigation.dispose();}; const recovery=initializeRecovery(dispose); stop=()=>{recovery();dispose();};
-  if(operation==='navigation') document.querySelector<HTMLAnchorElement>('#account-link')!.click(); else submit(document.querySelector('form')!);
+  if(operation==='navigation') document.querySelector<HTMLAnchorElement>('[data-task-link]')!.click(); else submit(document.querySelector('form')!);
   document.dispatchEvent(new Event('visibilitychange'));
   const incoming=dashboardHtml('credentials','<section data-late-private>Private replacement</section>')
     .replace('data-dashboard-view="credentials"',`data-dashboard-view="credentials"${operation==='mutation'?' data-dashboard-mutation="key_created"':''}`);
@@ -194,13 +194,13 @@ it.each(['navigation','mutation'] as const)('keeps the document privacy boundary
 });
 
 it('discards old drafts before accepting HTML projected for a different actor', async () => {
-  document.body.innerHTML=new DOMParser().parseFromString(dashboardHtml('access','<form data-dashboard-draft="person" action="/admin/ui/users"><input name="email" value="unchanged@example.test"></form>'),'text/html').body.innerHTML;
-  browserLayout(); const drafts=createDrafts(); const navigation=createNavigation(()=>{},drafts);
+  document.body.innerHTML=new DOMParser().parseFromString(dashboardHtml('access','<a data-dashboard-link data-task-link href="/admin?view=credentials">Open task</a><form data-dashboard-draft="person" action="/admin/ui/users"><input name="email" value="unchanged@example.test"></form>'),'text/html').body.innerHTML;
+  browserLayout(); const drafts=createDrafts(); const navigation=createTaskController(()=>{},drafts);
   const recovery=initializeRecovery(()=>navigation.dispose()); stop=()=>{recovery();navigation.dispose();};
   const field=document.querySelector('input')!; field.value='private-draft@example.test'; field.dispatchEvent(new Event('input',{bubbles:true}));
   const incoming=dashboardHtml('credentials','<section data-next-actor>Another actor</section>').replace('data-console-actor-id="actor-A"','data-console-actor-id="actor-B"');
   vi.stubGlobal('fetch',vi.fn().mockResolvedValue(new Response(incoming,{headers:{'Content-Type':'text/html'}})));
-  document.querySelector<HTMLAnchorElement>('#account-link')!.click();
+  document.querySelector<HTMLAnchorElement>('[data-task-link]')!.click();
   await vi.waitFor(()=>expect(document.querySelector('[data-console-recovery]')).not.toBeNull());
   expect(document.querySelector('.shell,input,[data-next-actor]')).toBeNull();
   const fresh=document.createElement('section'); fresh.innerHTML='<form data-dashboard-draft="person" action="/admin/ui/users"><input name="email" value="unchanged@example.test"></form>';
@@ -211,7 +211,7 @@ it.each([['member','confirmed'],['admin','confirmed'],['member','unknown']] as c
   const form='<form method="post" action="'+(area==='member'?'/me/ui/keys':'/admin/ui/keys')+'"><input name="name" value="private draft"><button type="submit">Create</button></form>';
   document.body.innerHTML=new DOMParser().parseFromString(dashboardHtml('access',form),'text/html').body.innerHTML;
   document.body.className=area==='member'?'console-simple':''; browserLayout();
-  const navigation=createNavigation(()=>{},createDrafts()); const mutations=area==='member'?initializeMemberMutations():initializeMutations(navigation);
+  const navigation=createTaskController(()=>{},createDrafts()); const mutations=area==='member'?initializeMemberMutations():initializeMutations(navigation);
   const dispose=()=>{mutations();navigation.dispose();}; const recovery=initializeRecovery(dispose); stop=()=>{recovery();dispose();};
   const incoming=dashboardHtml('access',outcome==='confirmed'?'<section data-one-time-key>INVALID-DISPLAY-ONLY</section>':'<p>Unrelated response</p>').replace('data-console-actor-id="actor-A"','data-console-actor-id="actor-B"')
     .replace('<body>','<body class="console-simple">').replace('data-dashboard-view="access"','data-dashboard-view="access" data-dashboard-mutation="key_created"');
