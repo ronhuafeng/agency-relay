@@ -44,7 +44,17 @@ for (const scenario of [
     await expect(page.locator('[data-trend-plan]')).toHaveCount(1);
     await expect(page.locator('.usage-record')).toHaveCount(1);
     await expect(page.locator('[data-trend-plan="codex.responses"] .usage-metrics')).toContainText('Requests2');
-    const exportHref = await page.getByRole('link', {name: '导出数据', exact: true}).getAttribute('href');
+    const exportLink = page.getByRole('link', {name: '导出数据', exact: true});
+    // A committed query keeps the export reachable after the search control is left.
+    // Focusing that control hides it; the value alone must not.
+    await page.locator('#usage-details').focus();
+    await expect(exportLink).toBeVisible();
+    await page.getByRole('searchbox').focus();
+    await expect(exportLink).toBeHidden();
+    await page.locator('#usage-details').focus();
+    await expect(exportLink).toBeVisible();
+    await exportLink.click({ trial: true });
+    const exportHref = await exportLink.getAttribute('href');
     const exportResponse = await page.request.get(exportHref!);
     expect(exportResponse.status()).toBe(200);
     const exported = await exportResponse.json();
