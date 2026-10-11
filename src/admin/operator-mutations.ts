@@ -1,3 +1,4 @@
+import { commitCodexAdmission } from "../auth/account-admission";
 import { commitServiceOwner } from "../auth/service-delegation";
 /**
  * Canonical operator mutations for ADMIN_SECRET CLI and Access Dashboard.
@@ -605,6 +606,10 @@ export async function refreshCodexCredential(
     previous_expires_at: previousExpiresAt,
     expires_at_changed: previousExpiresAt !== (auth?.expires_at ?? null)
   };
+}
+
+export async function setCodexAdmission(ctx: OperatorMutationContext, authId: string, state: CodexAuthRow["admission_state"]): Promise<CodexAuthRow> {
+  return commitCodexAdmission(ctx.env, credentialActor(ctx), authId, state, ctx.now);
 }
 
 /** Disconnect one ChatGPT Credential Account. Live bindings block this path. */

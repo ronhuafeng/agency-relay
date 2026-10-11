@@ -996,6 +996,7 @@ describe("Codex forwarding", () => {
 
 function expectPublicCodexAuthShape(auth: unknown): void {
   expect(Object.keys(auth as Record<string, unknown>).sort()).toEqual([
+    "admission_state",
     "created_at",
     "environment",
     "expires_at",

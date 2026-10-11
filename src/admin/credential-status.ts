@@ -6,14 +6,14 @@ import { operatorHintForState, projectStoredState, humanStatusLabel, statusToneF
 
 export async function credentialStatusResponse(env: Env, actorId: string, now: Date): Promise<Response> {
   const result = await env.DB.prepare(`
-    SELECT 'codex:' || id AS key, status, expires_at, last_refresh_at FROM codex_auths
-    UNION ALL SELECT 'grok:' || id AS key, status, expires_at, last_refresh_at FROM subscription_accounts
+    SELECT 'codex:' || id AS key, status, expires_at, last_refresh_at, admission_state FROM codex_auths
+    UNION ALL SELECT 'grok:' || id AS key, status, expires_at, last_refresh_at, NULL AS admission_state FROM subscription_accounts
     ORDER BY key LIMIT 1001
-  `).all<{ key: string; status: string; expires_at: string | null; last_refresh_at: string | null }>();
+  `).all<{ key: string; status: string; expires_at: string | null; last_refresh_at: string | null; admission_state: "enabled" | "paused" | null }>();
   if (!result.success || result.results.length > 1000) throw new HttpError(503, "Credential status unavailable", "server_error", "credential_status_unavailable");
   const accounts = result.results.map(row => {
     const state = projectStoredState(row.status, row.expires_at, now.getTime());
-    return { key: row.key, state, statusLabel: humanStatusLabel(state), tone: statusToneForState(state), hint: operatorHintForState(state), expiresAt: row.expires_at, lastRefreshAt: row.last_refresh_at };
+    return { key: row.key, state, admissionState: row.admission_state, statusLabel: humanStatusLabel(state), tone: statusToneForState(state), hint: operatorHintForState(state), expiresAt: row.expires_at, lastRefreshAt: row.last_refresh_at };
   });
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify(accounts)));
   const revision = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, "0")).join("");

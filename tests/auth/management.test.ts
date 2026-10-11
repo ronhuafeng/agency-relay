@@ -46,6 +46,7 @@ describe("account auth-management projection", () => {
   it("projects active ChatGPT with refresh + reauth + logout", () => {
     const p = projectCodexIdentity({
       auth: {
+        admission_state: "enabled",
         status: "active",
         expires_at: "2026-08-01T06:08:02.000Z",
         last_refresh_at: "2026-07-22T06:08:00.000Z",
@@ -64,6 +65,7 @@ describe("account auth-management projection", () => {
     const expires = new Date(nowMs + AUTH_EXPIRING_LEAD_MS - 60_000).toISOString();
     const p = projectCodexIdentity({
       auth: {
+        admission_state: "enabled",
         status: "active",
         expires_at: expires,
         last_refresh_at: null,
@@ -78,6 +80,7 @@ describe("account auth-management projection", () => {
   it("projects reauth_required with Re-auth primary", () => {
     const p = projectCodexIdentity({
       auth: {
+        admission_state: "enabled",
         status: "reauth_required",
         expires_at: null,
         last_refresh_at: null,
@@ -95,7 +98,7 @@ describe("account auth-management projection", () => {
       const common = { status, expires_at, last_refresh_at: null };
       const oauthPending = pending ? { session_id: "pending", authorize_url: "https://example.test/login" } : null;
       return client === "ChatGPT"
-        ? projectCodexIdentity({ auth: { ...common, upstream_email: null }, oauthPending, nowMs })
+        ? projectCodexIdentity({ auth: { ...common, admission_state: "enabled", upstream_email: null }, oauthPending, nowMs })
         : projectGrokIdentity({ account: { ...common, label: "Team" }, oauthPending, nowMs });
     };
 
@@ -141,6 +144,7 @@ describe("account auth-management projection", () => {
   it("oauth pending forces authorizing over stored active", () => {
     const p = projectCodexIdentity({
       auth: {
+        admission_state: "enabled",
         status: "active",
         expires_at: "2026-08-01T00:00:00.000Z",
         last_refresh_at: null,
@@ -200,6 +204,7 @@ describe("account auth-management projection", () => {
     expect(
       projectCodexIdentity({
         auth: {
+        admission_state: "enabled",
           status: "active",
           expires_at: "2026-08-01T00:00:00.000Z",
           last_refresh_at: null,
@@ -211,6 +216,7 @@ describe("account auth-management projection", () => {
     expect(
       projectCodexIdentity({
         auth: {
+        admission_state: "enabled",
           status: "degraded",
           expires_at: null,
           last_refresh_at: null,
@@ -222,6 +228,7 @@ describe("account auth-management projection", () => {
     expect(
       projectCodexIdentity({
         auth: {
+        admission_state: "enabled",
           status: "reauth_required",
           expires_at: null,
           last_refresh_at: null,
@@ -278,4 +285,17 @@ describe("account auth-management projection", () => {
     expect(statusToneForState("revoked")).toBe("neutral");
     expect(statusToneForState("authorizing")).toBe("neutral");
   });
+});
+
+
+it.each(["active", "reauth_required", "revoked"])("keeps %s credential health and recovery independent from admission pause", status => {
+  const auth = {status,admission_state:"paused" as const,expires_at:null,last_refresh_at:null,upstream_email:null};
+  const input = {auth,nowMs:Date.parse("2026-07-28T12:00:00.000Z")};
+  const paused = projectCodexIdentity(input);
+  const enabled = projectCodexIdentity({...input,auth:{...auth,admission_state:"enabled"}});
+  expect(paused.admissionState).toBe("paused"); expect(enabled.admissionState).toBe("enabled");
+  expect(paused.state).toBe(status); expect(enabled.state).toBe(status);
+  expect(paused.primaryActions).toEqual(enabled.primaryActions); expect(paused.secondaryActions).toEqual(enabled.secondaryActions);
+  const pending = projectCodexIdentity({...input,oauthPending:{session_id:"synthetic",authorize_url:"https://example.test/login"}});
+  expect(pending.state).toBe("authorizing"); expect(pending.admissionState).toBe("paused");
 });

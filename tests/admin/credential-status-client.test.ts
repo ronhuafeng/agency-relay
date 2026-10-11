@@ -12,7 +12,7 @@ class StatusSocket extends EventTarget {
   message(type: string): void { this.dispatchEvent(new MessageEvent("message", {data: JSON.stringify({type})})); }
   disconnect(code = 1011): void { this.dispatchEvent(new CloseEvent("close", {code})); }
 }
-const status = (state = "active", key = "codex:shared-id") => ({key, state,
+const status = (state = "active", key = "codex:shared-id") => ({key, state, admissionState: key.startsWith("codex:") ? "enabled" : null,
   statusLabel: state === "reauth_required" ? "需要重新连接" : "已连接",
   tone: state === "reauth_required" ? "bad" : "ok", hint: state === "reauth_required" ? "请重新登录。" : null,
   expiresAt: null as string | null, lastRefreshAt: null as string | null});
@@ -219,4 +219,21 @@ it("updates stored expiry and refresh dates with the state, retaining email, row
   fetchMock.mockResolvedValueOnce(Response.json(model([{...status(), expiresAt: future, lastRefreshAt: last}])));
   connection().message("credentials-changed"); await settle();
   expect(expiry.querySelector("dd")?.textContent).toBe("legacy date unavailable"); expect(root.dataset.mgmtState).toBe("authorizing");
+});
+
+
+it("marks a changed admission action stale without retargeting confirmation or disturbing credential health", async () => {
+  element("#detail", HTMLElement).insertAdjacentHTML("beforeend", `<form method="post" action="/admin/ui/codex-auths/shared-id/pause" data-credential-admission-form data-admission-state="enabled"><button type="submit" role="switch" aria-checked="true">允许新请求</button><span data-credential-admission hidden>已暂停</span><p data-credential-admission-changed hidden>请求准入已变化</p><a data-credential-admission-read hidden href="/admin?view=credentials&amp;account=codex%3Ashared-id">查看当前状态</a></form>`);
+  stop = initializeCredentialStatus(); await settle();
+  const form = element("[data-credential-admission-form]", HTMLFormElement);
+  const control = form.querySelector<HTMLButtonElement>("button")!;
+  fetchMock.mockResolvedValueOnce(Response.json(model([{...status(),admissionState:"paused"},status("active","grok:shared-id")])));
+  connection().message("credentials-changed"); await settle();
+  expect(badge().textContent).toBe("已连接"); expect(button().disabled).toBe(false);
+  expect(form.querySelector<HTMLElement>("[data-credential-admission]")!.hidden).toBe(false);
+  expect(control.disabled).toBe(true); expect(control.getAttribute("aria-checked")).toBe("false");
+  expect(form.getAttribute("action")).toBe("/admin/ui/codex-auths/shared-id/pause");
+  expect(form.querySelector<HTMLElement>("[data-credential-admission-read]")!.hidden).toBe(false);
+  const event = new Event("submit", {bubbles:true,cancelable:true}); form.dispatchEvent(event); expect(event.defaultPrevented).toBe(true);
+  control.disabled = false; await settle(); expect(control.disabled).toBe(true);
 });

@@ -19,6 +19,7 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from ".
 import { InfoPopover } from "../components/info-popover";
 import { NativeSelect, NativeSelectOption } from "../components/native-select";
 import { Label } from "../components/label";
+import { Switch } from "../components/switch";
 import { ObjectWorkspace, TaskClose } from "../task-workspace";
 import type { RetirementPreview } from "../../../auth/credential-defaults";
 
@@ -79,6 +80,35 @@ function defaultSurfaceName(grant: string): string {
   if (surface === "grok") return "grok";
   if (surface === "xai") return "xai";
   return "service";
+}
+
+function AccountAdmission({ model }: { readonly model: AccountsPageModel }) {
+  const account = model.accounts.find(candidate => candidate.key === model.selectedAccountKey);
+  if (!account || account.provider !== "codex" || account.projection.admissionState === null) return null;
+  const paused = account.projection.admissionState === "paused";
+  const impact = model.retirement;
+  const blocked = !impact ? "暂时无法读取影响，请先查看当前状态。"
+    : ["revoked", "absent"].includes(account.projection.state) ? "连接账号后可更改请求准入，重新连接不会自动解除暂停。"
+    : impact.status === "retiring" ? "此账号正在停用，请先核对剩余绑定和默认连接并完成停用。" : null;
+  const count = impact ? new Set(impact.live_keys.map(key => key.id)).size : null;
+  const impactText = impact ? `${count} 个未撤销密钥、${impact.live_keys.length} 项绑定使用此账号。${impact.default_surfaces.length ? "当前默认连接保留；暂停期间不能以此默认连接发行新密钥。" : ""}` : "";
+  const effect = paused
+    ? "只解除管理员设置的暂停，连接、授权与额度检查仍然生效。已断开或失效的凭据不会恢复。"
+    : "拒绝此账号的后续上游请求，不会自动切换账号。已接受的请求或外部任务不会因此取消。";
+  const confirmation = `${paused ? "恢复" : "暂停"} ChatGPT · ${account.label}（${account.id}）的请求准入？${impactText}${effect}连接凭据、密钥、绑定、默认设置、额度与历史用量保留。`;
+  const params = new URL(model.canonicalUrl, "https://dashboard.invalid").searchParams;
+  const controlId = `account-admission-${encodeURIComponent(account.id)}`;
+  return <section className="workspace-section" aria-label="ChatGPT 请求准入" data-account-admission="">
+    <form method="post" action={`/admin/ui/codex-auths/${encodeURIComponent(account.id)}/${paused ? "resume" : "pause"}`} data-action={`codex-${paused ? "resume" : "pause"}`} data-credential-admission-form="" data-admission-state={account.projection.admissionState} data-confirmation={confirmation}>
+      <ReturnFields range={model.range.key} query={params.get("q") ?? ""} page={params.get("page") ?? "1"}/>
+      <input type="hidden" name="confirm" value="1"/>
+      <div className="status-switch-control"><Switch id={controlId} type="submit" checked={!paused} disabled={blocked !== null} aria-label={`ChatGPT · ${account.label}：允许新请求`} data-confirm-label={paused ? "恢复请求" : "暂停请求"}/><Label htmlFor={controlId}>允许新请求</Label><Badge data-credential-admission="" className="tone-warn" hidden={!paused}>已暂停</Badge></div>
+      {impact ? <p className="caption" data-admission-impact="">{impactText}</p> : null}
+      {blocked ? <p className="caption">{blocked}</p> : <ConfirmationFallback message={confirmation}/>}
+      <p className="caption" data-credential-admission-changed="" hidden>请求准入已变化，请先查看当前状态，再确认操作。</p>
+      <a data-credential-admission-read="" data-dashboard-link="" href={accountDashboardUrl(model.canonicalUrl, account.key)} hidden={!blocked}>查看当前状态</a>
+    </form>
+  </section>;
 }
 
 function RetirementImpact({ model }: { readonly model: AccountsPageModel }) {
@@ -342,7 +372,7 @@ function DefaultAccounts({model}: {readonly model: AccountsPageModel}) {
           <Label className="sr-only" htmlFor={`${formId}-account`}>{`${name} 新密钥默认连接`}</Label>
           <NativeSelect id={`${formId}-account`} name="credential_account_id" defaultValue={current?.id ?? ""} required disabled={!options.some(account=>account.defaultEligible)}>
             <NativeSelectOption value="" disabled>{row?.account_id ? "当前连接未读到" : "未设置 · 请选择连接"}</NativeSelectOption>
-            {options.map(account => <NativeSelectOption key={account.key} value={account.id} disabled={!account.defaultEligible}>{presentText(account.label)} · {account.projection.statusLabel} · {account.id}</NativeSelectOption>)}
+            {options.map(account => <NativeSelectOption key={account.key} value={account.id} disabled={!account.defaultEligible}>{presentText(account.label)} · {account.projection.statusLabel}{account.projection.admissionState === "paused" ? " · 已暂停" : ""} · {account.id}</NativeSelectOption>)}
           </NativeSelect>
           <ConfirmationFallback message={warning}/>
         </form>
@@ -359,7 +389,7 @@ export function AccountsPage({ model }: { readonly model: AccountsPageModel }) {
   const page = search.get("page") ?? "1";
   const selected = model.accounts.find((account) => account.key === model.selectedAccountKey);
   const authorizing = selected?.projection.state === "authorizing";
-  const matches = model.accounts.filter((account) => `${account.label} ${account.provider === "codex" ? "ChatGPT" : "Grok"} ${account.projection.statusLabel}`.toLowerCase().includes(query.toLowerCase()));
+  const matches = model.accounts.filter((account) => `${account.label} ${account.provider === "codex" ? "ChatGPT" : "Grok"} ${account.projection.statusLabel} ${account.projection.admissionState === "paused" ? "已暂停" : ""}`.toLowerCase().includes(query.toLowerCase()));
   const parentUrl = inventoryUrl(model.canonicalUrl, { account: null, task: null, page: null });
   const detail = adding || model.selectedAccountKey !== null;
   return (
@@ -368,7 +398,7 @@ export function AccountsPage({ model }: { readonly model: AccountsPageModel }) {
         <div className="account-detail" id="account-detail" tabIndex={-1} data-account-detail={model.selectedAccountKey ?? ""}>
           {adding ? <Card className="account-create-task"><header className="task-card-head"><h2>添加账号</h2><TaskClose href={`${parentUrl}#accounts-list`} label="收起添加账号"/></header><AddAccountIsland control={{ range: model.range.key, query, page }} /></Card> : selected ? (
             <>
-              <IdentityCard account={selected} linkedTotal={model.linkedKeys ? model.linkedKeys.total : null} range={model.range.key} query={query} page={page} cancelUrl={accountDashboardUrl(model.canonicalUrl, selected.key)} closeHref={`${parentUrl}#accounts-list`} impact={<RetirementImpact model={model}/>} disconnectBlock={model.retirement === null ? "请先重新读取停用影响" : model.retirement.live_keys.length > 0 ? "请先处理未撤销密钥绑定" : model.retirement.default_surfaces.length > 0 ? "请先处理默认连接" : null}/>
+              <IdentityCard account={selected} linkedTotal={model.linkedKeys ? model.linkedKeys.total : null} range={model.range.key} query={query} page={page} cancelUrl={accountDashboardUrl(model.canonicalUrl, selected.key)} closeHref={`${parentUrl}#accounts-list`} impact={<><AccountAdmission model={model}/><RetirementImpact model={model}/></>} disconnectBlock={model.retirement === null ? "请先重新读取停用影响" : model.retirement.live_keys.length > 0 ? "请先处理未撤销密钥绑定" : model.retirement.default_surfaces.length > 0 ? "请先处理默认连接" : null}/>
               <LinkedKeys model={model} readOnly={authorizing}/>
               {model.snapshot ? <section className="account-snapshot"><AccountDossier accountId={selected.id} snapshot={model.snapshot}/></section> : null}
             </>
@@ -385,7 +415,7 @@ export function AccountsPage({ model }: { readonly model: AccountsPageModel }) {
         {query ? <p className="inventory-scope">{`${formatNumber(matches.length)} / ${formatNumber(model.accounts.length)} 个账号`}</p> : null}
         <ul className="account-list" aria-label="账号">
           {matches.length === 0 ? <li><p className="empty">{model.accounts.length ? "没有匹配的账号。" : "还没有账号。"}</p></li> : matches.map((account) => {
-            const identity = <><span className="account-identity"><strong>{presentText(account.label)}</strong><small>{account.provider === "codex" ? "ChatGPT" : "Grok"}</small></span><Badge data-credential-status="" className={`account-state tone-${statusToneForState(account.projection.state)}`}>{presentText(account.projection.statusLabel)}</Badge><Icon name="arrow" /></>;
+            const identity = <><span className="account-identity"><strong>{presentText(account.label)}</strong><small>{account.provider === "codex" ? "ChatGPT" : "Grok"}{account.provider === "codex" ? <span data-credential-admission="" hidden={account.projection.admissionState !== "paused"}> · 已暂停</span> : null}</small></span><Badge data-credential-status="" className={`account-state tone-${statusToneForState(account.projection.state)}`}>{presentText(account.projection.statusLabel)}</Badge><Icon name="arrow" /></>;
             return (
             <li key={account.key} data-account-key={account.key} data-credential-key={account.key}>
               {authorizing ? <span className="account-link" aria-disabled="true" aria-current={account.key === model.selectedAccountKey ? "true" : undefined}>{identity}</span> : <DashLink className="account-link" href={`${accountDashboardUrl(model.canonicalUrl, account.key)}#account-detail`} current={account.key === model.selectedAccountKey}>{identity}</DashLink>}

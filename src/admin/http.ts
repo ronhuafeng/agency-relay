@@ -50,6 +50,7 @@ import {
   logoutCodexCredential,
   logoutGrokCredential,
   refreshCodexCredential,
+  setCodexAdmission,
   refreshGrokCredential,
   removeSurfaceCreditPolicy,
   revokeApiKey,
@@ -307,7 +308,7 @@ export async function routeAdmin(request: Request, env: Env, url: URL, deps: App
     return jsonResponse({ auth: publicCodexAuth(auth) }, { status: 201 });
   }
 
-  const codexAuthMatch = /^\/admin\/codex-auths\/([^/]+)(?:\/(refresh|import|oauth\/start|oauth\/complete))?$/.exec(url.pathname);
+  const codexAuthMatch = /^\/admin\/codex-auths\/([^/]+)(?:\/(refresh|import|oauth\/start|oauth\/complete|pause|resume))?$/.exec(url.pathname);
   if (codexAuthMatch) {
     const authId = decodeURIComponent(codexAuthMatch[1]);
     const action = codexAuthMatch[2];
@@ -323,6 +324,12 @@ export async function routeAdmin(request: Request, env: Env, url: URL, deps: App
     }
     if (!action && request.method === "DELETE") {
       return jsonResponse(await logoutCodexCredential(operator, authId));
+    }
+    if ((action === "pause" || action === "resume") && request.method === "POST") {
+      const body = await readJsonObject(request);
+      requireConfirmation(body, action === "pause" ? "Pause" : "Resume");
+      const auth = await setCodexAdmission(operator, authId, action === "pause" ? "paused" : "enabled");
+      return jsonResponse({ auth: publicCodexAuth(auth) }, { headers: { "Cache-Control": "no-store" } });
     }
     if (action === "refresh" && request.method === "POST") {
       const result = await refreshCodexCredential(operator, authId);
@@ -1331,7 +1338,20 @@ async function routeDashboardUiMutation(
     return jsonResponse({ account: publicSubscriptionAccount(account) }, { status: 201 });
   }
 
-  const codexUiMatch = /^\/admin\/ui\/codex-auths\/([^/]+)\/(oauth\/start|oauth\/complete|refresh|logout)$/.exec(url.pathname);
+  const codexUiMatch = /^\/admin\/ui\/codex-auths\/([^/]+)\/(oauth\/start|oauth\/complete|refresh|logout|pause|resume)$/.exec(url.pathname);
+  if (codexUiMatch?.[2] === "pause" || codexUiMatch?.[2] === "resume") {
+    const authId = decodeURIComponent(codexUiMatch[1]);
+    const state = codexUiMatch[2] === "pause" ? "paused" : "enabled";
+    requireConfirmation(body, state === "paused" ? "Pause" : "Resume");
+    const auth = await setCodexAdmission(operator, authId, state);
+    if (wantsHtml(request)) {
+      return dashboardAfterMutation(env, url, admin, deps, requestContext, {
+        kind: "codex_admission", auth_id: auth.id, admission_state: auth.admission_state
+      }, 200, undefined, stringField(body, "return_range"), stringField(body, "return_q"), stringField(body, "return_page"));
+    }
+    return jsonResponse({ auth: publicCodexAuth(auth) }, { headers: { "Cache-Control": "no-store" } });
+  }
+
   if (codexUiMatch?.[2] === "oauth/start") {
     const authId = decodeURIComponent(codexUiMatch[1]);
     const result = await beginCodexCredentialOAuth(operator, authId, nullableStringField(body, "redirect_uri"));
@@ -1567,7 +1587,7 @@ async function dashboardAfterMutation(
     mutationFlash: flash,
     loadCodexAccount: async (authId) => {
       // Rendering a known refresh failure must not retry the provider operation.
-      if (flash.kind === "codex_refresh_error") return unavailableCodexAccountSnapshot();
+      if (flash.kind === "codex_refresh_error" || flash.kind === "codex_admission") return unavailableCodexAccountSnapshot();
       try {
         const freshToken = readTokenResult(await codexTokenAuthority(env, authId).getFreshAccessToken());
         return await readCodexAccountSnapshot(env, deps, freshToken);
@@ -1954,6 +1974,7 @@ function publicCodexAuth(row: CodexAuthRow | null) {
     upstream_email: row.upstream_email,
     upstream_account_id: row.upstream_account_id,
     status: row.status,
+    admission_state: row.admission_state,
     expires_at: row.expires_at,
     last_refresh_at: row.last_refresh_at,
     created_at: row.created_at,

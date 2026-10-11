@@ -37,7 +37,7 @@ it("upgrades and publishes through real Workers WebSockets and rejects revoked s
   }));
   try {
     const database: D1Database = await runtime.getD1Database("DB");
-    await database.exec("CREATE TABLE users(id TEXT PRIMARY KEY,canonical_email TEXT,role TEXT,status TEXT,account_kind TEXT,login_capable INTEGER,console_session_epoch INTEGER); CREATE TABLE console_sessions(token_hash TEXT PRIMARY KEY,user_id TEXT,expires_at TEXT,created_at TEXT,session_epoch INTEGER); CREATE TABLE codex_auths(id TEXT PRIMARY KEY,status TEXT,expires_at TEXT,last_refresh_at TEXT); CREATE TABLE subscription_accounts(id TEXT PRIMARY KEY,status TEXT,expires_at TEXT,last_refresh_at TEXT);");
+    await database.exec("CREATE TABLE users(id TEXT PRIMARY KEY,canonical_email TEXT,role TEXT,status TEXT,account_kind TEXT,login_capable INTEGER,console_session_epoch INTEGER); CREATE TABLE console_sessions(token_hash TEXT PRIMARY KEY,user_id TEXT,expires_at TEXT,created_at TEXT,session_epoch INTEGER); CREATE TABLE codex_auths(id TEXT PRIMARY KEY,status TEXT,expires_at TEXT,last_refresh_at TEXT,admission_state TEXT NOT NULL DEFAULT 'enabled'); CREATE TABLE subscription_accounts(id TEXT PRIMARY KEY,status TEXT,expires_at TEXT,last_refresh_at TEXT);");
     await database.prepare("INSERT INTO users VALUES('admin','admin@example.test','admin','active','human',1,0)").run();
     await database.prepare("INSERT INTO codex_auths(id,status,expires_at) VALUES('synthetic-account','active',NULL)").run();
     const env = { ...bindings, DB: database } as Env;

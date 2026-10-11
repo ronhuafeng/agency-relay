@@ -305,7 +305,7 @@ export async function replaceApiKeySurfaceCredential(
     ? null
     : input.credential_account_id;
   const account = input.surface_grant === "surface:codex:production"
-    ? "EXISTS (SELECT 1 FROM codex_auths WHERE id = ? AND kind = 'shared' AND environment = 'production' AND status NOT IN ('retiring', 'revoked', 'disabled'))"
+    ? "EXISTS (SELECT 1 FROM codex_auths WHERE id = ? AND kind = 'shared' AND environment = 'production' AND admission_state = 'enabled' AND status NOT IN ('retiring', 'revoked', 'disabled'))"
     : "EXISTS (SELECT 1 FROM subscription_accounts WHERE id = ? AND capability_source = 'grok' AND environment = 'production' AND status NOT IN ('retiring', 'revoked', 'disabled'))";
   const authority = serviceAdminAuthorityBindings(env, actor);
   const results = await env.DB.batch([env.DB.prepare(
@@ -379,7 +379,7 @@ export async function assertCredentialAccountCompatible(
     const row = await env.DB.prepare(
       `SELECT id FROM codex_auths
        WHERE id = ? AND kind = 'shared' AND environment = 'production'
-         AND status NOT IN ('retiring', 'revoked', 'disabled')
+         AND admission_state = 'enabled' AND status NOT IN ('retiring', 'revoked', 'disabled')
        LIMIT 1`
     ).bind(accountId).first();
     if (!row) {

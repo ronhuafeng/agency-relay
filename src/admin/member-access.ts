@@ -67,7 +67,7 @@ export async function readMemberAccess(env: Env, userId: string, now: Date): Pro
     let pending = accounts.get(key);
     if (!pending) {
       pending = read(() => env.DB.prepare(kind === "codex"
-        ? "SELECT status, kind, environment FROM codex_auths WHERE id = ?"
+        ? "SELECT status, kind, environment, admission_state FROM codex_auths WHERE id = ?"
         : "SELECT status, capability_source, environment FROM subscription_accounts WHERE id = ?").bind(id).first<AccountMetadata>());
       accounts.set(key, pending);
     }
@@ -86,7 +86,7 @@ export async function readMemberAccess(env: Env, userId: string, now: Date): Pro
       const metadata = await account(id, accountId);
       condition = !metadata.known ? "unknown" : metadata.value && defaultCredentialMetadataUsable(metadata.value.status)
         && metadata.value.environment === "production"
-        && (id === "codex" ? metadata.value.kind === "shared" : metadata.value.capability_source === "grok") ? "configured" : "unavailable";
+        && (id === "codex" ? metadata.value.kind === "shared" && metadata.value.admission_state !== "paused" : metadata.value.capability_source === "grok") ? "configured" : "unavailable";
     }
     return { id, quota: state ? { known: true, value: state } : unknown, entitlement: entitlement(state), default: condition,
       existing: unknown, reason: "unknown" };

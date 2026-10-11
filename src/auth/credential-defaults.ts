@@ -20,12 +20,12 @@ export function defaultCredentialMetadataUsable(status: string | null): boolean 
 }
 /** Replacement copies a usable production binding; token expiry may be refreshable. */
 export function replacementCredentialMetadataUsable(surface: OrganizationSurface, account: {
-  status: string; kind?: string; capability_source?: string; environment?: string;
+  status: string; kind?: string; capability_source?: string; environment?: string; admission_state?: "enabled" | "paused";
 } | null): boolean {
   if (!account || account.environment !== "production") return false;
   const codex = surface === "surface:codex:production";
   const statuses: readonly string[] = codex ? CODEX_REPLACEMENT_STATUSES : USABLE_STATUSES;
-  return statuses.includes(account.status) && (codex ? account.kind === "shared" : account.capability_source === "grok");
+  return (!codex || account.admission_state !== "paused") && statuses.includes(account.status) && (codex ? account.kind === "shared" : account.capability_source === "grok");
 }
 
 /** The same metadata policy at the replacement's atomic SQL boundary. */
@@ -33,6 +33,7 @@ export function replacementCredentialMetadataSql(kind: CredentialKind, alias: st
   const statuses = kind === "codex" ? CODEX_REPLACEMENT_STATUSES : USABLE_STATUSES;
   return `${alias}.environment = 'production'
     AND ${alias}.${kind === "codex" ? "kind = 'shared'" : "capability_source = 'grok'"}
+    ${kind === "codex" ? `AND ${alias}.admission_state = 'enabled'` : ""}
     AND ${alias}.status IN (${statuses.map(status => `'${status}'`).join(",")})`;
 }
 
@@ -136,7 +137,7 @@ export async function commitCredentialDefault(
          SELECT ?, id, NULL, ?, ?
          FROM codex_auths
          WHERE id = ? AND kind = 'shared' AND environment = 'production'
-           AND status IN ('active', 'degraded') AND ${authority}
+           AND admission_state = 'enabled' AND status IN ('active', 'degraded') AND ${authority}
          ON CONFLICT(surface_grant) DO UPDATE SET
            codex_auth_id = excluded.codex_auth_id,
            subscription_account_id = NULL,
@@ -375,13 +376,14 @@ interface DefaultRow {
   codex_auth_id: string | null;
   subscription_account_id: string | null;
   codex_status: string | null;
+  codex_admission_state: "enabled" | "paused" | null;
   grok_status: string | null;
 }
 
 async function readDefaultRows(env: Env): Promise<DefaultRow[]> {
   const result = await env.DB.prepare(
     `SELECT d.surface_grant, d.codex_auth_id, d.subscription_account_id,
-            c.status AS codex_status, s.status AS grok_status
+            c.status AS codex_status, c.admission_state AS codex_admission_state, s.status AS grok_status
      FROM organization_surface_credential_defaults AS d
      LEFT JOIN codex_auths AS c ON c.id = d.codex_auth_id
      LEFT JOIN subscription_accounts AS s ON s.id = d.subscription_account_id`
@@ -393,7 +395,7 @@ async function rowUsable(env: Env, row: DefaultRow, probe: UsabilityProbe, _now:
   const kind: CredentialKind = row.surface_grant === "surface:codex:production" ? "codex" : "grok";
   const status = kind === "codex" ? row.codex_status : row.grok_status;
   const accountId = accountIdOf(row);
-  if (!accountId || !defaultCredentialMetadataUsable(status)) return false;
+  if (!accountId || !defaultCredentialMetadataUsable(status) || (kind === "codex" && row.codex_admission_state === "paused")) return false;
   try {
     await probe(env, kind, accountId);
     return true;
@@ -439,13 +441,14 @@ async function assertReplacement(env: Env, kind: CredentialKind, accountId: stri
 
 function migrationReplacementSql(kind: CredentialKind): string {
   return `environment = 'production' AND ${kind === "codex" ? "kind = 'shared'" : "capability_source = 'grok'"}
+    ${kind === "codex" ? "AND admission_state = 'enabled'" : ""}
     AND status IN ('active', 'degraded')`;
 }
 
 async function compatibleReplacements(env: Env, kind: CredentialKind, accountId: string): Promise<Array<{ id: string; label: string }>> {
   const sql = kind === "codex"
     ? `SELECT id, label FROM codex_auths
-       WHERE id <> ? AND kind = 'shared' AND environment = 'production' AND status IN ('active', 'degraded')
+       WHERE id <> ? AND kind = 'shared' AND environment = 'production' AND admission_state = 'enabled' AND status IN ('active', 'degraded')
        ORDER BY id`
     : `SELECT id, label FROM subscription_accounts
        WHERE id <> ? AND capability_source = 'grok' AND environment = 'production' AND status IN ('active', 'degraded')

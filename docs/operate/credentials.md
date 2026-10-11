@@ -36,6 +36,7 @@ ChatGPT production accounts are compatible with `surface:codex:production` / `ch
 | Read selected ChatGPT account | `GET /admin/codex-auths/:id` | Use existing subscription inventory/detail service |
 | Begin OAuth | `POST /admin/codex-auths/:id/oauth/start` | `POST /admin/subscriptions/:id/oauth/start` |
 | Complete OAuth | `POST /admin/codex-auths/:id/oauth/complete` | `POST /admin/subscriptions/:id/oauth/complete` |
+| Pause / resume admission | `POST /admin/codex-auths/:id/pause` / `POST /admin/codex-auths/:id/resume` | Not supported |
 | Refresh | `POST /admin/codex-auths/:id/refresh` | `POST /admin/subscriptions/:id/refresh` |
 | Disconnect | `DELETE /admin/codex-auths/:id` | `DELETE /admin/subscriptions/:id` |
 
@@ -44,6 +45,46 @@ ChatGPT creation takes a safe label; Grok creation also specifies `capability_so
 An expired access token with refresh capability is not automatically a revoked account. Conversely, a compatible database row is not enough to prove usability. New default selection and issuance must consider the current credential state and fresh-token path, without claiming a prior test guarantees future availability.
 
 The administrator console's `GET /admin/events/credentials` WebSocket sends only invalidation messages after credential metadata commits. `GET /admin/credential-status` reads safe local state without refreshing tokens or probing providers. Both require a current administrator console session; the operator bearer and member sessions cannot subscribe. The channel uses the separate `CREDENTIAL_EVENTS` Durable Object binding and `v2-credential-events` migration. It rechecks session authority before notifications and on a one-minute alarm; reconnect and browser polling recover missed events. Notification delivery failure does not change a credential operation's outcome. Deploy the binding and migration with the Worker under the [release procedure](release.md); local checks do not establish deployed connectivity.
+
+## Pause one ChatGPT account
+
+Pause and resume require an administrator Console session or the protected
+operator API, an exact ChatGPT account ID, and `confirm=1`. They set an independent
+`admission_state` (`paused` or `enabled`), never the provider credential `status`.
+Read the returned account and its admission state to confirm the committed result;
+`GET /admin/codex-auths/:id` is the operator recovery read. Repeating the same
+set-state command is safe and records another metadata-only operator command audit.
+The state mutation, success audit and readback share one D1 batch and recheck current
+administrator authority at commit. Concurrent explicit commands are ordered by
+that database commit; a later command may change the state again.
+
+Pausing preserves encrypted credentials, refresh capability, keys, grants, existing
+sticky bindings/defaults, allowances and usage. Refresh, import, OAuth completion
+and metadata projection cannot clear it. Resume removes only this administrative
+block; revoked, expired or reauthorization-required credentials and normal key,
+grant and credit checks still govern use. No provider logout or automatic failover
+occurs. Other ChatGPT accounts and Grok/xAI are unaffected.
+
+The admission boundary is the selected account metadata read before encrypted-token
+resolution for a provider attempt. A read observing `paused` fails with stable
+`credential_paused` before dispatch and instructs the caller to contact an
+administrator. An attempt already admitted before pause committed may continue,
+including a token refresh already in progress. Pause does not cancel admitted
+requests, streams, or external jobs. A later request must pass admission again.
+
+Paused accounts are unavailable for new bindings, key replacement, defaults and
+retirement replacement targets. Database write guards close the pause-versus-new-
+assignment race. Existing defaults and bindings remain visible and unchanged; a
+paused default makes new issuance unavailable until the account is resumed or an
+administrator explicitly selects another account. The Console shows credential
+health separately, identifies affected keys/defaults, and explains these effects
+before confirmation. Notifications are best-effort invalidation after commit.
+
+Native SQL and controlled browser checks establish this mechanism, not deployed
+behavior. After an authorized deployment, capture bounded metadata readback and
+forwarding evidence under the release procedure; additional paid probes need an
+explicit budget. Neither pause implementation nor issue creation authorizes a
+production account mutation.
 
 ## New-key defaults
 

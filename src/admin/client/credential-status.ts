@@ -5,6 +5,7 @@ import { consoleActorId } from "./authority";
 interface CredentialStatus {
   key: string;
   state: AuthManagementState;
+  admissionState: "enabled" | "paused" | null;
   statusLabel: string;
   tone: StatusTone;
   hint: string | null;
@@ -24,6 +25,7 @@ function readStatuses(value: unknown): Map<string, CredentialStatus> | null {
   for (const item of value.accounts) {
     if (!item || typeof item !== "object" || typeof item.key !== "string" || !/^(codex|grok):[^\s]{1,200}$/.test(item.key)
       || result.has(item.key) || !states.has(item.state) || !tones.includes(item.tone)
+      || (item.key.startsWith("codex:") ? !["enabled", "paused"].includes(item.admissionState) : item.admissionState !== null)
       || typeof item.statusLabel !== "string" || item.statusLabel.length > 200
       || !nullableText(item.hint, 1000) || !nullableText(item.expiresAt, 200) || !nullableText(item.lastRefreshAt, 200)) return null;
     result.set(item.key, item as CredentialStatus);
@@ -101,11 +103,30 @@ export function initializeCredentialStatus(): () => void {
     const detail = item.querySelector<HTMLElement>("[data-credential-status]");
     if (detail) detail.textContent = status.statusLabel;
   };
+  const updateAdmission = (root: HTMLElement, status: CredentialStatus | undefined): void => {
+    if (status) root.querySelectorAll<HTMLElement>("[data-credential-admission]").forEach(badge => { badge.hidden = status.admissionState !== "paused"; });
+    root.querySelectorAll<HTMLFormElement>("form[data-credential-admission-form]").forEach(form => {
+      if (status?.admissionState) form.querySelectorAll<HTMLElement>('[role="switch"]').forEach(control => {
+        const checked = status.admissionState === "enabled";
+        control.setAttribute("aria-checked", String(checked));
+        control.dataset.state = checked ? "checked" : "unchecked";
+        control.querySelectorAll<HTMLElement>('[data-slot="switch-thumb"]').forEach(thumb => { thumb.dataset.state = control.dataset.state; });
+      });
+      if (!status || status.admissionState !== form.dataset.admissionState) {
+        // A different server state invalidates this rendered action and its impact.
+        // Keep the original operation fixed; a fresh GET owns the next confirmation.
+        form.dataset.credentialAdmissionBlocked = "true";
+        submits(form).forEach(button => { button.disabled = true; });
+        form.querySelectorAll<HTMLElement>("[data-credential-admission-read],[data-credential-admission-changed]").forEach(element => { element.hidden = false; });
+      }
+    });
+  };
   const apply = (accounts: Map<string, CredentialStatus>): void => {
     latest = accounts;
     document.querySelectorAll<HTMLElement>("[data-credential-key]").forEach(root => {
       const status = accounts.get(root.dataset.credentialKey ?? "");
       restrictRefresh(root, !status || !refreshable.has(status.state));
+      updateAdmission(root, status);
       if (!status) return;
       updateAttention(root, status);
       const authorizing = root.dataset.oauthPending === "true";
@@ -228,6 +249,9 @@ export function initializeCredentialStatus(): () => void {
   };
   document.addEventListener("submit", event => {
     const form = event.target;
+    if (form instanceof HTMLFormElement && form.dataset.credentialAdmissionBlocked === "true") {
+      event.preventDefault(); event.stopImmediatePropagation(); return;
+    }
     if (!(form instanceof HTMLFormElement) || !form.matches("[data-credential-refresh]")) return;
     const key = form.closest<HTMLElement>("[data-credential-key]")?.dataset.credentialKey;
     const state = key ? latest.get(key)?.state : null;
@@ -248,7 +272,7 @@ export function initializeCredentialStatus(): () => void {
     for (const record of records) {
       if (record.type === "attributes") {
         if (record.attributeName === "disabled" && record.target instanceof Element) {
-          const form = record.target.closest<HTMLFormElement>('form[data-credential-refresh-blocked="true"]');
+          const form = record.target.closest<HTMLFormElement>('form[data-credential-refresh-blocked="true"],form[data-credential-admission-blocked="true"]');
           if (form) submits(form).forEach(button => { if (!button.disabled) { disabledByStatus.add(button); button.disabled = true; } });
         } else activityChanged = true;
       } else for (const node of record.addedNodes) {

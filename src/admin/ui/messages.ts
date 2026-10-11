@@ -33,6 +33,8 @@ const errors: Readonly<Record<string, string>> = {
   surface_disabled: "这个客户端没有可用额度。请检查个人额度和组织默认额度。",
   replacement_bindings_unavailable: "原绑定当前不可用或不完整，请管理员处理后重试。",
   credential_not_selectable: "这个账号已不可用，请重新选择账号。",
+  credential_paused: "这个 ChatGPT 账号已暂停。请管理员恢复请求准入，或明确更改绑定。",
+  credential_admission_unconfirmed: "请求准入结果尚未确认。请先查看当前状态，不要重复提交。",
   credential_binding_changed: "密钥或连接已变化，这次没有更改绑定。请先读取当前状态再确认。",
   credential_default_unavailable: "当前默认账号不可用，请管理员检查账号连接和组织默认设置。",
   credential_disconnect_blocked: "还有有效密钥使用这个账号。请先处理这些密钥，再断开账号。",
