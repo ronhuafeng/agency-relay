@@ -43,6 +43,7 @@ export interface CodexAuthRow {
   upstream_email: string | null;
   upstream_account_id: string | null;
   status: string;
+  admission_state: "enabled" | "paused";
   expires_at: string | null;
   last_refresh_at: string | null;
   created_at: string;

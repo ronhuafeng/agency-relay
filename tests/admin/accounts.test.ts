@@ -17,10 +17,10 @@ function fixture(failure?: string) {
     db.sqlite.prepare("INSERT INTO subscription_accounts(id,capability_source,environment,label,status,created_at,updated_at) VALUES(?,'grok','production','Same label','reauth_required',?,?)").run(id, at, at);
   }
   const load = vi.fn(async () => unavailableCodexAccountSnapshot());
-  const render = async (query = "", mutationFlash?: DashboardMutationFlash, path = "/admin") => {
+  const render = async (query = "", mutationFlash?: DashboardMutationFlash, path = "/admin", view = "credentials") => {
     const response = await adminDashboardResponse({
       env: { DB: db.binding, ADMIN_DASHBOARD_HOST: "admin.example.test" } as Env,
-      url: new URL(`https://admin.example.test${path}?view=credentials&range=30d${query}`),
+      url: new URL(`https://admin.example.test${path}?view=${view}&range=30d${query}`),
       identity: { kind: "console", email: "operator@example.test", subject: "fixture" },
       now: new Date("2026-09-12T12:00:00.000Z"), requestId: "account-detail", loadCodexAccount: load, mutationFlash
     });
@@ -306,4 +306,70 @@ describe("exact account tasks", () => {
     expect(html).toContain("页面参数不正确");
     expect(f.load).not.toHaveBeenCalled();
   });
+});
+
+
+describe("ChatGPT admission presentation", () => {
+  // Accept independent health and pause facts; reject a pause rendered as logout
+  // or a selectable replacement. Equivalent control layout changes remain valid.
+  it.each([["active", "已连接"], ["reauth_required", "需要重新连接"], ["revoked", "已断开"]])("retains %s health while paused and excludes new assignment", async (status, health) => {
+    const f = fixture();
+    f.db.sqlite.prepare("INSERT INTO organization_surface_credential_defaults (surface_grant,codex_auth_id,created_at,updated_at) VALUES ('surface:codex:production','collision','2026-09-12','2026-09-12')").run();
+    seedLinkedKey(f, "pause-bound", {provider: "codex", grants: ["surface:codex:production"]});
+    f.db.sqlite.prepare("UPDATE codex_auths SET admission_state='paused',status=?,expires_at=NULL WHERE id='collision'").run(status);
+    const {html} = await f.render("&account=codex%3Acollision");
+    const document = new JSDOM(html).window.document;
+    const task = document.querySelector('[data-account-detail="codex:collision"]')!;
+    expect(task.querySelector('[data-credential-status]')?.textContent).toBe(health);
+    const control = task.querySelector<HTMLButtonElement>('[role="switch"]')!;
+    expect(control.getAttribute("aria-checked")).toBe("false");
+    expect(control.disabled).toBe(status === "revoked");
+    expect(task.querySelector('[data-action="codex-resume"]')?.getAttribute("action")).toBe("/admin/ui/codex-auths/collision/resume");
+    expect(task.querySelector('[data-admission-impact]')?.textContent).toContain("1 个未撤销密钥、1 项绑定");
+    expect(task.querySelector('[data-admission-impact]')?.textContent).toContain("当前默认连接保留");
+    const option = document.querySelector<HTMLOptionElement>('#default-codex-account option[value="collision"]')!;
+    expect(option.selected).toBe(true); expect(option.disabled).toBe(true); expect(option.textContent).toContain("已暂停");
+    expect(document.querySelector('[data-account-key="grok:collision"]')?.textContent).not.toContain("已暂停");
+    expect(f.load).not.toHaveBeenCalled();
+  });
+
+  it("requires impact and explicit native confirmation without blocking credential recovery", async () => {
+    const f = fixture();
+    const {html} = await f.render("&account=codex%3Acollision");
+    const document = new JSDOM(html).window.document;
+    const form = document.querySelector<HTMLFormElement>('[data-action="codex-pause"]')!;
+    expect(form.action).toBe("/admin/ui/codex-auths/collision/pause");
+    expect(form.querySelector<HTMLInputElement>('input[name="confirm"]')?.value).toBe("1");
+    expect(form.checkValidity()).toBe(false);
+    form.querySelector<HTMLInputElement>('[data-confirmation-fallback] input')!.checked = true;
+    expect(form.checkValidity()).toBe(true);
+    expect(form.dataset.confirmation).toContain("Same label（collision）");
+    expect(form.dataset.confirmation).toContain("不会自动切换账号");
+    expect(form.dataset.confirmation).toContain("已接受的请求或外部任务不会因此取消");
+    expect(document.querySelector<HTMLButtonElement>('[data-action="refresh-codex"] button')?.disabled).toBe(false);
+    const unavailable = fixture("FROM organization_surface_credential_defaults AS d");
+    const failed = new JSDOM((await unavailable.render("&account=codex%3Acollision")).html).window.document;
+    expect(failed.querySelector<HTMLButtonElement>('[data-action="codex-pause"] button')?.disabled).toBe(true);
+    expect(failed.querySelector('[data-action="codex-pause"] [data-confirmation-fallback]')).toBeNull();
+  });
+
+  it("keeps the exact confirmed account result metadata-only with read-only recovery", async () => {
+    const f = fixture();
+    const {html} = await f.render("&account=codex%3Acollision", {kind:"codex_admission",auth_id:"collision",admission_state:"enabled"});
+    const document = new JSDOM(html).window.document;
+    expect(document.querySelector('[data-mutation-flash="codex_admission"]')?.textContent).toContain("请求准入已恢复");
+    expect(document.querySelector('[data-mutation-flash="codex_admission"] a')?.getAttribute("href")).toBe("/admin?view=credentials&account=codex%3Acollision");
+    expect(f.load).not.toHaveBeenCalled();
+  });
+});
+
+it("retains a paused key binding as the disabled selected choice instead of substituting another account", async () => {
+  const f = fixture();
+  seedLinkedKey(f, "pause-binding", {person:"pause-person",provider:"codex",grants:["surface:codex:production"]});
+  f.db.sqlite.exec("UPDATE codex_auths SET admission_state='paused' WHERE id='collision'");
+  const {html} = await f.render("&person=pause-person&key=pause-binding", undefined, "/admin", "access");
+  const document = new JSDOM(html).window.document;
+  const option = document.querySelector<HTMLOptionElement>('[data-action="credential-binding-set"] option[value="collision"]')!;
+  expect(option.selected).toBe(true); expect(option.disabled).toBe(true); expect(option.textContent).toContain("已暂停");
+  expect(document.querySelector<HTMLOptionElement>('[data-action="credential-binding-set"] option[value="chatgpt-only"]')?.disabled).toBe(false);
 });

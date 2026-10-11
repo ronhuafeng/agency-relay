@@ -56,15 +56,16 @@ export function MutationNotice({flash}: {readonly flash: DashboardMutationFlash 
     case "codex_created": title = "已添加 ChatGPT 账号"; break;
     case "codex_imported": title = "ChatGPT 已连接"; break;
     case "codex_refreshed": title = "ChatGPT 已刷新"; break;
+    case "codex_admission": title = flash.admission_state === "paused" ? "ChatGPT 请求已暂停" : "ChatGPT 请求准入已恢复"; detail = flash.admission_state === "paused" ? "此账号的后续上游请求将被拒绝，不会自动切换账号。已接受的请求或外部任务不会因此取消。连接、密钥、绑定、默认设置和用量保留。" : "已解除管理员设置的暂停。账号连接、授权和额度仍需有效；密钥与绑定保持不变。"; break;
     case "codex_logged_out": title = "ChatGPT 已断开"; break;
     case "grok_created": title = "已添加 Grok 账号"; break;
     case "grok_imported": title = "Grok 已连接"; break;
     case "grok_refreshed": title = "Grok 已刷新"; break;
     case "grok_logged_out": title = "Grok 已断开"; break;
   }
-  const credentialTask = flash.kind.startsWith("credential_");
+  const credentialTask = flash.kind.startsWith("credential_") || flash.kind === "codex_admission";
   const accountKey = flash.kind === "credential_default" ? `${flash.surface_grant === "surface:codex:production" ? "codex" : "grok"}:${flash.account_id}`
-    : "provider" in flash && flash.provider && "account_id" in flash ? `${flash.provider}:${flash.account_id}` : null;
+    : flash.kind === "codex_admission" ? `codex:${flash.auth_id}` : "provider" in flash && flash.provider && "account_id" in flash ? `${flash.provider}:${flash.account_id}` : null;
   const readUrl = credentialTask ? `/admin?view=credentials${accountKey ? `&account=${encodeURIComponent(accountKey)}` : ""}` : null;
   return <section className="panel mutation-flash" role="status" data-mutation-flash={flash.kind}><div className="panel-head"><h2>{title}</h2></div>{detail ? <p className="panel-caption">{detail}</p> : null}{readUrl ? <a className="action-link" data-dashboard-link="" href={readUrl}>查看当前连接</a> : null}</section>;
 }

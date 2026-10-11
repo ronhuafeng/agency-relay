@@ -82,6 +82,7 @@ export type DashboardMutationFlash =
   | { kind: "codex_created"; auth_id: string }
   | { kind: "codex_imported"; auth_id: string }
   | { kind: "codex_refreshed"; auth_id: string }
+  | { kind: "codex_admission"; auth_id: string; admission_state: "enabled" | "paused" }
   | { kind: "codex_refresh_error"; auth_id: string; message: string }
   | { kind: "codex_logged_out"; auth_id: string }
   | { kind: "codex_oauth_started"; auth_id: string; session_id: string; authorize_url: string; redirect_uri: string }
@@ -324,7 +325,7 @@ export async function loadDashboard(input: AdminDashboardInput, base: AdminDashb
     const grokPending = input.mutationFlash?.kind === "grok_oauth_started" ? input.mutationFlash : null;
     const accounts: AdminDashboardCredentialsModel["accounts"] = [
       ...auths.map(auth => ({ key: `codex:${auth.id}`, id: auth.id, provider: "codex" as const, label: auth.label,
-      defaultEligible: auth.kind === "shared" && auth.environment === "production" && defaultCredentialMetadataUsable(auth.status),
+      defaultEligible: auth.kind === "shared" && auth.environment === "production" && auth.admission_state !== "paused" && defaultCredentialMetadataUsable(auth.status),
       projection: projectCodexIdentity({ auth, nowMs: base.nowMs, oauthPending: codexPending?.auth_id === auth.id ? codexPending : null }) })),
       ...subscriptions.filter(account => account.capability_source === "grok").map(account => ({ key: `grok:${account.id}`, id: account.id, provider: "grok" as const, label: account.label,
       defaultEligible: account.environment === "production" && defaultCredentialMetadataUsable(account.status),
@@ -340,7 +341,7 @@ export async function loadDashboard(input: AdminDashboardInput, base: AdminDashb
       accounts,
       selectedAccountKey: requestedAccount,
       linkedKeys,
-      snapshot: selected?.provider === "codex" ? await input.loadCodexAccount(selected.id) : null,
+      snapshot: selected?.provider === "codex" && selected.projection.admissionState !== "paused" && input.mutationFlash?.kind !== "codex_admission" ? await input.loadCodexAccount(selected.id) : null,
       issuanceDefaults,
       retirement
     };

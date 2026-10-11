@@ -271,6 +271,7 @@ export async function createCodexAuth(
     upstream_email: null,
     upstream_account_id: null,
     status: "pending_credential",
+    admission_state: "enabled",
     expires_at: null,
     last_refresh_at: null,
     created_at: timestamp,

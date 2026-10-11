@@ -36,6 +36,8 @@ export interface OAuthPendingInput {
 
 export interface AuthManagementProjection {
   state: AuthManagementState;
+  /** Administrative request admission is independent of credential health. */
+  admissionState: "enabled" | "paused" | null;
   /** Actions shown as primary (filled) controls, left-to-right. */
   primaryActions: AuthManagementAction[];
   /** Secondary / outline controls. */
@@ -55,6 +57,7 @@ export interface AuthManagementProjection {
 export interface CodexAuthProjectionInput {
   auth: {
     status: string;
+    admission_state: "enabled" | "paused";
     expires_at: string | null;
     last_refresh_at: string | null;
     upstream_email: string | null;
@@ -78,12 +81,13 @@ export interface GrokAccountProjectionInput {
  * Project one ChatGPT credential account into management state + actions (doc §3–4).
  */
 export function projectCodexIdentity(input: CodexAuthProjectionInput): AuthManagementProjection {
+  const admissionState = input.auth?.admission_state ?? null;
   if (input.oauthPending?.session_id && input.oauthPending.authorize_url) {
-    return authorizingProjection(input.oauthPending, observeFromCodex(input.auth), boundForReauth(input.auth));
+    return { ...authorizingProjection(input.oauthPending, observeFromCodex(input.auth), boundForReauth(input.auth)), admissionState };
   }
   const base = observeFromCodex(input.auth);
   const state = projectStoredState(input.auth?.status ?? null, input.auth?.expires_at ?? null, input.nowMs);
-  return withActions(state, base, boundForReauth(input.auth));
+  return { ...withActions(state, base, boundForReauth(input.auth)), admissionState };
 }
 
 /**
@@ -214,6 +218,7 @@ function authorizingProjection(
   const rawLabel = reauthReplacesActive ? "re-authorizing" : "connecting";
   return {
     state: "authorizing",
+    admissionState: null,
     primaryActions: actions.primaryActions,
     secondaryActions: actions.secondaryActions,
     statusLabel: humanStatusLabel("authorizing", rawLabel),
@@ -235,6 +240,7 @@ function withActions(
   const actions = actionsForState(state);
   return {
     state,
+    admissionState: null,
     primaryActions: actions.primaryActions,
     secondaryActions: actions.secondaryActions,
     statusLabel: humanStatusLabel(state, observe.statusLabel),

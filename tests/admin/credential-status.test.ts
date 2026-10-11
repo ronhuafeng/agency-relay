@@ -7,7 +7,7 @@ const now = new Date("2026-10-06T12:00:00.000Z");
 const origin = "https://admin.example.test";
 interface StatusPayload {
   actorId: string;
-  accounts: Array<{ key: string; state: string; statusLabel: string; tone: string; hint: string | null; expiresAt: string | null; lastRefreshAt: string | null }>;
+  accounts: Array<{ key: string; state: string; admissionState: "enabled" | "paused" | null; statusLabel: string; tone: string; hint: string | null; expiresAt: string | null; lastRefreshAt: string | null }>;
   revision: string;
 }
 interface FailurePayload { error: { code: string } }
@@ -77,13 +77,13 @@ describe("administrator credential status metadata", () => {
     expect(Object.keys(body).sort()).toEqual(["accounts", "actorId", "revision"]);
     expect(body.actorId).toBe("status-admin");
     expect(body.accounts).toEqual([
-      { key: "codex:collision", state: "active", statusLabel: "已连接", tone: "ok", hint: null, expiresAt: "2026-10-07T12:00:00.000Z", lastRefreshAt: "2026-10-06T11:30:00.000Z" },
-      { key: "codex:expired", state: "expired", statusLabel: "访问已过期", tone: "bad", hint: null, expiresAt: now.toISOString(), lastRefreshAt: null },
-      { key: "codex:legacy", state: "degraded", statusLabel: "需要处理", tone: "bad", hint: "先刷新账号。刷新失败时，再重新连接。", expiresAt: null, lastRefreshAt: null },
-      { key: "codex:pending", state: "absent", statusLabel: "未连接", tone: "neutral", hint: null, expiresAt: null, lastRefreshAt: null },
-      { key: "codex:revoked", state: "revoked", statusLabel: "已断开", tone: "neutral", hint: null, expiresAt: null, lastRefreshAt: null },
-      { key: "codex:soon", state: "expiring_soon", statusLabel: "即将过期", tone: "warn", hint: null, expiresAt: "2026-10-06T12:05:00.000Z", lastRefreshAt: null },
-      { key: "grok:collision", state: "reauth_required", statusLabel: "需要重新连接", tone: "bad", hint: "请重新登录。登录完成前，客户端不能使用这个账号。", expiresAt: null, lastRefreshAt: "2026-10-06T11:25:00.000Z" }
+      { admissionState: "enabled", key: "codex:collision", state: "active", statusLabel: "已连接", tone: "ok", hint: null, expiresAt: "2026-10-07T12:00:00.000Z", lastRefreshAt: "2026-10-06T11:30:00.000Z" },
+      { admissionState: "enabled", key: "codex:expired", state: "expired", statusLabel: "访问已过期", tone: "bad", hint: null, expiresAt: now.toISOString(), lastRefreshAt: null },
+      { admissionState: "enabled", key: "codex:legacy", state: "degraded", statusLabel: "需要处理", tone: "bad", hint: "先刷新账号。刷新失败时，再重新连接。", expiresAt: null, lastRefreshAt: null },
+      { admissionState: "enabled", key: "codex:pending", state: "absent", statusLabel: "未连接", tone: "neutral", hint: null, expiresAt: null, lastRefreshAt: null },
+      { admissionState: "enabled", key: "codex:revoked", state: "revoked", statusLabel: "已断开", tone: "neutral", hint: null, expiresAt: null, lastRefreshAt: null },
+      { admissionState: "enabled", key: "codex:soon", state: "expiring_soon", statusLabel: "即将过期", tone: "warn", hint: null, expiresAt: "2026-10-06T12:05:00.000Z", lastRefreshAt: null },
+      { admissionState: null, key: "grok:collision", state: "reauth_required", statusLabel: "需要重新连接", tone: "bad", hint: "请重新登录。登录完成前，客户端不能使用这个账号。", expiresAt: null, lastRefreshAt: "2026-10-06T11:25:00.000Z" }
     ]);
     expect(typeof body.revision).toBe("string");
     const again = await (await f.read()).json() as StatusPayload;
@@ -113,7 +113,7 @@ describe("administrator credential status metadata", () => {
     expect(refreshChanged.accounts[0]?.expiresAt).toBe(expiresAt);
     expect(refreshChanged.accounts[0]?.lastRefreshAt).toBe(lastRefreshAt);
     expect(refreshChanged.revision === expiryChanged.revision).toBe(false);
-    expect(Object.keys(refreshChanged.accounts[0]!).sort()).toEqual(["expiresAt", "hint", "key", "lastRefreshAt", "state", "statusLabel", "tone"]);
+    expect(Object.keys(refreshChanged.accounts[0]!).sort()).toEqual(["admissionState", "expiresAt", "hint", "key", "lastRefreshAt", "state", "statusLabel", "tone"]);
     expect(f.providerFetch.mock.calls.length).toBe(0);
     expect(f.authority.idFromName.mock.calls.length + f.authority.get.mock.calls.length).toBe(0);
   });
@@ -222,4 +222,17 @@ describe("administrator credential status metadata", () => {
     expect(Object.keys(body)).toEqual(["error"]);
     expect(body.error.code).toBe("console_identity_changed");
   });
+});
+
+
+it("publishes administrative pause independently of health and includes it in the metadata revision", async () => {
+  const f = await fixture();
+  f.seed("same-id", "reauth_required"); f.seed("same-id", "active", null, "grok");
+  const enabled = await (await f.read()).json() as StatusPayload;
+  f.db.sqlite.exec("UPDATE codex_auths SET admission_state='paused' WHERE id='same-id'");
+  const paused = await (await f.read()).json() as StatusPayload;
+  expect(paused.accounts.find(row => row.key === "codex:same-id")).toMatchObject({state:"reauth_required",admissionState:"paused"});
+  expect(paused.accounts.find(row => row.key === "grok:same-id")).toMatchObject({state:"active",admissionState:null});
+  expect(paused.revision).not.toBe(enabled.revision);
+  expect(f.providerFetch).not.toHaveBeenCalled();
 });

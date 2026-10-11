@@ -181,6 +181,18 @@ Migration moves future requests to another upstream identity. It does not copy p
 
 After submission, report the actual stage: bindings/defaults migrated, old account unavailable for new assignment, and token cleanup confirmed or still requiring recovery. Do not claim one all-or-nothing D1 transaction includes encrypted TokenAuthority state. Unknown results require readback, not a second blind migration.
 
+### Pause and resume ChatGPT admission
+
+Administrators can pause one exact ChatGPT account without disconnecting it.
+Show administrative admission independently from credential health, with the
+impacted keys and retained default references before confirmation. Pausing blocks
+future admissions and new assignments; it preserves credentials, refresh,
+bindings, keys, grants, allowances and history. It does not stop already-admitted
+requests or external jobs. Resume removes only the administrative block and never
+repairs revoked or expired credentials. Refresh and reconnect do not silently
+resume a paused account. See [credential operations](../operate/credentials.md#pause-one-chatgpt-account)
+for the precise boundary and recovery read.
+
 ## Setup and safe verbs
 
 | Verb | Changes | Must not imply |
@@ -192,6 +204,7 @@ After submission, report the actual stage: bindings/defaults migrated, old accou
 | Sign out | Browser session/display state | API keys revoked |
 | Set allowance | Effective future admission policy | A key scope rewrite, refund or usage reset |
 | Use organization default | Remove personal override | Unlimited access |
+| Pause / resume account | Administrative admission for the selected ChatGPT account | Disconnect, token revocation, key rotation or cancellation of admitted work |
 | Refresh account | Provider token/expiry state | Key rotation or client configuration changed |
 | Reconnect account | Renew provider authorization | Member role or key secret changed |
 | Migrate bindings and disconnect | Explicit upstream reassignment and retirement | Provider-owned resources copied |

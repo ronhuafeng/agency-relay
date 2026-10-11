@@ -19,6 +19,7 @@ import {
 
 export interface SlotAccountMetadata {
   status: string;
+  admission_state?: "enabled" | "paused";
   capability_source?: string;
   environment?: string;
 }
@@ -30,6 +31,7 @@ export function assertSlotAccountMetadata(slot: CredentialSlotId, account: SlotA
   if (source !== "chatgpt" && (account.capability_source !== source || account.environment !== environment)) {
     throw new HttpError(500, "Bound Subscription Account is incompatible", "server_error", "invalid_credential_binding");
   }
+  if (source === "chatgpt" && account.admission_state === "paused") throw new HttpError(503, "This ChatGPT account is paused by an administrator. Ask an administrator to resume it.", "server_error", "credential_paused");
   if (account.status === "reauth_required") throw new HttpError(401, source === "chatgpt" ? "ChatGPT credential requires reauthorization" : "Subscription requires reauthorization", "authentication_error", "reauth_required");
   if (source === "chatgpt" ? account.status !== "active" : ["revoked", "disabled", "pending_credential"].includes(account.status)) {
     throw new HttpError(401, source === "chatgpt" ? "ChatGPT Credential Account is not active" : "Subscription account is not active", "authentication_error", source === "chatgpt" ? "credential_inactive" : "subscription_inactive");

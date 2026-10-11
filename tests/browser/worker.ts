@@ -262,6 +262,14 @@ export async function startConsoleWorker(options: { measure?: boolean } = {}) {
       }
     },
     setBoundCredentialStatus(status: "active" | "reauth_required") { db.sqlite.prepare("UPDATE codex_auths SET status = ? WHERE id = 'fixture-codex'").run(status); },
+    setBoundCredentialAdmission(state: "enabled" | "paused") { db.sqlite.prepare("UPDATE codex_auths SET admission_state = ? WHERE id = 'fixture-codex'").run(state); },
+    codexAdmissionFacts() {
+      return {
+        account: db.sqlite.prepare("SELECT id,status,admission_state FROM codex_auths WHERE id='fixture-codex'").get(),
+        bindings: db.sqlite.prepare("SELECT api_key_id,surface_grant,codex_auth_id FROM api_key_surface_credentials WHERE codex_auth_id IS NOT NULL ORDER BY api_key_id,surface_grant").all(),
+        defaults: db.sqlite.prepare("SELECT surface_grant,codex_auth_id FROM organization_surface_credential_defaults WHERE codex_auth_id IS NOT NULL ORDER BY surface_grant").all()
+      };
+    },
     setBoundCredentialTimes(expiresAt: string | null, lastRefreshAt: string | null) { db.sqlite.prepare("UPDATE codex_auths SET expires_at = ?, last_refresh_at = ? WHERE id = 'fixture-codex'").run(expiresAt, lastRefreshAt); },
     failCodexRefresh(code: "reauth_required" | "codex_token_refresh_failed" | "missing_access_token") { codexRefreshFailure = code; },
     expireKey(id: string) { db.sqlite.prepare("UPDATE api_keys SET expires_at = ? WHERE id = ?").run(new Date(clock.getTime()-1).toISOString(),id); },

@@ -21,7 +21,7 @@ function KeyAccount({model, keyId, grant, client, editable}: {readonly model: Ad
   return <form className="inline-form" method="post" action={`/admin/ui/keys/${encodeURIComponent(keyId)}/credential-bindings/${client}${model.selectedPersonId ? `?person=${encodeURIComponent(model.selectedPersonId)}` : ""}`} data-action="credential-binding-set" data-dashboard-draft="binding">
     <input type="hidden" name="key_return" value={model.canonicalUrl} />
     <p className="caption">仅更改密钥 <code>{model.selectedKey?.key_prefix ?? keyId}</code> 的 {label} 上游身份，影响后续请求。其他密钥、服务权限和额度不变；服务商资源与历史不会迁移。</p>
-    <SelectView control={{id: `select-binding-${keyId}-${client}`, name: "credential_account_id", label: `${label} 账号`, required: true, value: selected, options: accounts.length === 0 ? [{value: "", label: "没有可用账号", disabled: true}] : [{value: "", label: "选择账号", disabled: selected.length > 0}, ...accounts.map((account) => ({value: account.id, label: `${account.label} · ${account.status}`, disabled: false}))]}} />
+    <SelectView control={{id: `select-binding-${keyId}-${client}`, name: "credential_account_id", label: `${label} 账号`, required: true, value: selected, options: accounts.length === 0 ? [{value: "", label: "没有可用账号", disabled: true}] : [{value: "", label: "选择账号", disabled: selected.length > 0}, ...accounts.map((account) => ({value: account.id, label: `${account.label} · ${account.status}`, disabled: account.disabled}))]}} />
     <Button type="submit" variant="outline">使用这个账号</Button>
   </form>;
 }
