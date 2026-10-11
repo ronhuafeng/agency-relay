@@ -11,12 +11,16 @@ on:
         default: all
         options:
           - all
-          - http
-          - transactions
-          - clients
-          - grok-responses
+          - core
+          - codex
+          - grok
           - xai
-          - video
+          - images
+          - videos
+          - files
+          - clients
+          - access
+          - xai-resources
           - credits
           - billing
 
@@ -65,10 +69,22 @@ jobs:
             all)
               pnpm test:live
               ;;
+            core)
+              pnpm test:live -- tests/live/smoke.test.ts tests/live/codex/core.test.ts tests/live/grok/core.test.ts tests/live/xai/core.test.ts
+              ;;
+            codex|grok|xai)
+              pnpm test:live -- "tests/live/${suite}/"
+              ;;
+            images|videos|files)
+              pnpm test:live -- "tests/live/grok/${suite}.test.ts" "tests/live/xai/${suite}.test.ts"
+              ;;
+            xai-resources)
+              pnpm test:live -- tests/live/xai/resources.test.ts tests/live/xai/public-url.test.ts
+              ;;
             clients)
               pnpm test:live -- tests/live/clients
               ;;
-            http|transactions|grok-responses|xai|video|credits|billing)
+            access|credits|billing)
               pnpm test:live -- "tests/live/${suite}.test.ts"
               ;;
             *)

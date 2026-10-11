@@ -1,7 +1,8 @@
 import { expect, it } from "vitest";
 import { admin, expectTerminal, isRecord, languageModel, newestModel, parseJson, requireEnv, send, sleep } from "./runtime";
 
-it("records provider-reported provisional billing", async () => {
+it("records attributed Responses and media usage from real provider calls", async () => {
+  const before = await usageCounts();
   const codexKey = requireEnv("MINI_CODEX_API_KEY");
   const grokKey = requireEnv("MINI_GROK_API_KEY");
   const codex = await send("https://api.trustedtunnel.app/v1/responses", codexKey, {
@@ -28,13 +29,22 @@ it("records provider-reported provisional billing", async () => {
     body: JSON.stringify({ model: "not-a-provider-model", input: "Reply exactly OK.", stream: false })
   }, 60_000);
   expect(failed.status).toBeGreaterThanOrEqual(400);
-  const usage = await admin("GET", `/admin/usage?day=${new Date().toISOString().slice(0, 10)}&limit=1000`);
-  expect(usage.status).toBe(200);
-  expect(usage.json).toEqual(expect.objectContaining({
-    rows: expect.any(Array),
-    media_rows: expect.any(Array)
-  }));
-}, 1_860_000);
+  // Billing records are grouped by exact Execution Plan, not combined
+  // across Grok and xAI or inferred from a 200 status.
+  let observed = false;
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const after = await usageCounts();
+    observed = (
+      after.codexResponses >= before.codexResponses + 1 &&
+      after.grokResponses >= before.grokResponses + 1 &&
+      after.grokImages >= before.grokImages + 1 &&
+      after.grokVideos >= before.grokVideos + 1
+    );
+    if (observed) break;
+    await sleep(3_000);
+  }
+  expect(observed).toBe(true);
+}, 1_920_000);
 
 async function codexModelId(key: string): Promise<string> {
   const catalog = await send("https://api.trustedtunnel.app/v1/models", key);
@@ -90,4 +100,32 @@ async function video(key: string): Promise<void> {
     await sleep(15_000);
   }
   expect.fail("video terminal not reached");
+}
+
+interface UsageCounts {
+  codexResponses: number;
+  grokResponses: number;
+  grokImages: number;
+  grokVideos: number;
+}
+
+async function usageCounts(): Promise<UsageCounts> {
+  const totals = async (plan: string, ledger: "rows" | "media_rows", field: "requests" | "started_jobs"): Promise<number> => {
+    const response = await admin("GET", `/admin/usage?scope=all&route_profile_id=${encodeURIComponent(plan)}&limit=1000`);
+    expect(response.status).toBe(200);
+    const list = isRecord(response.json) && Array.isArray(response.json[ledger]) ? response.json[ledger] : undefined;
+    expect(list).toEqual(expect.any(Array));
+    return (list ?? []).filter(isRecord).reduce<number>((total, row) => {
+      expect(row.route_profile_id).toBe(plan);
+      const count = row[field];
+      expect(typeof count).toBe("number");
+      return total + (count as number);
+    }, 0);
+  };
+  return {
+    codexResponses: await totals("codex.responses", "rows", "requests"),
+    grokResponses: await totals("grok.production.responses", "rows", "requests"),
+    grokImages: await totals("grok.production.images_generations", "media_rows", "started_jobs"),
+    grokVideos: await totals("grok.production.videos_generations", "media_rows", "started_jobs")
+  };
 }

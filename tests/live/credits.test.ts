@@ -10,11 +10,12 @@ it("admits Codex and Grok surface credits independently", async () => {
   const keyIds: string[] = [];
   try {
     const first = await issue(userId, ["surface:codex:production"], [{ surface_grant: "surface:codex:production", credential_account_id: accounts.codex }]);
+    keyIds.push(first.id);
     const second = await issue(userId, ["surface:codex:production", "surface:grok:production"], [
       { surface_grant: "surface:codex:production", credential_account_id: accounts.codex },
       { surface_grant: "surface:grok:production", credential_account_id: accounts.grok }
     ]);
-    keyIds.push(first.id, second.id);
+    keyIds.push(second.id);
     await admin("PUT", `/admin/users/${userId}/credits/codex`, { monthly_allowance: 1 });
     await admin("PUT", `/admin/users/${userId}/credits/grok`, { monthly_allowance: 1 });
     const codexModel = await codexModelId(first.token);
