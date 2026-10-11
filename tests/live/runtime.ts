@@ -100,9 +100,9 @@ export async function languageModel(origin: string, key: string): Promise<string
 export function expectTerminal(response: { status: number; contentType: string; text: string }): void {
   expect(response.status).toBe(200);
   expect(response.contentType.toLowerCase()).toContain("application/json");
-  expect(parseJson(response.text)).toMatchObject({
-    status: expect.stringMatching(/^(completed|incomplete|failed|cancelled|canceled)$/)
-  });
+  // A real provider request that reached a failed or incomplete terminal state
+  // is not evidence that the user task completed successfully.
+  expect(parseJson(response.text)).toMatchObject({ status: "completed" });
 }
 
 export function sleep(ms: number): Promise<void> {
