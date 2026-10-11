@@ -42,6 +42,19 @@ export async function authenticate(context: BrowserContext, worker: ConsoleWorke
   // Session values never enter a URL, test title, trace, storageState file or log.
   await context.addCookies([{ name: "__Host-mini-console", value: await worker.session(identity), url: ORIGIN, httpOnly: true, secure: true, sameSite: "Lax" }]);
 }
+/** Explicitly leave an unresolved write for its native read-only recovery. */
+export async function acceptUnknownOutcomeRead(page: Page, link: Locator): Promise<void> {
+  await expect(page.locator('main#content')).toHaveAttribute('data-console-outcome', 'unknown');
+  const confirmation = page.waitForEvent('dialog', {timeout:5000}).then(async dialog => {
+    const type = dialog.type();
+    await test.step('accept unresolved-write departure for recovery', () => dialog.accept(), {timeout:5000});
+    expect(type).toBe('beforeunload');
+  });
+  const click = link.click({timeout:5000});
+  const settled = await Promise.allSettled([confirmation, click]);
+  const failures = settled.flatMap(result => result.status === 'rejected' ? [result.reason] : []);
+  if (failures.length) throw new AggregateError(failures, 'Unknown-outcome recovery requires confirmed native departure');
+}
 export async function expectAccountRole(page: Page, role: string): Promise<void> {
   await page.getByRole('button', {name:'账号菜单',exact:true}).click();
   await expect(page.locator('.account-menu-identity .identity-role')).toHaveText(role);

@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test';
-import { openNativeConfirmation, test, expect, authenticate, openMemberCreate, openKeyEditor } from './fixtures';
+import { openNativeConfirmation, test, expect, authenticate, openMemberCreate, openKeyEditor, acceptUnknownOutcomeRead } from './fixtures';
 import { ORIGIN } from './worker';
 
 async function createKey(page: Page, enhanced = true) {
@@ -128,7 +128,7 @@ test.describe('delegated service management', () => {
     await gate.entered; await page.getByRole('button', {name: '停止等待', exact: true}).click(); gate.release();
     await expect(page.locator('[data-member-feedback]')).toContainText('不要重复提交');
     await expect(form.getByRole('button', {name: '创建密钥', exact: true})).toBeDisabled();
-    await page.getByRole('link', {name: '查看当前密钥', exact: true}).click();
+    await acceptUnknownOutcomeRead(page, page.getByRole('link', {name: '查看当前密钥', exact: true}));
     await expect(page).toHaveURL(prefix + '?view=keys');
     await expect(page.locator('[data-key-id]')).toHaveCount(1);
     expect(worker.requests.filter(request => request.method === 'POST' && request.path === prefix + '/ui/keys')).toHaveLength(1);

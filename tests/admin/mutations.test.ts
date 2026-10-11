@@ -17,6 +17,33 @@ function start(): TaskController {
   dispose = initializeMutations(navigation); return navigation;
 }
 describe("bounded mutation outcomes", () => {
+  it.each(["response lost", "navigation abort"])("keeps exit protection after transport rejects before beforeunload: %s", async failure => {
+    const navigation = createTaskController(() => {}, createDrafts());
+    const stopMutations = initializeMutations(navigation);
+    dispose = () => {stopMutations(); navigation.dispose();};
+    let reject!: (error: Error) => void;
+    const fetch = vi.fn().mockReturnValueOnce(new Promise<Response>((_resolve, fail) => {reject = fail;}))
+      .mockResolvedValueOnce(new Response(dashboardHtml("access", '<p data-current-state>Current server state</p>'), {headers:{"Content-Type":"text/html"}}));
+    vi.stubGlobal("fetch", fetch);
+    const form = element("form", HTMLFormElement);
+    submit(form);
+    reject(failure === "navigation abort" ? new DOMException("Navigation interrupted transport", "AbortError") : new Error("Response lost"));
+    await vi.waitFor(() => expect(element("main",HTMLElement).dataset.dashboardMutationBlocked).toBe("true"));
+    expect(element("main",HTMLElement).dataset.mutationPending).toBe("false");
+    expect(element("main",HTMLElement).dataset.consoleOutcome).toBe("unknown");
+    const leaving = new Event("beforeunload", {cancelable:true}); window.dispatchEvent(leaving);
+    expect(leaving.defaultPrevented).toBe(true);
+    submit(form); expect(fetch).toHaveBeenCalledOnce();
+    expect(element('button[type=submit]',HTMLButtonElement).disabled).toBe(true);
+    // Follow the real read-only recovery, without assuming the lost response
+    // undid the server operation or replaying its POST.
+    element('[data-dashboard-notice] a',HTMLAnchorElement).click();
+    await vi.waitFor(() => expect(document.querySelector('[data-current-state]')).not.toBeNull());
+    const readLeaving = new Event("beforeunload", {cancelable:true}); window.dispatchEvent(readLeaving);
+    expect(readLeaving.defaultPrevented).toBe(false);
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(fetch.mock.calls.map(call => call[1]?.method ?? "GET")).toEqual(["POST", "GET"]);
+  });
   it.each([422, 503])("restores the list search after a mutation returns %s", async (status) => {
     const main = element("main", HTMLElement);
     main.insertAdjacentHTML("beforeend", '<form method="get" action="/admin" data-dashboard-search><input name="q"><button type="submit">搜索人员</button></form>');
@@ -40,6 +67,8 @@ describe("bounded mutation outcomes", () => {
     if (!resolve) throw new Error("request missing"); const complete: (response: Response) => void = resolve;
     complete(new Response(JSON.stringify({error: {message: "invalid input"}}), {status: 422, headers: {"Content-Type": "application/json"}}));
     await vi.waitFor(() => expect(navigation.notice).toHaveBeenCalledWith(expect.stringContaining("未接受"), "error")); expect(element("button[type=submit]", HTMLButtonElement).disabled).toBe(false);
+    const leaving = new Event("beforeunload", {cancelable:true}); window.dispatchEvent(leaving);
+    expect(leaving.defaultPrevented).toBe(false);
   });
   it.each(["network", "invalid-html", "server-error"])("blocks replay when the result is unknown: %s", async (failure) => {
     history.replaceState(null, "", "/admin?view=access&person=Alex&task=give-access");

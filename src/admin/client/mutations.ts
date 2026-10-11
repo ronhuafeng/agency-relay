@@ -1,4 +1,4 @@
-import { retainConsoleActor, endConsoleRuntime, recordConsoleOutcome } from "./authority";
+import { retainConsoleActor, endConsoleRuntime, recordConsoleOutcome, hasUnknownConsoleOutcome } from "./authority";
 import type { TaskController } from "./navigation";
 import { readConsoleRejection } from "../ui/messages";
 import { consoleReturnTarget } from "../return-target";
@@ -118,6 +118,6 @@ export function initializeMutations(navigation: TaskController): () => void {
     event.preventDefault(); void submit(form, submitter, body);
   }, { signal });
   document.addEventListener("click", (event) => { if (event.target instanceof Element && event.target.closest("[data-stop-waiting]")) pending?.abort(); }, { signal });
-  window.addEventListener("beforeunload", (event) => { if (pending) { event.preventDefault(); event.returnValue = ""; } }, { signal });
+  window.addEventListener("beforeunload", (event) => { if (pending || hasUnknownConsoleOutcome()) { event.preventDefault(); event.returnValue = ""; } }, { signal });
   return () => { disposed = true; listeners.abort(); pending?.abort(); };
 }
