@@ -6,7 +6,7 @@ async function foreground(page: import('@playwright/test').Page) {
   await page.evaluate(()=>document.dispatchEvent(new Event('visibilitychange')));
 }
 async function ready(page: import('@playwright/test').Page) {
-  await expect(page.locator('[data-confirmation-fallback]:visible')).toHaveCount(0);
+  await expect(page.locator('[data-confirmation-fallback]:not([hidden])')).toHaveCount(0);
   await expect(page.locator('[data-console-actor-id]')).toHaveCount(1);
 }
 

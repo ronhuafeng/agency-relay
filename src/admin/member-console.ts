@@ -16,7 +16,7 @@ import type { ConsolePrincipal } from "../auth/principal";
 import { Icon, type IconName } from "./ui/icon";
 import { SidebarGroup, SidebarGroupLabel, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "./ui/components/sidebar";
 import { Badge } from "./ui/components/badge";
-import { consoleDataRevision } from "./console-revision";
+import { consoleDataRevision, unchangedConsoleRead } from "./console-revision";
 import {
   isMemberView,
   MEMBER_VIEWS,
@@ -33,6 +33,7 @@ import {
 } from "./ui/pages/member";
 
 export async function memberConsoleResponse(input: {
+  unchangedRevision?: string | null;
   env: Env;
   url: URL;
   principal: ConsolePrincipal;
@@ -59,7 +60,9 @@ export async function memberConsoleResponse(input: {
   try {
     const {body, data} = await renderView(input, view, trend);
     if (input.service) await delegatedService(input.env, input.principal, input.service.id);
-    const revision = await consoleDataRevision({data, service: input.service, actor: {id: input.principal.id, email: input.principal.email, role: input.principal.role}});
+    const revision = await consoleDataRevision({readUrl, data, service: input.service, actor: {id: input.principal.id, email: input.principal.email, role: input.principal.role}});
+    const unchanged = unchangedConsoleRead(input.unchangedRevision, revision, input.principal.id);
+    if (unchanged) return unchanged;
     return html(200, input.requestId, body, input.principal, view, input.service, trend ? readUrl : undefined, {url: readUrl, revision});
   } catch (error) {
     if (error instanceof HttpError && error.status === 404) throw error;

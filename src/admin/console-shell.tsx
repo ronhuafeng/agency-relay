@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { renderToString } from "react-dom/server";
-import { consoleStylesheetPath } from "./app";
+import { consoleStylesheetPath, consoleClientPath } from "./app";
 import { AppHead, ConsoleHeader, ConsoleNavigation } from "./ui/console-chrome";
 import { SidebarProvider } from "./ui/components/sidebar";
 
@@ -49,7 +49,7 @@ export function consoleDocument(input: ConsoleDocumentInput): string {
         {input.confirm ? (
           <>
             <div id="console-dialog-root" />
-            <script type="module" src="/admin/console.js" nonce={input.nonce} />
+            <script type="module" src={consoleClientPath()} nonce={input.nonce} />
           </>
         ) : null}
       </body>

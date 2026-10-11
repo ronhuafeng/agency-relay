@@ -19,7 +19,7 @@ import { consoleDocument } from "./console-shell";
 import { ReadError } from "./ui/read-error";
 import { RecoveryPage } from "./ui/recovery-page";
 import { consoleLoginHref, consoleReturnTarget } from "./return-target";
-import { consoleDataRevision } from "./console-revision";
+import { consoleDataRevision, unchangedConsoleRead } from "./console-revision";
 
 
 
@@ -85,6 +85,8 @@ export async function adminDashboardResponse(input: AdminDashboardInput): Promis
     // ledgers participate in periodic console updates. Write results stay put.
     const revision = !input.mutationFlash && !task && !(view === "credentials" && requestedAccount)
       ? await consoleDataRevision(model) : undefined;
+    const unchanged = unchangedConsoleRead(input.unchangedRevision, revision, input.identity.userId);
+    if (unchanged) return unchanged;
     return htmlResponse(renderDashboardDocument(model, nonce, createElement(DashboardContent, {model}), revision), 200, nonce, true, input.url.origin);
   } catch (error) {
     const requestId = presentText(input.requestId);

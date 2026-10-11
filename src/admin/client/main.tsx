@@ -13,11 +13,9 @@ import { initializeMemberKeyRows, disposeMemberKeyRows } from "./member-key-rows
 import { initializeVisibleRowFilters } from "./filters";
 import { initializeSetup, initializeView } from "./setup";
 import { AccessChoiceView, AddAccountView, MemberKeyForm } from "../ui/forms";
-import { CapabilityComparison } from "../ui/capabilities";
-import { UsageReport } from "../ui/usage-report";
 import { UsageComparison, readUsageComparison } from "../ui/usage-comparison";
 import { CopySecretView, DisclosureView } from "../ui/secrets";
-import { readAccessChoice, readAddAccount, readCapabilityComparison, readCopySecret, readDisclosure, readMemberKeyForm, readUsageReport } from "../ui/models";
+import { readAccessChoice, readAddAccount, readCopySecret, readDisclosure, readMemberKeyForm } from "../ui/models";
 import { AccountMenuView, readAccountMenu } from "../ui/account-menu";
 import { SetupFilesView, readSetupFiles } from "../ui/setup-files";
 import { SetupWorkbenchView, readSetupWorkbench } from "../ui/setup-workbench";
@@ -170,24 +168,11 @@ function hydrateControl(node: HTMLScriptElement): void {
     hydrated.set(root, hydrateRoot(root, <SetupWorkbenchView control={control}/>));
     return;
   }
-  if (node.dataset.uiProps === "usage-report") {
-    const control = readUsageReport(value); const root = document.getElementById("usage-report");
-    if (!control || !root || hydrated.has(root)) return;
-    hydrated.set(root, hydrateRoot(root, <UsageReport control={control} />));
-    return;
-  }
   if (node.dataset.uiProps === "member-key-form") {
     const model = readMemberKeyForm(value);
     const root = document.getElementById("member-key-form");
     if (!model || !root || hydrated.has(root)) return;
     hydrated.set(root, hydrateRoot(root, <MemberKeyForm model={model} />));
-    return;
-  }
-  if (node.dataset.uiProps === "capability") {
-    const model = readCapabilityComparison(value);
-    const root = document.getElementById("capability-comparison");
-    if (!model || !root || hydrated.has(root)) return;
-    hydrated.set(root, hydrateRoot(root, <CapabilityComparison model={model} />));
     return;
   }
   if (node.dataset.uiProps === "disclosure") {

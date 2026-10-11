@@ -1,6 +1,6 @@
 import { writeFileSync } from 'node:fs';
 import type { Locator, Page, TestInfo } from '@playwright/test';
-import { test, expect, authenticate, openMemberCreate, openKeyEditor } from './fixtures';
+import { openNativeConfirmation, test, expect, authenticate, openMemberCreate, openKeyEditor } from './fixtures';
 
 // Scope: primary actions, navigation, editable fields and the actual associated
 // labels of compact checkbox/radio indicators. Inline prose links are not actions.
@@ -136,7 +136,7 @@ for (const width of [320, 390, 768, 1440]) for (const colorScheme of ['light', '
 
       await authenticate(context, worker, 'member');
       await page.goto('/admin?view=keys');
-      await expect(page.locator('[data-confirmation-fallback]:visible')).toHaveCount(0);
+      await expect(page.locator('[data-confirmation-fallback]:not([hidden])')).toHaveCount(0);
       await inspect(page, testInfo, 'member-keys', width);
       const headerContainsActions = await page.locator('.member-keys-table').evaluate(table => {
         const header = table.querySelector('thead')!.getBoundingClientRect();
@@ -228,6 +228,8 @@ for (const scenario of [{ width: 320, colorScheme: 'dark' }, { width: 1440, colo
       await inspect(page, testInfo, 'native-member-keys', scenario.width);
       await page.locator('[data-key-id="member-key"]').getByRole('link', {name:'管理密钥',exact:false}).click();
       await inspect(page, testInfo, 'native-member-key-detail', scenario.width);
+      await page.getByRole('button',{name:'更换密钥',exact:true}).click();
+      await openNativeConfirmation(page.locator('form[action="/me/ui/keys/member-key/replace"]'));
       const confirmation = page.locator('form[action="/me/ui/keys/member-key/replace"] label.confirmation-fallback');
       await reachable(confirmation);
       await confirmation.click({ position: { x: 4, y: 4 } });
@@ -247,7 +249,7 @@ test.describe('enlarged content', () => {
   test.use({ viewport: { width: 1440, height: 1000 }, identity: 'member' });
   test('200% CSS zoom preserves the editable value and keyboard confirmation', async ({ page, worker }, testInfo) => {
     await page.goto('/admin?view=keys');
-    await expect(page.locator('[data-confirmation-fallback]:visible')).toHaveCount(0);
+    await expect(page.locator('[data-confirmation-fallback]:not([hidden])')).toHaveCount(0);
     await openMemberCreate(page);
     const name = page.getByRole('textbox', { name: '名称', exact: true });
     await name.fill('Synthetic workstation with enlarged content');

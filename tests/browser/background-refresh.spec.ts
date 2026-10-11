@@ -15,8 +15,13 @@ test('quiet reads retain unchanged content and apply changed SQL data without mo
   expect(scroll).toBeGreaterThan(0);
   const reads = () => worker.requests.filter(request => request.method === 'GET' && request.view === 'usage').length;
   const before = reads();
+  const unchangedRead = page.waitForResponse(response => response.request().headers()["x-console-revision"] !== undefined);
   worker.advanceClock(300000);
   await page.clock.fastForward(300000);
+  const unchanged = await unchangedRead;
+  expect(unchanged.status()).toBe(204);
+  expect(unchanged.headers()["cache-control"]).toBe("private, no-store");
+  expect(await unchanged.text()).toBe("");
   await expect.poll(reads).toBeGreaterThan(before);
   expect(await root!.evaluate(node => node === document.querySelector('main#content'))).toBe(true);
   expect(await page.locator('[data-console-status]').isVisible()).toBe(false);

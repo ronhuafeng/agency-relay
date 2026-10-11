@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { JSDOM } from "jsdom";
 import { handleRequest } from "../../src/router";
-import { DASHBOARD_APP_PATHS, consoleStylesheetPath } from "../../src/admin/app";
+import { DASHBOARD_APP_PATHS, consoleStylesheetPath, consoleClientPath } from "../../src/admin/app";
 import { memberHref } from "../../src/admin/member-href";
 import { consoleCookie, makeFixture } from "../router/fixture";
 
@@ -22,6 +22,15 @@ describe("shared authenticated console installation", () => {
     }
     // Styles are public and content-addressed so login is styled without a
     // session, while the rest of the PWA and console still need authority.
+    const script = consoleClientPath();
+    const js = await call(script, false);
+    expect(js.status).toBe(200);
+    expect(js.headers.get("Content-Type")).toContain("javascript");
+    expect(js.headers.get("Cache-Control")).toContain("immutable");
+    expect((await call(script, false, "https://untrusted.invalid")).status).toBe(404);
+    expect((await call(`${script}?other=1`, false)).status).toBe(404);
+    expect((await call("/admin/console-unknown.js", false)).status).toBe(404);
+    expect((await handleRequest(new Request(`${ORIGIN}${script}`, {method:"POST"}), f.env, f.ctx, f.deps)).status).not.toBe(200);
     const stylesheet = consoleStylesheetPath();
     const css = await call(stylesheet, false);
     expect(css.status).toBe(200);
@@ -32,6 +41,7 @@ describe("shared authenticated console installation", () => {
     const doc = new JSDOM(await (await call("/")).text()).window.document;
     expect(doc.querySelector('link[rel="stylesheet"]')?.getAttribute("href")).toBe(stylesheet);
     expect(doc.querySelector("head style")).toBeNull();
+    expect(doc.querySelector('script[type="module"]')?.getAttribute("src")).toBe(script);
     expect(doc.querySelector('link[rel="manifest"]')?.getAttribute("crossorigin")).toBe("use-credentials");
     expect(doc.querySelector('link[rel="apple-touch-icon"]')?.getAttribute("href")).toBe("/admin/app-icon-192.png");
     expect(doc.querySelector(role === "admin" ? '[data-dashboard-view="overview"]' : '[data-member-view="home"]')).not.toBeNull();

@@ -1,4 +1,4 @@
-import { retainConsoleActor } from "./authority";
+import { consoleActorId, retainConsoleActor } from "./authority";
 
 export function setConsoleStatus(message: string, state: "pending" | "stale" | "error" = "pending"): void {
   const status = document.querySelector<HTMLElement>("[data-console-status]");
@@ -18,8 +18,16 @@ export function initializeBackgroundRefresh(apply: (doc: Document) => void): () 
   let observed: HTMLElement | null = null;
   let controller: AbortController | null = null;
   let disposed = false;
+  let interruption = 0;
   const main = (): HTMLElement | null => document.querySelector<HTMLElement>("main#content");
   const busy = (root: HTMLElement): boolean => root.dataset.mutationPending === "true" || root.dataset.memberMutationBlocked === "true" || root.dataset.dashboardMutationBlocked === "true" || root.getAttribute("aria-busy") === "true" || Boolean(root.querySelector('form[aria-busy="true"],[data-one-time-key],[data-member-result],[data-member-feedback][data-state="error"],[data-member-feedback][data-state="pending"]'));
+  const available = (): boolean => document.visibilityState === "visible" && navigator.onLine
+    && !document.documentElement.hasAttribute("data-console-authority-pending");
+  // Once a read loses foreground ownership, a later foreground return cannot
+  // make its delayed result current again. Recovery owns the new authority read.
+  const interrupt = (): void => { if (!available()) { interruption++; controller?.abort(); } };
+  document.addEventListener("visibilitychange", interrupt, {signal: listeners.signal});
+  window.addEventListener("offline", interrupt, {signal: listeners.signal});
   const visible = (node: Element): boolean => node.getClientRects().length > 0;
   const defer = (root: HTMLElement): boolean => {
     for (const form of editedForms) if (!root.contains(form)) editedForms.delete(form);
@@ -60,19 +68,32 @@ export function initializeBackgroundRefresh(apply: (doc: Document) => void): () 
     if (root !== observed) { observed = root; lastRead = Date.now(); }
     const interval = root?.dataset.dashboardView === "usage" ? 300000 : 120000;
     if (disposed || controller || !root?.dataset.consoleReadUrl || !root.dataset.consoleRevision
-      || document.visibilityState !== "visible" || !navigator.onLine || document.documentElement.hasAttribute("data-console-authority-pending")
+      || !available()
       || busy(root) || Date.now() - lastRead < interval) return;
     const readUrl = root.dataset.consoleReadUrl;
     const url = new URL(readUrl, location.href);
     if (url.origin !== location.origin) return;
     const revision = root.dataset.consoleRevision;
-    const current = (): boolean => !disposed && main() === root && root.dataset.consoleRevision === revision && root.dataset.consoleReadUrl === readUrl && !busy(root);
+    const actor = consoleActorId();
+    const started = interruption;
+    const current = (afterAbort = false): boolean => !disposed && started === interruption && (afterAbort || !request.signal.aborted) && available() && consoleActorId() === actor && main() === root && root.dataset.consoleRevision === revision && root.dataset.consoleReadUrl === readUrl && !busy(root);
     lastRead = Date.now();
     const request = new AbortController(); controller = request;
     const timeout = window.setTimeout(() => request.abort(), 20000);
     try {
-      const response = await fetch(url.href, {headers: {Accept: "text/html"}, credentials: "same-origin", cache: "no-store", redirect: "error", signal: request.signal});
+      const response = await fetch(url.href, {headers: {Accept: "text/html", "X-Console-Revision": revision}, credentials: "same-origin", cache: "no-store", redirect: "error", signal: request.signal});
       if (!current()) return;
+      if (response.status === 204) {
+        // This is an authorized fresh read, not an HTTP cache validation. Never
+        // accept an empty response for a different actor or retained model.
+        if (!actor || response.headers.get("X-Console-Actor-Id") !== actor) {
+          document.dispatchEvent(new CustomEvent("console:actor-changed", {detail: {outcome: "read", changed: true, reason: "authority"}}));
+          return;
+        }
+        if (response.headers.get("X-Console-Revision") !== revision) throw new Error("read unavailable");
+        if (document.querySelector<HTMLElement>("[data-console-status]")?.dataset.state !== "pending") setConsoleStatus("");
+        return;
+      }
       if (response.headers.get("Content-Type")?.includes("application/json")) {
         const value: unknown = await response.json();
         if (!current()) return;
@@ -107,7 +128,7 @@ export function initializeBackgroundRefresh(apply: (doc: Document) => void): () 
       if (destination) { destination.tabIndex = -1; destination.focus({preventScroll: true}); }
       scrollTo(position); setConsoleStatus("");
     } catch {
-      if (current()) setConsoleStatus("更新暂不可用", "error");
+      if (current(true)) setConsoleStatus("更新暂不可用", "error");
     } finally { clearTimeout(timeout); request.abort(); if (controller === request) controller = null; }
   };
   observed = main();

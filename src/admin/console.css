@@ -440,7 +440,7 @@ form[aria-busy=true] :is(button,a)[aria-disabled=true],form[aria-busy=true] butt
 .account-detail-content .credential-body>.credential-actions>.inline-form:not([data-confirmation]){width:auto;max-width:100%}
 .account-detail-content .credential-body>.credential-actions>form[data-confirmation]{display:grid;grid-template-areas:"confirm" "action";justify-items:start;gap:8px;max-width:100%;margin:0}
 .account-detail-content .credential-body>.credential-actions>form[data-confirmation] :is([data-slot=button],[data-variant][data-size]:not([data-slot=switch])){grid-area:action}
-.account-detail-content .credential-body>.credential-actions>form[data-confirmation] .confirmation-fallback{grid-area:confirm}
+.account-detail-content .credential-body>.credential-actions>form[data-confirmation] .confirmation-disclosure{grid-area:confirm}
 .account-detail .account-grid{grid-template-columns:1fr}
 .account-return{justify-self:start}
 .account-access-link{align-self:flex-start;margin:0}
@@ -871,7 +871,7 @@ label.confirmation-fallback{
 }
 label.confirmation-fallback>span{min-width:0;flex:1 1 auto}
 .person-detail-head>.inline-form{display:grid;flex:1 1 100%;justify-items:start;gap:8px;width:min(420px,100%);margin:0}
-.console-simple form:has(>label.confirmation-fallback){display:grid;justify-items:start;gap:12px;width:min(420px,100%);margin:0}
+.console-simple form:has(>.confirmation-disclosure){display:grid;justify-items:start;gap:12px;width:min(420px,100%);margin:0}
 
 :is(.page-head h1,.console-simple h1,.console-simple h2,.panel h2,.panel h3,.nav-toggle-label,.brand>strong) { letter-spacing:normal; }
 

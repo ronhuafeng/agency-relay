@@ -1,4 +1,4 @@
-import { test, expect } from './fixtures';
+import { openNativeConfirmation, test, expect } from './fixtures';
 
 test('an unknown creation outcome recovers the current collection without reopening the old task on reload', async ({page,worker}) => {
   await page.goto('/admin?view=access&task=add-person&q=recovered&range=30d');
@@ -116,7 +116,7 @@ for(const script of [true,false]) test.describe(`pending OAuth task with script=
   test('keeps its exact callback task until explicit departure and requires a fresh start afterward',async({page,worker})=>{
     worker.setBoundCredentialStatus('reauth_required');
     await page.goto('/admin?view=credentials&account=codex%3Afixture-codex&q=Synthetic');
-    if(!script) await page.locator('[data-action="oauth-codex-start"] [data-confirmation-fallback] input').check();
+    if(!script) {await openNativeConfirmation(page.locator('[data-action="oauth-codex-start"]')); await page.locator('[data-action="oauth-codex-start"] [data-confirmation-fallback] input').check();}
     await page.getByRole('button',{name:'重新连接',exact:true}).click();
     if(script) await page.getByRole('alertdialog').getByRole('button',{name:'重新连接',exact:true}).click();
     await page.waitForFunction(()=>document.querySelector('[data-authorizing]')!==null);

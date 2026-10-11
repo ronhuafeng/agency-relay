@@ -910,7 +910,7 @@ describe("Dashboard", () => {
       expect(html).not.toContain("Recent requests");
       expect(html).not.toContain('aria-label="Recent requests"');
       if (view === "setup") {
-        expect(new JSDOM(html).window.document.querySelector('[data-local-config-sync]')?.hasAttribute('hidden')).toBe(true);
+        expect(new JSDOM(html).window.document.querySelector('[data-local-config-sync] fieldset')?.hasAttribute('disabled')).toBe(true);
         expect(html).not.toContain("/admin/ui/sync");
       }
     }

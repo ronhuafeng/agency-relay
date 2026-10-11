@@ -8,10 +8,10 @@ import { Field as FieldPrimitive, FieldLabel } from "./components/field";
 
 export function ConfirmationFallback({ message }: { readonly message: string }) {
   return (
-    <Label className="confirmation-fallback" data-confirmation-fallback="">
-      <input type="checkbox" required />
-      <span>{message}</span>
-    </Label>
+    <details className="confirmation-disclosure"><summary>操作说明与确认</summary><p>{message}</p><Label className="confirmation-fallback" data-confirmation-fallback="">
+      <input type="checkbox" required aria-label={message}/>
+      <span>确认上述操作</span>
+    </Label></details>
   );
 }
 

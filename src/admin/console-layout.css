@@ -124,7 +124,7 @@ form.inventory-page-size { display:flex; align-items:center; flex-wrap:wrap; gap
 .person-detail>.workspace-section:last-child { border-bottom:0; }
 .person-detail>.section-links { padding:4px 8px; margin:0; border-bottom:1px solid var(--line-soft); }
 .person-detail #person-status { flex:0 1 auto; width:auto; margin:0; padding:0; border:0; background:transparent; display:grid; gap:8px; justify-items:end; }
-.person-status-form:has(.confirmation-fallback:not([hidden])) { flex-basis:100%; justify-items:start; }
+.person-status-form:has(.confirmation-disclosure[open] .confirmation-fallback:not([hidden])) { flex-basis:100%; justify-items:start; }
 .key-detail,.account-detail-content,.account-linked-keys { background:var(--card); border:1px solid var(--border); padding:16px; border-radius:var(--radius); }
 .person-credit-policies { display:grid; grid-template-columns:minmax(0,1fr); gap:0; margin:0; padding:0; list-style:none; border:1px solid var(--line-soft); }
 .person-credit-policies>li { min-width:0; display:grid; grid-template-columns:minmax(160px,1fr) minmax(180px,1.2fr) auto; padding:12px; background:transparent; border:0; gap:8px 16px; align-items:center; }
@@ -176,7 +176,7 @@ form.inventory-page-size { display:flex; align-items:center; flex-wrap:wrap; gap
 .account-detail .account-defaults .info-popover { margin-left:auto; }
 .account-detail-content .credential-body>.credential-actions { display:flex; flex-wrap:wrap; gap:12px; }
 .account-detail-content .credential-body>.credential-actions>form[data-confirmation] { width:auto; }
-.account-detail-content .credential-body>.credential-actions>form[data-confirmation]:has(.confirmation-fallback:not([hidden])) { width:min(420px,100%); }
+.account-detail-content .credential-body>.credential-actions>form[data-confirmation]:has(.confirmation-disclosure[open] .confirmation-fallback:not([hidden])) { width:min(420px,100%); }
 .account-detail .account-defaults,.account-detail>[data-retirement] { padding:16px; border:1px solid var(--border); background:var(--card); }
 .accounts-workspace[data-show-detail=false]>.oauth-task-controls>.account-defaults { padding:0; border:0; }
 .account-defaults h2 { font-size:16px; }
@@ -359,8 +359,8 @@ table[data-slot=table] tbody tr:hover { background:color-mix(in srgb,var(--secon
 .member-inventory-footer { display:flex; align-items:center; justify-content:space-between; gap:8px; padding-top:8px; }
 .console-simple .member-inventory-footer .revoke-all { width:auto; margin:0; padding:0; border:0; }
 .member-inventory-footer form { margin:0; }
-.member-inventory-footer:has(.confirmation-fallback:not([hidden])) { display:grid; }
-.member-inventory-footer:has(.confirmation-fallback:not([hidden])) .revoke-all { width:100%; }
+.member-inventory-footer:has(.confirmation-disclosure[open] .confirmation-fallback:not([hidden])) { display:grid; }
+.member-inventory-footer:has(.confirmation-disclosure[open] .confirmation-fallback:not([hidden])) .revoke-all { width:100%; }
 .member-key-create { border-top:3px solid var(--primary); }
 .console-simple [data-member-view] { gap:12px; }
 .console-simple .gate { background:var(--card); border:1px solid var(--border); }
@@ -884,3 +884,16 @@ body:has(.console-nav-account) { --header-h:0px; }
   .credit-editor-row .inline-form>[data-slot=button] { justify-self:start; }
   .credit-policy-controls label.confirmation-fallback { max-width:160px; white-space:normal; }
 }
+
+/* Native disclosures own the first paint and remain usable without a runtime. */
+.person-credit-table tr:has(.credit-policy-disclosure:not([open])) + .credit-editor-row { display:none; }
+.request-filters:has(.request-exact-disclosure:not([open])) .request-exact-filters { display:none; }
+summary[data-slot=button] { list-style:none; cursor:pointer; }
+summary[data-slot=button]::-webkit-details-marker { display:none; }
+.route-catalog:has(.route-native-fallback) [data-slot=tabs-content][hidden] { display:block!important; }
+.confirmation-disclosure > summary { min-height:44px; display:flex; align-items:center; padding-inline:8px; border-radius:var(--radius); cursor:pointer; font-size:12px; color:var(--muted-foreground); }
+.confirmation-disclosure > summary:hover { background:var(--accent); }
+.confirmation-disclosure > summary:focus-visible { outline:3px solid var(--ring); outline-offset:2px; }
+.confirmation-disclosure > p { max-width:36em; white-space:normal; }
+.route-catalog:not([data-route-ready]):has(.surface-host :target) [data-slot=tabs-content] { display:none!important; }
+.route-catalog:not([data-route-ready]):has(.surface-host :target) [data-slot=tabs-content]:has(:target) { display:block!important; }

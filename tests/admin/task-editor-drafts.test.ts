@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 import { act, createElement } from "react";
-import { createRoot, type Root } from "react-dom/client";
+import { createRoot, hydrateRoot, type Root } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, expect, it } from "vitest";
 import { createDrafts, type Drafts } from "../../src/admin/client/drafts";
@@ -30,12 +30,12 @@ it("retains only safe email input for its exact task while keeping island IDs se
 it("cancels a mounted editor back to its visible trigger while preserving input", async () => {
   const mount = document.createElement("div"); document.body.append(mount); root = createRoot(mount);
   await act(() => root!.render(createElement(TaskEditorView, {control:control("other")})));
-  const trigger = mount.querySelector<HTMLButtonElement>('[data-slot="collapsible-trigger"]')!;
+  const trigger = mount.querySelector<HTMLElement>('summary')!;
   await act(() => trigger.click());
   const email = mount.querySelector<HTMLInputElement>('[name="email"]')!; email.value = "unfinished@example.test";
   const cancel = Array.from(mount.querySelectorAll<HTMLButtonElement>("button")).find(button=>button.textContent === "取消")!;
   cancel.focus(); await act(() => cancel.click());
-  expect(document.activeElement).toBe(trigger); expect(trigger.getAttribute("aria-expanded")).toBe("false");
+  expect(document.activeElement).toBe(trigger); expect(mount.querySelector("details")!.open).toBe(false);
   await act(() => trigger.click()); expect(email.value).toBe("unfinished@example.test");
 });
 
@@ -43,7 +43,7 @@ it("makes a restored email task visible and labels a retained draft after cancel
   let mount = document.createElement("div"); document.body.append(mount); root = createRoot(mount);
   await act(() => root!.render(createElement(TaskEditorView, {control:control("other")})));
   drafts = createDrafts(); drafts.restore(document);
-  await act(() => mount.querySelector<HTMLButtonElement>('[data-slot="collapsible-trigger"]')!.click());
+  await act(() => mount.querySelector<HTMLElement>('summary')!.click());
   const email = mount.querySelector<HTMLInputElement>('[name="email"]')!;
   await act(async () => {email.value = "unfinished@example.test"; email.dispatchEvent(new Event("input",{bubbles:true})); await Promise.resolve();});
   await act(() => Array.from(mount.querySelectorAll<HTMLButtonElement>("button")).find(button=>button.textContent === "取消")!.click());
@@ -52,11 +52,31 @@ it("makes a restored email task visible and labels a retained draft after cancel
   document.body.replaceChildren(); mount = document.createElement("div"); document.body.append(mount); root = createRoot(mount);
   await act(() => root!.render(createElement(TaskEditorView, {control:control("other")})));
   await act(async () => {drafts!.restore(document); await Promise.resolve();});
-  expect(mount.querySelector('[data-slot="collapsible-trigger"]')?.getAttribute("aria-expanded")).toBe("true");
+  expect(mount.querySelector('details')!.open).toBe(true);
   expect(mount.querySelector<HTMLInputElement>('[name="email"]')!.value).toBe("unfinished@example.test");
-  expect(mount.querySelector('[data-slot="collapsible-content"]')?.hasAttribute("hidden")).toBe(false);
+  expect(mount.querySelector('form')!.isConnected).toBe(true);
   await act(async () => {mount.querySelector<HTMLButtonElement>('[data-discard-draft]')!.click(); await Promise.resolve();});
   expect(mount.querySelector<HTMLInputElement>('[name="email"]')!.value).toBe("");
   await act(() => Array.from(mount.querySelectorAll<HTMLButtonElement>("button")).find(button=>button.textContent === "取消")!.click());
   expect(mount.querySelector('[data-task-draft-indicator]')).toBeNull();
+});
+
+// Accept a native disclosure opened before scripting; reject hydration collapsing
+// it or discarding its input. Styling/primitive changes may preserve this contract.
+it("keeps native disclosure and input state through hydration", async () => {
+  const mount = document.createElement("div"); document.body.append(mount);
+  mount.innerHTML = renderToStaticMarkup(createElement(TaskEditorView, {control:control("other")}));
+  const disclosure = mount.querySelector("details")!;
+  expect(disclosure.open).toBe(false);
+  mount.querySelector<HTMLElement>("summary")!.click();
+  expect(disclosure.open).toBe(true);
+  const email = mount.querySelector<HTMLInputElement>('[name="email"]')!;
+  email.value = "before-hydration@example.test";
+  await act(() => {root = hydrateRoot(mount, createElement(TaskEditorView, {control:control("other")}));});
+  expect(disclosure.open).toBe(true);
+  expect(email.value).toBe("before-hydration@example.test");
+  const cancel = Array.from(mount.querySelectorAll<HTMLButtonElement>("button")).find(button=>button.textContent === "取消")!;
+  await act(() => cancel.click());
+  expect(disclosure.open).toBe(false);
+  expect(document.activeElement).toBe(mount.querySelector("summary"));
 });

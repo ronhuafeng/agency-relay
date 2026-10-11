@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test';
-import { test, expect, authenticate, openMemberCreate, openKeyEditor } from './fixtures';
+import { openNativeConfirmation, test, expect, authenticate, openMemberCreate, openKeyEditor } from './fixtures';
 import { ORIGIN } from './worker';
 
 async function createKey(page: Page, enhanced = true) {
@@ -150,7 +150,8 @@ test.describe('native delegated recovery', () => {
     await expect(page.getByRole('button', {name: '更换', exact: true})).toHaveCount(0);
     const form = page.locator(`form[action="${prefix}/ui/keys/revoke-all"]`);
     await page.locator('thead .member-bulk-actions > button').click();
-    await form.getByRole('checkbox').check(); await form.getByRole('button').click();
+    await openNativeConfirmation(form);
+    await form.getByRole('checkbox').check(); await form.locator('button[type=submit]').click();
     await expect(page.locator('[data-member-result="confirmed"]')).toContainText('已撤销 1 个密钥');
     worker.setServiceStatus(id, 'active'); await page.getByRole('link', {name: '查看当前密钥', exact: true}).click();
     await expect(page.locator('[data-key-state="revoked"]')).toHaveCount(1);

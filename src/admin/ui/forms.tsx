@@ -66,9 +66,9 @@ export function CreditPolicyForm({control, initialMode = control.mode}: {readonl
             min={0}
             step={1}
             required={enhanced && mode === "limited"}
+            disabled={enhanced && mode !== "limited"}
             defaultValue={control.monthlyAllowance}
             placeholder="每月额度"
-            disabled={enhanced && mode !== "limited"}
           />
         </Label>
       </div>
@@ -80,7 +80,7 @@ export function CreditPolicyForm({control, initialMode = control.mode}: {readonl
 }
 export function CreditPolicySwitch({control,onEnable}: {readonly control: CreditPolicyControl; readonly onEnable: () => void}) {
   const enhanced = useEnhanced();
-  if (control.mode === "disabled") return enhanced ? <Switch checked={false} aria-label={`${control.clientLabel} 请求准入`} onCheckedChange={onEnable}/> : <span className="caption">已停用</span>;
+  if (control.mode === "disabled") return <Switch checked={false} disabled={!enhanced} aria-label={`${control.clientLabel} 请求准入`} onCheckedChange={onEnable}/>;
   const warning = `停用 ${control.personLabel} 的 ${control.clientLabel} 请求准入？所有新请求将被拒绝，包括零消耗操作。密钥不会撤销。`;
   return <form className="inline-form" method="post" action={control.action} data-action="credit-set" data-confirmation={warning}><input type="hidden" name="mode" value="disabled"/><input type="hidden" name="confirm" value="1"/><ConfirmationFallback message={warning}/><Switch type="submit" checked aria-label={`${control.clientLabel} 请求准入`} data-confirm-label={`停用 ${control.clientLabel}`} data-variant="destructive"/></form>;
 }

@@ -1,11 +1,12 @@
-import { test, expect, authenticate, openMemberCreate, openKeyEditor } from "./fixtures";
+import { consoleClientPath } from "../../src/admin/app";
+import { openNativeConfirmation, test, expect, authenticate, openMemberCreate, openKeyEditor } from "./fixtures";
 import { ATTACKER_ORIGIN, ORIGIN } from "./worker";
 import { request as apiRequest, type Page } from "@playwright/test";
 
 async function ready(page: Page) {
   await expect(page.locator('#console-dialog-root')).toBeAttached();
   // This is a production enhancement outcome, not a test-only readiness hook.
-  await expect(page.locator('[data-confirmation-fallback]:visible')).toHaveCount(0);
+  await expect(page.locator('[data-confirmation-fallback]:not([hidden])')).toHaveCount(0);
 }
 
 async function noSecretPersistence(page: Page) {
@@ -272,6 +273,7 @@ test.describe('native HTML without JavaScript', () => {
     await page.locator('[data-user-id="other"] .person-link').click();
     await expect(page.getByRole('heading', { name: 'other@example.test', exact: true })).toBeVisible();
     const form = page.locator('[data-action="user-status"]');
+    await openNativeConfirmation(form);
     await form.getByRole('checkbox').check();
     await form.getByRole('switch', { name: /启用账号/ }).click();
     await expect(page.getByRole('switch', { name: /启用账号/ })).toHaveAttribute('aria-checked', 'false');
@@ -281,7 +283,7 @@ test.describe('native HTML without JavaScript', () => {
     await expect(page).toHaveURL(/\/admin\?view=overview/);
     await expect(page.locator('main[data-dashboard-view=overview]')).toBeVisible();
     expect(worker.status('other')).toBe('disabled');
-    expect(worker.requests.some((request) => request.path === '/admin/console.js')).toBe(false);
+    expect(worker.requests.some((request) => request.path === consoleClientPath())).toBe(false);
   });
 });
 
@@ -307,17 +309,19 @@ test.describe('native administrator issuance recovery',()=>{
     await page.goto(`/admin?view=${view}&person=member&key=member-key`);
     const form=page.locator('form[action="/admin/ui/keys/member-key/replace"]');
     await form.getByLabel('到期时间（UTC，可选）').fill(invalid);
+    await openNativeConfirmation(form);
     await form.getByRole('checkbox').check();
     const response=page.waitForResponse(r=>r.request().method()==='POST' && r.url().endsWith('/admin/ui/keys/member-key/replace'));
-    await form.getByRole('button').click();
+    await form.locator('button[type=submit]').click();
     const rejected=await response;
     expect(rejected.status()).toBe(400);
     expect(rejected.headers()['content-type']).toContain('text/html');
     await expect(page.getByRole('heading',{name:'密钥没有换发',exact:true})).toBeVisible();
     expect(worker.countKeys()).toBe(1);
     await form.getByLabel('到期时间（UTC，可选）').fill('2026-07-24T12:00');
+    await openNativeConfirmation(form);
     await form.getByRole('checkbox').check();
-    await form.getByRole('button').click();
+    await form.locator('button[type=submit]').click();
     await expect.poll(()=>page.locator('[data-one-time-key]').isVisible()).toBe(true);
     expect(worker.countKeys()).toBe(2);
   });
@@ -325,8 +329,9 @@ test.describe('native administrator issuance recovery',()=>{
     await page.goto(`/admin?view=${view}&person=member&key=member-key`);
     const form=page.locator('form[action="/admin/ui/keys/member-key/replace"]');
     await form.getByLabel('到期时间（UTC，可选）').fill('2026-07-24T12:00');
+    await openNativeConfirmation(form);
     await form.getByRole('checkbox').check();
-    await form.getByRole('button').click();
+    await form.locator('button[type=submit]').click();
     await expect.poll(()=>page.locator('[data-one-time-key]').isVisible()).toBe(true);
     const issued=worker.keyMetadata().find(row=>row.id!=='member-key')!;
     expect(issued.expires_at).toBe('2026-07-24T12:00:00.000Z');

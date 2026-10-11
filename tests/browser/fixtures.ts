@@ -1,4 +1,4 @@
-import { test as base, expect, type BrowserContext, type Page } from "@playwright/test";
+import { test as base, expect, type BrowserContext, type Locator, type Page } from "@playwright/test";
 import { NOW, ORIGIN, startConsoleWorker, type ConsoleWorker, type Identity } from "./worker";
 
 export const test = base.extend<{ worker: ConsoleWorker; identity: Identity; script: boolean }>({
@@ -57,3 +57,9 @@ export async function openKeyEditor(page: Page, task: 'rename' | 'replace'): Pro
   if (await trigger.getAttribute('aria-expanded') !== 'true') await trigger.click();
 }
 export { expect };
+
+export async function openNativeConfirmation(form: Locator): Promise<void> {
+  const disclosure = form.locator('.confirmation-disclosure');
+  if (await disclosure.getAttribute('open') === null) await disclosure.locator('summary').click();
+  await expect(disclosure.getByRole('checkbox')).toBeVisible();
+}

@@ -103,7 +103,7 @@ test.describe('SSR and hydration parity', () => {
       const nativeCodex = await plain.getByRole('checkbox', { name: 'Codex', exact: true }).isEnabled();
       const nativeGrok = await plain.getByRole('checkbox', { name: 'Grok', exact: true }).isEnabled();
       await page.goto('/admin?view=keys');
-      await expect(page.locator('[data-confirmation-fallback]:visible')).toHaveCount(0);
+      await expect(page.locator('[data-confirmation-fallback]:not([hidden])')).toHaveCount(0);
       await openMemberCreate(page);
       await expect(page.getByRole('combobox', { name: '有效期' })).toHaveValue(nativeExpiry);
       expect(await page.getByRole('checkbox', { name: 'Codex', exact: true }).isEnabled()).toBe(nativeCodex);

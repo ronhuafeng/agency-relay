@@ -1,21 +1,22 @@
 /** PWA resources for the console-session-protected dashboard host. No operator data. */
 import { APP_ICON_PNG } from "./app-icons";
-import { consoleClientSource } from "./generated/console-client";
-import { consoleStyles, consoleTheme } from "./generated/console-styles";
+import { consoleClientSource, consoleClientDigest } from "./generated/console-client";
+import { consoleStyles, consoleStylesDigest, consoleTheme } from "./generated/console-styles";
 
-// CSS contains no account data. The two independent 32-bit fingerprints are
-// cache keys, not security identifiers. Changing the generated CSS changes
-// the URL while authenticated HTML continues to be no-store.
-const CONSOLE_STYLESHEET_PATH = (() => {
-  let a = 0x811c9dc5;
-  let b = 0x9e3779b9;
-  for (let index = 0; index < consoleStyles.length; index++) {
-    const code = consoleStyles.charCodeAt(index);
-    a = Math.imul(a ^ code, 0x01000193);
-    b = Math.imul(b ^ code, 0x85ebca6b);
-  }
-  return `/admin/console-${(a >>> 0).toString(36)}-${(b >>> 0).toString(36)}.css`;
-})();
+// Generated public code and styling have no account data. Content-addressed
+// immutable URLs are distinct from no-store authenticated documents and PWA data.
+const CONSOLE_STYLESHEET_PATH = `/admin/console-${consoleStylesDigest}.css`;
+const CONSOLE_CLIENT_PATH = `/admin/console-${consoleClientDigest}.js`;
+export function consoleClientPath(): string { return CONSOLE_CLIENT_PATH; }
+export function consoleVersionedClientResponse(path: string): Response | null {
+  if (path !== CONSOLE_CLIENT_PATH) return null;
+  return new Response(consoleClientSource, {headers: {
+    "Content-Type": "text/javascript; charset=utf-8",
+    "Cache-Control": "public, max-age=31536000, immutable",
+    "X-Content-Type-Options": "nosniff",
+    "X-Robots-Tag": "noindex, nofollow"
+  }});
+}
 
 export function consoleStylesheetPath(): string { return CONSOLE_STYLESHEET_PATH; }
 

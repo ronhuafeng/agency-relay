@@ -100,8 +100,9 @@ Radix positioning, measured geometry, SVG/chart coordinates and progress transfo
 may depend on runtime data. Keep them in the precise owner. Fixed reusable visual
 decisions belong in tokens.
 
-The existing nonce-bound SSR stylesheet transport may carry generated token-driven
-CSS. It is transport, not another style authority. CSP remains a security boundary,
+SSR documents link the content-addressed generated stylesheet. The immutable
+public asset contains only shared token-driven CSS; private HTML remains no-store.
+Transport does not create another style authority. CSP remains a security boundary,
 not the design-token checker.
 
 ## Local preflight and CI

@@ -123,7 +123,7 @@ describe("admin pages, accounts, and audit", () => {
     const setupBody = await setup.text();
     expect(setupBody).toContain('data-view-role="setup"');
     expect(new JSDOM(setupBody).window.document.querySelector('.setup-page-head h2')?.textContent).toBe("连接客户端");
-    expect(new JSDOM(setupBody).window.document.querySelector('[data-local-config-sync]')?.hasAttribute('hidden')).toBe(true);
+    expect(new JSDOM(setupBody).window.document.querySelector('[data-local-config-sync] fieldset')?.hasAttribute('disabled')).toBe(true);
     expect(setupBody).not.toContain('data-action="create-setup-package"');
     expect(setupBody).not.toContain("Claude Code");
     expect(setupBody).not.toContain("Gemini CLI");
@@ -491,7 +491,7 @@ describe("admin pages, accounts, and audit", () => {
     expect(nextHtml).not.toContain('data-one-time-key="true"');
     expect(nextHtml).not.toContain('data-created-token="true"');
     expect(nextHtml).toContain("换发密钥并下载配置包");
-    expect(new JSDOM(nextHtml).window.document.querySelector('[data-local-config-sync]')?.hasAttribute('hidden')).toBe(true);
+    expect(new JSDOM(nextHtml).window.document.querySelector('[data-local-config-sync] fieldset')?.hasAttribute('disabled')).toBe(true);
     expect(nextHtml).toContain('data-client-verification="grok"');
     expect(nextHtml).toContain('data-result="works"');
     expect(nextHtml).toContain("最近任务成功");

@@ -4,7 +4,7 @@ import {test,expect,openMemberCreate,openKeyEditor} from './fixtures';
 // route/SQL behavior. They do not claim OS resume or a persisted BFCache entry.
 test('an email draft stays visible for its exact person and regains focus after a successful authority read',async({page,worker})=>{
   await page.goto('/admin?view=access&person=other');
-  await expect(page.locator('[data-confirmation-fallback]:visible')).toHaveCount(0);
+  await expect(page.locator('[data-confirmation-fallback]:not([hidden])')).toHaveCount(0);
   const form=page.locator('form[action="/admin/ui/users/other/email"]');
   const trigger=page.getByRole('button',{name:'更改登录邮箱',exact:true});
   await trigger.click();
@@ -38,7 +38,7 @@ for(const width of [390,1440]) test.describe(`stopped management wait ${width}px
 test.use({viewport:{width,height:900}});
 test('a stopped management wait remains unknown when the next foreground read requires login',async({page,worker},testInfo)=>{
   const target='/admin?view=access&range=7d&person=other';
-  await page.goto(target); await expect(page.locator('[data-confirmation-fallback]:visible')).toHaveCount(0);
+  await page.goto(target); await expect(page.locator('[data-confirmation-fallback]:not([hidden])')).toHaveCount(0);
   const write=worker.hold({method:'POST',path:'/admin/ui/users/other/status'});
   await page.getByRole('switch',{name:/启用账号/}).click();
   await page.getByRole('alertdialog').getByRole('button',{name:'停用账号',exact:true}).click(); await write.entered;
@@ -109,7 +109,7 @@ test.describe('member local selection recovery',()=>{
     const base=service?`/me/service-accounts/${service}?view=keys`:'/admin?area=me&view=keys';
     const original=`${base}${delegated?'':`&key=${owner}-setup-old`}#member-key-inventory`;
     const selected=`${owner}-setup-new`; const target=`${base}&key=${selected}#member-key-inventory`;
-    await page.goto(original); await expect(page.locator('[data-confirmation-fallback]:visible')).toHaveCount(0);
+    await page.goto(original); await expect(page.locator('[data-confirmation-fallback]:not([hidden])')).toHaveCount(0);
     await page.locator(`[data-key-id="${selected}"] a[data-member-key-toggle]`).last().click();
     await expect(page.locator(`[data-member-key-row="${selected}"]`)).toBeVisible();
     await expect(page).toHaveURL(new URL(original,page.url()).href);

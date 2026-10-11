@@ -1,6 +1,6 @@
 import { writeFileSync } from 'node:fs';
 import type { Page } from '@playwright/test';
-import { test, expect } from './fixtures';
+import { openNativeConfirmation, test, expect } from './fixtures';
 
 async function geometry(page: Page) {
   return page.locator('main').evaluate(main => {
@@ -95,7 +95,7 @@ test('route filtering, exact provider selection and Back retain context', async 
 
 test('quota drafts survive navigation and cancellation never writes', async ({ page, worker }) => {
   await page.goto('/admin?view=quotas');
-  await expect(page.locator('[data-confirmation-fallback]:visible')).toHaveCount(0);
+  await expect(page.locator('[data-confirmation-fallback]:not([hidden])')).toHaveCount(0);
   const quota = page.locator('[data-quota-default="codex"]');
   await quota.getByRole('spinbutton').fill('123');
   await page.locator('.organization-policy-form').getByRole('button', { name:'保存', exact:true }).click();
@@ -181,7 +181,7 @@ test.describe('enlarged administrator workspace', () => {
 
 test('one quota save commits all three confirmed values in the enhanced workspace', async ({ page, worker }) => {
   await page.goto('/admin?view=quotas');
-  await expect(page.locator('[data-confirmation-fallback]:visible')).toHaveCount(0);
+  await expect(page.locator('[data-confirmation-fallback]:not([hidden])')).toHaveCount(0);
   const quota=page.locator('[data-quota-default="codex"]');
   await quota.getByRole('spinbutton').fill('123');
   await page.locator('[data-quota-default="grok"]').getByRole('spinbutton').fill('456');
@@ -197,7 +197,7 @@ test('one quota save commits all three confirmed values in the enhanced workspac
 
 test('stale organization quota form rejects every change and offers a fresh read', async ({page,worker}) => {
   await page.goto('/admin?view=quotas');
-  await expect(page.locator('[data-confirmation-fallback]:visible')).toHaveCount(0);
+  await expect(page.locator('[data-confirmation-fallback]:not([hidden])')).toHaveCount(0);
   const initial = ['codex','grok','xai'].map(surface => worker.quotaDefault(surface));
   await page.locator('[data-quota-default="codex"]').getByRole('spinbutton').fill('321');
   worker.setQuotaDefault('grok',333);
@@ -217,6 +217,7 @@ test.describe('native quota save',()=>{
     await page.goto('/admin?view=quotas');
     const quota=page.locator('[data-quota-default="codex"]');
     await quota.getByRole('spinbutton').fill('124');
+    await openNativeConfirmation(page.locator('.organization-policy-form'));
     await page.locator('.organization-policy-form').getByRole('checkbox').check();
     await page.locator('.organization-policy-form').getByRole('button',{name:'保存',exact:true}).click();
     await expect(page).toHaveURL(/\/admin\/ui\/credit-defaults$/);
@@ -233,6 +234,7 @@ test.describe('native quota save',()=>{
     worker.failQuotaLayoutRead(0);
     const quota=page.locator('[data-quota-default="codex"]');
     await quota.getByRole('spinbutton').fill('129');
+    await openNativeConfirmation(page.locator('.organization-policy-form'));
     await page.locator('.organization-policy-form').getByRole('checkbox').check();
     await page.locator('.organization-policy-form').getByRole('button',{name:'保存',exact:true}).click();
     await expect(page.locator('[data-mutation-flash="credit_default"]')).toContainText('每月 129 credits');
@@ -249,7 +251,7 @@ test.describe('native quota save',()=>{
 
 test('quota confirmed write survives a failed page read and recovers without replay', async ({page,worker})=>{
   await page.goto('/admin?view=quotas');
-  await expect(page.locator('[data-confirmation-fallback]:visible')).toHaveCount(0);
+  await expect(page.locator('[data-confirmation-fallback]:not([hidden])')).toHaveCount(0);
   worker.failQuotaLayoutRead(0); // The bulk command commits before the following layout read.
   const quota=page.locator('[data-quota-default="codex"]');
   await quota.getByRole('spinbutton').fill('126');
@@ -267,7 +269,7 @@ test('quota confirmed write survives a failed page read and recovers without rep
 
 test('quota pending actions and stop-waiting reconcile the committed value once', async ({page,worker})=>{
   await page.goto('/admin?view=quotas');
-  await expect(page.locator('[data-confirmation-fallback]:visible')).toHaveCount(0);
+  await expect(page.locator('[data-confirmation-fallback]:not([hidden])')).toHaveCount(0);
   const hold=worker.hold({method:'POST',path:'/admin/ui/credit-defaults'});
   const quota=page.locator('[data-quota-default="codex"]');
   await quota.getByRole('spinbutton').fill('127');

@@ -1,3 +1,4 @@
+import { consoleClientPath } from "../../src/admin/app";
 import { test, expect, authenticate, openKeyEditor } from './fixtures';
 import { ORIGIN } from './worker';
 
@@ -80,7 +81,7 @@ test('held-key configuration is local-only and clears its input on departure',as
   const setupUrl=ORIGIN+'/admin?area=me&view=setup';
   const keysUrl=ORIGIN+'/admin?area=me&view=keys';
   const destination=worker.hold({method:'GET',path:'/admin',view:'keys'});
-  const script=worker.hold({method:'GET',path:'/admin/console.js'});
+  const script=worker.hold({method:'GET',path:consoleClientPath()});
   const help=page.locator('[data-task-help="configuration"]');
   await help.getByRole('button',{name:'配置说明',exact:true}).click();
   const departure=help.getByRole('link',{name:'只读查看本账号的密钥',exact:true}).click();

@@ -99,6 +99,7 @@ export type DashboardMutationFlash =
   | { kind: "credential_binding"; key_id: string; surface_grant: string };
 
 export interface AdminDashboardInput {
+  unchangedRevision?: string | null;
   env: Env;
   url: URL;
   identity: AdminIdentity;

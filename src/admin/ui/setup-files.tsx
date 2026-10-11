@@ -27,7 +27,7 @@ export function SetupFileTargetView({file, enhanced, showTemplate = true}: {read
       await navigator.clipboard.writeText(file.installTarget); setCopyState("copied");
     } catch { setCopyState("failed"); }
   };
-  return <section className="setup-file-target" data-setup-client={file.client}><div className="setup-file-title"><FileCode aria-hidden="true" className="ui-icon"/><div><h3>{file.filename}</h3><span>{file.clientLabel}</span></div></div><div className="setup-destination"><span>安装位置</span><div><code>{file.installTarget}</code>{enhanced ? <Button variant="ghost" size="icon" aria-label={`复制 ${file.clientLabel} 安装位置`} onClick={() => { void copyPath(); }}><Copy className="ui-icon" aria-hidden="true"/></Button> : null}</div></div>{showTemplate ? <SetupTemplate file={file}/> : null}{copyState !== "idle" ? <p className="meta" role="status">{copyState === "copied" ? "安装位置已复制" : "无法自动复制，请选择并复制路径。"}</p> : null}</section>;
+  return <section className="setup-file-target" data-setup-client={file.client}><div className="setup-file-title"><FileCode aria-hidden="true" className="ui-icon"/><div><h3>{file.filename}</h3><span>{file.clientLabel}</span></div></div><div className="setup-destination"><span>安装位置</span><div><code>{file.installTarget}</code><Button disabled={!enhanced} variant="ghost" size="icon" aria-label={`复制 ${file.clientLabel} 安装位置`} onClick={() => { void copyPath(); }}><Copy className="ui-icon" aria-hidden="true"/></Button></div></div>{showTemplate ? <SetupTemplate file={file}/> : null}{copyState !== "idle" ? <p className="meta" role="status">{copyState === "copied" ? "安装位置已复制" : "无法自动复制，请选择并复制路径。"}</p> : null}</section>;
 }
 export function SetupFilesView({control}: {readonly control: SetupFilesControl}) {
   const enhanced = useEnhanced();
@@ -40,11 +40,10 @@ export function SetupFilesView({control}: {readonly control: SetupFilesControl})
     update(); select.addEventListener("change",update); select.form?.addEventListener("console:restore",update);
     return () => {select.removeEventListener("change",update); select.form?.removeEventListener("console:restore",update);};
   },[control.clientSelectId]);
-  if (!enhanced) return <div className="setup-client-files">{control.files.map(file=><SetupFileTargetView key={file.client} file={file} enhanced={false}/>)}</div>;
   if (control.clientSelectId) {
     const file = control.files.find(file=>file.client===client);
-    return <div className="setup-client-files">{file ? <SetupFileTargetView key={file.client} file={file} enhanced/> : null}</div>;
+    return <div className="setup-client-files">{file ? <SetupFileTargetView key={file.client} file={file} enhanced={enhanced}/> : null}<noscript>{control.files.filter(other=>other.client!==client).map(other=><SetupFileTargetView key={other.client} file={other} enhanced={false}/>)}</noscript></div>;
   }
-  if (control.files.length === 1) return <div className="setup-client-files"><SetupFileTargetView file={control.files[0]!} enhanced/></div>;
-  return <Tabs defaultValue={control.files[0]?.client} className="setup-client-files"><TabsList variant="line" aria-label="客户端配置">{control.files.map(file=><TabsTrigger key={file.client} value={file.client}>{file.clientLabel}</TabsTrigger>)}</TabsList>{control.files.map(file=><TabsContent key={file.client} value={file.client}><SetupFileTargetView file={file} enhanced/></TabsContent>)}</Tabs>;
+  if (control.files.length === 1) return <div className="setup-client-files"><SetupFileTargetView file={control.files[0]!} enhanced={enhanced}/></div>;
+  return <Tabs defaultValue={control.files[0]?.client} className="setup-client-files"><TabsList variant="line" aria-label="客户端配置">{control.files.map(file=><TabsTrigger key={file.client} value={file.client} disabled={!enhanced}>{file.clientLabel}</TabsTrigger>)}</TabsList>{control.files.map(file=><TabsContent key={file.client} value={file.client}><SetupFileTargetView file={file} enhanced={enhanced}/></TabsContent>)}<noscript>{control.files.slice(1).map(file=><SetupFileTargetView key={file.client} file={file} enhanced={false}/>)}</noscript></Tabs>;
 }

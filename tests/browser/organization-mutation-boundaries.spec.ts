@@ -3,7 +3,7 @@ import { NOW } from "./worker";
 
 test("an unknown management result blocks other mounted forms until a fresh authorized read", async ({ page, worker }) => {
   await page.goto("/admin?view=access&person=other");
-  await expect(page.locator("[data-confirmation-fallback]:visible")).toHaveCount(0);
+  await expect(page.locator("[data-confirmation-fallback]:not([hidden])")).toHaveCount(0);
   const write = worker.hold({ method: "POST", path: "/admin/ui/users/other/status" });
   await page.getByRole("switch", { name: /启用账号/ }).click();
   await page.getByRole("alertdialog").getByRole("button", { name: "停用账号", exact: true }).click();
@@ -30,7 +30,7 @@ test("an unknown management result blocks other mounted forms until a fresh auth
 
 for (const change of ["demotion", "expiry"] as const) test(`a rejected quota save discards private administration after ${change}`, async ({ page, worker }) => {
   await page.goto("/admin?view=quotas");
-  await expect(page.locator("[data-confirmation-fallback]:visible")).toHaveCount(0);
+  await expect(page.locator("[data-confirmation-fallback]:not([hidden])")).toHaveCount(0);
   const defaults = ["codex", "grok", "xai"].map(surface => worker.quotaDefault(surface));
   await page.locator('[data-quota-default="codex"]').getByRole("spinbutton").fill("321");
   if (change === "demotion") worker.setRole("admin", "user");

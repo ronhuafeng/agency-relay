@@ -3,7 +3,7 @@ import { VisibleRowFilter } from "../chrome";
 import { Badge } from "../components/badge";
 import { InfoPopover } from "../components/info-popover";
 import { Table,TableHeader,TableBody,TableRow,TableHead,TableCell } from "../components/table";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "../components/tabs";
 import { useEnhanced } from "../use-enhanced";
 import { RoutesIsland } from "../islands";
@@ -80,8 +80,9 @@ export function readRoutes(value: unknown): readonly RouteRow[] | null {
 }
 export function RoutesPage({routes}: {readonly routes: readonly RouteRow[]}) { return <RoutesIsland routes={routes}/>; }
 export function RoutesView({ routes }: { readonly routes: readonly RouteRow[] }) {
-  const enhanced = useEnhanced(); const [selected, setSelected] = useState(""); const root = useRef<HTMLElement | null>(null);
-  useEffect(() => {if (root.current) initializeVisibleRowFilters(root.current);}, [enhanced]);
+  const enhanced = useEnhanced();
+  const [selected, setSelected] = useState(""); const root = useRef<HTMLElement | null>(null);
+  useEffect(() => {if (root.current) initializeVisibleRowFilters(root.current);}, []);
   const byHost = new Map<string, RouteRow[]>();
   for (const route of routes) {
     const list = byHost.get(route.hostname) ?? [];
@@ -89,13 +90,13 @@ export function RoutesView({ routes }: { readonly routes: readonly RouteRow[] })
     byHost.set(route.hostname, list);
   }
   const hosts = [...byHost.keys()].sort((a, b) => a.localeCompare(b));
-  useEffect(() => {
+  useLayoutEffect(() => {
     const restore = (): void => {const match = /^#route-host-(\d+)-title$/.exec(location.hash); setSelected(hosts[Number(match?.[1] ?? 0)] ?? hosts[0] ?? "");};
     restore(); window.addEventListener("hashchange", restore);
     return () => window.removeEventListener("hashchange", restore);
   }, [hosts.join("|")]);
   const active = hosts.includes(selected) ? selected : hosts[0];
-  if (enhanced && hosts.length > 1) return <section ref={root} aria-label="路由" className="route-catalog" data-surfaces-grouped="hostname" data-view-role="routes"><Tabs value={active} onValueChange={host => {setSelected(host); history.replaceState(history.state,"",`#route-host-${hosts.indexOf(host)}-title`);}}><TabsList variant="line" aria-label="路由服务">{hosts.map(host => <TabsTrigger key={host} value={host}>{grantLabel(byHost.get(host)?.[0]?.grant ?? "")}</TabsTrigger>)}</TabsList>{hosts.map((hostname,hostIndex)=><TabsContent key={hostname} value={hostname} forceMount hidden={hostname !== active}><RouteList hostname={hostname} routes={byHost.get(hostname) ?? []} hostIndex={hostIndex} tabbed/></TabsContent>)}</Tabs></section>;
+  if (hosts.length > 1) return <section data-route-ready={enhanced ? "true" : undefined} ref={root} aria-label="路由" className="route-catalog" data-surfaces-grouped="hostname" data-view-role="routes"><Tabs value={active} onValueChange={host => {setSelected(host); history.replaceState(history.state,"",`#route-host-${hosts.indexOf(host)}-title`);}}><TabsList variant="line" aria-label="路由服务">{hosts.map(host => <TabsTrigger key={host} value={host} asChild><a href={`#route-host-${hosts.indexOf(host)}-title`} onClick={event => event.preventDefault()}>{grantLabel(byHost.get(host)?.[0]?.grant ?? "")}</a></TabsTrigger>)}</TabsList>{hosts.map((hostname,hostIndex)=><TabsContent key={hostname} value={hostname} forceMount hidden={hostname !== active}><RouteList hostname={hostname} routes={byHost.get(hostname) ?? []} hostIndex={hostIndex} tabbed/></TabsContent>)}</Tabs><noscript><span className="route-native-fallback" /></noscript></section>;
   return (
     <section ref={root} aria-label="路由" className="view-stack route-catalog" data-surfaces-grouped="hostname" data-view-role="routes">
       {hosts.length > 1 ? <nav className="section-links route-host-links" aria-label="路由主机">{hosts.map((hostname, index) => <a key={hostname} href={`#route-host-${index}-title`}>{grantLabel(byHost.get(hostname)?.[0]?.grant ?? "")} <span className="sr-only">{hostname}</span></a>)}</nav> : null}

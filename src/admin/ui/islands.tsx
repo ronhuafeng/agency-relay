@@ -94,7 +94,7 @@ function IslandData({id, kind, value}: IslandModel & {readonly id: string}) {
 }
 
 export function UsageReportIsland({control}: {readonly control: UsageReportControl}) {
-  return <><div id="usage-report"><UsageReport control={control} /></div><IslandData id="usage-report-props" kind="usage-report" value={control} /></>;
+  return <><div id="usage-report"><UsageReport control={control} /></div></>;
 }
 
 export function DisclosureIsland({control}: {readonly control: DisclosureControl}) {
@@ -120,7 +120,6 @@ export function CapabilityIsland({ model }: { readonly model: CapabilityComparis
   return (
     <>
       <div id="capability-comparison"><CapabilityComparison model={published} /></div>
-      <IslandData id="capability-comparison-props" kind="capability" value={published} />
     </>
   );
 }

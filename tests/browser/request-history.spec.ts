@@ -93,6 +93,10 @@ test.describe("request history without JavaScript", () => {
   test("native filter, exact detail and return work without a client runtime", async ({ page, worker }) => {
     worker.seedRequestHistory();
     await page.goto("/admin?view=audit");
+    const exactMember = page.getByRole("textbox", {name:"成员",exact:true});
+    await expect(exactMember).toBeHidden();
+    await page.getByRole("button", {name:"精确定位",exact:true}).click();
+    await exactMember.fill("member");
     await page.getByRole("combobox", { name: "结果", exact: true }).selectOption("error");
     await page.getByRole("button", { name: "筛选请求" }).click();
     await expect(page.locator("[data-request-record]")).toHaveCount(1);

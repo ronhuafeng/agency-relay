@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { consoleStylesheetPath, consoleStylesheetResponse, dashboardAppResponse, dashboardAppWorkerSource } from "../../src/admin/app";
+import { consoleClientPath, consoleVersionedClientResponse, consoleStylesheetPath, consoleStylesheetResponse, dashboardAppResponse, dashboardAppWorkerSource } from "../../src/admin/app";
 import { consoleStyles } from "../../src/admin/generated/console-styles";
 
 function workerFixture(fetcher: (request: unknown) => Promise<Response>) {
@@ -22,9 +22,19 @@ function workerFixture(fetcher: (request: unknown) => Promise<Response>) {
 }
 
 describe("dashboard application resources", () => {
+  it("serves public code only at its immutable content digest", async () => {
+    const {createHash} = await import("node:crypto");
+    const {consoleClientSource} = await import("../../src/admin/generated/console-client");
+    expect(consoleClientPath()).toBe(`/admin/console-${createHash("sha256").update(consoleClientSource).digest("hex")}.js`);
+    const response = consoleVersionedClientResponse(consoleClientPath())!;
+    expect(response.headers.get("Cache-Control")).toBe("public, max-age=31536000, immutable");
+    expect(response.headers.get("Content-Type")).toBe("text/javascript; charset=utf-8");
+    expect(await response.text()).toBe(consoleClientSource);
+    expect(consoleVersionedClientResponse("/admin/console-unknown.js")).toBeNull();
+  });
   it("serves only its content-addressed CSS with browser caching and no private data", async () => {
     const path = consoleStylesheetPath();
-    expect(path).toMatch(/^\/admin\/console-[a-z0-9]+-[a-z0-9]+\.css$/);
+    expect(path).toMatch(/^\/admin\/console-[a-f0-9]{64}\.css$/);
     const response = consoleStylesheetResponse(path)!;
     expect(response.headers.get("Content-Type")).toBe("text/css; charset=utf-8");
     expect(response.headers.get("Cache-Control")).toBe("public, max-age=31536000, immutable");
