@@ -20,6 +20,7 @@ on:
           - files
           - clients
           - access
+          - xai-resources
           - credits
           - billing
 
@@ -76,6 +77,9 @@ jobs:
               ;;
             images|videos|files)
               pnpm test:live -- "tests/live/grok/${suite}.test.ts" "tests/live/xai/${suite}.test.ts"
+              ;;
+            xai-resources)
+              pnpm test:live -- tests/live/xai/resources.test.ts
               ;;
             clients)
               pnpm test:live -- tests/live/clients
