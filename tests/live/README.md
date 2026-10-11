@@ -15,7 +15,7 @@ All files under this directory use actual Agency Relay API keys and deployed Pro
 | `clients` | Real Codex and Grok installed CLIs, including Grok text/image/video |
 | `access` | Real cross-surface rejection and undeclared-path/method denial |
 | `credits`, `billing` | Deployed admission state and route-qualified metering |
-| `xai-resources` | xAI stored Response retrieval/deletion and shared resource list reads only |
+| `xai-resources` | xAI stored Response retrieval/deletion, shared list reads, and synthetic-file public URL/revoke lifecycle |
 
 Provider suite directories are organizational boundaries; an `images` selection covers **both** image directories. A green narrower selection says nothing about excluded providers or capabilities.
 
@@ -27,6 +27,6 @@ External-client tests use isolated synthetic HOME directories with real scoped A
 
 ## Coverage limits
 
-This suite still does **not** establish successful xAI Batch submission/results/cancel, deferred Chat completion retrieval, public file URLs, Documents Search, or creation of realtime client secrets. Those shared-authority workflows require explicit valid fixtures and honest independent outcome oracles before being counted as covered. Deployed Feishu login and production MCP authorization are separate release acceptance boundaries.
+This suite still does **not** establish successful xAI Batch submission/results/cancel, deferred Chat completion retrieval, Documents Search, or creation of realtime client secrets. Those shared-authority workflows require explicit valid fixtures and honest independent outcome oracles before being counted as covered. Deployed Feishu login and production MCP authorization are separate release acceptance boundaries.
 
 See [surfaces](../../docs/product/surfaces.md) for the exact Plan allowlists and [verification gates](../../docs/develop/gates.md) for the L2/L3 evidence boundary. No executed Live history or key availability is inferred from this source tree.

@@ -79,7 +79,7 @@ jobs:
               pnpm test:live -- "tests/live/grok/${suite}.test.ts" "tests/live/xai/${suite}.test.ts"
               ;;
             xai-resources)
-              pnpm test:live -- tests/live/xai/resources.test.ts
+              pnpm test:live -- tests/live/xai/resources.test.ts tests/live/xai/public-url.test.ts
               ;;
             clients)
               pnpm test:live -- tests/live/clients
