@@ -9,6 +9,8 @@ on:
       - '.agents/plugins/marketplace.json'
       - '.github/workflows/plugin-updates.yml'
       - 'scripts/update-plugin-revisions*.mjs'
+      - 'scripts/plugin-update-proposal.mjs'
+      - 'scripts/plugin-update-proposal.test.mjs'
 
 permissions:
   contents: read
@@ -19,10 +21,11 @@ concurrency:
 
 jobs:
   plugins:
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
-      contents: write
+      contents: read
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -35,10 +38,48 @@ jobs:
           node-version: 26
 
       - name: Check revision updater
-        run: node --test scripts/update-plugin-revisions.test.mjs
+        run: node --test scripts/update-plugin-revisions.test.mjs scripts/plugin-update-proposal.test.mjs
+
+      - name: Install Codex CLI
+        run: npm install --global @openai/codex@0.156.1
+
+      - name: Refresh marketplaces and verify all declared plugins
+        shell: bash
+        run: |
+          set -euo pipefail
+          marketplace_name=$(node -p "require('./.agents/plugins/marketplace.json').name")
+          codex_marketplace_args=(
+            -c "marketplaces.${marketplace_name}.source_type=\"local\""
+            -c "marketplaces.${marketplace_name}.source=\"${GITHUB_WORKSPACE}\""
+          )
+          codex "${codex_marketplace_args[@]}" plugin marketplace upgrade --json
+          while IFS= read -r plugin_name; do
+            codex "${codex_marketplace_args[@]}" plugin add "${plugin_name}@${marketplace_name}" --json
+          done < <(node -p "require('./.agents/plugins/marketplace.json').plugins.map(p => p.name).join('\n')")
+          git diff --check
+
+  propose:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 26
+
+      - name: Check revision updater
+        run: node --test scripts/update-plugin-revisions.test.mjs scripts/plugin-update-proposal.test.mjs
 
       - name: Resolve tracked upstream branches
-        if: github.event_name != 'pull_request'
         run: node scripts/update-plugin-revisions.mjs
 
       - name: Install Codex CLI
@@ -59,19 +100,38 @@ jobs:
           done < <(node -p "require('./.agents/plugins/marketplace.json').plugins.map(p => p.name).join('\n')")
           git diff --check
 
-      - name: Commit changed plugin revisions to main
-        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+      - name: Open a reviewed PR for updated plugin revisions
+        shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-        shell: bash
         run: |
           set -euo pipefail
-          if git diff --quiet -- .agents/plugins/marketplace.json; then
-            echo 'No upstream plugin changes; no commit.'
-            exit 0
+          changed=0
+          if ! git diff --quiet -- .agents/plugins/marketplace.json; then changed=1; fi
+          if [ "$changed" -eq 1 ]; then
+            open_refs=$(gh api --paginate "/repos/${GITHUB_REPOSITORY}/pulls?state=open&per_page=100" --jq '.[].head.ref')
+          else
+            open_refs=''
           fi
+          action=$(PLUGIN_UPDATE_CHANGED="$changed" PLUGIN_UPDATE_OPEN_REFS="$open_refs" node scripts/plugin-update-proposal.mjs)
+          case "$action" in
+            skip)
+              if [ "$changed" -eq 0 ]; then
+                echo 'No upstream plugin changes; no PR needed.' >> "$GITHUB_STEP_SUMMARY"
+              else
+                echo 'An automated plugin-update PR is already open. Review it before generating another.' >> "$GITHUB_STEP_SUMMARY"
+              fi
+              exit 0
+              ;;
+            open) ;;
+            *) echo "Unexpected plugin proposal decision: $action" >&2; exit 1 ;;
+          esac
+          branch="automation/plugin-revisions-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          git switch -c "$branch"
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -- .agents/plugins/marketplace.json
           git commit -m 'chore(plugins): update upstream plugin revisions'
-          git -c credential.helper= -c 'credential.helper=!gh auth git-credential' push origin HEAD:main
+          git -c credential.helper= -c 'credential.helper=!gh auth git-credential' push origin "HEAD:refs/heads/$branch"
+          PLUGIN_UPDATE_BRANCH="$branch" PLUGIN_UPDATE_SHA="$(git rev-parse HEAD)" \
+            node scripts/plugin-update-proposal.mjs create >> "$GITHUB_STEP_SUMMARY"
