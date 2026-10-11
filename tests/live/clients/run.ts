@@ -23,7 +23,7 @@ export function createHome(prefix: string): ClientHome {
   }
   // Isolated child environment: production operator and unrelated Provider
   // secrets must never reach third-party installers or external CLI processes.
-  const baseEnv: NodeJS.ProcessEnv = {
+  const baseEnv = {
     CI: process.env.CI,
     LANG: process.env.LANG,
     USER: process.env.USER,
@@ -33,7 +33,7 @@ export function createHome(prefix: string): ClientHome {
     CODEX_HOME: codexHome,
     GROK_HOME: grokHome,
     PATH: `${join(home, ".local/bin")}:${join(home, ".grok/bin")}:${process.env.PATH ?? ""}`
-  };
+  } as NodeJS.ProcessEnv;
   return {
     home,
     work,

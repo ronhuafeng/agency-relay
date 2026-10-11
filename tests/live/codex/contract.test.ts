@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { HOST, codexLanguageModel, call, codexLanguageModel, env, expectErrorCode, parseJson, upgrade } from "../support";
+import { HOST, call, codexLanguageModel, env, expectErrorCode, parseJson, upgrade } from "../support";
 
 it("rejects a Codex websocket upgrade on Responses", async () => {
   const response = await upgrade(`${HOST.codex}/v1/responses`, env("MINI_CODEX_API_KEY"), {}, 60_000);
