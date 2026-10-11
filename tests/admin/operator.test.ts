@@ -54,7 +54,7 @@ describe("admin pages, accounts, and audit", () => {
     expect(contentSecurityPolicy).toContain("form-action 'self'");
     expect(contentSecurityPolicy).not.toContain("form-action 'none'");
     expect(contentSecurityPolicy).toContain("connect-src 'self' wss://admin.example.test/admin/events/credentials;");
-    expect(contentSecurityPolicy).toContain("style-src 'nonce-");
+    expect(contentSecurityPolicy).toContain("style-src 'self' 'nonce-");
     expect(contentSecurityPolicy).toContain("style-src-attr 'unsafe-inline'");
     const body = await response.text();
     const document = new JSDOM(body).window.document;
