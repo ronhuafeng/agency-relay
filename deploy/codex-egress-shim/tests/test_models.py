@@ -161,6 +161,23 @@ class ModelsPassthroughTest(unittest.TestCase):
             },
         )
 
+    def test_rejects_chatgpt_compact_path_before_upstream(self) -> None:
+        before = len(ModelsUpstream.requests)
+        request = urllib.request.Request(
+            f"http://127.0.0.1:{self.shim_port}/responses/compact",
+            data=b"{}",
+            headers=protected_headers(self.secret, {
+                "Authorization": "Bearer shared-token",
+                "Content-Type": "application/json",
+            }),
+            method="POST",
+        )
+        with self.assertRaises(urllib.error.HTTPError) as caught:
+            urllib.request.urlopen(request, timeout=5)
+        self.assertEqual(caught.exception.code, 404)
+        caught.exception.close()
+        self.assertEqual(len(ModelsUpstream.requests), before)
+
     def test_requires_egress_secret_before_forwarding(self) -> None:
         before = len(ModelsUpstream.requests)
         request = urllib.request.Request(

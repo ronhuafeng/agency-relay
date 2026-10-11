@@ -163,7 +163,7 @@ const GROUP_DEFINITIONS: readonly CapabilityGroupDefinition[] = [
         label: "上下文压缩",
         description: "让长对话保持可用，不发明跨服务商的格式。",
         cells: {
-          codex: capability("included", "远程", ["codex.responses_compact"]),
+          codex: capability("included", "同一 Responses", [], "ChatGPT backend 没有单独的压缩路径。压缩是 POST /v1/responses 输入中的 compaction_trigger。"),
           grok: capability("in_client", "在 Grok Build 中", [], "这是客户端本地行为。Agency Relay 不提供压缩接口。"),
           xai: capability("team_access", "远程", ["xai.production.responses_compact"])
         }

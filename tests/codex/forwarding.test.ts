@@ -236,19 +236,8 @@ describe("Codex forwarding", () => {
       expect(bobStream.headers.get("Content-Type")).toContain("text/event-stream");
       await bobStream.text();
 
-      const bobCompact = await handleRequest(new Request("https://api.trustedtunnel.app/v1/responses/compact", {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${bobKey.api_key}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({ model: "gpt-5.4", input: [] })
-      }), fixture.env, fixture.ctx, fixture.deps);
-      expect(bobCompact.status).toBe(200);
-      await expect(bobCompact.json()).resolves.toEqual({ output: [] });
-
-      const fetchCountBeforeCallerStreamCompact = fixture.fetchCalls.length;
-      const callerStreamCompact = await handleRequest(new Request("https://api.trustedtunnel.app/v1/responses/compact", {
+      const fetchCountBeforeMissingCompact = fixture.fetchCalls.length;
+      const missingCompact = await handleRequest(new Request("https://api.trustedtunnel.app/v1/responses/compact", {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${bobKey.api_key}`,
@@ -256,21 +245,19 @@ describe("Codex forwarding", () => {
         },
         body: JSON.stringify({ model: "gpt-5.4", input: [], stream: true })
       }), fixture.env, fixture.ctx, fixture.deps);
-      expect(callerStreamCompact.status).toBe(200);
-      await expect(callerStreamCompact.json()).resolves.toEqual({ output: [] });
-      expect(fixture.fetchCalls).toHaveLength(fetchCountBeforeCallerStreamCompact + 1);
+      expect(missingCompact.status).toBe(404);
+      await expect(missingCompact.json()).resolves.toMatchObject({ error: { code: "not_found" } });
+      expect(fixture.fetchCalls).toHaveLength(fetchCountBeforeMissingCompact);
 
       await fixture.ctx.flush();
       expect(fixture.tokenAuthority.names).toEqual([
         SHARED_CODEX_AUTH_ID,
         SHARED_CODEX_AUTH_ID,
         SHARED_CODEX_AUTH_ID,
-        SHARED_CODEX_AUTH_ID,
-        SHARED_CODEX_AUTH_ID,
         SHARED_CODEX_AUTH_ID
       ]);
       expect(fixture.fetchCalls.every((call) => call.authorization === "Bearer refreshed_access")).toBe(true);
-      expect(fixture.db.audit).toHaveLength(4);
+      expect(fixture.db.audit).toHaveLength(2);
       expect(new Set(fixture.db.audit.map((row) => row.user_id))).toEqual(new Set([alice.user.id, bob.user.id]));
       expect(new Set(fixture.db.audit.map((row) => row.codex_auth_id))).toEqual(new Set([SHARED_CODEX_AUTH_ID]));
       expect(fixture.db.audit.every((row) => typeof row.request_id === "string")).toBe(true);
@@ -629,7 +616,7 @@ describe("Codex forwarding", () => {
     }
   });
 
-  it("keeps streaming and compact usage separate by execution plan", async () => {
+  it("records Responses usage and does not open a ChatGPT compact route", async () => {
     const fixture = makeFixture();
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => undefined);
     try {
@@ -648,7 +635,8 @@ describe("Codex forwarding", () => {
       expect(withUsage.status).toBe(200);
       await expect(withUsage.text()).resolves.toContain("resp_usage");
 
-      const compactUsage = await handleRequest(new Request("https://api.trustedtunnel.app/v1/responses/compact", {
+      const fetchCountBeforeMissingCompact = fixture.fetchCalls.length;
+      const missingCompact = await handleRequest(new Request("https://api.trustedtunnel.app/v1/responses/compact", {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${key.api_key}`,
@@ -656,8 +644,9 @@ describe("Codex forwarding", () => {
         },
         body: JSON.stringify({ model: "gpt-5.4", input: "compact-usage" })
       }), fixture.env, fixture.ctx, fixture.deps);
-      expect(compactUsage.status).toBe(200);
-      await expect(compactUsage.json()).resolves.toMatchObject({ id: "resp_compact_usage" });
+      expect(missingCompact.status).toBe(404);
+      await expect(missingCompact.json()).resolves.toMatchObject({ error: { code: "not_found" } });
+      expect(fixture.fetchCalls).toHaveLength(fetchCountBeforeMissingCompact);
 
       const missingUsage = await handleRequest(new Request("https://api.trustedtunnel.app/v1/responses", {
         method: "POST",
@@ -707,23 +696,14 @@ describe("Codex forwarding", () => {
         first_seen_at: "2026-06-24T00:00:00.000Z",
         last_seen_at: "2026-06-24T00:00:00.000Z"
       });
-      expect(fixture.db.usageDaily.get(`${user.user.id}:2026-06-24:codex.responses_compact:gpt-5.4`)).toMatchObject({
-        route_profile_id: "codex.responses_compact",
-        requests: 1,
-        ok_requests: 1,
-        input_tokens: 5,
-        cached_input_tokens: 1,
-        output_tokens: 7,
-        reasoning_tokens: 2,
-        total_tokens: 12
-      });
+      expect(fixture.db.usageDaily.get(`${user.user.id}:2026-06-24:codex.responses_compact:gpt-5.4`)).toBeUndefined();
       expect(fixture.db.usageDaily.get(`${user.user.id}:2026-06-24:codex.responses:N/A`)).toMatchObject({
         requests: 2,
         ok_requests: 2,
         total_tokens: 0
       });
 
-      expect(fixture.db.audit).toHaveLength(4);
+      expect(fixture.db.audit).toHaveLength(3);
       expect(fixture.db.audit[0]).toMatchObject({
         response_id: "resp_usage",
         input_tokens: 23,
@@ -733,21 +713,13 @@ describe("Codex forwarding", () => {
         total_tokens: 201
       });
       expect(fixture.db.audit[1]).toMatchObject({
-        response_id: "resp_compact_usage",
-        input_tokens: 5,
-        cached_input_tokens: 1,
-        output_tokens: 7,
-        reasoning_tokens: 2,
-        total_tokens: 12
-      });
-      expect(fixture.db.audit[2]).toMatchObject({
         response_id: "resp_audit_secret",
         input_tokens: null,
         output_tokens: null,
         total_tokens: null
       });
 
-      expect(fixture.db.audit[3]).toMatchObject({
+      expect(fixture.db.audit[2]).toMatchObject({
         status: "ok",
         error_code: null
       });
@@ -760,7 +732,7 @@ describe("Codex forwarding", () => {
     }
   });
 
-  it("splits usage_daily aggregates by execution plan and response model", async () => {
+  it("splits usage_daily aggregates by response model", async () => {
     const fixture = makeFixture();
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => undefined);
     try {
@@ -778,17 +750,6 @@ describe("Codex forwarding", () => {
       }), fixture.env, fixture.ctx, fixture.deps);
       expect(first.status).toBe(200);
       await first.text();
-
-      const second = await handleRequest(new Request("https://api.trustedtunnel.app/v1/responses/compact", {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${key.api_key}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({ model: "gpt-5.5", input: "compact-usage" })
-      }), fixture.env, fixture.ctx, fixture.deps);
-      expect(second.status).toBe(200);
-      await second.json();
 
       const error = await handleRequest(new Request("https://api.trustedtunnel.app/v1/responses", {
         method: "POST",
@@ -816,16 +777,6 @@ describe("Codex forwarding", () => {
         output_tokens: 178,
         reasoning_tokens: 163,
         total_tokens: 201
-      });
-      expect(fixture.db.usageDaily.get(`${user.user.id}:2026-06-24:codex.responses_compact:gpt-5.5`)).toMatchObject({
-        requests: 1,
-        ok_requests: 1,
-        error_requests: 0,
-        input_tokens: 5,
-        cached_input_tokens: 1,
-        output_tokens: 7,
-        reasoning_tokens: 2,
-        total_tokens: 12
       });
       expect(fixture.db.usageDaily.get(`${user.user.id}:2026-06-24:codex.responses:N/A`)).toMatchObject({
         requests: 1,

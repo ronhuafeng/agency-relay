@@ -146,13 +146,12 @@ describe("Execution Plans", () => {
     ]);
   });
 
-  it("selects Provider client identity only for the five native HTTP plans", () => {
+  it("selects Provider client identity only for the four native HTTP plans", () => {
     expect(listExecutionPlans()
       .filter((plan) => plan.upstreamClientIdentity !== "none")
       .map((plan) => [plan.id, plan.upstreamClientIdentity])).toEqual([
       ["codex.models", "codex_cli"],
       ["codex.responses", "codex_cli"],
-      ["codex.responses_compact", "codex_cli"],
       ["grok.production.models", "grok_build"],
       ["grok.production.responses", "grok_build"]
     ]);
@@ -163,7 +162,6 @@ describe("Execution Plans", () => {
       .filter((plan) => plan.usageObserver !== "none")
       .map((plan) => [plan.id, plan.usageObserver])).toEqual([
       ["codex.responses", "responses"],
-      ["codex.responses_compact", "responses"],
       ["grok.production.responses", "responses"],
       ["grok.production.images_generations", "image"],
       ["grok.production.images_edits", "image"],

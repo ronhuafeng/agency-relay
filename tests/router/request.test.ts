@@ -112,7 +112,6 @@ describe("router admission", () => {
     const routes = [
       { url: "https://api.trustedtunnel.app/v1/models", method: "GET", websocket: false },
       { url: "https://api.trustedtunnel.app/v1/responses", method: "POST", websocket: false },
-      { url: "https://api.trustedtunnel.app/v1/responses/compact", method: "POST", websocket: false },
       { url: "https://api.trustedtunnel.app/v1/responses", method: "GET", websocket: true },
       { url: "https://api.trustedtunnel.app/v1/audio/speech", method: "POST", websocket: false },
       { url: "https://api.trustedtunnel.app/v1/audio/transcriptions", method: "POST", websocket: false },
@@ -153,11 +152,6 @@ describe("router admission", () => {
         headers: { Authorization: `Bearer ${key.api_key}` }
       }),
       new Request("https://api.trustedtunnel.app/v1/responses", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${key.api_key}`, "Content-Type": "application/json" },
-        body: "{}"
-      }),
-      new Request("https://api.trustedtunnel.app/v1/responses/compact", {
         method: "POST",
         headers: { Authorization: `Bearer ${key.api_key}`, "Content-Type": "application/json" },
         body: "{}"

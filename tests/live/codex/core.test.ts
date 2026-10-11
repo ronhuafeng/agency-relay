@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { HOST, call, codexLanguageModel, env, expectJson } from "../support";
+import { HOST, call, codexLanguageModel, env } from "../support";
 import { assertCompletedSse } from "../oracles";
 
 it("streams a Codex response", async () => {
@@ -49,20 +49,3 @@ it("compacts a Codex response", async () => {
   expect(response.text).toContain("event: response.compaction.compacting");
   expect(response.text).toContain("event: response.completed");
 });
-
-it("compacts context through the dedicated /v1/responses/compact endpoint", async () => {
-  const key = env("MINI_ONLY_CODEX_SURFACE_API_KEY");
-  const model = await codexLanguageModel(key);
-  const body = expectJson(await call(`${HOST.codex}/v1/responses/compact`, key, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model,
-      input: [{ role: "user", content: "Remember amber." }, { role: "assistant", content: "Amber remembered." }]
-    })
-  }, 180_000));
-  expect(body).toMatchObject({
-    object: "response.compaction",
-    output: expect.arrayContaining([expect.objectContaining({ type: "compaction", encrypted_content: expect.any(String) })])
-  });
-}, 180_000);

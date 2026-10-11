@@ -3,7 +3,6 @@
  */
 import egressProtocol from "../../deploy/codex-egress-shim/egress-protocol.json";
 import {
-  forwardCompact,
   forwardModels,
   forwardResponses,
   type CodexProviderTerminalOutcome
@@ -59,12 +58,7 @@ export async function executeCodexPlan(
   }
   if (plan.id === "codex.responses") {
     return await routeResponses(
-      request, env, ctx, deps, requestContext, auth, false, plan, fallbackIdentityVersion
-    );
-  }
-  if (plan.id === "codex.responses_compact") {
-    return await routeResponses(
-      request, env, ctx, deps, requestContext, auth, true, plan, fallbackIdentityVersion
+      request, env, ctx, deps, requestContext, auth, plan, fallbackIdentityVersion
     );
   }
   if (
@@ -159,7 +153,6 @@ async function routeResponses(
   deps: ExecutionDependencies,
   requestContext: RequestContext,
   auth: AuthenticatedUser,
-  compact: boolean,
   plan: ExecutionPlan,
   fallbackIdentityVersion: string | null
 ): Promise<Response> {
@@ -167,7 +160,7 @@ async function routeResponses(
   requestContext.apiKeyId = auth.apiKey.id;
   requestContext.sessionId = request.headers.get(CODEX_SESSION_ID_HEADER) ?? undefined;
   requestContext.threadId = request.headers.get(CODEX_THREAD_ID_HEADER) ?? undefined;
-  const route = compact ? "/v1/responses/compact" : "/v1/responses";
+  const route = "/v1/responses";
   const attempt = await admitProviderAttempt({
     env, ctx, now: deps.now, requestContext, auth, plan
   });
@@ -202,9 +195,7 @@ async function routeResponses(
     fallbackIdentityVersion,
     waitUntil: (promise: Promise<void>) => ctx.waitUntil(promise)
   };
-  return compact
-    ? await forwardCompact(request, env, deps, requestContext, freshToken, request.body, forwardOptions)
-    : await forwardResponses(request, env, deps, requestContext, freshToken, request.body, forwardOptions);
+  return await forwardResponses(request, env, deps, requestContext, freshToken, request.body, forwardOptions);
 }
 
 function completeCodexProviderAttempt(

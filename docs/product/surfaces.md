@@ -36,13 +36,13 @@ Defaults choose credentials only when a new key is issued. Runtime uses `api_key
 The declared Codex surface accepts:
 
 - `GET /v1/models`;
-- `POST /v1/responses` and `POST /v1/responses/compact`;
+- `POST /v1/responses`;
 - `POST /v1/audio/speech` and `POST /v1/audio/transcriptions`;
 - `POST /v1/realtime/calls` and `POST /v1/live`;
 - WebSocket `GET /v1/realtime`, `GET /v1/live`, and `GET /v1/live/{call_id}`;
 - deprecated WebSocket `GET /v1/responses`, which returns the explicit typed `426` compatibility rejection.
 
-Models, Responses and compact use the selected ChatGPT credential through the Codex egress shim to the ChatGPT Codex backend. `CODEX_EGRESS_BASE_URL` must match the approved hostname. Speech/transcriptions/realtime/live plans target their declared OpenAI API origin with the same plan-compatible ChatGPT authority. This is the registered Agency Relay contract, not a promise about provider support beyond the proven endpoint.
+Models and Responses use the selected ChatGPT credential through the Codex egress shim to the ChatGPT backend at `https://chatgpt.com/backend-api/codex`. That backend has no `/responses/compact` path. Context compaction is a `compaction_trigger` input item on `POST /v1/responses`, not a separate route. `CODEX_EGRESS_BASE_URL` must match the approved hostname. Speech/transcriptions/realtime/live plans target their declared OpenAI API origin with the same plan-compatible ChatGPT authority. This is the registered Agency Relay contract, not a promise about provider support beyond the proven endpoint. The public OpenAI API and the xAI API are different origins and are not this backend.
 
 Codex client voice uses Realtime/WebRTC paths rather than the two audio REST paths. Do not infer new provider support from the console service name.
 
@@ -102,7 +102,7 @@ Management API, `management-api.x.ai`, custom-voice mutations, `PUT /v1/files/{f
 
 Plan-declared compatibility identity is `codex_cli`, `grok_build`, or `none`. It never authenticates a caller, selects a credential, or changes grants.
 
-`codex.models`, `codex.responses`, and `codex.responses_compact` select `codex_cli`. `grok.production.models` and `grok.production.responses` select `grok_build`. Direct xAI-backed Grok plans, xAI API plans, Codex speech/transcriptions/realtime/live and the local Codex WebSocket rejection select `none`.
+`codex.models` and `codex.responses` select `codex_cli`. `grok.production.models` and `grok.production.responses` select `grok_build`. Direct xAI-backed Grok plans, xAI API plans, Codex speech/transcriptions/realtime/live and the local Codex WebSocket rejection select `none`.
 
 A native Codex bundle includes official Originator/User-Agent and, for models, one matching client version. A Grok bundle includes matching version, identifier and User-Agent; optional client mode must be interactive or headless. Preserve a complete native bundle as a group, including older versions. Remove mixed/conflicting/incomplete bundles together and use only the reviewed stable-channel fallback when a valid adopted version exists. Never combine caller and fallback identity fields. Invalid channel candidates cannot replace a valid stored version; channel movement alone cannot change the reviewed wire shape.
 

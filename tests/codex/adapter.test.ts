@@ -2,7 +2,6 @@ import { describe, expect, it, vi } from "vitest";
 import { brotliCompressSync, deflateSync, gzipSync } from "node:zlib";
 import {
   fetchCodexAccountResource,
-  forwardCompact,
   forwardModels,
   forwardResponses,
   type CodexProviderTerminalOutcome
@@ -200,9 +199,7 @@ describe("codex adapter", () => {
     }
   });
 
-  it.each(["responses", "compact"] as const)(
-    "rejects a %s redirect without following or exposing its Location",
-    async (route) => {
+  it("rejects a responses redirect without following or exposing its Location", async () => {
       let bodyCanceled = false;
       const observations: Record<string, unknown>[] = [];
       const fetchMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
@@ -216,13 +213,9 @@ describe("codex adapter", () => {
           headers: { Location: "https://attacker.example/credential-capture" }
         });
       });
-      const forward = route === "responses" ? forwardResponses : forwardCompact;
 
-      await expect(forward(
-        new Request(
-          "https://example.test/v1/responses" + (route === "compact" ? "/compact" : ""),
-          { method: "POST" }
-        ),
+      await expect(forwardResponses(
+        new Request("https://example.test/v1/responses", { method: "POST" }),
         env(),
         deps(fetchMock),
         requestContext(),
@@ -244,8 +237,7 @@ describe("codex adapter", () => {
         observation_stage: "upstream_fetch"
       })]);
       expect(fetchMock).toHaveBeenCalledTimes(1);
-    }
-  );
+  });
 
   it("rejects an account resource redirect before exposing it to the dashboard", async () => {
     const fetchMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
@@ -339,33 +331,9 @@ describe("codex adapter", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("forwards compact request bytes without reconstruction", async () => {
-    const expected = new TextEncoder().encode('{"unknown_compact_field":true}');
-    const fetchMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
-      expect(new Uint8Array(await new Response(init?.body).arrayBuffer())).toEqual(expected);
-      expect(new Headers(init?.headers).get(egressProtocol.manifestHeader)).toBe(JSON.stringify([
-        "authorization",
-        "chatgpt-account-id"
-      ]));
-      expect(new Headers(init?.headers).get(egressProtocol.transportTrace.header)).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
-      return Response.json({ output: [] });
-    });
-    const response = await forwardCompact(
-      new Request("https://example.test/v1/responses/compact", { method: "POST" }),
-      env(),
-      deps(fetchMock),
-      requestContext(),
-      token(),
-      stream(expected)
-    );
-    await expect(response.json()).resolves.toEqual({ output: [] });
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-  });
-
   it.each([
     {
       name: "regular SSE",
-      compact: false,
       status: 200,
       statusText: "OK",
       contentType: "text/event-stream; charset=utf-8",
@@ -379,7 +347,6 @@ describe("codex adapter", () => {
     },
     {
       name: "regular unary JSON",
-      compact: false,
       status: 201,
       statusText: "Created",
       contentType: "application/problem+json",
@@ -393,7 +360,6 @@ describe("codex adapter", () => {
     },
     {
       name: "regular unknown non-2xx",
-      compact: false,
       status: 418,
       statusText: "Future Error",
       contentType: "application/x-future",
@@ -404,20 +370,6 @@ describe("codex adapter", () => {
       observationCode: "response_observation_skipped",
       observationStage: "response_body",
       body: new Uint8Array([0x00, 0xff, 0x17, 0x80])
-    },
-    {
-      name: "compact opaque response",
-      compact: true,
-      status: 202,
-      statusText: "Accepted",
-      contentType: "application/octet-stream",
-      contentEncoding: "future-codec",
-      observedEncoding: "unsupported",
-      transport: "http_other",
-      observationStatus: "skipped",
-      observationCode: "response_observation_skipped",
-      observationStage: "response_body",
-      body: new Uint8Array([0xfe, 0x01, 0x02, 0x03])
     }
   ])("preserves $name status headers and bytes independently of observation", async (scenario) => {
     const observations: Array<Record<string, unknown>> = [];
@@ -448,9 +400,7 @@ describe("codex adapter", () => {
       waitUntil: (promise: Promise<void>) => waits.push(promise)
     };
 
-    const response = scenario.compact
-      ? await forwardCompact(request(), env(), deps(fetchMock), requestContext(), token(), stream(new Uint8Array()), options)
-      : await forwardResponses(request(), env(), deps(fetchMock), requestContext(), token(), stream(new Uint8Array()), options);
+    const response = await forwardResponses(request(), env(), deps(fetchMock), requestContext(), token(), stream(new Uint8Array()), options);
 
     expect(response.status).toBe(scenario.status);
     expect(response.statusText).toBe(scenario.statusText);
@@ -657,38 +607,6 @@ describe("codex adapter", () => {
     expect(response.status).toBe(422);
     expect(response.headers.get("Content-Type")).toBeNull();
     await expect(response.text()).resolves.toBe("rejected");
-  });
-
-  it("does not apply the regular SSE observation signal to compact", async () => {
-    const observations: Array<Record<string, unknown>> = [];
-    const waits: Promise<unknown>[] = [];
-    const captured: CapturedResponseUsage[] = [];
-    const incoming = new Request("https://example.test/v1/responses/compact", {
-      method: "POST",
-      headers: { Accept: "text/event-stream" }
-    });
-    const response = await forwardCompact(
-      incoming,
-      env(),
-      deps(vi.fn(async () => new Response(stream(new TextEncoder().encode(REASONING_SUMMARY_SSE))))),
-      requestContext(),
-      token(),
-      stream(new TextEncoder().encode('{"model":"gpt-5.4","input":[]}')),
-      {
-        onTerminal: collectTerminal(captured, observations),
-        waitUntil: (promise) => waits.push(promise)
-      }
-    );
-
-    expect(response.headers.get("Content-Type")).toBeNull();
-    await expect(response.text()).resolves.toBe(REASONING_SUMMARY_SSE);
-    await Promise.all(waits);
-    expect(captured).toEqual([]);
-    expect(observations).toEqual([expect.objectContaining({
-      observation_status: "skipped",
-      usage_captured: false,
-      transport: "http_other"
-    })]);
   });
 
   it("observes unary response model and usage without changing its bytes", async () => {

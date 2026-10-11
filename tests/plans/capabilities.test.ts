@@ -84,7 +84,7 @@ describe("surface capability catalog", () => {
     ).every((route) => !/[\^$\[\]]/.test(route.path))).toBe(true);
 
     expect(rows.get("context_compaction")?.cells).toMatchObject({
-      codex: { state: "included", label: "远程" },
+      codex: { state: "included", label: "同一 Responses" },
       grok: { state: "in_client", label: "在 Grok Build 中" },
       xai: { state: "team_access", label: "远程" }
     });

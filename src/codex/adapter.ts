@@ -178,25 +178,13 @@ export async function forwardResponses(
   return forwardResponseRoute(request, env, deps, requestContext, freshToken, "/responses", body, options);
 }
 
-export async function forwardCompact(
-  request: Request,
-  env: Env,
-  deps: AppDependencies,
-  requestContext: RequestContext,
-  freshToken: FreshAccessToken,
-  body: ReadableStream<Uint8Array> | null,
-  options: ForwardOptions = {}
-): Promise<Response> {
-  return forwardResponseRoute(request, env, deps, requestContext, freshToken, "/responses/compact", body, options);
-}
-
 async function forwardResponseRoute(
   request: Request,
   env: Env,
   deps: AppDependencies,
   requestContext: RequestContext,
   freshToken: FreshAccessToken,
-  path: "/responses" | "/responses/compact",
+  path: "/responses",
   body: ReadableStream<Uint8Array> | null,
   options: ForwardOptions
 ): Promise<Response> {
@@ -312,7 +300,7 @@ async function fetchCodex(
   deps: AppDependencies,
   requestContext: RequestContext,
   freshToken: FreshAccessToken,
-  path: "/responses" | "/responses/compact",
+  path: "/responses",
   body: ReadableStream<Uint8Array> | null,
   observation: CodexTransportObservation,
   upstreamClientIdentity: UpstreamClientIdentity,
@@ -346,7 +334,7 @@ async function fetchCodex(
   observation.upstream_status = response.status;
   observation.transport = responseTransport(
     response.headers.get("content-type"),
-    path === "/responses" ? request.headers.get("accept") : null
+    request.headers.get("accept")
   );
   observation.content_encoding = observedContentEncoding(response.headers.get("content-encoding"));
   return rejectCodexRedirect(response);
@@ -623,7 +611,7 @@ function elapsedMs(deps: AppDependencies, requestContext: RequestContext): numbe
 
 function codexTarget(
   env: Env,
-  path: "/models" | "/responses" | "/responses/compact" | CodexAccountEgressPath,
+  path: "/models" | "/responses" | CodexAccountEgressPath,
   search = ""
 ): string {
   // Validate origin before any bearer, account id, egress secret, or manifest is attached.

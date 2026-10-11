@@ -7,7 +7,7 @@ import egressProtocol from "./egress-protocol.json" with { type: "json" };
 import { attachDownstreamRuntime, attachRequestRuntime } from "./node-transport-adapter.mjs";
 import { createTransportLifecycle } from "./transport-lifecycle.mjs";
 
-const ALLOWED_POST_PATHS = new Set(["/responses", "/responses/compact"]);
+const ALLOWED_POST_PATHS = new Set(["/responses"]);
 const ACCOUNT_READ_PATHS = new Map([
   ["/account/usage", "../wham/usage"],
   ["/account/profile", "../wham/profiles/me"],

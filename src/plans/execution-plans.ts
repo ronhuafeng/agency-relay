@@ -181,20 +181,7 @@ function codexProductionPlans(): ExecutionPlan[] {
       realTask: true,
       auditPath: "/v1/responses",
       supportStatus: "active",
-      notes: "Codex Responses — single-pass transparent"
-    },
-    {
-      id: "codex.responses_compact",
-      method: "POST",
-      pathname: "/v1/responses/compact",
-      mode: "transparent",
-      upstreamClientIdentity: "codex_cli",
-      usageObserver: "responses",
-      creditCharge: 1,
-      realTask: false,
-      auditPath: "/v1/responses/compact",
-      supportStatus: "active",
-      notes: "Codex compact — unary transparent"
+      notes: "Codex Responses — single-pass transparent. ChatGPT backend compaction is a compaction_trigger input item on this path, not a separate route."
     },
     {
       id: "codex.responses_websocket",

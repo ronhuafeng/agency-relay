@@ -122,27 +122,6 @@ export function makeFixture(options: FixtureOptions = {}): Fixture {
           headers: { "Content-Type": "application/json", ETag: '"upstream-models"' }
         });
       }
-      if (url.endsWith("/responses/compact")) {
-        const responseBody = body.input === "compact-usage"
-          ? {
-              id: "resp_compact_usage",
-              object: "response",
-              model: body.model,
-              output: [],
-              usage: {
-                input_tokens: 5,
-                input_tokens_details: { cached_tokens: 1 },
-                output_tokens: 7,
-                output_tokens_details: { reasoning_tokens: 2 },
-                total_tokens: 12
-              }
-            }
-          : { output: [] };
-        return new Response(JSON.stringify(responseBody), {
-          status: 200,
-          headers: { "Content-Type": "application/json" }
-        });
-      }
       if (body.input === "with-usage") {
         return new Response([
           "event: response.completed",
