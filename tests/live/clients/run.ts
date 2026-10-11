@@ -33,7 +33,7 @@ export function createHome(prefix: string): ClientHome {
     CODEX_HOME: codexHome,
     GROK_HOME: grokHome,
     PATH: `${join(home, ".local/bin")}:${join(home, ".grok/bin")}:${process.env.PATH ?? ""}`
-  } as NodeJS.ProcessEnv;
+  } as unknown as NodeJS.ProcessEnv;
   return {
     home,
     work,
