@@ -1,8 +1,8 @@
 import { expect, it } from "vitest";
-import { HOST, assertVideo, call, catalogModel, env, expectJson, isRecord, pollVideo } from "../support";
+import { HOST, assertVideo, call, catalogModel, env, expectJson, isRecord, pollVideo, verifyVideoTransformations } from "../support";
 
 const NONE = /$^/;
-it("downloads one completed xAI video", async () => {
+it("generates, edits, extends, and downloads xAI video", async () => {
   const key = env("MINI_XAI_API_KEY");
   const model = await catalogModel(HOST.xai, key, "/v1/video-generation-models", NONE);
   const started = expectJson(await call(`${HOST.xai}/v1/videos/generations`, key, {
@@ -22,4 +22,5 @@ it("downloads one completed xAI video", async () => {
   expect(media.ok).toBe(true);
   expect(media.headers.get("content-type") ?? "").toMatch(/^video\/mp4/i);
   assertVideo(Buffer.from(await media.arrayBuffer()));
-}, 1_860_000);
+  await verifyVideoTransformations(HOST.xai, key, url.href);
+}, 5_700_000);

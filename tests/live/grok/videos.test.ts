@@ -1,9 +1,10 @@
 import { expect, it } from "vitest";
 import { admin, isRecord, newestModel, parseJson, requireEnv, send, sleep } from "../runtime";
+import { verifyVideoTransformations } from "../support";
 
 const HOST = "https://grok.trustedtunnel.app";
 
-it("generates and downloads one Grok video, denying another owner", async () => {
+it("generates, edits, extends, and downloads Grok video with owner isolation", async () => {
   const key = requireEnv("MINI_GROK_API_KEY");
   const catalog = await send(`${HOST}/v1/video-generation-models`, key);
   expect(catalog.status).toBe(200);
@@ -18,8 +19,13 @@ it("generates and downloads one Grok video, denying another owner", async () => 
   expect(startedBody).toMatchObject({ request_id: expect.stringMatching(/^[A-Za-z0-9_-]{1,200}$/) });
   const jobId = (startedBody as { request_id: string }).request_id;
   await expectOtherUserRejected(jobId);
-  await download(await poll(key, jobId));
-}, 1_860_000);
+  const completed = await poll(key, jobId);
+  await download(completed);
+  if (!isRecord(completed) || !isRecord(completed.video) || typeof completed.video.url !== "string") {
+    throw new Error("source video reference missing");
+  }
+  await verifyVideoTransformations(HOST, key, completed.video.url);
+}, 5_700_000);
 
 async function expectOtherUserRejected(jobId: string): Promise<void> {
   const accounts = await admin("GET", "/admin/subscriptions");
@@ -66,7 +72,7 @@ async function poll(key: string, jobId: string): Promise<unknown> {
     if (state === "done") {
       return body;
     }
-    expect(state).toBe("pending");
+    expect(["pending", "queued", "processing", "in_progress"]).toContain(state);
     await sleep(15_000);
   }
   expect.fail("terminal not reached");

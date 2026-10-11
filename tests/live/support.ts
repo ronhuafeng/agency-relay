@@ -413,10 +413,42 @@ export async function pollVideo(origin: string, apiKey: string, jobId: string): 
     if (state === "done") {
       return body;
     }
-    expect(state).toBe("pending");
+    expect(["pending", "queued", "processing", "in_progress"]).toContain(state);
     await sleep(15_000);
   }
   throw new Error("terminal not reached");
+}
+
+/** Verify the two distinct provider video transformations against a real completed source. */
+export async function verifyVideoTransformations(origin: string, apiKey: string, sourceUrl: string): Promise<void> {
+  const videoUrl = new URL(sourceUrl);
+  expect(videoUrl.protocol).toBe("https:");
+  // The source is the actual result of a preceding successful generation.
+  // Edit and extension must each finish successfully and return video media.
+  for (const operation of ["edits", "extensions"] as const) {
+    const started = expectJson(await call(`${origin}/v1/videos/${operation}`, apiKey, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "grok-imagine-video",
+        prompt: operation === "edits" ? "Add a blue rim. Keep the circle and background." : "Continue the red circle shot with a slow zoom out.",
+        video: { url: videoUrl.href },
+        ...(operation === "extensions" ? { duration: 6 } : {})
+      })
+    }, 180_000));
+    const requestId = isRecord(started) && typeof started.request_id === "string" ? started.request_id : "";
+    expect(requestId).toMatch(/^[A-Za-z0-9_-]{1,200}$/);
+    const result = await pollVideo(origin, apiKey, requestId);
+    if (!isRecord(result) || !isRecord(result.video) || typeof result.video.url !== "string") {
+      throw new Error("transformed video reference missing");
+    }
+    const mediaUrl = new URL(result.video.url);
+    expect(mediaUrl.protocol).toBe("https:");
+    const response = await fetch(mediaUrl, { signal: AbortSignal.timeout(180_000) });
+    expect(response.ok).toBe(true);
+    expect(response.headers.get("content-type") ?? "").toMatch(/^video\/mp4/i);
+    assertVideo(Buffer.from(await response.arrayBuffer()));
+  }
 }
 
 export async function generatedImage(response: LiveResponse): Promise<Buffer> {
