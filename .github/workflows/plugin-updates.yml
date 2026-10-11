@@ -133,13 +133,5 @@ jobs:
           git add -- .agents/plugins/marketplace.json
           git commit -m 'chore(plugins): update upstream plugin revisions'
           git -c credential.helper= -c 'credential.helper=!gh auth git-credential' push origin "HEAD:refs/heads/$branch"
-          if ! gh pr create --draft --base main --head "$branch" \
-            --title 'chore(plugins): update upstream plugin revisions' \
-            --body 'Automated plugin revision proposal for human review. Related: #16, roadmap #15. Do not merge until all required checks on the candidate pass; bot-created PR checks may require Actions approval.'; then
-            echo "Pull request creation failed. Deleting $branch so it is not left without a review PR." >&2
-            git -c credential.helper= -c 'credential.helper=!gh auth git-credential' push origin --delete "refs/heads/$branch"
-            exit 1
-          fi
-          actual_sha=$(gh pr view "$branch" --json headRefOid --jq '.headRefOid')
-          test "$actual_sha" = "$(git rev-parse HEAD)"
-          echo "Opened a draft PR for $branch at $actual_sha. Review and approve its required workflows before merge." >> "$GITHUB_STEP_SUMMARY"
+          PLUGIN_UPDATE_BRANCH="$branch" PLUGIN_UPDATE_SHA="$(git rev-parse HEAD)" \
+            node scripts/plugin-update-proposal.mjs create >> "$GITHUB_STEP_SUMMARY"
