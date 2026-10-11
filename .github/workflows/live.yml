@@ -48,7 +48,7 @@ jobs:
       - name: Verify Reachability · Production ingress
         run: |
           set -euo pipefail
-          pnpm test:live -- tests/live/smoke.test.ts --no-file-parallelism
+          pnpm exec vitest run --config vitest.live.config.ts tests/live/smoke.test.ts --no-file-parallelism
 
   codex:
     name: Codex · Responses & Realtime
@@ -70,10 +70,10 @@ jobs:
           set -euo pipefail
           case "$SUITE" in
             core)
-              pnpm test:live -- tests/live/codex/core.test.ts --no-file-parallelism
+              pnpm exec vitest run --config vitest.live.config.ts tests/live/codex/core.test.ts --no-file-parallelism
               ;;
             *)
-              pnpm test:live -- tests/live/codex --no-file-parallelism
+              pnpm exec vitest run --config vitest.live.config.ts tests/live/codex --no-file-parallelism
               ;;
           esac
 
@@ -98,13 +98,13 @@ jobs:
           set -euo pipefail
           case "$SUITE" in
             core)
-              pnpm test:live -- tests/live/grok/core.test.ts --no-file-parallelism
+              pnpm exec vitest run --config vitest.live.config.ts tests/live/grok/core.test.ts --no-file-parallelism
               ;;
             images|videos|files)
-              pnpm test:live -- "tests/live/grok/${SUITE}.test.ts" --no-file-parallelism
+              pnpm exec vitest run --config vitest.live.config.ts "tests/live/grok/${SUITE}.test.ts" --no-file-parallelism
               ;;
             *)
-              pnpm test:live -- tests/live/grok --no-file-parallelism
+              pnpm exec vitest run --config vitest.live.config.ts tests/live/grok --no-file-parallelism
               ;;
           esac
 
@@ -129,16 +129,16 @@ jobs:
           set -euo pipefail
           case "$SUITE" in
             core)
-              pnpm test:live -- tests/live/xai/core.test.ts --no-file-parallelism
+              pnpm exec vitest run --config vitest.live.config.ts tests/live/xai/core.test.ts --no-file-parallelism
               ;;
             images|videos|files)
-              pnpm test:live -- "tests/live/xai/${SUITE}.test.ts" --no-file-parallelism
+              pnpm exec vitest run --config vitest.live.config.ts "tests/live/xai/${SUITE}.test.ts" --no-file-parallelism
               ;;
             xai-resources)
-              pnpm test:live -- tests/live/xai/resources.test.ts tests/live/xai/public-url.test.ts --no-file-parallelism
+              pnpm exec vitest run --config vitest.live.config.ts tests/live/xai/resources.test.ts tests/live/xai/public-url.test.ts --no-file-parallelism
               ;;
             *)
-              pnpm test:live -- tests/live/xai --no-file-parallelism
+              pnpm exec vitest run --config vitest.live.config.ts tests/live/xai --no-file-parallelism
               ;;
           esac
 
@@ -160,7 +160,7 @@ jobs:
           MINI_ONLY_GROK_SURFACE_API_KEY: ${{ secrets.MINI_ONLY_GROK_SURFACE_API_KEY }}
         run: |
           set -euo pipefail
-          pnpm test:live -- tests/live/clients --maxWorkers=2
+          pnpm exec vitest run --config vitest.live.config.ts tests/live/clients --maxWorkers=2
 
   authority:
     name: Authority · Access & Credits
@@ -186,13 +186,13 @@ jobs:
           set -euo pipefail
           case "$SUITE" in
             access)
-              pnpm test:live -- tests/live/access.test.ts --no-file-parallelism
+              pnpm exec vitest run --config vitest.live.config.ts tests/live/access.test.ts --no-file-parallelism
               ;;
             credits)
-              pnpm test:live -- tests/live/credits.test.ts --no-file-parallelism
+              pnpm exec vitest run --config vitest.live.config.ts tests/live/credits.test.ts --no-file-parallelism
               ;;
             *)
-              pnpm test:live -- tests/live/access.test.ts tests/live/credits.test.ts --no-file-parallelism
+              pnpm exec vitest run --config vitest.live.config.ts tests/live/access.test.ts tests/live/credits.test.ts --no-file-parallelism
               ;;
           esac
 
@@ -216,4 +216,4 @@ jobs:
           MINI_ADMIN_SECRET: ${{ secrets.MINI_ADMIN_SECRET }}
         run: |
           set -euo pipefail
-          pnpm test:live -- tests/live/billing.test.ts --no-file-parallelism
+          pnpm exec vitest run --config vitest.live.config.ts tests/live/billing.test.ts --no-file-parallelism
