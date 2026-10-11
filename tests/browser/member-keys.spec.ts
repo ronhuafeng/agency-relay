@@ -9,9 +9,7 @@ for(const failure of ['quota','defaults'] as const) test(`known key remains mana
   const key=page.locator('[data-key-detail="member-key"]');
   await openKeyEditor(page, 'rename');
   await expect(key.getByRole('textbox',{name:'密钥名称',exact:true})).toBeVisible();
-  await openKeyEditor(page, 'rename');
   await key.getByRole('textbox',{name:'密钥名称',exact:true}).fill('Laptop');
-  await openKeyEditor(page, 'rename');
   await key.getByRole('button',{name:'保存名称',exact:true}).click();
   await expect(page.locator('[data-member-feedback]')).toContainText('名称已保存');
   expect(worker.keyMetadata().find(key=>key.id==='member-key')?.name).toBe('Laptop');

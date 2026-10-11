@@ -801,7 +801,7 @@ body:has(.console-nav-account) { --header-h:0px; }
 .person-detail .access-choice-body:empty,.access-choice-promise:empty { display:none; }
 .person-detail .access-option:has(input[type=checkbox]:checked) { padding:0; border:0; }
 .route-catalog [data-slot=tabs-list] { margin-bottom:12px; }
-.route-catalog [data-slot=tabs-content][hidden] { display:none; }
+.route-catalog [data-slot=tabs-content][data-state=inactive] { display:none; }
 @media(max-width:999px) {
   .nav-rail:has(.console-nav-account) { height:auto; position:relative; padding-top:8px; }
   .nav-rail:not([data-member-nav]) { display:grid; grid-template-columns:minmax(0,1fr) auto minmax(0,1fr); align-items:center; column-gap:8px; container:console-nav / inline-size; }
@@ -890,10 +890,10 @@ body:has(.console-nav-account) { --header-h:0px; }
 .request-filters:has(.request-exact-disclosure:not([open])) .request-exact-filters { display:none; }
 summary[data-slot=button] { list-style:none; cursor:pointer; }
 summary[data-slot=button]::-webkit-details-marker { display:none; }
-.route-catalog:has(.route-native-fallback) [data-slot=tabs-content][hidden] { display:block!important; }
-.confirmation-disclosure > summary { min-height:44px; min-width:var(--control-target); white-space:nowrap; display:flex; align-items:center; padding-inline:8px; border-radius:var(--radius); cursor:pointer; font-size:12px; color:var(--muted-foreground); }
+.route-catalog:has(.route-native-fallback) [data-slot=tabs-content] { display:block; }
+.confirmation-disclosure > summary { min-height:var(--control-target); min-width:var(--control-target); white-space:nowrap; display:flex; align-items:center; padding-inline:8px; border-radius:var(--radius); cursor:pointer; font-size:12px; color:var(--muted-foreground); }
 .confirmation-disclosure > summary:hover { background:var(--accent); }
 .confirmation-disclosure > summary:focus-visible { outline:3px solid var(--ring); outline-offset:2px; }
 .confirmation-disclosure > p { max-width:36em; white-space:normal; }
-.route-catalog:not([data-route-ready]):has(.surface-host :target) [data-slot=tabs-content] { display:none!important; }
-.route-catalog:not([data-route-ready]):has(.surface-host :target) [data-slot=tabs-content]:has(:target) { display:block!important; }
+.route-catalog:not([data-route-ready]):has(.surface-host :target) [data-slot=tabs-content] { display:none; }
+.route-catalog:not([data-route-ready]):has(.surface-host :target) [data-slot=tabs-content]:has(:target) { display:block; }

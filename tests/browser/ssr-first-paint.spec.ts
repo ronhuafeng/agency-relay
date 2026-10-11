@@ -4,14 +4,14 @@ import { test, expect, authenticate } from './fixtures';
 // Accept stable SSR and any equivalent enhancement implementation. Reject a
 // desktop/mobile shell swap or expanded task/template/filter content disappearing
 // after script arrival. No incidental DOM tree, class count or pixel baseline.
-async function geometry(page: Page) {
+async function geometry(page: Page, scripted = true) {
   // Wait for parser/CSS ownership, not the held script or an elapsed delay.
   await page.waitForFunction(() => document.readyState !== 'loading'
     && [...document.querySelectorAll<HTMLLinkElement>('link[rel=stylesheet]')].every(link => link.sheet !== null));
   // The fixture uses installed system fonts, not asynchronous @font-face loads.
   // WebKit ties fonts.ready to document load, which this probe deliberately
   // withholds. Wait for painted frames after CSS rather than the held runtime.
-  await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+  if (scripted) await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
   return page.evaluate(() => {
     const box = (selector: string) => {
       const element = [...document.querySelectorAll(selector)].find(candidate => candidate.checkVisibility());
@@ -21,6 +21,7 @@ async function geometry(page: Page) {
     };
     return { viewport: innerWidth, documentWidth: document.documentElement.scrollWidth,
       main: box('main#content'), rail: box('.nav-rail'),
+      routes: [...document.querySelectorAll('.route-catalog [role=tabpanel]')].map(panel => ({state: panel.getAttribute('data-state'), visible: panel.checkVisibility(), targeted: Boolean(panel.querySelector(':target'))})),
       task: box('[data-person-detail], [data-task-help=configuration], .request-filters, .surface-host'),
       // Native disclosure bodies must begin collapsed, without requiring script.
       exposedClosedBodies: [...document.querySelectorAll('details:not([open]) > :not(summary)')]
@@ -73,7 +74,7 @@ for (const width of [390, 999, 1000, 1440]) test.describe(`SSR first paint ${wid
         await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
         const after = await geometry(page); valid(after);
         for (const landmark of ['main', 'rail', 'task'] as const) for (const dimension of ['x', 'y', 'width', 'height'] as const)
-          expect(Math.abs(after[landmark][dimension] - before[landmark][dimension]), `${view} ${landmark} ${dimension} stays stable`).toBeLessThanOrEqual(1);
+          expect(Math.abs(after[landmark][dimension] - before[landmark][dimension]), `${view} ${landmark} ${dimension} stays stable; route panels ${JSON.stringify({before: before.routes, after: after.routes})}`).toBeLessThanOrEqual(1);
       } catch (error) { failure = error; } finally {
         release();
         const failures = (await Promise.allSettled([...pending])).flatMap(result => result.status === 'rejected' ? [result.reason] : []);
@@ -89,7 +90,7 @@ for (const width of [390, 999, 1000, 1440]) test.describe(`SSR first paint ${wid
     test.use({ script: false });
     test('native task disclosure and GET navigation remain usable', async ({ page, worker }) => {
       await page.goto('/admin?view=access&person=other');
-      valid(await geometry(page));
+      valid(await geometry(page, false));
       const editor = page.getByRole('button', { name: '更改登录邮箱', exact: true });
       await editor.focus(); await page.keyboard.press('Enter');
       await expect(page.getByRole('textbox', { name: '新的组织邮箱' })).toBeVisible();
@@ -103,7 +104,7 @@ for (const width of [390, 999, 1000, 1440]) test.describe(`SSR first paint ${wid
       await page.getByRole('button', { name: '筛选请求', exact: true }).click();
       await page.waitForURL(/audit_request=fixture-no-match/);
       await expect(page.locator('input[name=audit_request]')).toHaveValue('fixture-no-match');
-      valid(await geometry(page));
+      valid(await geometry(page, false));
       expect(worker.requests.every(request => request.method === 'GET')).toBe(true);
     });
   });

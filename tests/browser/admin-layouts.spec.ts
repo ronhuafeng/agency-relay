@@ -142,7 +142,9 @@ test.describe('native narrow administrator details', () => {
   test('disclosures and exact parent links work without scripting', async ({ page, worker }) => {
     worker.seedAdminLayouts();
     await page.goto('/admin?view=surfaces');
-    await expect(page.getByRole('searchbox')).toHaveCount(0);
+    for (const filter of await page.getByRole('searchbox').all()) await expect(filter).toBeDisabled();
+    expect(await page.locator('[data-surface-hostname]').evaluateAll(hosts => hosts.map(host => host.getAttribute('data-surface-hostname')))).toEqual(['api.trustedtunnel.app', 'grok.trustedtunnel.app', 'xai.trustedtunnel.app']);
+    for (const host of await page.locator('[data-surface-hostname]').all()) await expect(host).toBeVisible();
     const route=page.locator('[data-route-id="codex.responses"]');
     await route.getByRole('button', {name:'请求与授权详情',exact:true}).click();
     await expect(route.getByText('ChatGPT',{exact:true})).toBeVisible();

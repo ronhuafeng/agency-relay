@@ -54,7 +54,9 @@ export async function openKeyEditor(page: Page, task: 'rename' | 'replace'): Pro
   const detail = page.locator('[data-key-detail]:visible');
   const trigger = detail.getByRole('button', {name: task === 'rename' ? '重命名' : '更换密钥', exact: true});
   await expect(trigger).toBeVisible();
-  if (await trigger.getAttribute('aria-expanded') !== 'true') await trigger.click();
+  // Native details owns this state both before and after hydration.
+  if (!await trigger.evaluate(node => node.closest('details')?.open)) await trigger.click();
+  await expect(trigger.locator('xpath=parent::details')).toHaveAttribute('open', '');
 }
 export { expect };
 

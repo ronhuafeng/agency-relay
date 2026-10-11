@@ -14,6 +14,15 @@ test('quiet reads retain unchanged content and apply changed SQL data without mo
   const scroll = await page.evaluate(() => scrollY);
   expect(scroll).toBeGreaterThan(0);
   const reads = () => worker.requests.filter(request => request.method === 'GET' && request.view === 'usage').length;
+  // Establish a real failed-read status so the unchanged read has a visible
+  // completion boundary. A 204 debugger body/finished event is not portable.
+  const failed = worker.hold({method:'GET', path:'/admin', view:'usage'});
+  try {
+    worker.advanceClock(300000);
+    await page.clock.fastForward(300000);
+    await failed.entered;
+  } finally { failed.release(503); }
+  await expect(page.locator('[data-console-status]')).toHaveText('更新暂不可用');
   const before = reads();
   const unchangedRead = page.waitForResponse(response => response.request().headers()["x-console-revision"] !== undefined);
   worker.advanceClock(300000);
@@ -28,10 +37,9 @@ test('quiet reads retain unchanged content and apply changed SQL data without mo
   expect(unchanged.headers()["x-console-actor-id"]).toBe("admin");
   expect(unchanged.headers()["content-length"]).toBeUndefined();
   expect(unchanged.headers()["transfer-encoding"]).toBeUndefined();
-  await unchanged.finished();
   await expect.poll(reads).toBeGreaterThan(before);
   expect(await root!.evaluate(node => node === document.querySelector('main#content'))).toBe(true);
-  expect(await page.locator('[data-console-status]').isVisible()).toBe(false);
+  await expect(page.locator('[data-console-status]')).toBeHidden();
 
   worker.recordObservedRequest();
   const unchangedRevision = await page.locator('main').getAttribute('data-console-revision');
