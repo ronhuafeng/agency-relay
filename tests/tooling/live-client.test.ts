@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { codexTaskSucceeded, run } from "../live/clients/run";
+import { codexTaskSucceeded, createHome, run } from "../live/clients/run";
 
 it("reports process failure metadata without command arguments or client output", () => {
   const marker = "SYNTHETIC_PRIVATE_CLIENT_CONTENT";
@@ -20,4 +20,16 @@ it("requires the expected reply and a completed turn instead of a successful pro
   expect(codexTaskSucceeded(transcript(reply, {type: "turn.failed"}))).toBe(false);
   expect(codexTaskSucceeded(transcript({...reply, item: {...reply.item, text: "Unexpected reply"}}, {type: "turn.completed"}))).toBe(false);
   expect(codexTaskSucceeded(transcript(reply, {type: "turn.completed"}))).toBe(true);
+});
+
+it("does not inherit unrelated CI/provider credentials into third-party client environments", () => {
+  const client = createHome("mini-env-check-");
+  try {
+    expect(Object.keys(client.baseEnv).some((name) => name.startsWith("MINI_"))).toBe(false);
+    expect(client.baseEnv.OPENAI_API_KEY).toBeUndefined();
+    expect(client.baseEnv.XAI_API_KEY).toBeUndefined();
+    expect(client.baseEnv.HOME).toBe(client.home);
+  } finally {
+    client.cleanup();
+  }
 });
