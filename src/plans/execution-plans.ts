@@ -219,10 +219,9 @@ function codexProductionPlans(): ExecutionPlan[] {
       usageObserver: "none",
       creditCharge: 1,
       realTask: true,
-      providerBaseUrl: OPENAI_API_PROVIDER_BASE_URL,
       auditPath: "/v1/audio/transcriptions",
       supportStatus: "active",
-      notes: "Codex transcriptions — transparent OpenAI API"
+      notes: "Codex transcriptions — opaque ChatGPT backend /transcribe through egress"
     },
     {
       id: "codex.realtime_websocket",
@@ -248,10 +247,9 @@ function codexProductionPlans(): ExecutionPlan[] {
       usageObserver: "none",
       creditCharge: 1,
       realTask: true,
-      providerBaseUrl: OPENAI_API_PROVIDER_BASE_URL,
       auditPath: "/v1/realtime/calls",
       supportStatus: "active",
-      notes: "Codex Realtime WebRTC call create — transparent OpenAI API"
+      notes: "Codex Realtime call create — opaque ChatGPT backend /realtime/calls through egress"
     },
     {
       id: "codex.live",
@@ -262,10 +260,9 @@ function codexProductionPlans(): ExecutionPlan[] {
       usageObserver: "none",
       creditCharge: 1,
       realTask: true,
-      providerBaseUrl: OPENAI_API_PROVIDER_BASE_URL,
       auditPath: "/v1/live",
       supportStatus: "active",
-      notes: "Codex Realtime v3 call create — transparent OpenAI API"
+      notes: "Codex Realtime v3 call create — opaque ChatGPT backend /live through egress"
     },
     {
       id: "codex.live_websocket",

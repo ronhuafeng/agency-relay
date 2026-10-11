@@ -3,8 +3,10 @@
  */
 import egressProtocol from "../../deploy/codex-egress-shim/egress-protocol.json";
 import {
+  forwardCodexChatGptBackend,
   forwardModels,
   forwardResponses,
+  type CodexChatGptBackendPath,
   type CodexProviderTerminalOutcome
 } from "./adapter";
 import { HttpError } from "../errors";
@@ -61,6 +63,12 @@ export async function executeCodexPlan(
       request, env, ctx, deps, requestContext, auth, plan, fallbackIdentityVersion
     );
   }
+  const chatGptBackendPath = chatGptBackendEgressPath(plan.id);
+  if (chatGptBackendPath) {
+    return await routeChatGptBackend(
+      request, env, ctx, deps, requestContext, auth, plan, fallbackIdentityVersion, chatGptBackendPath
+    );
+  }
   if (
     plan.providerBaseUrl
     && (plan.mode === "transparent" || plan.mode === "websocket_transparent")
@@ -68,6 +76,63 @@ export async function executeCodexPlan(
     return await routeOpenAiDirect(request, env, ctx, deps, requestContext, auth, plan, fallbackIdentityVersion);
   }
   throw new HttpError(404, "Route not found", "invalid_request_error", "not_found");
+}
+
+const CHATGPT_BACKEND_EGRESS = {
+  "codex.audio_transcriptions": "/transcribe",
+  "codex.realtime_calls": "/realtime/calls",
+  "codex.live": "/live"
+} as const satisfies Record<string, CodexChatGptBackendPath>;
+
+function chatGptBackendEgressPath(planId: string): CodexChatGptBackendPath | null {
+  return CHATGPT_BACKEND_EGRESS[planId as keyof typeof CHATGPT_BACKEND_EGRESS] ?? null;
+}
+
+async function routeChatGptBackend(
+  request: Request,
+  env: Env,
+  ctx: Pick<ExecutionContext, "waitUntil">,
+  deps: ExecutionDependencies,
+  requestContext: RequestContext,
+  auth: AuthenticatedUser,
+  plan: ExecutionPlan,
+  fallbackIdentityVersion: string | null,
+  path: CodexChatGptBackendPath
+): Promise<Response> {
+  requestContext.userId = auth.user.id;
+  requestContext.apiKeyId = auth.apiKey.id;
+  requestContext.sessionId = request.headers.get(CODEX_SESSION_ID_HEADER) ?? undefined;
+  requestContext.threadId = request.headers.get(CODEX_THREAD_ID_HEADER) ?? undefined;
+  const attempt = await admitProviderAttempt({
+    env, ctx, now: deps.now, requestContext, auth, plan
+  });
+  return await forwardCodexChatGptBackend(request, env, deps, requestContext, {
+    access_token: attempt.credential.accessToken,
+    ...(attempt.credential.accountId ? { account_id: attempt.credential.accountId } : {})
+  }, path, request.body, {
+    upstreamClientIdentity: plan.upstreamClientIdentity,
+    fallbackIdentityVersion,
+    onTerminal: (outcome) => {
+      if (!outcome.attempted) {
+        return;
+      }
+      const completion = completeCodexProviderAttempt(attempt, outcome);
+      ctx.waitUntil(completion.then((result) => {
+        logOutcome(
+          deps,
+          requestContext,
+          auth,
+          attempt.credential.physicalAccountId,
+          outcome.requestStatus,
+          outcome.upstreamStatus,
+          publicExecutionPlanPath(plan),
+          undefined,
+          undefined,
+          result.accountingCommitted ? undefined : "request_accounting_failed"
+        );
+      }));
+    }
+  });
 }
 
 async function routeOpenAiDirect(

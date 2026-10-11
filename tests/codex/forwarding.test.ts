@@ -44,7 +44,40 @@ describe("Codex forwarding", () => {
     expect(fixture.fetchCalls[0].headers.get("Originator")).toBeNull();
   });
 
-  it("forwards Codex realtime calls to api.openai.com with the ChatGPT slot used by Responses", async () => {
+  it("forwards Codex transcriptions through egress to the ChatGPT transcribe route", async () => {
+    const fixture = makeFixture();
+    const created = await createUser(fixture, "transcribe@example.com");
+    const keyBody = await createKey(fixture, created.user.id, ["surface:codex:production"]);
+    const imported = await admin(fixture, "https://api.trustedtunnel.app/admin/codex-auths/shared_default/import", {
+      method: "POST",
+      body: {
+        access_token: "shared_access",
+        expires_at: "2026-06-24T12:00:00.000Z",
+        account_id: "acct_shared"
+      }
+    });
+    expect(imported.status).toBe(201);
+
+    const transcription = await handleRequest(new Request("https://api.trustedtunnel.app/v1/audio/transcriptions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${keyBody.api_key}`,
+        "Content-Type": "application/octet-stream"
+      },
+      body: "audio"
+    }), fixture.env, fixture.ctx, fixture.deps);
+    expect(transcription.status).toBe(200);
+    expect(fixture.fetchCalls).toHaveLength(1);
+    expect(fixture.fetchCalls[0]).toMatchObject({
+      url: "https://codex-egress-us-west1-a.trustedtunnel.app/transcribe",
+      method: "POST",
+      authorization: "Bearer shared_access"
+    });
+    expect(fixture.fetchCalls[0].headers.get("Chatgpt-Account-Id")).toBe("acct_shared");
+    expect(fixture.fetchCalls[0].headers.get("X-Codex-Egress-Secret")).toBe("egress-secret");
+  });
+
+  it("forwards Codex realtime calls through egress to the ChatGPT backend", async () => {
     const fixture = makeFixture();
     const created = await createUser(fixture, "realtime-calls@example.com");
     const keyBody = await createKey(fixture, created.user.id, ["surface:codex:production"]);
@@ -89,12 +122,12 @@ describe("Codex forwarding", () => {
     expect(calls.status).toBe(200);
     expect(fixture.fetchCalls).toHaveLength(1);
     expect(fixture.fetchCalls[0]).toMatchObject({
-      url: "https://api.openai.com/v1/realtime/calls?intent=quicksilver&architecture=avas",
+      url: "https://codex-egress-us-west1-a.trustedtunnel.app/realtime/calls?intent=quicksilver&architecture=avas",
       method: "POST",
       authorization: "Bearer shared_access"
     });
     expect(fixture.fetchCalls[0].headers.get("Chatgpt-Account-Id")).toBe("acct_shared");
-    expect(fixture.fetchCalls[0].headers.get("X-Codex-Egress-Secret")).toBeNull();
+    expect(fixture.fetchCalls[0].headers.get("X-Codex-Egress-Secret")).toBe("egress-secret");
     expect(fixture.fetchCalls[0].headers.get("OpenAI-Alpha")).toBe("quicksilver=v1");
     expect(fixture.fetchCalls[0].headers.get("Originator")).toBe("codex_cli_rs");
     expect(fixture.fetchCalls[0].headers.get("Authorization")).toBe("Bearer shared_access");

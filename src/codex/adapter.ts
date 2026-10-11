@@ -34,6 +34,8 @@ export type CodexAccountEgressPath =
   | "/account/profile"
   | "/account/rate-limit-reset-credits";
 
+export type CodexChatGptBackendPath = "/realtime/calls" | "/live" | "/transcribe";
+
 const HOP_BY_HOP_HEADERS = new Set([
   "connection",
   "keep-alive",
@@ -294,13 +296,70 @@ async function finishResponseObservation(
   }
 }
 
+export async function forwardCodexChatGptBackend(
+  request: Request,
+  env: Env,
+  deps: AppDependencies,
+  requestContext: RequestContext,
+  freshToken: FreshAccessToken,
+  path: CodexChatGptBackendPath,
+  body: ReadableStream<Uint8Array> | null,
+  options: ForwardOptions = {}
+): Promise<Response> {
+  const observation = createTransportObservation();
+  let providerAttempted = false;
+  let terminalReported = false;
+  const reportTerminal = (errorCode: string | null) => {
+    if (terminalReported) {
+      return;
+    }
+    terminalReported = true;
+    const providerResult = providerResultForStatus(observation.upstream_status);
+    try {
+      options.onTerminal?.({
+        attempted: providerAttempted,
+        requestStatus: providerResult === "accepted" ? "ok" : "error",
+        providerResult,
+        upstreamStatus: observation.upstream_status,
+        errorCode,
+        usage: null,
+        observation: { ...observation }
+      });
+    } catch {
+      console.error(JSON.stringify({ event: "provider_attempt_terminal_callback_failed" }));
+    }
+  };
+  try {
+    const upstream = await fetchCodex(
+      request,
+      env,
+      deps,
+      requestContext,
+      freshToken,
+      path,
+      body,
+      observation,
+      options.upstreamClientIdentity ?? "none",
+      options.fallbackIdentityVersion ?? null,
+      () => {
+        providerAttempted = true;
+      }
+    );
+    reportTerminal(null);
+    return transparentUpstream(upstream);
+  } catch (error) {
+    reportTerminal(error instanceof HttpError ? error.code ?? null : null);
+    throw error;
+  }
+}
+
 async function fetchCodex(
   request: Request,
   env: Env,
   deps: AppDependencies,
   requestContext: RequestContext,
   freshToken: FreshAccessToken,
-  path: "/responses",
+  path: "/responses" | CodexChatGptBackendPath,
   body: ReadableStream<Uint8Array> | null,
   observation: CodexTransportObservation,
   upstreamClientIdentity: UpstreamClientIdentity,
@@ -611,7 +670,7 @@ function elapsedMs(deps: AppDependencies, requestContext: RequestContext): numbe
 
 function codexTarget(
   env: Env,
-  path: "/models" | "/responses" | CodexAccountEgressPath,
+  path: "/models" | "/responses" | CodexAccountEgressPath | CodexChatGptBackendPath,
   search = ""
 ): string {
   // Validate origin before any bearer, account id, egress secret, or manifest is attached.

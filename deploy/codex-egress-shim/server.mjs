@@ -7,11 +7,19 @@ import egressProtocol from "./egress-protocol.json" with { type: "json" };
 import { attachDownstreamRuntime, attachRequestRuntime } from "./node-transport-adapter.mjs";
 import { createTransportLifecycle } from "./transport-lifecycle.mjs";
 
-const ALLOWED_POST_PATHS = new Set(["/responses"]);
+const ALLOWED_POST_PATHS = new Set([
+  "/responses",
+  "/realtime/calls",
+  "/live",
+  "/transcribe"
+]);
 const ACCOUNT_READ_PATHS = new Map([
   ["/account/usage", "../wham/usage"],
   ["/account/profile", "../wham/profiles/me"],
   ["/account/rate-limit-reset-credits", "../wham/rate-limit-reset-credits"]
+]);
+const POST_PATH_REWRITES = new Map([
+  ["/transcribe", "../transcribe"]
 ]);
 const HOP_BY_HOP_HEADERS = new Set([
   "connection",
@@ -270,6 +278,12 @@ function upstreamUrl(requestUrl) {
   const accountPath = ACCOUNT_READ_PATHS.get(incoming.pathname);
   if (accountPath !== undefined) {
     return new URL(accountPath, `${upstreamBaseUrl}/`);
+  }
+  const postRewrite = POST_PATH_REWRITES.get(incoming.pathname);
+  if (postRewrite !== undefined) {
+    const rewritten = new URL(postRewrite, `${upstreamBaseUrl}/`);
+    rewritten.search = incoming.search;
+    return rewritten;
   }
   return new URL(`${upstreamBaseUrl}${incoming.pathname}${incoming.search}`);
 }

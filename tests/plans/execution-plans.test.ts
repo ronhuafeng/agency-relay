@@ -609,12 +609,11 @@ describe("Execution Plans", () => {
       providerBaseUrl: "https://api.openai.com",
       upstreamClientIdentity: "none"
     });
-    expect(matchExecutionPlan(new Request("https://api.trustedtunnel.app/v1/audio/transcriptions", {
+    const transcription = matchExecutionPlan(new Request("https://api.trustedtunnel.app/v1/audio/transcriptions", {
       method: "POST"
-    }), plans)).toMatchObject({
-      id: "codex.audio_transcriptions",
-      providerBaseUrl: "https://api.openai.com"
-    });
+    }), plans);
+    expect(transcription).toMatchObject({ id: "codex.audio_transcriptions" });
+    expect(transcription?.providerBaseUrl).toBeUndefined();
     expect(matchExecutionPlan(new Request("https://api.trustedtunnel.app/v1/realtime?intent=quicksilver&model=gpt-realtime-1.5", {
       headers: { Upgrade: "websocket" }
     }), plans)).toMatchObject({
@@ -622,19 +621,19 @@ describe("Execution Plans", () => {
       providerBaseUrl: "https://api.openai.com",
       mode: "websocket_transparent"
     });
-    expect(matchExecutionPlan(new Request("https://api.trustedtunnel.app/v1/realtime/calls?intent=quicksilver&architecture=avas", {
+    const realtimeCalls = matchExecutionPlan(new Request("https://api.trustedtunnel.app/v1/realtime/calls?intent=quicksilver&architecture=avas", {
       method: "POST"
-    }), plans)).toMatchObject({
+    }), plans);
+    expect(realtimeCalls).toMatchObject({
       id: "codex.realtime_calls",
-      providerBaseUrl: "https://api.openai.com",
       upstreamClientIdentity: "none"
     });
-    expect(matchExecutionPlan(new Request("https://api.trustedtunnel.app/v1/live", {
+    expect(realtimeCalls?.providerBaseUrl).toBeUndefined();
+    const live = matchExecutionPlan(new Request("https://api.trustedtunnel.app/v1/live", {
       method: "POST"
-    }), plans)).toMatchObject({
-      id: "codex.live",
-      providerBaseUrl: "https://api.openai.com"
-    });
+    }), plans);
+    expect(live).toMatchObject({ id: "codex.live" });
+    expect(live?.providerBaseUrl).toBeUndefined();
     expect(matchExecutionPlan(new Request("https://api.trustedtunnel.app/v1/live?model=gpt-live-1-codex", {
       headers: { Upgrade: "websocket" }
     }), plans)).toMatchObject({
