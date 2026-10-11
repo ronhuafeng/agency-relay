@@ -1,5 +1,7 @@
 import { buttonVariants } from "../ui/components/button";
-/** Only allowlisted, non-secret inputs survive in-document navigation. */
+/** Only allowlisted, non-secret inputs survive in-document navigation.
+ * SSR draft forms disable browser autocomplete/history persistence so this
+ * document-local store, not a previous document, owns editable values. */
 type DraftField = HTMLInputElement | HTMLSelectElement;
 interface Value { name: string; type: string; value: string; checked: boolean | null }
 interface Draft { baseline: Value[]; values: Value[] }

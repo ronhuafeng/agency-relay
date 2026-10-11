@@ -256,6 +256,31 @@ const softFailAccount: CodexAccountSnapshot = {
 };
 
 describe("Dashboard", () => {
+  it.each([
+    "view=quotas", "view=credentials&task=add-account", "view=access&task=add-person",
+    "view=access&person=Alex&task=give-access", "view=access&person=Alex&key=key-Alex",
+    "view=access&person=legacy", "view=setup&person=Alex&key=key-Alex"
+  ])("keeps editable drafts out of browser form-state persistence (%s)", async query => {
+    const {env, db} = dashboardFixture();
+    db.seedUser({id:"Alex", email:"alex@example.com", account_kind:"human"});
+    db.seedUser({id:"legacy"});
+    db.seedApiKeys({id:"key-Alex", user_id:"Alex", key_prefix:"preview_Alex", scopes:["surface:codex:production"], created_at:"2026-07-01T00:00:00.000Z"});
+    const response = await adminDashboardResponse({
+      env, url:new URL(`https://admin.example.test/admin?${query}`),
+      identity:{kind:"console", email:"op@example.com", subject:"sub"},
+      now:new Date("2026-07-28T12:00:00.000Z"), requestId:"draft-history-policy",
+      loadCodexAccount:async () => softFailAccount
+    });
+    expect(response.status).toBe(200);
+    const doc = new JSDOM(await response.text()).window.document;
+    const forms = Array.from(doc.querySelectorAll<HTMLFormElement>('form[data-dashboard-draft]'));
+    expect(forms.length).toBeGreaterThan(0);
+    for (const form of forms) {
+      expect(form.getAttribute("autocomplete")).toBe("off");
+      expect(form.querySelector('[autocomplete="on"]')).toBeNull();
+    }
+  });
+
   it.each([["codex", "Codex"], ["grok", "Grok"], ["xai", "xAI API"]])("reports a %s binding update as that operation, not provider refresh", async (surface, label) => {
     const { env } = dashboardFixture();
     const render = async (kind: "credential_binding" | "grok_refreshed") => (await adminDashboardResponse({

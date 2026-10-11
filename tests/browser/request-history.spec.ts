@@ -34,16 +34,26 @@ for (const width of [320, 390, 1440]) test.describe(`request history ${width}px`
     await page.getByRole("combobox", { name: "结果", exact: true }).selectOption("error");
     await page.getByRole("button", { name: "筛选请求" }).click();
     await expect(page.locator("[data-request-record]")).toHaveCount(1);
+    // SSR search is already usable before enhancement. Wait for a real runtime
+    // outcome before testing the separate in-document task/focus contract.
+    await expect(page.getByRole('button', {name:'账号菜单',exact:true})).toHaveAttribute('aria-haspopup','menu');
+    await page.evaluate(() => { document.documentElement.dataset.taskDocument = "filtered-requests"; });
     const filteredUrl = page.url();
     const record = page.getByRole("link", { name: /查看请求.*history-27/ });
-    await record.focus(); await page.keyboard.press("Enter");
+    await record.focus();
+    const taskRead = page.waitForRequest(request => request.method() === 'GET'
+      && new URL(request.url()).pathname === '/admin' && new URL(request.url()).searchParams.get('record') === 'history-27');
+    await page.keyboard.press("Enter");
+    expect((await taskRead).isNavigationRequest()).toBe(false);
     await expect(page.locator('[data-request-detail="history-27"]')).toBeVisible();
+    await expect(page.locator('html')).toHaveAttribute('data-task-document','filtered-requests');
     await expect(page.getByRole('combobox',{name:'结果',exact:true})).toHaveValue('error');
     await expect(page.locator('[data-request-record="history-27"]')).toBeVisible();
     await expect(page.locator('[data-request-detail] > .usage-facts').getByText("上游 HTTP 状态", {exact: true}).locator("..").locator("dd")).toHaveText("未记录");
     await expect(page.locator("main")).not.toContainText("0 ms");
     await page.goBack();
     await expect(page).toHaveURL(filteredUrl);
+    await expect(page.locator('html')).toHaveAttribute('data-task-document','filtered-requests');
     await expect(page.getByRole("textbox", { name: "请求 ID" })).toHaveValue("request-shared");
     await expect(page.getByRole("textbox", { name: "成员", exact: true })).toHaveValue("member");
     await expect(page.getByRole("combobox", { name: "服务与路由", exact: true })).toHaveValue("codex.responses");
@@ -76,6 +86,7 @@ test("stable pagination, unavailable reads and retry stay distinct from missing"
   await expect(page.locator("[data-request-record]")).toHaveCount(3);
   await page.getByRole("link", { name: "较新记录" }).click();
   await expect(page.locator("[data-request-record]")).toHaveCount(25);
+  await expect(page.getByRole('button', {name:'账号菜单',exact:true})).toHaveAttribute('aria-haspopup','menu');
   worker.failRequestHistoryRead();
   await page.getByRole("link", { name: /查看请求.*history-27/ }).click();
   await expect(page.locator("[data-dashboard-notice]")).toContainText("页面暂时打不开");

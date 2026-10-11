@@ -27,7 +27,7 @@ export function QuotasPage({ defaults }: { readonly defaults: readonly QuotaDefa
   const warning = "保存组织默认额度？继承它的账号将使用这些月度上限；个人额度和已用量保持不变，额度按 UTC 月重置。0 credits 只允许已授权的零消耗操作。xAI API 正额度会开放上游团队共享资源和派生凭据权限。";
   return (
     <section className="view-stack" aria-label="组织额度" data-view-role="quotas">
-      <form className="organization-policy-form" data-dashboard-draft="credit-defaults" method="post" action="/admin/ui/credit-defaults" data-confirmation={warning}><Card className="organization-policy-board">
+      <form className="organization-policy-form" autoComplete="off" data-dashboard-draft="credit-defaults" method="post" action="/admin/ui/credit-defaults" data-confirmation={warning}><Card className="organization-policy-board">
       <input type="hidden" name="confirm" value="1"/>
       <CardContent><Table className="organization-policy-table" aria-label="组织默认月度额度"><TableHeader><TableRow><TableHead>服务</TableHead><TableHead><div className="quota-column-heading"><span>每月额度（credits）</span><InfoPopover id="organization-quota-rules" label="额度规则" iconOnly><p>组织默认只影响继承它的账号。额度每个 UTC 月重置；修改上限不会清零已用量。</p><p>0 credits 仍允许已授权的零消耗操作。xAI API 正额度开放上游团队共享资源及派生凭据权限，不提供人员间资源隔离。</p></InfoPopover></div></TableHead></TableRow></TableHeader><TableBody>
         {defaults.map((row) => {

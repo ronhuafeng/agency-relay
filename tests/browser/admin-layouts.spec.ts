@@ -106,6 +106,7 @@ test('quota cancellation preserves the draft until native document departure and
   await expect(page.locator('.organization-policy-form').getByRole('button', { name:'保存', exact:true })).toBeFocused();
   expect(worker.requests.filter(request => request.method === 'POST').length).toBe(0);
   await expect(quota.getByRole('spinbutton')).toHaveValue('123');
+  await expect(page.locator('.organization-policy-form').getByText('有未保存的修改')).toBeVisible();
   const saved = String(worker.quotaDefault('codex'));
   const target = page.url();
   await page.getByRole('navigation', { name:'控制台页面' }).getByRole('link', { name:'管理记录', exact:true }).click();

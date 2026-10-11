@@ -37,7 +37,7 @@ function ServiceIdentity({model, personUrl}: {readonly model: AdminDashboardAcce
   const warning = `更改服务账号 ${user.display_name}（${user.id}）的管理人？原分配的控制台管理权将移除，新分配只授予这个服务的密钥管理及额度、用量读取权。密钥保持不变：原管理人可能已复制密钥，仍可进行 API 调用，直到密钥到期或另行撤销。不会自动停用服务或轮换密钥。`;
   return <section className="workspace-section" id="identity" tabIndex={-1} aria-label="服务账号身份"><h2>服务账号</h2>
     <dl className="person-access-summary"><div><dt>账号 ID</dt><dd><code>{user.id}</code></dd></div></dl>
-    <form className="board-form" method="post" action={`/admin/ui/services/${encodeURIComponent(user.id)}/name`} data-dashboard-draft="service-name" data-draft-scope={user.id}>
+    <form className="board-form" method="post" action={`/admin/ui/services/${encodeURIComponent(user.id)}/name`} autoComplete="off" data-dashboard-draft="service-name" data-draft-scope={user.id}>
       <Field control={{label: "服务名称", name: "display_name", required: true, maxLength: 64, autoComplete: "off", value: error?.display_name ?? user.display_name ?? "", invalid: Boolean(error)}} />
       <input type="hidden" name="person_return" value={personUrl} /><Button type="submit" variant="outline">保存名称</Button>
     </form>
@@ -65,7 +65,7 @@ function ClassifyService({model, personUrl}: {readonly model: AdminDashboardAcce
   const error = model.mutationFlash?.kind === "service_error" ? model.mutationFlash : null;
   const warning = `确认历史账号 ${user.id} 是项目或自动化使用的服务账号？已有密钥、到期时间、绑定、额度、消耗和历史均保留，不会套用新账号的停用额度。此操作不能将服务账号转回人员。`;
   return <section className="workspace-section" aria-label="确认历史账号用途"><h2>确认历史账号用途</h2>
-    <form className="board-form" method="post" action={`/admin/ui/services/${encodeURIComponent(user.id)}/classify`} data-confirmation={warning} data-dashboard-draft="service-classify" data-draft-scope={user.id}>
+    <form className="board-form" method="post" action={`/admin/ui/services/${encodeURIComponent(user.id)}/classify`} data-confirmation={warning} autoComplete="off" data-dashboard-draft="service-classify" data-draft-scope={user.id}>
       <Field control={{label: "服务名称", name: "display_name", required: true, maxLength: 64, autoComplete: "off", value: error?.display_name ?? "", invalid: Boolean(error)}} />
       <input type="hidden" name="expected_updated_at" value={user.updated_at} /><input type="hidden" name="person_return" value={personUrl} /><input type="hidden" name="confirm" value="1" />
       <ConfirmationFallback message={warning} /><Button type="submit" variant="outline">确认为服务账号</Button>
@@ -73,7 +73,7 @@ function ClassifyService({model, personUrl}: {readonly model: AdminDashboardAcce
   </section>;
 }
 function GiveAccess({model, personId, cancelHref}: {readonly model: AdminDashboardAccessModel; readonly personId: string; readonly cancelHref: string}) {
-  return <><section className="workspace-section" id="give-access" tabIndex={-1} data-action="give-access" aria-label="创建密钥"><div className="task-card-head"><h3 className="task-title">创建密钥</h3><TaskClose href={cancelHref} label="收起创建密钥"/></div><form className="board-form" method="post" action="/admin/ui/keys" data-dashboard-draft="access" data-draft-scope={personId}>
+  return <><section className="workspace-section" id="give-access" tabIndex={-1} data-action="give-access" aria-label="创建密钥"><div className="task-card-head"><h3 className="task-title">创建密钥</h3><TaskClose href={cancelHref} label="收起创建密钥"/></div><form className="board-form" method="post" action="/admin/ui/keys" autoComplete="off" data-dashboard-draft="access" data-draft-scope={personId}>
     <input type="hidden" name="user_id" value={personId} /><Field control={{label: "密钥名称", name: "name", value: "客户端访问", required: true, maxLength: 64, autoComplete: "off"}} /><fieldset className="access-fieldset"><legend>新密钥包含的服务</legend><div className="access-choice-grid" data-access-choices="three" data-credential-selectors="three">{capabilityView.surfaces.map((access) => <ClientAccessOption key={access.id} access={access} model={model} />)}</div></fieldset>
     <KeyExpiryField /><div className="person-form-actions"><Button type="submit">创建密钥</Button><a className="action-link" data-dashboard-link="" data-discard-draft="" data-task-link="" href={cancelHref}>取消</a></div>
   </form></section><CapabilityIsland model={{view: capabilityView, routesHref: `?view=surfaces&range=${model.range.key}`}} /></>;

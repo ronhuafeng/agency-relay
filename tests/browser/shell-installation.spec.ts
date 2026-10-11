@@ -141,7 +141,10 @@ for (const destination of ['用量报告', '上游连接', '成员与服务']) t
     && response.request().frame() === page.mainFrame() && new URL(response.url()).pathname === '/admin');
   await page.getByRole('navigation', { name: '控制台页面' }).getByRole('link', { name: destination, exact: true }).click();
   expect((await response).status()).toBe(destination === '用量报告' ? 200 : 404);
-  await expect(page.locator('[data-user-id],[data-dashboard-view]')).toHaveCount(0);
+  await expect(page.locator('[data-user-id],[data-person-detail],[data-account-detail],.organization-policy-form')).toHaveCount(0);
+  await expect(page.getByRole('navigation', {name:'控制台页面'})).toHaveCount(0);
+  await expect(page.getByRole('navigation', {name:'成员页面'})).toBeVisible();
+  await expect(page.locator('[data-console-actor-id]')).toHaveAttribute('data-console-actor-id','admin');
   await expect(page.locator('[data-console-role]')).toHaveAttribute('data-console-role','user');
   await expect(page.getByRole('heading', {name:destination === '用量报告' ? '我的用量' : '没有这个页面',exact:true,level:1})).toBeVisible();
   await expect.poll(() => page.locator('[data-one-time-key],[data-created-token]').count()).toBe(0);

@@ -64,7 +64,7 @@ export function TaskEditorView({control}: {readonly control: TaskEditorControl})
   return <details ref={disclosure} className="task-editor" open={open} onToggle={event => setOpen(event.currentTarget.open)}>
     <Button asChild variant="ghost"><summary ref={trigger} role="button" aria-label={control.label} aria-expanded={enhanced ? open : undefined}><Icon name="edit"/>{control.label}{!open && hasDraft ? <span className="caption" data-task-draft-indicator="" role="status">有未保存的修改</span> : null}</summary></Button>
     <div>
-      <form ref={form} className="board-form task-editor-form" method="post" action={control.action} data-dashboard-draft={control.draftKind} data-draft-scope={control.draftScope} data-confirmation={control.confirmation} data-confirm-email={control.confirmEmail ? "" : undefined}>
+      <form ref={form} className="board-form task-editor-form" method="post" action={control.action} autoComplete="off" data-dashboard-draft={control.draftKind} data-draft-scope={control.draftScope} data-confirmation={control.confirmation} data-confirm-email={control.confirmEmail ? "" : undefined}>
         {Object.entries(control.hidden).map(([name,value]) => <input key={name} type="hidden" name={name} value={value}/>)}
         {control.fields.map(field => <Field key={field.name} control={field}/>)}
         {control.select ? <SelectView control={control.select}/> : null}

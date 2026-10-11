@@ -1,7 +1,7 @@
 import { consoleClientPath } from "../../src/admin/app";
 import { openNativeConfirmation, test, expect, authenticate, openMemberCreate, openKeyEditor, reopenRestoredConsolePage } from "./fixtures";
 import { ATTACKER_ORIGIN, ORIGIN } from "./worker";
-import { request as apiRequest, type Page } from "@playwright/test";
+import { request as apiRequest, type Dialog, type Page } from "@playwright/test";
 
 async function ready(page: Page) {
   await expect(page.locator('#console-dialog-root')).toBeAttached();
@@ -136,6 +136,11 @@ for (const width of [390, 1440]) {
 test('native navigation supersedes a pending document and serves distinct unavailable and login responses', async ({ page, worker }) => {
   await page.goto('/admin?view=access');
   await ready(page);
+  const quotas = page.getByRole('navigation', {name:'控制台页面'}).getByRole('link', {name:'额度政策',exact:true});
+  await expect(quotas).toBeInViewport();
+  const quotaTarget = await quotas.boundingBox();
+  expect(quotaTarget).not.toBeNull();
+  const originalUrl = page.url();
   const slow = worker.hold({ method: 'GET', path: '/admin', view: 'usage' });
   const firstRead = page.waitForRequest(request => request.isNavigationRequest()
     && request.frame() === page.mainFrame() && new URL(request.url()).searchParams.get('view') === 'usage');
@@ -143,7 +148,16 @@ test('native navigation supersedes a pending document and serves distinct unavai
     await page.getByRole('navigation', { name: '控制台页面' }).getByRole('link', { name: '用量报告', exact: true }).click({noWaitAfter:true});
     await slow.entered;
     const firstRequest = await firstRead;
-    await page.getByRole('navigation', { name: '控制台页面' }).getByRole('link', { name: '额度政策', exact: true }).click();
+    expect(page.url()).toBe(originalUrl);
+    // Native navigation leaves the old document interactive before headers.
+    // A locator click waits for that request; real mouse input must not.
+    const nextRead = page.waitForRequest(request => request.isNavigationRequest()
+      && request.frame() === page.mainFrame() && new URL(request.url()).searchParams.get('view') === 'quotas');
+    await Promise.all([
+      page.waitForEvent('load'),
+      page.mouse.click(quotaTarget!.x + quotaTarget!.width / 2, quotaTarget!.y + quotaTarget!.height / 2)
+    ]);
+    expect((await nextRead).method()).toBe('GET');
     await page.waitForURL(/view=quotas/, {waitUntil:'load'});
     await expect.poll(() => firstRequest.failure()).not.toBeNull();
   } finally { slow.release(); }
@@ -196,24 +210,46 @@ test('pending native Back can be dismissed or accepted without replaying the com
   await ready(page);
   const target = page.url();
   const held = worker.hold({method:'POST', path:'/admin/ui/users/other/status'});
+  const backWithConfirmation = async (choice:'dismiss'|'accept'): Promise<void> => {
+    let onDialog: (dialog:Dialog) => void = () => {};
+    const handled = new Promise<void>((resolve, reject) => {
+      onDialog = dialog => {
+        // Always settle the real dialog before asserting its kind. The handled
+        // promise owns the asynchronous response, including assertion failures.
+        void (async () => {
+          const type = dialog.type();
+          await dialog[choice]();
+          expect(type).toBe('beforeunload');
+        })().then(resolve, reject);
+      };
+    });
+    page.once('dialog', onDialog);
+    try {
+      // Evaluation may remain pending until synchronous confirmation ends.
+      await Promise.all([handled, page.evaluate(() => history.back())]);
+    } finally { page.off('dialog', onDialog); }
+  };
   try {
     await page.getByRole('switch', {name:/启用账号/}).click();
     await page.getByRole('alertdialog').getByRole('button', {name:'停用账号',exact:true}).click();
     await held.entered;
     expect(worker.status('other')).toBe('disabled');
-    const canceled = page.waitForEvent('dialog');
-    await page.evaluate(() => history.back());
-    const cancelDialog = await canceled;
-    expect(cancelDialog.type()).toBe('beforeunload');
-    await cancelDialog.dismiss();
+    await expect(page.locator('main')).toHaveAttribute('data-mutation-pending','true');
+    expect(await page.evaluate(() => navigator.userActivation.hasBeenActive)).toBe(true);
+    await page.evaluate(() => {
+      window.addEventListener('beforeunload', event => {
+        (window as unknown as {pendingUnload?: {trusted:boolean; prevented:boolean}}).pendingUnload = {
+          trusted: event.isTrusted, prevented: event.defaultPrevented
+        };
+      }, {once:true});
+    });
+    await backWithConfirmation('dismiss');
+    expect(await page.evaluate(() => (window as unknown as {pendingUnload?: {trusted:boolean; prevented:boolean}}).pendingUnload))
+      .toEqual({trusted:true, prevented:true});
     await expect(page).toHaveURL(target);
     await expect(page.locator('main')).toHaveAttribute('data-mutation-pending','true');
 
-    const leaving = page.waitForEvent('dialog');
-    await page.evaluate(() => history.back());
-    const leaveDialog = await leaving;
-    expect(leaveDialog.type()).toBe('beforeunload');
-    await leaveDialog.accept();
+    await backWithConfirmation('accept');
     await page.waitForURL(/view=quotas/, {waitUntil:'load'});
     await expect.poll(() => page.evaluate(() => (window as unknown as {pageShowObserved?:boolean}).pageShowObserved === true)).toBe(true);
     if (await page.evaluate(() => (window as unknown as {restoredFromCache?:boolean}).restoredFromCache === true)) {

@@ -15,6 +15,7 @@ const render = (person: string) => {document.body.innerHTML = renderToStaticMark
 it("retains only safe email input for its exact task while keeping island IDs separate", () => {
   render("other"); drafts = createDrafts(); drafts.restore(document);
   const form = document.querySelector("form")!;
+  expect(form.getAttribute("autocomplete")).toBe("off");
   expect(form.dataset.dashboardDraft).toBe("person"); expect(form.dataset.draftScope).toBe("other");
   const email = form.querySelector<HTMLInputElement>('[name="email"]')!; email.value = "unfinished@example.test";
   email.dispatchEvent(new Event("input", {bubbles:true}));

@@ -7,6 +7,7 @@ for (const width of [390, 1440]) test(`ordinary navigation loads a fresh server 
   if (width < 1000) await page.locator(".nav-toggle-label").click();
   await page.evaluate(() => { document.documentElement.dataset.navigationProbe = "people"; });
 
+  const originalUrl = page.url();
   const held = worker.hold({ method: "GET", path: "/admin", view: "quotas" });
   const request = page.waitForRequest(request => request.isNavigationRequest()
     && request.frame() === page.mainFrame() && new URL(request.url()).searchParams.get("view") === "quotas");
@@ -14,8 +15,9 @@ for (const width of [390, 1440]) test(`ordinary navigation loads a fresh server 
     await page.getByRole("navigation", { name: "控制台页面" }).getByRole("link", { name: "额度政策", exact: true }).click({noWaitAfter: true});
     await held.entered;
     expect((await request).method()).toBe("GET");
-    await expect(page.locator("html")).toHaveAttribute("data-navigation-probe", "people");
-    await expect(page.locator('main[data-dashboard-view="access"]')).toBeVisible();
+    // The fixture has not sent response headers. DOM locator operations wait
+    // for native navigation, so observe the uncommitted destination directly.
+    expect(page.url()).toBe(originalUrl);
   } finally { held.release(); }
   await page.waitForURL(/view=quotas/, {waitUntil: "load"});
   await expect(page.locator('main[data-dashboard-view="quotas"]')).toBeVisible();

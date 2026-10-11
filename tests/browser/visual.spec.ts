@@ -69,14 +69,13 @@ for (const scenario of [
       expect(worker.requests.every(request => request.method === 'GET')).toBe(true);
       expect(await page.locator('[data-one-time-key],[data-created-token]').count()).toBe(0);
       expect(await page.locator('[name="existing_key"]').evaluateAll(nodes => nodes.every(node => !(node as HTMLInputElement).value))).toBe(true);
-      await page.evaluate(async () => {
-        scrollTo(0, 0);
-        // Cross rendering opportunities after scrolling; a fixed delay cannot
-        // establish which scroll/focus state the browser is about to capture.
-        await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
-      });
+      // Capture the real viewport containing the focused task. Full-page
+      // capture temporarily enlarges the viewport and triggers legitimate resize
+      // focus recovery, so its fixed-layer pixels are not a user-visible frame.
+      await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+      const captureScroll = await page.evaluate(() => scrollY);
       const assertCaptureState = async () => {
-        expect(await page.evaluate(() => scrollY), 'capture starts at the document top').toBe(0);
+        expect(await page.evaluate(() => scrollY), 'capture preserves the live task position').toBe(captureScroll);
         await expect(control).toBeFocused();
         const skip = await page.getByRole('link', {name:'跳到正文',exact:true}).evaluate(link => {
           const box = link.getBoundingClientRect();
@@ -87,9 +86,8 @@ for (const scenario of [
       await assertCaptureState();
       const stem = `safe-${scenario.identity}-${scenario.subject.replaceAll(' ', '-')}-${scenario.width}-${scenario.colorScheme}`;
       const path = testInfo.outputPath(`${stem}.png`);
-      await page.screenshot({ path, animations: 'disabled', fullPage: true });
-      // Full-page pixels are display evidence; verify capture did not alter the
-      // live focus/scroll contract or reveal the unfocused skip link.
+      await page.screenshot({ path, animations: 'disabled' });
+      // Capture must not move the task or reveal the unfocused skip link.
       await assertCaptureState();
       writeFileSync(testInfo.outputPath(`${stem}.json`), JSON.stringify({
         schema: 2, checkout_sha: execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(),

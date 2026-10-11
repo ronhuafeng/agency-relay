@@ -46,7 +46,7 @@ function Creation({ kind, control, enhanced, open, onOpenChange }: {
     {enhanced ? <CollapsibleTrigger asChild aria-controls={id}><Button ref={trigger} type="button" variant={service ? "outline" : "default"}><Icon name="plus"/>{label}</Button></CollapsibleTrigger>
       : <Button asChild variant={service ? "outline" : "default"}><a href={`${control.returnHref}&task=${id}#people-list`}><Icon name="plus"/>{label}</a></Button>}
     <CollapsibleContent forceMount hidden={!open} className="people-create-content" id={id} tabIndex={-1} aria-label={label}>
-      <form ref={form} className="board-form people-create-form" method="post" action={service ? "/admin/ui/services" : "/admin/ui/users"} data-dashboard-draft={service ? "service" : "person"}>
+      <form ref={form} className="board-form people-create-form" method="post" action={service ? "/admin/ui/services" : "/admin/ui/users"} autoComplete="off" data-dashboard-draft={service ? "service" : "person"}>
         {error ? <p className="form-error" id={`${id}-error`} role="alert" data-mutation-input-error={service ? "" : undefined}>{error.message}</p> : null}
         {service ? <p className="people-create-hint" id={`${id}-hint`}>服务账号不能登录，初始额度均为停用。创建账号不会生成密钥。</p> : null}
         <Field control={{label:service ? "服务名称" : "组织邮箱",name:service ? "display_name" : "email",type:service ? "text" : "email",placeholder:service ? "例如：构建机器人" : undefined,

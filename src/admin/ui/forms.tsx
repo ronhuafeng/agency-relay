@@ -38,7 +38,7 @@ export function CreditPolicyForm({control, initialMode = control.mode}: {readonl
     restore(); current.addEventListener("console:restore", restore); return () => current.removeEventListener("console:restore", restore);
   }, []);
   return (
-    <form ref={form} className="inline-form" method="post" action={control.action} data-action="credit-set" data-dashboard-draft="credit" data-confirmation={warning}>
+    <form ref={form} className="inline-form" method="post" action={control.action} data-action="credit-set" autoComplete="off" data-dashboard-draft="credit" data-confirmation={warning}>
       <SelectView
         control={{
           id: `${control.id}-mode`,
@@ -93,13 +93,13 @@ export function AddAccountView({ control }: { readonly control: AddAccountContro
         <Label className="radix-check" htmlFor="add-chatgpt"><RadioGroupItem value="chatgpt" id="add-chatgpt" />ChatGPT</Label>
         <Label className="radix-check" htmlFor="add-grok"><RadioGroupItem value="grok" id="add-grok" />Grok</Label>
       </RadioGroup> : <p className="caption">选择下面的账号类型，填写名称后添加。</p>}
-      <form className="board-form add-chatgpt" method="post" action="/admin/ui/codex-auths" aria-label="添加 ChatGPT 账号" data-dashboard-draft="account">
+      <form className="board-form add-chatgpt" method="post" action="/admin/ui/codex-auths" aria-label="添加 ChatGPT 账号" autoComplete="off" data-dashboard-draft="account">
         {!enhanced ? <h3>ChatGPT</h3> : null}
         <AccountReturnFields control={control} />
         <Label>名称 <Input name="label" required autoComplete="off" placeholder="团队或负责人" /></Label>
         <Button type="submit">添加账号</Button>
       </form>
-      <form className="board-form add-grok" method="post" action="/admin/ui/subscriptions" aria-label="添加 Grok 账号" data-dashboard-draft="account">
+      <form className="board-form add-grok" method="post" action="/admin/ui/subscriptions" aria-label="添加 Grok 账号" autoComplete="off" data-dashboard-draft="account">
         {!enhanced ? <h3>Grok</h3> : null}
         <AccountReturnFields control={control} />
         <input type="hidden" name="capability_source" value="grok" />

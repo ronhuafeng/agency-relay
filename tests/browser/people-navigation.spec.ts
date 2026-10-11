@@ -22,14 +22,17 @@ test('native category reads keep the current collection until commit and preserv
   await expect(page.locator('.people-table .person-badge')).toHaveCount(0);
   await expect(page.locator('[data-person-detail=admin]')).toBeVisible();
   await page.evaluate(() => { (window as unknown as {peopleDocumentRetained:boolean}).peopleDocumentRetained = true; });
-  const original = await page.locator('#people-list').elementHandle();
+  const originalUrl = page.url();
   const gate = worker.hold({method:'GET',path:'/admin',view:'access'});
+  const request = page.waitForRequest(request => request.isNavigationRequest()
+    && request.frame() === page.mainFrame() && new URL(request.url()).searchParams.get('kind') === 'admin');
   try {
     await kinds.getByRole('link', {name:'管理员',exact:true}).click({noWaitAfter:true});
     await gate.entered;
-    expect(await original?.evaluate(node=>node.isConnected)).toBe(true);
-    await expect(page.locator('.people-table [data-user-id]')).toHaveCount(10);
-    await expect(kinds.getByRole('link', {name:'成员',exact:true})).toHaveAttribute('aria-current','page');
+    expect((await request).method()).toBe('GET');
+    // The response is held before headers; this nonwaiting observation proves
+    // no destination has committed without waiting on that held navigation.
+    expect(page.url()).toBe(originalUrl);
   } finally { gate.release(); }
   await expect(kinds.getByRole('link', {name:'管理员',exact:true})).toHaveAttribute('aria-current','page');
   await expect(page.locator('.people-table [data-user-id]')).toHaveCount(2);

@@ -74,6 +74,12 @@ for (const scenario of [
     await expect(page).toHaveURL(url => !new URL(url).searchParams.has('q'));
     await page.getByRole('navigation', {name: 'UTC 时间范围'}).getByRole('link', {name: '7 天', exact: true}).click();
 
+    const sevenDays = page.getByRole('navigation', {name:'UTC 时间范围'}).getByRole('link', {name:'7 天',exact:true});
+    await sevenDays.scrollIntoViewIfNeeded();
+    await expect(sevenDays).toBeInViewport();
+    await expect(page.getByRole('navigation', {name:'UTC 时间范围'}).getByRole('link', {name:'30 天',exact:true})).toBeInViewport();
+    const sevenDayTarget = await sevenDays.boundingBox();
+    expect(sevenDayTarget).not.toBeNull();
     const sevenDayUrl = page.url();
     const stale = worker.hold({method: 'GET', path: '/admin', view: 'usage'});
     const firstRead = page.waitForRequest(request => request.isNavigationRequest()
@@ -82,7 +88,16 @@ for (const scenario of [
       await page.getByRole('navigation', {name: 'UTC 时间范围'}).getByRole('link', {name: '30 天', exact: true}).click({noWaitAfter:true});
       await stale.entered;
       const firstRequest = await firstRead;
-      await page.getByRole('navigation', {name: 'UTC 时间范围'}).getByRole('link', {name: '7 天', exact: true}).click();
+      expect(page.url()).toBe(sevenDayUrl);
+      // Both links were visible before the held native request. Use its real
+      // mouse target without a locator's navigation-completion wait.
+      const nextRead = page.waitForRequest(request => request.isNavigationRequest()
+        && request.frame() === page.mainFrame() && new URL(request.url()).searchParams.get('range') === '7d');
+      await Promise.all([
+        page.waitForEvent('load'),
+        page.mouse.click(sevenDayTarget!.x + sevenDayTarget!.width / 2, sevenDayTarget!.y + sevenDayTarget!.height / 2)
+      ]);
+      expect((await nextRead).method()).toBe('GET');
       await page.waitForURL(/range=7d/, {waitUntil:'load'});
       await expect.poll(() => firstRequest.failure()).not.toBeNull();
     } finally { stale.release(); }
