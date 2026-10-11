@@ -115,17 +115,22 @@ for (const width of [390, 999, 1000, 1440]) test.describe(`SSR first paint ${wid
   });
 });
 
-test('critical stylesheet finishes before the enhancement runtime starts downloading', async ({ page, context, worker }) => {
+test('critical stylesheet finishes before the enhancement runtime starts downloading', async ({ context, worker }) => {
   await authenticate(context, worker, 'admin');
-  await page.goto('/admin?view=surfaces');
-  const ordering = await page.evaluate(() => {
-    const resources = performance.getEntriesByType('resource') as PerformanceResourceTiming[];
-    const css = resources.find(entry => /\/admin\/console-[a-f0-9]+\.css$/.test(entry.name));
-    const runtime = resources.find(entry => /\/admin\/console-[a-f0-9]+\.js$/.test(entry.name));
-    return { cssEnd: css?.responseEnd, runtimeStart: runtime?.startTime };
-  });
-  expect(ordering.cssEnd).toBeGreaterThan(0);
-  expect(ordering.runtimeStart).toBeGreaterThanOrEqual(ordering.cssEnd!);
+  // The shared page fixture installs Playwright Clock, whose Performance stub
+  // does not expose real resource entries. This probe owns an unmocked page.
+  const page = await context.newPage();
+  try {
+    await page.goto('/admin?view=surfaces');
+    const ordering = await page.evaluate(() => {
+      const resources = performance.getEntriesByType('resource') as PerformanceResourceTiming[];
+      const css = resources.find(entry => /\/admin\/console-[a-f0-9]+\.css$/.test(entry.name));
+      const runtime = resources.find(entry => /\/admin\/console-[a-f0-9]+\.js$/.test(entry.name));
+      return { cssEnd: css?.responseEnd, runtimeStart: runtime?.startTime };
+    });
+    expect(ordering.cssEnd).toBeGreaterThan(0);
+    expect(ordering.runtimeStart).toBeGreaterThanOrEqual(ordering.cssEnd!);
+  } finally { await page.close(); }
 });
 
 test('a failed stylesheet does not leave runtime startup waiting forever', async ({ page, context, worker }) => {
