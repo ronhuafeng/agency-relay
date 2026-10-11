@@ -708,8 +708,9 @@ table.member-quota-table [data-slot=progress] { height:6px; margin-top:8px; }
   .linked-key-link>.ui-icon { grid-column:2; grid-row:1/3; }
 }
 
-/* Object tables and task editors own their space; the sidebar owns identity. */
-body:has(.console-nav-account) { --header-h:0px; }
+/* Object tables and task editors own their space; the sidebar owns identity.
+ * The root also owns native scroll padding, so its header inset must agree. */
+:root:has(.console-nav-account) { --header-h:0px; }
 .console-status-header { display:none; }
 .console-status-header:has([data-console-status]:not([hidden])) { display:flex; position:fixed; top:8px; right:16px; z-index:40; min-height:36px; max-width:calc(100vw - 32px); padding:8px 12px; border:1px solid var(--border); border-radius:var(--radius); box-shadow:2px 2px 0 var(--pixel); pointer-events:none; }
 .shell:has(.console-nav-account) { min-height:100svh; }

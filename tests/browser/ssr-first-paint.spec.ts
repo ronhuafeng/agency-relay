@@ -19,7 +19,7 @@ async function geometry(page: Page, scripted = true) {
       const rect = element.getBoundingClientRect();
       return { x: rect.x, y: rect.y + scrollY, width: rect.width, height: rect.height };
     };
-    return { viewport: innerWidth, documentWidth: document.documentElement.scrollWidth,
+    return { scrollY, scrollPaddingTop: getComputedStyle(document.documentElement).scrollPaddingTop, viewport: innerWidth, documentWidth: document.documentElement.scrollWidth,
       main: box('main#content'), rail: box('.nav-rail'),
       routes: [...document.querySelectorAll('.route-catalog [role=tabpanel]')].map(panel => ({state: panel.getAttribute('data-state'), visible: panel.checkVisibility(), targeted: Boolean(panel.querySelector(':target'))})),
       task: box('[data-person-detail], [data-task-help=configuration], .request-filters, .surface-host'),
@@ -77,8 +77,9 @@ for (const width of [390, 999, 1000, 1440]) test.describe(`SSR first paint ${wid
           && typeof history.state?.miniEntry === 'string');
         await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
         const after = await geometry(page); valid(after);
+        expect(after.scrollPaddingTop, `${view} native and enhanced scroll inset agree`).toBe(before.scrollPaddingTop);
         for (const landmark of ['main', 'rail', 'task'] as const) for (const dimension of ['x', 'y', 'width', 'height'] as const)
-          expect(Math.abs(after[landmark][dimension] - before[landmark][dimension]), `${view} ${landmark} ${dimension} stays stable; route panels ${JSON.stringify({before: before.routes, after: after.routes})}`).toBeLessThanOrEqual(1);
+          expect(Math.abs(after[landmark][dimension] - before[landmark][dimension]), `${view} ${landmark} ${dimension} stays stable; route panels ${JSON.stringify({before: {routes: before.routes, scrollY: before.scrollY, rail: before.rail}, after: {routes: after.routes, scrollY: after.scrollY, rail: after.rail}})}`).toBeLessThanOrEqual(1);
       } catch (error) { failure = error; } finally {
         release();
         const failures = (await Promise.allSettled([...pending])).flatMap(result => result.status === 'rejected' ? [result.reason] : []);
