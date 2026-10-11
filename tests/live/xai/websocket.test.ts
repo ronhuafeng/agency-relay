@@ -6,21 +6,21 @@ import { StorySocket, type SocketMessage } from "../websocket";
 const HOST = "https://xai.trustedtunnel.app";
 
 it("completes xAI Responses over a real WebSocket", async () => {
-  const key = requireEnv("MINI_XAI_API_KEY");
+  const key = requireEnv("MINI_ONLY_XAI_SURFACE_API_KEY");
   await responsesSocket(key, await languageModel(HOST, key));
 }, 240_000);
 
 it("completes xAI TTS over a real WebSocket", async () => {
-  const key = requireEnv("MINI_XAI_API_KEY");
+  const key = requireEnv("MINI_ONLY_XAI_SURFACE_API_KEY");
   await ttsSocket(key, await voiceId(key));
 }, 180_000);
 
 it("completes xAI STT over a real WebSocket", async () => {
-  await sttSocket(requireEnv("MINI_XAI_API_KEY"));
+  await sttSocket(requireEnv("MINI_ONLY_XAI_SURFACE_API_KEY"));
 }, 180_000);
 
 it("completes xAI Realtime over a real WebSocket", async () => {
-  const key = requireEnv("MINI_XAI_API_KEY");
+  const key = requireEnv("MINI_ONLY_XAI_SURFACE_API_KEY");
   await realtimeSocket(key, await voiceModel(key), await voiceId(key));
 }, 300_000);
 
@@ -28,8 +28,12 @@ async function voiceId(key: string): Promise<string> {
   const catalog = await send(`${HOST}/v1/tts/voices`, key);
   expect(catalog.status).toBe(200);
   const body = parseJson(catalog.text);
-  expect(body).toMatchObject({ voices: [expect.objectContaining({ voice_id: expect.any(String) })] });
-  return ((body as { voices: Array<{ voice_id: string }> }).voices[0] ?? { voice_id: "" }).voice_id;
+  const voices = isRecord(body) && Array.isArray(body.voices) ? body.voices : [];
+  expect(voices.length).toBeGreaterThan(0);
+  expect(voices[0]).toEqual(expect.objectContaining({ voice_id: expect.any(String) }));
+  const voice = (voices[0] as { voice_id: string }).voice_id;
+  expect(voice).toMatch(/^[A-Za-z0-9_-]{1,200}$/);
+  return voice;
 }
 
 async function voiceModel(key: string): Promise<string> {

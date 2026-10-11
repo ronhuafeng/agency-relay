@@ -5,7 +5,7 @@ import { verifyVideoTransformations } from "../support";
 const HOST = "https://grok.trustedtunnel.app";
 
 it("generates, edits, extends, and downloads Grok video with owner isolation", async () => {
-  const key = requireEnv("MINI_GROK_API_KEY");
+  const key = requireEnv("MINI_ONLY_GROK_SURFACE_API_KEY");
   const catalog = await send(`${HOST}/v1/video-generation-models`, key);
   expect(catalog.status).toBe(200);
   const model = newestModel(parseJson(catalog.text), /$^/);
@@ -42,6 +42,8 @@ async function expectOtherUserRejected(jobId: string): Promise<void> {
   const userId = ((created.json as { user: { id: string } }).user).id;
   let keyId = "";
   try {
+    const credited = await admin("PUT", `/admin/users/${userId}/credits/grok`, { monthly_allowance: 1 });
+    expect(credited.status).toBe(200);
     const issued = await admin("POST", `/admin/users/${userId}/keys`, {
       name: "Live key",
       scopes: ["surface:grok:production"],
@@ -58,6 +60,7 @@ async function expectOtherUserRejected(jobId: string): Promise<void> {
     if (keyId) {
       await admin("DELETE", `/admin/keys/${keyId}`);
     }
+    await admin("DELETE", `/admin/users/${userId}/credits/grok`);
   }
 }
 

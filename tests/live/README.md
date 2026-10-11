@@ -4,7 +4,7 @@ All files under this directory use actual Agency Relay API keys and deployed Pro
 
 ## Selection and ownership
 
-`.github/workflows/live.yml` is the single entry point:
+`.github/workflows/live.yml` is the single entry point. Each selected test file runs as its own job, named with that file path, so a failure identifies the file. At most six of those jobs run at once:
 
 | Selection | Evidence |
 | --- | --- |

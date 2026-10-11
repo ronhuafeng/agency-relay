@@ -3,7 +3,7 @@ import { HOST, call, codexLanguageModel, env, expectJson } from "../support";
 import { assertCompletedSse } from "../oracles";
 
 it("streams a Codex response", async () => {
-  const key = env("MINI_CODEX_API_KEY");
+  const key = env("MINI_ONLY_CODEX_SURFACE_API_KEY");
   const model = await codexLanguageModel(key);
   const response = await call(`${HOST.codex}/v1/responses`, key, {
     method: "POST",
@@ -25,7 +25,7 @@ it("streams a Codex response", async () => {
 });
 
 it("compacts a Codex response", async () => {
-  const key = env("MINI_CODEX_API_KEY");
+  const key = env("MINI_ONLY_CODEX_SURFACE_API_KEY");
   const model = await codexLanguageModel(key);
   const response = await call(`${HOST.codex}/v1/responses`, key, {
     method: "POST",
@@ -51,7 +51,7 @@ it("compacts a Codex response", async () => {
 });
 
 it("compacts context through the dedicated /v1/responses/compact endpoint", async () => {
-  const key = env("MINI_CODEX_API_KEY");
+  const key = env("MINI_ONLY_CODEX_SURFACE_API_KEY");
   const model = await codexLanguageModel(key);
   const body = expectJson(await call(`${HOST.codex}/v1/responses/compact`, key, {
     method: "POST",

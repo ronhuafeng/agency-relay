@@ -2,15 +2,15 @@ import { expect, it } from "vitest";
 import { HOST, call, codexLanguageModel, env, expectErrorCode, parseJson, upgrade } from "../support";
 
 it("rejects a Codex websocket upgrade on Responses", async () => {
-  const response = await upgrade(`${HOST.codex}/v1/responses`, env("MINI_CODEX_API_KEY"), {}, 60_000);
+  const response = await upgrade(`${HOST.codex}/v1/responses`, env("MINI_ONLY_CODEX_SURFACE_API_KEY"), {}, 60_000);
   expect(response.status).toBe(426);
   expect(response.contentType.toLowerCase()).toContain("application/json");
   expectErrorCode(parseJson(response.text), "responses_websocket_not_supported");
 });
 
 it("rejects a Codex response with an unknown stream option", async () => {
-  const model = await codexLanguageModel(env("MINI_CODEX_API_KEY"));
-  const response = await call(`${HOST.codex}/v1/responses`, env("MINI_CODEX_API_KEY"), {
+  const model = await codexLanguageModel(env("MINI_ONLY_CODEX_SURFACE_API_KEY"));
+  const response = await call(`${HOST.codex}/v1/responses`, env("MINI_ONLY_CODEX_SURFACE_API_KEY"), {
     method: "POST",
     headers: {
       Accept: "text/event-stream",
@@ -28,7 +28,7 @@ it("rejects a Codex response with an unknown stream option", async () => {
 });
 
 it("rejects malformed Codex response JSON", async () => {
-  const response = await call(`${HOST.codex}/v1/responses`, env("MINI_CODEX_API_KEY"), {
+  const response = await call(`${HOST.codex}/v1/responses`, env("MINI_ONLY_CODEX_SURFACE_API_KEY"), {
     method: "POST",
     headers: {
       Accept: "text/event-stream",
@@ -40,7 +40,7 @@ it("rejects malformed Codex response JSON", async () => {
 });
 
 it("accepts a unary Codex response or a controlled 400", async () => {
-  const key = env("MINI_CODEX_API_KEY");
+  const key = env("MINI_ONLY_CODEX_SURFACE_API_KEY");
   const model = await codexLanguageModel(key);
   const response = await call(`${HOST.codex}/v1/responses`, key, {
     method: "POST",

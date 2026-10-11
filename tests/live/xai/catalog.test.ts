@@ -4,7 +4,7 @@ import { HOST, call, catalogModel, env, expectJson, firstDataId, voiceId } from 
 const NONE = /$^/;
 
 it("reads one xAI model and its media catalogs", async () => {
-  const key = env("MINI_XAI_API_KEY");
+  const key = env("MINI_ONLY_XAI_SURFACE_API_KEY");
   const listed = await call(`${HOST.xai}/v1/models`, key);
   const id = firstDataId(expectJson(listed));
   expectJson(await call(`${HOST.xai}/v1/models/${encodeURIComponent(id)}`, key));

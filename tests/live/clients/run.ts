@@ -94,7 +94,7 @@ export function installGrok(client: ClientHome): void {
 }
 
 export async function selectGrokModel(): Promise<string> {
-  const response = await call(`${HOST.grok}/v1/models`, env("MINI_GROK_API_KEY"));
+  const response = await call(`${HOST.grok}/v1/models`, env("MINI_ONLY_GROK_SURFACE_API_KEY"));
   return grokGatewayModel(expectJson(response));
 }
 
@@ -113,7 +113,7 @@ function replaceOnce(content: string, from: string, to: string): string {
 
 export function writeCodexConfig(client: ClientHome, model: string): void {
   const content = replaceOnce(
-    setupContent("codex", env("MINI_CODEX_API_KEY"), { codex: model }),
+    setupContent("codex", env("MINI_ONLY_CODEX_SURFACE_API_KEY"), { codex: model }),
     'model_provider = "mini_codex"\n',
     'model_provider = "mini_codex"\nsandbox_mode = "read-only"\napproval_policy = "never"\n'
   );
@@ -122,7 +122,7 @@ export function writeCodexConfig(client: ClientHome, model: string): void {
 
 export function writeGrokConfig(client: ClientHome, model: string): void {
   const content = replaceOnce(
-    setupContent("grok", env("MINI_GROK_API_KEY"), { grok: model })
+    setupContent("grok", env("MINI_ONLY_GROK_SURFACE_API_KEY"), { grok: model })
       .replaceAll('default = "mini-grok-4-7"', 'default = "agency-grok"')
       .replaceAll("[model.mini-grok-4-7]", "[model.agency-grok]"),
     "\n[endpoints]\n",
@@ -132,24 +132,24 @@ export function writeGrokConfig(client: ClientHome, model: string): void {
 }
 
 export function writeXaiEnv(client: ClientHome): void {
-  writeFileSync(join(client.home, "xai-api.env"), setupContent("xai", env("MINI_XAI_API_KEY")), { mode: 0o600 });
+  writeFileSync(join(client.home, "xai-api.env"), setupContent("xai", env("MINI_ONLY_XAI_SURFACE_API_KEY")), { mode: 0o600 });
 }
 
 /** Grok CLI reads XAI_API_KEY, but this value is the Grok surface key, not the xAI API key. */
 export function grokEnv(client: ClientHome): NodeJS.ProcessEnv {
-  return { ...client.baseEnv, XAI_API_KEY: env("MINI_GROK_API_KEY") };
+  return { ...client.baseEnv, XAI_API_KEY: env("MINI_ONLY_GROK_SURFACE_API_KEY") };
 }
 
 export function xaiEnv(client: ClientHome): NodeJS.ProcessEnv {
   return {
     ...client.baseEnv,
-    XAI_API_KEY: env("MINI_XAI_API_KEY"),
+    XAI_API_KEY: env("MINI_ONLY_XAI_SURFACE_API_KEY"),
     XAI_BASE_URL: "https://xai.trustedtunnel.app/v1"
   };
 }
 
 export async function codexModel(): Promise<string> {
-  return codexLanguageModel(env("MINI_CODEX_API_KEY"));
+  return codexLanguageModel(env("MINI_ONLY_CODEX_SURFACE_API_KEY"));
 }
 
 export function sessionFiles(dir: string, accept: (name: string) => boolean): string[] {

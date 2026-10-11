@@ -2,7 +2,7 @@ import { expect, it } from "vitest";
 import { HOST, bytesEqual, call, env, expectJson, isRecord } from "../support";
 
 it("round-trips one Grok file with its real user key", async () => {
-  const origin = HOST.grok, apiKey = env("MINI_GROK_API_KEY");
+  const origin = HOST.grok, apiKey = env("MINI_ONLY_GROK_SURFACE_API_KEY");
   const sample = Buffer.from("mini-live-file\\n");
   const form = new FormData();
   form.append("file", new Blob([Uint8Array.from(sample)], { type: "text/plain" }), "mini-live.txt");

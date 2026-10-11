@@ -4,7 +4,7 @@ import { assertCompletedSse, assertResponseHasText } from "../oracles";
 import { expectTerminal, requireEnv, send } from "../runtime";
 
 it("completes one Grok production response", async () => {
-  const key = requireEnv("MINI_GROK_API_KEY");
+  const key = requireEnv("MINI_ONLY_GROK_SURFACE_API_KEY");
   const model = grokGatewayModel(expectJson(await call(`${HOST.grok}/v1/models`, key)));
   const response = await send(`${HOST.grok}/v1/responses`, key, {
     method: "POST",
@@ -16,7 +16,7 @@ it("completes one Grok production response", async () => {
 }, 180_000);
 
 it("uses a real Grok key for Chat Completions", async () => {
-  const key = env("MINI_GROK_API_KEY");
+  const key = env("MINI_ONLY_GROK_SURFACE_API_KEY");
   const model = await catalogModel(HOST.grok, key, "/v1/language-models", /voice|imagine|embedding/i);
   const body = expectJson(await call(`${HOST.grok}/v1/chat/completions`, key, {
     method: "POST",
@@ -27,7 +27,7 @@ it("uses a real Grok key for Chat Completions", async () => {
 }, 180_000);
 
 it("tokenizes Grok text with a real key", async () => {
-  const key = env("MINI_GROK_API_KEY");
+  const key = env("MINI_ONLY_GROK_SURFACE_API_KEY");
   const model = await catalogModel(HOST.grok, key, "/v1/language-models", /voice|imagine|embedding/i);
   expectJson(await call(`${HOST.grok}/v1/tokenize-text`, key, {
     method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ model, text: "OK" })
@@ -35,7 +35,7 @@ it("tokenizes Grok text with a real key", async () => {
 });
 
 it("streams a completed Grok response through the real CLI gateway", async () => {
-  const key = env("MINI_GROK_API_KEY");
+  const key = env("MINI_ONLY_GROK_SURFACE_API_KEY");
   const model = grokGatewayModel(expectJson(await call(`${HOST.grok}/v1/models`, key)));
   const response = await call(`${HOST.grok}/v1/responses`, key, {
     method: "POST",

@@ -1,14 +1,15 @@
 import { expect, it } from "vitest";
+import { codexLanguageModel } from "./support";
 import { admin, expectTerminal, isRecord, languageModel, newestModel, parseJson, requireEnv, send, sleep } from "./runtime";
 
 it("records attributed Responses and media usage from real provider calls", async () => {
   const before = await usageCounts();
-  const codexKey = requireEnv("MINI_CODEX_API_KEY");
-  const grokKey = requireEnv("MINI_GROK_API_KEY");
+  const codexKey = requireEnv("MINI_ONLY_CODEX_SURFACE_API_KEY");
+  const grokKey = requireEnv("MINI_ONLY_GROK_SURFACE_API_KEY");
   const codex = await send("https://api.trustedtunnel.app/v1/responses", codexKey, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ model: await codexModelId(codexKey), input: "Reply exactly OK.", stream: false })
+    body: JSON.stringify({ model: await codexLanguageModel(codexKey), input: "Reply exactly OK.", stream: false })
   }, 180_000);
   expectTerminal(codex);
   const codexBody = parseJson(codex.text);
@@ -45,18 +46,6 @@ it("records attributed Responses and media usage from real provider calls", asyn
   }
   expect(observed).toBe(true);
 }, 1_920_000);
-
-async function codexModelId(key: string): Promise<string> {
-  const catalog = await send("https://api.trustedtunnel.app/v1/models", key);
-  const body = parseJson(catalog.text);
-  expect(catalog.status).toBe(200);
-  expect(body).toEqual(expect.objectContaining({ models: expect.any(Array) }));
-  const slug = isRecord(body) && Array.isArray(body.models)
-    ? body.models.filter(isRecord).map((model) => model.slug).find((id) => typeof id === "string" && !/audio|realtime|transcribe|tts|whisper|image|embedding|moderation/i.test(id))
-    : undefined;
-  expect(slug).toEqual(expect.any(String));
-  return slug as string;
-}
 
 async function image(key: string): Promise<void> {
   const catalog = await send("https://grok.trustedtunnel.app/v1/image-generation-models", key);

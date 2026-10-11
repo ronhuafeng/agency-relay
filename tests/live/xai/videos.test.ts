@@ -3,7 +3,7 @@ import { HOST, assertVideo, call, catalogModel, env, expectJson, isRecord, pollV
 
 const NONE = /$^/;
 it("generates, edits, extends, and downloads xAI video", async () => {
-  const key = env("MINI_XAI_API_KEY");
+  const key = env("MINI_ONLY_XAI_SURFACE_API_KEY");
   const model = await catalogModel(HOST.xai, key, "/v1/video-generation-models", NONE);
   const started = expectJson(await call(`${HOST.xai}/v1/videos/generations`, key, {
     method: "POST",

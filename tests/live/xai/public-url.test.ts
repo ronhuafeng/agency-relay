@@ -2,7 +2,7 @@ import { expect, it } from "vitest";
 import { HOST, call, env, expectJson, isRecord } from "../support";
 
 it("creates and revokes a public URL only for a temporary synthetic xAI image file", async () => {
-  const apiKey = env("MINI_XAI_API_KEY");
+  const apiKey = env("MINI_ONLY_XAI_SURFACE_API_KEY");
   // Minimal valid 1x1 GIF; no real user document or upstream content is exposed.
   const pixel = Buffer.from("R0lGODlhAQABAAD/ACwAAAAAAQABAAACAUwAOw==", "base64");
   const form = new FormData();

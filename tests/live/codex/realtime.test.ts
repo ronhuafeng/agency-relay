@@ -2,7 +2,7 @@ import { it } from "vitest";
 import { HOST, assertNotClosed, call, env, optionalUpgrade, realtimeCallBody, upgrade, wavProbe } from "../support";
 
 it("probes declared Codex speech and realtime paths for reachability (not task success)", async () => {
-  const key = env("MINI_CODEX_API_KEY");
+  const key = env("MINI_ONLY_CODEX_SURFACE_API_KEY");
   assertNotClosed(await call(`${HOST.codex}/v1/audio/speech`, key, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -53,4 +53,4 @@ it("probes declared Codex speech and realtime paths for reachability (not task s
     { "OpenAI-Alpha": "quicksilver=v2" }
   );
   assertNotClosed(await upgrade(`${HOST.codex}/v1/live/rtc_probe`, key, { "OpenAI-Alpha": "quicksilver=v2" }, 60_000));
-});
+}, 600_000);

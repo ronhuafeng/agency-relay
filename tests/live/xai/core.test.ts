@@ -4,8 +4,8 @@ import { languageModel, requireEnv, send } from "../runtime";
 import { assertResponseHasText } from "../oracles";
 
 it("completes an xAI HTTP response and enforces surface isolation", async () => {
-  const key = requireEnv("MINI_XAI_API_KEY");
-  const control = requireEnv("MINI_GROK_API_KEY");
+  const key = requireEnv("MINI_ONLY_XAI_SURFACE_API_KEY");
+  const control = requireEnv("MINI_ONLY_GROK_SURFACE_API_KEY");
   const model = await languageModel(HOST.xai, key);
   const models = await send(`${HOST.xai}/v1/models`, key);
   expect(models.status).toBe(200);
@@ -27,7 +27,7 @@ it("completes an xAI HTTP response and enforces surface isolation", async () => 
 }, 600_000);
 
 it("uses a real xAI key for Chat Completions and Responses compact", async () => {
-  const key = env("MINI_XAI_API_KEY");
+  const key = env("MINI_ONLY_XAI_SURFACE_API_KEY");
   const model = await catalogModel(HOST.xai, key, "/v1/language-models", /voice|imagine|embedding/i);
   const chat = expectJson(await call(`${HOST.xai}/v1/chat/completions`, key, {
     method: "POST", headers: { "Content-Type": "application/json" },
@@ -41,7 +41,7 @@ it("uses a real xAI key for Chat Completions and Responses compact", async () =>
 }, 450_000);
 
 it("tokenizes xAI text with a real key", async () => {
-  const key = env("MINI_XAI_API_KEY");
+  const key = env("MINI_ONLY_XAI_SURFACE_API_KEY");
   const model = await catalogModel(HOST.xai, key, "/v1/language-models", /voice|imagine|embedding/i);
   expectJson(await call(`${HOST.xai}/v1/tokenize-text`, key, {
     method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ model, text: "OK" })

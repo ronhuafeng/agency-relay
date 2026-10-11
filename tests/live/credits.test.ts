@@ -9,6 +9,10 @@ it("admits Codex and Grok surface credits independently", async () => {
   const userId = (created.json as { user: { id: string } }).user.id;
   const keyIds: string[] = [];
   try {
+    for (const surface of ["codex", "grok"]) {
+      const credited = await admin("PUT", `/admin/users/${userId}/credits/${surface}`, { monthly_allowance: 1 });
+      expect(credited.status).toBe(200);
+    }
     const first = await issue(userId, ["surface:codex:production"], [{ surface_grant: "surface:codex:production", credential_account_id: accounts.codex }]);
     keyIds.push(first.id);
     const second = await issue(userId, ["surface:codex:production", "surface:grok:production"], [
@@ -16,8 +20,6 @@ it("admits Codex and Grok surface credits independently", async () => {
       { surface_grant: "surface:grok:production", credential_account_id: accounts.grok }
     ]);
     keyIds.push(second.id);
-    await admin("PUT", `/admin/users/${userId}/credits/codex`, { monthly_allowance: 1 });
-    await admin("PUT", `/admin/users/${userId}/credits/grok`, { monthly_allowance: 1 });
     const codexModel = await codexModelId(first.token);
     expectTerminal(await send("https://api.trustedtunnel.app/v1/responses", first.token, {
       method: "POST",

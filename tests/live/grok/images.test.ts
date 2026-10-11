@@ -3,7 +3,7 @@ import { HOST, assertImage, bytesToBase64, call, catalogModel, env, generatedIma
 
 const NONE = /$^/;
 it("generates and edits one Grok image", async () => {
-  const key = env("MINI_GROK_API_KEY");
+  const key = env("MINI_ONLY_GROK_SURFACE_API_KEY");
   const model = await catalogModel(HOST.grok, key, "/v1/image-generation-models", NONE);
   const created = await generatedImage(await call(`${HOST.grok}/v1/images/generations`, key, {
     method: "POST",

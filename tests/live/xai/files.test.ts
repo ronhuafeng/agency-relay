@@ -2,7 +2,7 @@ import { expect, it } from "vitest";
 import { HOST, bytesEqual, call, env, expectJson, isRecord } from "../support";
 
 it("round-trips one xai file with its real user key", async () => {
-  const origin = HOST.xai, apiKey = env("MINI_XAI_API_KEY");
+  const origin = HOST.xai, apiKey = env("MINI_ONLY_XAI_SURFACE_API_KEY");
   const sample = Buffer.from("mini-live-file\\n");
   const form = new FormData();
   form.append("file", new Blob([Uint8Array.from(sample)], { type: "text/plain" }), "mini-live.txt");

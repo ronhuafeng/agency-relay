@@ -2,7 +2,7 @@ import { it } from "vitest";
 import { HOST, assertNotClosed, call, env, expectJson, voiceId, wavProbe } from "../support";
 
 it("probes xai TTS and completes STT with a real key", async () => {
-  const origin = HOST.xai, apiKey = env("MINI_XAI_API_KEY");
+  const origin = HOST.xai, apiKey = env("MINI_ONLY_XAI_SURFACE_API_KEY");
   const voice = await voiceId(origin, apiKey);
   assertNotClosed(await call(`${origin}/v1/tts`, apiKey, {
     method: "POST", headers: { "Content-Type": "application/json" },
