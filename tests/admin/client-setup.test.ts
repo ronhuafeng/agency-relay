@@ -34,6 +34,9 @@ describe("client setup projection", () => {
 
     expect(files.map((file) => file.client)).toEqual(["codex", "grok", "xai"]);
     expect(files.find((file) => file.client === "codex")?.content).toContain(
+      'model = "gpt-6.1-sol"'
+    );
+    expect(files.find((file) => file.client === "codex")?.content).toContain(
       'base_url = "https://api.trustedtunnel.app/v1"'
     );
     // Accounts are administrator-owned; member setup must not imply permission
@@ -46,16 +49,15 @@ describe("client setup projection", () => {
     expect(grokConfig).toContain(
       '[endpoints]\nxai_api_base_url = "https://grok.trustedtunnel.app/v1"'
     );
-    expect(grokConfig).toContain('default = "mini-grok-4-6"');
-    expect(grokConfig).toContain('[model.mini-grok-4-6]\nmodel = "grok-4.6"');
-    expect(grokConfig).not.toContain("grok-4.5");
+    expect(grokConfig).toContain('default = "mini-grok-4-7"');
+    expect(grokConfig).toContain('[model.mini-grok-4-7]\nmodel = "grok-4.7"');
+    expect(grokConfig).toContain('name = "Agency Relay Grok 4.7"');
+    expect(grokConfig).not.toContain("grok-4.6");
     expect(grokConfig).toContain("请管理员在控制台「账号」检查 Grok 连接");
-    expect(files.find((file) => file.client === "xai")?.content).toContain(
-      'XAI_BASE_URL="https://xai.trustedtunnel.app/v1"'
-    );
-    expect(files.find((file) => file.client === "xai")?.content).toContain(
-      'XAI_API_KEY="cfwd_example"'
-    );
+    const xaiEnv = files.find((file) => file.client === "xai")?.content;
+    expect(xaiEnv).toContain('XAI_API_KEY="cfwd_example"');
+    expect(xaiEnv).toContain("xAI 使用这个 Grok 上游账号，不是单独的 xAI 凭据。");
+    expect(xaiEnv).toContain('XAI_BASE_URL="https://xai.trustedtunnel.app/v1"');
     expect(files.find((file) => file.client === "xai")?.installTarget).toContain(
       "项目环境。在客户端中填写接口地址。"
     );
@@ -63,6 +65,23 @@ describe("client setup projection", () => {
       expect(file.content).toContain("cfwd_example");
       expect(file.content).not.toContain("surface:");
     }
+  });
+
+  it("accepts a current catalog model without changing the service address", () => {
+    const files = buildClientSetupFiles({
+      token: "cfwd_example",
+      scopes: ["surface:codex:production", "surface:grok:production"],
+      models: { codex: "gpt-5.6-sol", grok: "grok-4.6" }
+    });
+    expect(files.find((file) => file.client === "codex")?.content).toContain('model = "gpt-5.6-sol"');
+    expect(files.find((file) => file.client === "codex")?.content).toContain('base_url = "https://api.trustedtunnel.app/v1"');
+    expect(files.find((file) => file.client === "grok")?.content).toContain('model = "grok-4.6"');
+    expect(files.find((file) => file.client === "grok")?.content).toContain('base_url = "https://grok.trustedtunnel.app/v1"');
+    expect(() => buildClientSetupFiles({
+      token: "cfwd_example",
+      scopes: ["surface:codex:production"],
+      models: { codex: "gpt-5.6-sol\nmodel_provider" }
+    })).toThrow("Invalid client setup model");
   });
 
   it("does not invent setup files for ungranted clients", () => {

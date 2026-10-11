@@ -2,8 +2,8 @@ import { join } from "node:path";
 import { expect, it } from "vitest";
 import { codexModel, codexTaskSucceeded, createHome, installCodex, run, writeCodexConfig } from "./run";
 
-it("completes a Codex CLI reply through Mini", async () => {
-  const client = createHome("mini-codex-");
+it("completes a Codex CLI reply through Agency Relay", async () => {
+  const client = createHome("agency-codex-");
   try {
     const model = await codexModel();
     installCodex(client);

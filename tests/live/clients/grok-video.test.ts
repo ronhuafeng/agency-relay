@@ -2,8 +2,8 @@ import { join } from "node:path";
 import { it } from "vitest";
 import { createHome, expectOneVideo, grokEnv, installGrok, run, selectGrokModel, writeGrokConfig } from "./run";
 
-it("creates one Grok CLI video through Mini", async () => {
-  const client = createHome("mini-grok-video-");
+it("creates one Grok CLI video through Agency Relay", async () => {
+  const client = createHome("agency-grok-video-");
   try {
     const model = await selectGrokModel();
     installGrok(client);

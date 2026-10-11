@@ -3,7 +3,7 @@ import { expect, it } from "vitest";
 import { createHome, grokEnv, installGrok, run, selectGrokModel, writeGrokConfig } from "./run";
 
 it("completes a Grok CLI text reply through Agency Relay", async () => {
-  const client = createHome("mini-grok-text-");
+  const client = createHome("agency-grok-text-");
   try {
     const model = await selectGrokModel();
     installGrok(client);

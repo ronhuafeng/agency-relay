@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { buildClientSetupFiles } from "../../../src/admin/client-setup";
 import { HOST, assertImage, assertVideo, call, codexLanguageModel, env, expectJson, grokGatewayModel, isRecord } from "../support";
 
 export interface ClientHome {
@@ -97,48 +98,54 @@ export async function selectGrokModel(): Promise<string> {
   return grokGatewayModel(expectJson(response));
 }
 
+const CLIENT_SCOPES = ["surface:codex:production", "surface:grok:production", "surface:xai:production"] as const;
+
+function setupContent(client: "codex" | "grok" | "xai", key: string, models?: { codex?: string; grok?: string }): string {
+  const file = buildClientSetupFiles({ token: key, scopes: CLIENT_SCOPES, models }).find((item) => item.client === client);
+  if (!file) throw new Error(`Missing ${client} client setup`);
+  return file.content;
+}
+
+function replaceOnce(content: string, from: string, to: string): string {
+  if (!content.includes(from)) throw new Error("Client setup template no longer matches the live script");
+  return content.replace(from, to);
+}
+
 export function writeCodexConfig(client: ClientHome, model: string): void {
-  const key = env("MINI_CODEX_API_KEY");
-  writeFileSync(join(client.codexHome, "config.toml"), [
-    `model = ${JSON.stringify(model)}`,
-    'model_provider = "mini_codex"',
-    'sandbox_mode = "read-only"',
-    'approval_policy = "never"',
-    "",
-    "[model_providers.mini_codex]",
-    'name = "Mini Codex"',
-    'base_url = "https://api.trustedtunnel.app/v1"',
-    'wire_api = "responses"',
-    `experimental_bearer_token = ${JSON.stringify(key)}`,
-    ""
-  ].join("\n"), { mode: 0o600 });
+  const content = replaceOnce(
+    setupContent("codex", env("MINI_CODEX_API_KEY"), { codex: model }),
+    'model_provider = "mini_codex"\n',
+    'model_provider = "mini_codex"\nsandbox_mode = "read-only"\napproval_policy = "never"\n'
+  );
+  writeFileSync(join(client.codexHome, "config.toml"), content, { mode: 0o600 });
 }
 
 export function writeGrokConfig(client: ClientHome, model: string): void {
-  const key = env("MINI_GROK_API_KEY");
-  writeFileSync(join(client.grokHome, "config.toml"), [
-    "[cli]",
-    "auto_update = false",
-    "",
-    "[endpoints]",
-    'xai_api_base_url = "https://grok.trustedtunnel.app/v1"',
-    "",
-    "[models]",
-    'default = "mini-live"',
-    "",
-    "[model.mini-live]",
-    `model = ${JSON.stringify(model)}`,
-    'base_url = "https://grok.trustedtunnel.app/v1"',
-    'name = "Mini Grok"',
-    'description = "Grok through Mini"',
-    'api_backend = "responses"',
-    `api_key = ${JSON.stringify(key)}`,
-    ""
-  ].join("\n"), { mode: 0o600 });
+  const content = replaceOnce(
+    setupContent("grok", env("MINI_GROK_API_KEY"), { grok: model })
+      .replaceAll('default = "mini-grok-4-7"', 'default = "agency-grok"')
+      .replaceAll("[model.mini-grok-4-7]", "[model.agency-grok]"),
+    "\n[endpoints]\n",
+    "\n[cli]\nauto_update = false\n\n[endpoints]\n"
+  );
+  writeFileSync(join(client.grokHome, "config.toml"), content, { mode: 0o600 });
 }
 
+export function writeXaiEnv(client: ClientHome): void {
+  writeFileSync(join(client.home, "xai-api.env"), setupContent("xai", env("MINI_XAI_API_KEY")), { mode: 0o600 });
+}
+
+/** Grok CLI reads XAI_API_KEY, but this value is the Grok surface key, not the xAI API key. */
 export function grokEnv(client: ClientHome): NodeJS.ProcessEnv {
   return { ...client.baseEnv, XAI_API_KEY: env("MINI_GROK_API_KEY") };
+}
+
+export function xaiEnv(client: ClientHome): NodeJS.ProcessEnv {
+  return {
+    ...client.baseEnv,
+    XAI_API_KEY: env("MINI_XAI_API_KEY"),
+    XAI_BASE_URL: "https://xai.trustedtunnel.app/v1"
+  };
 }
 
 export async function codexModel(): Promise<string> {
