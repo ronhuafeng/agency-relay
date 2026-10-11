@@ -4,7 +4,7 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { authenticate } from '../browser/fixtures';
 import { NOW, ORIGIN, startConsoleWorker } from '../browser/worker';
-import { counterDelta, distribution, labCls } from './metrics';
+import { distribution, labCls } from './metrics';
 
 type Shift = { startTime: number; value: number; hadRecentInput: boolean };
 declare global { interface Window { weakNetworkLab: { shifts: Shift[]; lcp: number | null; drain: () => void } } }
@@ -24,7 +24,24 @@ async function painted(page: Page, view: string) {
 async function cpuScalars(cdp: CDPSession) {
   const {metrics} = await cdp.send('Performance.getMetrics');
   const values = new Map<string, number>(metrics.map((value: {name: string; value: number}) => [value.name, value.value]));
-  return Object.fromEntries(['ScriptDuration', 'TaskDuration', 'LayoutDuration', 'RecalcStyleDuration'].map(name => [name, values.has(name) ? values.get(name)! * 1000 : null]));
+  return Object.fromEntries(['ScriptDuration', 'TaskDuration', 'LayoutDuration', 'RecalcStyleDuration'].map(name => {
+    const value = values.get(name);
+    return [name, value !== undefined && Number.isFinite(value) && value >= 0 ? value * 1000 : null];
+  }));
+}
+
+
+// Each navigation owns a fresh Performance agent. Reload may reset renderer
+// counters, so subtracting the previous document would discard valid warm work.
+// The separate network/profile session stays attached throughout both loads.
+async function measuredLoad(page: Page, navigate: () => Promise<unknown>) {
+  const performanceSession = await page.context().newCDPSession(page);
+  try {
+    await performanceSession.send('Performance.enable', { timeDomain: 'threadTicks' });
+    await navigate();
+    await painted(page, 'access');
+    return { ...await scalars(page), cpuMs: await cpuScalars(performanceSession) };
+  } finally { await performanceSession.detach(); }
 }
 
 async function scalars(page: Page) {
@@ -73,43 +90,39 @@ for (const width of [390, 1440]) test(`150 ms RTT / 1 Mbps ${width}px: cold, war
         }, Date.parse(NOW));
         const page = await context.newPage();
         const cdp = await context.newCDPSession(page);
-        await cdp.send('Network.enable');
-        await cdp.send('Performance.enable', {timeDomain: 'threadTicks'});
-        await cdp.send('Network.emulateNetworkConditions', { offline: false, latency: profile.latencyMs,
-          downloadThroughput: profile.downloadBytesPerSecond, uploadThroughput: profile.uploadBytesPerSecond });
-        await cdp.send('Emulation.setCPUThrottlingRate', { rate: profile.cpuRate });
-        await page.goto(source, { waitUntil: 'load' }); await painted(page, 'access');
-        const cold = {...await scalars(page), cpuMs: await cpuScalars(cdp)};
-        const warmCpuBefore = await cpuScalars(cdp);
-        await page.reload({ waitUntil: 'load' }); await painted(page, 'access');
-        const warmScalars = await scalars(page);
-        const warmCpuAfter = await cpuScalars(cdp);
-        const warm = {...warmScalars, cpuMs: counterDelta(warmCpuBefore, warmCpuAfter), cpuCountersMs: {before: warmCpuBefore, after: warmCpuAfter}};
-        const navigation = [];
-        // Counterbalance order to avoid giving one mode every first request.
-        for (const mode of repeat % 2 ? ['document', 'enhanced'] : ['enhanced', 'document']) {
-          await page.goto(source, { waitUntil: 'load' }); await painted(page, 'access');
-          if (width < 1000) await page.locator('.nav-toggle-label').click();
-          const marker = await page.locator('.nav-rail').elementHandle();
-          const link = page.getByRole('navigation', { name: '控制台页面' }).getByRole('link', { name: '额度政策', exact: true });
-          await expect(link).toHaveAttribute('href', target);
-          // Explicit targets use the product's existing native navigation opt-out.
-          // Both modes retain JS and the identical user-action/readiness boundary.
-          if (mode === 'document') await link.evaluate(node => node.setAttribute('target', '_self'));
-          const response = page.waitForResponse(response => response.request().method() === 'GET' && response.url() === new URL(target, ORIGIN).href);
-          const started = performance.now();
-          await link.click({noWaitAfter: true});
-          await painted(page, 'quotas');
-          const completionMs = performance.now() - started;
-          expect(page.url()).toBe(new URL(target, ORIGIN).href);
-          const result = await response; expect(result.status()).toBe(200); await result.finished();
-          const retained = await marker!.evaluate(node => node.isConnected).catch(() => false);
-          expect(retained).toBe(mode === 'enhanced');
-          navigation.push({ mode, completionMs, status: result.status(), responseBodyBytes: (await result.body()).byteLength,
-            requestToResponseHeadersMs: result.request().timing().responseStart, retainedShell: retained });
-        }
-        const reduce = ({ shifts, ...value }: Awaited<ReturnType<typeof scalars>> & {cpuMs: Awaited<ReturnType<typeof cpuScalars>>}) => ({ ...value, boundedCls: value.layoutShiftSupported ? labCls(shifts) : null });
-        samples.push({ repeat: repeat + 1, cold: reduce(cold), warm: reduce(warm), navigation });
+        try {
+          await cdp.send('Network.enable');
+          await cdp.send('Network.emulateNetworkConditions', { offline: false, latency: profile.latencyMs,
+            downloadThroughput: profile.downloadBytesPerSecond, uploadThroughput: profile.uploadBytesPerSecond });
+          await cdp.send('Emulation.setCPUThrottlingRate', { rate: profile.cpuRate });
+          const cold = await measuredLoad(page, () => page.goto(source, { waitUntil: 'load' }));
+          const warm = await measuredLoad(page, () => page.reload({ waitUntil: 'load' }));
+          const navigation = [];
+          // Counterbalance order to avoid giving one mode every first request.
+          for (const mode of repeat % 2 ? ['document', 'enhanced'] : ['enhanced', 'document']) {
+            await page.goto(source, { waitUntil: 'load' }); await painted(page, 'access');
+            if (width < 1000) await page.locator('.nav-toggle-label').click();
+            const marker = await page.locator('.nav-rail').elementHandle();
+            const link = page.getByRole('navigation', { name: '控制台页面' }).getByRole('link', { name: '额度政策', exact: true });
+            await expect(link).toHaveAttribute('href', target);
+            // Explicit targets use the product's existing native navigation opt-out.
+            // Both modes retain JS and the identical user-action/readiness boundary.
+            if (mode === 'document') await link.evaluate(node => node.setAttribute('target', '_self'));
+            const response = page.waitForResponse(response => response.request().method() === 'GET' && response.url() === new URL(target, ORIGIN).href);
+            const started = performance.now();
+            await link.click({noWaitAfter: true});
+            await painted(page, 'quotas');
+            const completionMs = performance.now() - started;
+            expect(page.url()).toBe(new URL(target, ORIGIN).href);
+            const result = await response; expect(result.status()).toBe(200); await result.finished();
+            const retained = await marker!.evaluate(node => node.isConnected).catch(() => false);
+            expect(retained).toBe(mode === 'enhanced');
+            navigation.push({ mode, completionMs, status: result.status(), responseBodyBytes: (await result.body()).byteLength,
+              requestToResponseHeadersMs: result.request().timing().responseStart, retainedShell: retained });
+          }
+          const reduce = ({ shifts, ...value }: Awaited<ReturnType<typeof scalars>> & {cpuMs: Awaited<ReturnType<typeof cpuScalars>>}) => ({ ...value, boundedCls: value.layoutShiftSupported ? labCls(shifts) : null });
+          samples.push({ repeat: repeat + 1, cold: reduce(cold), warm: reduce(warm), navigation });
+        } finally { await cdp.detach(); }
       } finally { await context.close(); }
     }
     expect(worker.unexpected).toEqual([]);
@@ -117,14 +130,14 @@ for (const width of [390, 1440]) test(`150 ms RTT / 1 Mbps ${width}px: cold, war
       warmObservationMs: distribution(samples.map(sample => sample.warm.observationMs)),
       enhancedCompletionMs: distribution(samples.map(sample => sample.navigation.find(item => item.mode === 'enhanced')!.completionMs)),
       documentCompletionMs: distribution(samples.map(sample => sample.navigation.find(item => item.mode === 'document')!.completionMs)) };
-    writeFileSync(info.outputPath('weak-network-scalars.json'), JSON.stringify({ schema: 2, cpuTimeDomain: 'threadTicks',
+    writeFileSync(info.outputPath('weak-network-scalars.json'), JSON.stringify({ schema: 3, cpuTimeDomain: 'threadTicks', cpuCounterScope: 'fresh independent Performance session per cold/warm navigation; raw phase counters in milliseconds; no cross-navigation subtraction',
       sha: execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(),
       trackedDirty: Boolean(execFileSync('git', ['status', '--porcelain', '--untracked-files=no'], { encoding: 'utf8' }).trim()),
       fixtureHash: hash('tests/browser/worker.ts'), authenticationFixtureHash: hash('tests/browser/fixtures.ts'), sqlFixtureHash: hash('tests/support/sqlite-d1.ts'), harnessHash: hash('tests/performance/weak-network.spec.ts'), lockHash: hash('pnpm-lock.yaml'),
       browser: browser.version(), playwright: JSON.parse(readFileSync('node_modules/@playwright/test/package.json', 'utf8')).version,
       fontHashes: ['Noto Sans CJK SC', 'Noto Sans CJK SC:weight=bold'].map(font => hash(execFileSync('fc-match', ['-f', '%{file}', font], { encoding: 'utf8' }))),
       node: process.version, width, repetitions, profile,
-      limits: 'Local uncompressed synthetic Node/SQLite fixture; no edge/D1/RUM, field INP or performance threshold claim. Cold=fresh context; warm=same context reload with eligible cache. Completion ends at committed target plus fonts/two rendering frames. System fonts. CPU uses threadTicks: cold counters from a fresh page target, warm counter deltas around reload (reset/missing stays null). Includes probe and all JS, not isolated hydration cost. Both navigation modes click the same link with JS enabled; target=_self selects the existing native opt-out; no automatic click navigation wait. No arbitrary settling delay. Same generated product assets must be built for each compared revision.',
+      limits: 'Local uncompressed synthetic Node/SQLite fixture; no edge/D1/RUM, field INP or performance threshold claim. Cold=fresh context; warm=same context reload with eligible cache. Completion ends at committed target plus fonts/two rendering frames. System fonts. CPU uses threadTicks from a fresh independent Performance session enabled before each cold/warm navigation and detached after observation; raw phase counters are never subtracted across navigation. Missing, non-finite or negative counters stay null. The separate network/profile session remains attached during the experiment. Includes probe and all JS, not isolated hydration cost. Both navigation modes click the same link with JS enabled; target=_self selects the existing native opt-out; no automatic click navigation wait. No arbitrary settling delay. Same generated product assets must be built for each compared revision.',
       summary, samples }, null, 2) + '\n');
   } finally { await worker.close(); }
 });

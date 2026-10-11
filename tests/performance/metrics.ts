@@ -17,12 +17,3 @@ export function labCls(shifts: Array<{ startTime: number; value: number; hadRece
   }
   return maximum;
 }
-
-/** Runtime counters accumulate; a reset or missing counter is unavailable, not zero. */
-export function counterDelta(before: Record<string, number | null>, after: Record<string, number | null>) {
-  return Object.fromEntries(Object.entries(after).map(([name, value]) => {
-    const previous = before[name];
-    return [name, typeof value === "number" && typeof previous === "number"
-      && Number.isFinite(value) && Number.isFinite(previous) && value >= previous ? value - previous : null];
-  }));
-}

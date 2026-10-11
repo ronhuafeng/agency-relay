@@ -114,3 +114,23 @@ for (const width of [390, 999, 1000, 1440]) test.describe(`SSR first paint ${wid
     });
   });
 });
+
+test('critical stylesheet finishes before the enhancement runtime starts downloading', async ({ page, context, worker }) => {
+  await authenticate(context, worker, 'admin');
+  await page.goto('/admin?view=surfaces');
+  const ordering = await page.evaluate(() => {
+    const resources = performance.getEntriesByType('resource') as PerformanceResourceTiming[];
+    const css = resources.find(entry => /\/admin\/console-[a-f0-9]+\.css$/.test(entry.name));
+    const runtime = resources.find(entry => /\/admin\/console-[a-f0-9]+\.js$/.test(entry.name));
+    return { cssEnd: css?.responseEnd, runtimeStart: runtime?.startTime };
+  });
+  expect(ordering.cssEnd).toBeGreaterThan(0);
+  expect(ordering.runtimeStart).toBeGreaterThanOrEqual(ordering.cssEnd!);
+});
+
+test('a failed stylesheet does not leave runtime startup waiting forever', async ({ page, context, worker }) => {
+  await authenticate(context, worker, 'admin');
+  await page.route('**/admin/console-*.css', route => route.abort('failed'));
+  await page.goto('/admin?view=setup');
+  await expect(page.getByRole('button', { name: '下载配置文件', exact: true })).toBeEnabled();
+});

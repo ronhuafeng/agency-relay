@@ -41,7 +41,13 @@ describe("shared authenticated console installation", () => {
     const doc = new JSDOM(await (await call("/")).text()).window.document;
     expect(doc.querySelector('link[rel="stylesheet"]')?.getAttribute("href")).toBe(stylesheet);
     expect(doc.querySelector("head style")).toBeNull();
-    expect(doc.querySelector('script[type="module"]')?.getAttribute("src")).toBe(script);
+    const loader = doc.querySelector('body script[data-console-bootstrap]');
+    expect(loader).not.toBeNull();
+    expect(doc.querySelectorAll('[data-console-bootstrap]')).toHaveLength(1);
+    expect(loader?.getAttribute("src")).toBeNull();
+    expect(loader?.getAttribute("type")).toBeNull();
+    if (role === "admin") expect(loader?.getAttribute("nonce")).toBeTruthy();
+    expect(doc.querySelector('head script[data-console-bootstrap]')).toBeNull();
     expect(doc.querySelector('link[rel="manifest"]')?.getAttribute("crossorigin")).toBe("use-credentials");
     expect(doc.querySelector('link[rel="apple-touch-icon"]')?.getAttribute("href")).toBe("/admin/app-icon-192.png");
     expect(doc.querySelector(role === "admin" ? '[data-dashboard-view="overview"]' : '[data-member-view="home"]')).not.toBeNull();

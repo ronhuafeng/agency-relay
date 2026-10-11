@@ -1,6 +1,7 @@
+import { ConsoleRuntime } from "./ui/console-runtime";
 import type { ReactNode } from "react";
 import { renderToString } from "react-dom/server";
-import { consoleStylesheetPath, consoleClientPath } from "./app";
+import { consoleStylesheetPath } from "./app";
 import { AppHead, ConsoleHeader, ConsoleNavigation } from "./ui/console-chrome";
 import { SidebarProvider } from "./ui/components/sidebar";
 
@@ -49,7 +50,7 @@ export function consoleDocument(input: ConsoleDocumentInput): string {
         {input.confirm ? (
           <>
             <div id="console-dialog-root" />
-            <script type="module" async src={consoleClientPath()} nonce={input.nonce} />
+            <ConsoleRuntime nonce={input.nonce} />
           </>
         ) : null}
       </body>
