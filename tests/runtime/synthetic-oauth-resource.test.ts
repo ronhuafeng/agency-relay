@@ -155,8 +155,10 @@ it("keeps authorization-code use atomic and rejects another resource's token", a
     const allowed = await runtime.dispatchFetch(`${ISSUER}/consent`, { method: "POST", headers: { "Content-Type": "application/json", ...BROWSER }, body: JSON.stringify({ consent_id: allowedId, decision: "allow" }) });
     const code = new URL(((await allowed.json()) as { redirect: string }).redirect).searchParams.get("code");
     expect(code).toBeTruthy();
-    const wrongVerifier = new URLSearchParams({ grant_type: "authorization_code", code: code!, code_verifier: "wrong-verifier-with-enough-entropy", redirect_uri: REDIRECT, resource: `${MCP}/mcp` });
-    expect((await runtime.dispatchFetch(`${ISSUER}/token`, { method: "POST", body: wrongVerifier })).status).toBe(400);
+    const wrongVerifier = new URLSearchParams({ grant_type: "authorization_code", code: code!, code_verifier: "w".repeat(64), redirect_uri: REDIRECT, resource: `${MCP}/mcp` });
+    const firstMismatch = await runtime.dispatchFetch(`${ISSUER}/token`, { method: "POST", body: wrongVerifier });
+    expect(firstMismatch.status).toBe(400);
+    expect(await firstMismatch.json()).toEqual({ error: "invalid_grant" });
     const exchange = async () => {
       const response = await runtime.dispatchFetch(`${ISSUER}/token`, { method: "POST", body: new URLSearchParams({ grant_type: "authorization_code", code: code!, code_verifier: verifier, redirect_uri: REDIRECT, resource: `${MCP}/mcp` }) });
       return { status: response.status, body: await response.json() as { access_token?: string; refresh_token?: string } };
@@ -168,7 +170,9 @@ it("keeps authorization-code use atomic and rejects another resource's token", a
     expect(second.body).toEqual(issued);
     const replay = (await exchange()).body as { access_token: string; refresh_token: string };
     expect(replay).toEqual(issued);
-    expect((await runtime.dispatchFetch(`${ISSUER}/token`, { method: "POST", body: wrongVerifier })).status).toBe(400);
+    const replayMismatch = await runtime.dispatchFetch(`${ISSUER}/token`, { method: "POST", body: wrongVerifier });
+    expect(replayMismatch.status).toBe(400);
+    expect(await replayMismatch.json()).toEqual({ error: "invalid_grant" });
 
     const initialize = { method: "POST", headers: { Authorization: `Bearer ${issued.access_token}`, "Content-Type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize" }) };
     expect((await runtime.dispatchFetch(`${MCP}/mcp`, initialize)).status).toBe(200);
@@ -292,5 +296,60 @@ it("keeps authorization-code use atomic and rejects another resource's token", a
     }
     expect(firstTokenLimited).toBe(14);
     expect(tokenLimited).toEqual([429, 429]);
+  } finally { await runtime.dispose(); }
+}, 20000);
+
+it("allows an IPv6 loopback callback to change only its port", async () => {
+  const { runtime } = await start();
+  try {
+    const registered = "http://[::1]:9/callback";
+    const callback = "http://[::1]:43111/callback";
+    expect((await runtime.dispatchFetch(`${ISSUER}/register`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ redirect_uris: [registered] })
+    })).status).toBe(200);
+    const verifier = "v".repeat(64);
+    const challenge = await challengeFor(verifier);
+    const authorize = (redirect: string) => runtime.dispatchFetch(`${ISSUER}/authorize?${new URLSearchParams({
+      response_type: "code", redirect_uri: redirect, code_challenge: challenge,
+      code_challenge_method: "S256", resource: `${MCP}/mcp`, scope: "relay.read", state: "ipv6"
+    })}`);
+    for (const rejected of [
+      "http://[::2]:43111/callback", "http://127.0.0.1:43111/callback", "http://localhost:43111/callback",
+      "https://[::1]:43111/callback", "http://[::1]:43111/other", "http://[::1]:43111/callback?extra=1",
+      "http://[::1]:43111/callback#fragment", "http://user:pw@[::1]:43111/callback"
+    ]) {
+      expect((await authorize(rejected)).status).toBe(400);
+    }
+    const consent = await authorize(callback);
+    expect(consent.status).toBe(200);
+    const { consent_id } = await consent.json() as { consent_id: string };
+    const allowed = await runtime.dispatchFetch(`${ISSUER}/consent`, {
+      method: "POST", headers: { "Content-Type": "application/json", ...BROWSER },
+      body: JSON.stringify({ consent_id, decision: "allow" })
+    });
+    expect(allowed.status).toBe(200);
+    const redirect = new URL((await allowed.json() as { redirect: string }).redirect);
+    expect(`${redirect.origin}${redirect.pathname}`).toBe(callback);
+    expect(redirect.searchParams.get("state")).toBe("ipv6");
+    const code = redirect.searchParams.get("code");
+    expect(code).toBeTruthy();
+    for (const invalidLength of [42, 129]) {
+      const malformed = new URLSearchParams({ grant_type: "authorization_code", code: code!, redirect_uri: callback, resource: `${MCP}/mcp` });
+      malformed.set("code_verifier", "w".repeat(invalidLength));
+      const rejected = await runtime.dispatchFetch(`${ISSUER}/token`, { method: "POST", body: malformed });
+      expect(rejected.status).toBe(400);
+      expect(await rejected.json()).toEqual({ error: "invalid_request" });
+    }
+    const issued = await runtime.dispatchFetch(`${ISSUER}/token`, {
+      method: "POST", body: new URLSearchParams({ grant_type: "authorization_code", code: code!,
+        code_verifier: verifier, redirect_uri: callback, resource: `${MCP}/mcp` })
+    });
+    expect(issued.status).toBe(200);
+    const { access_token } = await issued.json() as { access_token: string };
+    expect((await runtime.dispatchFetch(`${MCP}/mcp`, {
+      method: "POST", headers: { Authorization: `Bearer ${access_token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize" })
+    })).status).toBe(200);
   } finally { await runtime.dispose(); }
 }, 20000);

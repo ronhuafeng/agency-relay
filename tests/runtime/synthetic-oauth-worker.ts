@@ -260,7 +260,7 @@ function redirectsMatch(registered: string, requested: string): boolean {
   } catch {
     return false;
   }
-  const loopback = allowed.hostname === "127.0.0.1" || allowed.hostname === "localhost" || allowed.hostname === "::1";
+  const loopback = allowed.hostname === "127.0.0.1" || allowed.hostname === "localhost" || allowed.hostname === "[::1]";
   return loopback && actual.hostname === allowed.hostname && actual.protocol === allowed.protocol && actual.username === allowed.username && actual.password === allowed.password && actual.pathname === allowed.pathname && actual.search === allowed.search && actual.hash === allowed.hash;
 }
 
@@ -423,3 +423,4 @@ async function resourceRequest(request: Request, env: FixtureEnv, resource: stri
   const body = JSON.parse(await readBounded(request)) as { method?: string };
   return jsonResponse({ jsonrpc: "2.0", result: body.method === "initialize" ? { protocolVersion: "2025-06-18", capabilities: {}, serverInfo: { name: "synthetic", version: "0" } } : {} });
 }
+
