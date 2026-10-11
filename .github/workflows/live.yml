@@ -4,25 +4,6 @@ on:
   schedule:
     - cron: "17 19 * * *"
   workflow_dispatch:
-    inputs:
-      suite:
-        description: Live suite
-        type: choice
-        default: all
-        options:
-          - all
-          - core
-          - codex
-          - grok
-          - xai
-          - images
-          - videos
-          - files
-          - clients
-          - access
-          - xai-resources
-          - credits
-          - billing
 
 permissions:
   contents: read
@@ -31,11 +12,61 @@ concurrency:
   group: mini-live-dispatch
   cancel-in-progress: false
 
-
 jobs:
   reachability:
     name: Reachability · Production ingress
-    if: ${{ github.event_name == 'schedule' || contains(fromJSON('["all","core"]'), inputs.suite) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Prepare Live tooling
+        uses: ./.github/actions/setup-live
+      - name: Verify Reachability · Production ingress
+        run: pnpm exec vitest run --config vitest.live.config.ts tests/live/smoke.test.ts --no-file-parallelism
+
+  access:
+    name: Authority · Access
+    needs: [reachability]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Prepare Live tooling
+        uses: ./.github/actions/setup-live
+      - name: Verify Authority · Access
+        env:
+          MINI_ONLY_CODEX_SURFACE_API_KEY: ${{ secrets.MINI_ONLY_CODEX_SURFACE_API_KEY }}
+          MINI_ONLY_GROK_SURFACE_API_KEY: ${{ secrets.MINI_ONLY_GROK_SURFACE_API_KEY }}
+          MINI_ONLY_GROK_SURFACE_CONTROL_API_KEY: ${{ secrets.MINI_ONLY_GROK_SURFACE_CONTROL_API_KEY }}
+          MINI_ONLY_XAI_SURFACE_API_KEY: ${{ secrets.MINI_ONLY_XAI_SURFACE_API_KEY }}
+        run: pnpm exec vitest run --config vitest.live.config.ts tests/live/access.test.ts --no-file-parallelism
+
+  codex_catalog:
+    name: Codex · Catalog
+    needs: [reachability]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Prepare Live tooling
+        uses: ./.github/actions/setup-live
+      - name: Verify Codex · Catalog
+        env:
+          MINI_ONLY_CODEX_SURFACE_API_KEY: ${{ secrets.MINI_ONLY_CODEX_SURFACE_API_KEY }}
+        run: pnpm exec vitest run --config vitest.live.config.ts tests/live/codex/catalog.test.ts --no-file-parallelism
+
+  codex_contract:
+    name: Codex · Contract
+    needs: [codex_catalog]
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -45,126 +76,150 @@ jobs:
           persist-credentials: false
       - name: Prepare Live tooling
         uses: ./.github/actions/setup-live
-      - name: Verify Reachability · Production ingress
-        run: |
-          set -euo pipefail
-          pnpm exec vitest run --config vitest.live.config.ts tests/live/smoke.test.ts --no-file-parallelism
-
-  codex:
-    name: Codex · Responses & Realtime
-    if: ${{ github.event_name == 'schedule' || contains(fromJSON('["all","core","codex"]'), inputs.suite) }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 150
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          persist-credentials: false
-      - name: Prepare Live tooling
-        uses: ./.github/actions/setup-live
-      - name: Verify Codex · Responses & Realtime
-        env:
-          SUITE: ${{ inputs.suite || 'all' }}
-          MINI_ONLY_CODEX_SURFACE_API_KEY: ${{ secrets.MINI_ONLY_CODEX_SURFACE_API_KEY }}
-        run: |
-          set -euo pipefail
-          case "$SUITE" in
-            core)
-              pnpm exec vitest run --config vitest.live.config.ts tests/live/codex/core.test.ts --no-file-parallelism
-              ;;
-            *)
-              pnpm exec vitest run --config vitest.live.config.ts tests/live/codex --no-file-parallelism
-              ;;
-          esac
-
-  grok:
-    name: Grok · Gateway & Media
-    if: ${{ github.event_name == 'schedule' || contains(fromJSON('["all","core","grok","images","videos","files"]'), inputs.suite) }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 150
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          persist-credentials: false
-      - name: Prepare Live tooling
-        uses: ./.github/actions/setup-live
-      - name: Verify Grok · Gateway & Media
-        env:
-          SUITE: ${{ inputs.suite || 'all' }}
-          MINI_ONLY_GROK_SURFACE_API_KEY: ${{ secrets.MINI_ONLY_GROK_SURFACE_API_KEY }}
-          MINI_ADMIN_SECRET: ${{ secrets.MINI_ADMIN_SECRET }}
-        run: |
-          set -euo pipefail
-          case "$SUITE" in
-            core)
-              pnpm exec vitest run --config vitest.live.config.ts tests/live/grok/core.test.ts --no-file-parallelism
-              ;;
-            images|videos|files)
-              pnpm exec vitest run --config vitest.live.config.ts "tests/live/grok/${SUITE}.test.ts" --no-file-parallelism
-              ;;
-            *)
-              pnpm exec vitest run --config vitest.live.config.ts tests/live/grok --no-file-parallelism
-              ;;
-          esac
-
-  xai:
-    name: xAI · API & Resources
-    if: ${{ github.event_name == 'schedule' || contains(fromJSON('["all","core","xai","images","videos","files","xai-resources"]'), inputs.suite) }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 150
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          persist-credentials: false
-      - name: Prepare Live tooling
-        uses: ./.github/actions/setup-live
-      - name: Verify xAI · API & Resources
-        env:
-          SUITE: ${{ inputs.suite || 'all' }}
-          MINI_ONLY_XAI_SURFACE_API_KEY: ${{ secrets.MINI_ONLY_XAI_SURFACE_API_KEY }}
-          MINI_ONLY_GROK_SURFACE_API_KEY: ${{ secrets.MINI_ONLY_GROK_SURFACE_API_KEY }}
-        run: |
-          set -euo pipefail
-          case "$SUITE" in
-            core)
-              pnpm exec vitest run --config vitest.live.config.ts tests/live/xai/core.test.ts --no-file-parallelism
-              ;;
-            images|videos|files)
-              pnpm exec vitest run --config vitest.live.config.ts "tests/live/xai/${SUITE}.test.ts" --no-file-parallelism
-              ;;
-            xai-resources)
-              pnpm exec vitest run --config vitest.live.config.ts tests/live/xai/resources.test.ts tests/live/xai/public-url.test.ts --no-file-parallelism
-              ;;
-            *)
-              pnpm exec vitest run --config vitest.live.config.ts tests/live/xai --no-file-parallelism
-              ;;
-          esac
-
-  clients:
-    name: Clients · Native CLI
-    if: ${{ github.event_name == 'schedule' || contains(fromJSON('["all","clients"]'), inputs.suite) }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 150
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          persist-credentials: false
-      - name: Prepare Live tooling
-        uses: ./.github/actions/setup-live
-      - name: Verify Clients · Native CLI
+      - name: Verify Codex · Contract
         env:
           MINI_ONLY_CODEX_SURFACE_API_KEY: ${{ secrets.MINI_ONLY_CODEX_SURFACE_API_KEY }}
-          MINI_ONLY_GROK_SURFACE_API_KEY: ${{ secrets.MINI_ONLY_GROK_SURFACE_API_KEY }}
-        run: |
-          set -euo pipefail
-          pnpm exec vitest run --config vitest.live.config.ts tests/live/clients --maxWorkers=2
+        run: pnpm exec vitest run --config vitest.live.config.ts tests/live/codex/contract.test.ts --no-file-parallelism
 
-  authority:
-    name: Authority · Access & Credits
-    if: ${{ github.event_name == 'schedule' || contains(fromJSON('["all","access","credits"]'), inputs.suite) }}
+  codex_responses:
+    name: Codex · Responses
+    needs: [codex_contract]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Prepare Live tooling
+        uses: ./.github/actions/setup-live
+      - name: Verify Codex · Responses
+        env:
+          MINI_ONLY_CODEX_SURFACE_API_KEY: ${{ secrets.MINI_ONLY_CODEX_SURFACE_API_KEY }}
+        run: pnpm exec vitest run --config vitest.live.config.ts tests/live/codex/core.test.ts --no-file-parallelism
+
+  codex_realtime:
+    name: Codex · Realtime
+    needs: [codex_responses]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Prepare Live tooling
+        uses: ./.github/actions/setup-live
+      - name: Verify Codex · Realtime
+        env:
+          MINI_ONLY_CODEX_SURFACE_API_KEY: ${{ secrets.MINI_ONLY_CODEX_SURFACE_API_KEY }}
+        run: pnpm exec vitest run --config vitest.live.config.ts tests/live/codex/realtime.test.ts --no-file-parallelism
+
+  codex_client:
+    name: Clients · Codex
+    needs: [codex_responses]
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Prepare Live tooling
+        uses: ./.github/actions/setup-live
+      - name: Verify Clients · Codex
+        env:
+          MINI_ONLY_CODEX_SURFACE_API_KEY: ${{ secrets.MINI_ONLY_CODEX_SURFACE_API_KEY }}
+        run: pnpm exec vitest run --config vitest.live.config.ts tests/live/clients/codex.test.ts --no-file-parallelism
+
+  grok_catalog:
+    name: Grok · Catalog
+    needs: [reachability]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Prepare Live tooling
+        uses: ./.github/actions/setup-live
+      - name: Verify Grok · Catalog
+        env:
+          MINI_ONLY_GROK_SURFACE_API_KEY: ${{ secrets.MINI_ONLY_GROK_SURFACE_API_KEY }}
+        run: pnpm exec vitest run --config vitest.live.config.ts tests/live/grok/catalog.test.ts --no-file-parallelism
+
+  grok_responses:
+    name: Grok · Responses
+    needs: [grok_catalog]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Prepare Live tooling
+        uses: ./.github/actions/setup-live
+      - name: Verify Grok · Responses
+        env:
+          MINI_ONLY_GROK_SURFACE_API_KEY: ${{ secrets.MINI_ONLY_GROK_SURFACE_API_KEY }}
+        run: pnpm exec vitest run --config vitest.live.config.ts tests/live/grok/core.test.ts --no-file-parallelism
+
+  grok_audio:
+    name: Grok · Audio
+    needs: [grok_responses]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Prepare Live tooling
+        uses: ./.github/actions/setup-live
+      - name: Verify Grok · Audio
+        env:
+          MINI_ONLY_GROK_SURFACE_API_KEY: ${{ secrets.MINI_ONLY_GROK_SURFACE_API_KEY }}
+        run: pnpm exec vitest run --config vitest.live.config.ts tests/live/grok/audio.test.ts --no-file-parallelism
+
+  grok_files:
+    name: Grok · Files
+    needs: [grok_responses]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Prepare Live tooling
+        uses: ./.github/actions/setup-live
+      - name: Verify Grok · Files
+        env:
+          MINI_ONLY_GROK_SURFACE_API_KEY: ${{ secrets.MINI_ONLY_GROK_SURFACE_API_KEY }}
+        run: pnpm exec vitest run --config vitest.live.config.ts tests/live/grok/files.test.ts --no-file-parallelism
+
+  grok_images:
+    name: Grok · Images
+    needs: [grok_responses]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Prepare Live tooling
+        uses: ./.github/actions/setup-live
+      - name: Verify Grok · Images
+        env:
+          MINI_ONLY_GROK_SURFACE_API_KEY: ${{ secrets.MINI_ONLY_GROK_SURFACE_API_KEY }}
+        run: pnpm exec vitest run --config vitest.live.config.ts tests/live/grok/images.test.ts --no-file-parallelism
+
+  grok_videos:
+    name: Grok · Videos
+    needs: [grok_responses]
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -174,34 +229,16 @@ jobs:
           persist-credentials: false
       - name: Prepare Live tooling
         uses: ./.github/actions/setup-live
-      - name: Verify Authority · Access & Credits
+      - name: Verify Grok · Videos
         env:
-          SUITE: ${{ inputs.suite || 'all' }}
-          MINI_ONLY_CODEX_SURFACE_API_KEY: ${{ secrets.MINI_ONLY_CODEX_SURFACE_API_KEY }}
           MINI_ONLY_GROK_SURFACE_API_KEY: ${{ secrets.MINI_ONLY_GROK_SURFACE_API_KEY }}
-          MINI_ONLY_XAI_SURFACE_API_KEY: ${{ secrets.MINI_ONLY_XAI_SURFACE_API_KEY }}
-          MINI_ONLY_GROK_SURFACE_CONTROL_API_KEY: ${{ secrets.MINI_ONLY_GROK_SURFACE_CONTROL_API_KEY }}
-          MINI_ADMIN_SECRET: ${{ secrets.MINI_ADMIN_SECRET }}
-        run: |
-          set -euo pipefail
-          case "$SUITE" in
-            access)
-              pnpm exec vitest run --config vitest.live.config.ts tests/live/access.test.ts --no-file-parallelism
-              ;;
-            credits)
-              pnpm exec vitest run --config vitest.live.config.ts tests/live/credits.test.ts --no-file-parallelism
-              ;;
-            *)
-              pnpm exec vitest run --config vitest.live.config.ts tests/live/access.test.ts tests/live/credits.test.ts --no-file-parallelism
-              ;;
-          esac
+        run: pnpm exec vitest run --config vitest.live.config.ts tests/live/grok/videos.test.ts --no-file-parallelism
 
-  accounting:
-    name: Accounting · Usage & Billing
-    needs: [reachability, codex, grok, xai, clients, authority]
-    if: ${{ !cancelled() && (github.event_name == 'schedule' || contains(fromJSON('["all","billing"]'), inputs.suite)) }}
+  grok_client_text:
+    name: Clients · Grok text
+    needs: [grok_responses]
     runs-on: ubuntu-latest
-    timeout-minutes: 150
+    timeout-minutes: 40
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -209,11 +246,232 @@ jobs:
           persist-credentials: false
       - name: Prepare Live tooling
         uses: ./.github/actions/setup-live
-      - name: Verify Accounting · Usage & Billing
+      - name: Verify Clients · Grok text
+        env:
+          MINI_ONLY_GROK_SURFACE_API_KEY: ${{ secrets.MINI_ONLY_GROK_SURFACE_API_KEY }}
+        run: pnpm exec vitest run --config vitest.live.config.ts tests/live/clients/grok-text.test.ts --no-file-parallelism
+
+  grok_client_image:
+    name: Clients · Grok image
+    needs: [grok_images]
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Prepare Live tooling
+        uses: ./.github/actions/setup-live
+      - name: Verify Clients · Grok image
+        env:
+          MINI_ONLY_GROK_SURFACE_API_KEY: ${{ secrets.MINI_ONLY_GROK_SURFACE_API_KEY }}
+        run: pnpm exec vitest run --config vitest.live.config.ts tests/live/clients/grok-image.test.ts --no-file-parallelism
+
+  grok_client_video:
+    name: Clients · Grok video
+    needs: [grok_videos]
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Prepare Live tooling
+        uses: ./.github/actions/setup-live
+      - name: Verify Clients · Grok video
+        env:
+          MINI_ONLY_GROK_SURFACE_API_KEY: ${{ secrets.MINI_ONLY_GROK_SURFACE_API_KEY }}
+        run: pnpm exec vitest run --config vitest.live.config.ts tests/live/clients/grok-video.test.ts --no-file-parallelism
+
+  xai_catalog:
+    name: xAI · Catalog
+    needs: [reachability]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Prepare Live tooling
+        uses: ./.github/actions/setup-live
+      - name: Verify xAI · Catalog
+        env:
+          MINI_ONLY_XAI_SURFACE_API_KEY: ${{ secrets.MINI_ONLY_XAI_SURFACE_API_KEY }}
+        run: pnpm exec vitest run --config vitest.live.config.ts tests/live/xai/catalog.test.ts --no-file-parallelism
+
+  xai_responses:
+    name: xAI · Responses
+    needs: [xai_catalog]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Prepare Live tooling
+        uses: ./.github/actions/setup-live
+      - name: Verify xAI · Responses
+        env:
+          MINI_ONLY_XAI_SURFACE_API_KEY: ${{ secrets.MINI_ONLY_XAI_SURFACE_API_KEY }}
+          MINI_ONLY_GROK_SURFACE_API_KEY: ${{ secrets.MINI_ONLY_GROK_SURFACE_API_KEY }}
+        run: pnpm exec vitest run --config vitest.live.config.ts tests/live/xai/core.test.ts --no-file-parallelism
+
+  xai_audio:
+    name: xAI · Audio
+    needs: [xai_responses]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Prepare Live tooling
+        uses: ./.github/actions/setup-live
+      - name: Verify xAI · Audio
+        env:
+          MINI_ONLY_XAI_SURFACE_API_KEY: ${{ secrets.MINI_ONLY_XAI_SURFACE_API_KEY }}
+        run: pnpm exec vitest run --config vitest.live.config.ts tests/live/xai/audio.test.ts --no-file-parallelism
+
+  xai_files:
+    name: xAI · Files
+    needs: [xai_responses]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Prepare Live tooling
+        uses: ./.github/actions/setup-live
+      - name: Verify xAI · Files
+        env:
+          MINI_ONLY_XAI_SURFACE_API_KEY: ${{ secrets.MINI_ONLY_XAI_SURFACE_API_KEY }}
+        run: pnpm exec vitest run --config vitest.live.config.ts tests/live/xai/files.test.ts --no-file-parallelism
+
+  xai_images:
+    name: xAI · Images
+    needs: [xai_responses]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Prepare Live tooling
+        uses: ./.github/actions/setup-live
+      - name: Verify xAI · Images
+        env:
+          MINI_ONLY_XAI_SURFACE_API_KEY: ${{ secrets.MINI_ONLY_XAI_SURFACE_API_KEY }}
+        run: pnpm exec vitest run --config vitest.live.config.ts tests/live/xai/images.test.ts --no-file-parallelism
+
+  xai_videos:
+    name: xAI · Videos
+    needs: [xai_responses]
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Prepare Live tooling
+        uses: ./.github/actions/setup-live
+      - name: Verify xAI · Videos
+        env:
+          MINI_ONLY_XAI_SURFACE_API_KEY: ${{ secrets.MINI_ONLY_XAI_SURFACE_API_KEY }}
+        run: pnpm exec vitest run --config vitest.live.config.ts tests/live/xai/videos.test.ts --no-file-parallelism
+
+  xai_websocket:
+    name: xAI · WebSocket
+    needs: [xai_responses]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Prepare Live tooling
+        uses: ./.github/actions/setup-live
+      - name: Verify xAI · WebSocket
+        env:
+          MINI_ONLY_XAI_SURFACE_API_KEY: ${{ secrets.MINI_ONLY_XAI_SURFACE_API_KEY }}
+        run: pnpm exec vitest run --config vitest.live.config.ts tests/live/xai/websocket.test.ts --no-file-parallelism
+
+  xai_resources:
+    name: xAI · Resources
+    needs: [xai_responses]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Prepare Live tooling
+        uses: ./.github/actions/setup-live
+      - name: Verify xAI · Resources
+        env:
+          MINI_ONLY_XAI_SURFACE_API_KEY: ${{ secrets.MINI_ONLY_XAI_SURFACE_API_KEY }}
+        run: pnpm exec vitest run --config vitest.live.config.ts tests/live/xai/resources.test.ts --no-file-parallelism
+
+  xai_public_url:
+    name: xAI · Public URL
+    needs: [xai_responses]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Prepare Live tooling
+        uses: ./.github/actions/setup-live
+      - name: Verify xAI · Public URL
+        env:
+          MINI_ONLY_XAI_SURFACE_API_KEY: ${{ secrets.MINI_ONLY_XAI_SURFACE_API_KEY }}
+        run: pnpm exec vitest run --config vitest.live.config.ts tests/live/xai/public-url.test.ts --no-file-parallelism
+
+  credits:
+    name: Authority · Credits
+    needs: [reachability]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Prepare Live tooling
+        uses: ./.github/actions/setup-live
+      - name: Verify Authority · Credits
+        env:
+          MINI_ADMIN_SECRET: ${{ secrets.MINI_ADMIN_SECRET }}
+        run: pnpm exec vitest run --config vitest.live.config.ts tests/live/credits.test.ts --no-file-parallelism
+
+  billing:
+    name: Accounting · Billing
+    needs: [codex_contract, codex_responses, codex_client, grok_responses, grok_images, grok_videos, grok_client_text, grok_client_image, grok_client_video, credits]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Prepare Live tooling
+        uses: ./.github/actions/setup-live
+      - name: Verify Accounting · Billing
         env:
           MINI_ONLY_CODEX_SURFACE_API_KEY: ${{ secrets.MINI_ONLY_CODEX_SURFACE_API_KEY }}
           MINI_ONLY_GROK_SURFACE_API_KEY: ${{ secrets.MINI_ONLY_GROK_SURFACE_API_KEY }}
           MINI_ADMIN_SECRET: ${{ secrets.MINI_ADMIN_SECRET }}
-        run: |
-          set -euo pipefail
-          pnpm exec vitest run --config vitest.live.config.ts tests/live/billing.test.ts --no-file-parallelism
+        run: pnpm exec vitest run --config vitest.live.config.ts tests/live/billing.test.ts --no-file-parallelism

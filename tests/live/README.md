@@ -4,22 +4,18 @@ All files under this directory use actual Agency Relay API keys and deployed Pro
 
 ## Selection and ownership
 
-`.github/workflows/live.yml` is the single entry point. Seven stable, capability-owned Jobs run native Vitest suites. `.github/actions/setup-live/action.yml` only prepares the pinned Node/pnpm environment; it does not select or wrap tests. Jobs run independently where possible; Accounting waits until the other Live Jobs have finished, then records its own result even if another Job failed (but not after cancellation). Provider and authority Jobs use one Vitest file worker at a time; native client tests allow two, avoiding the unbounded concurrency of a file-level matrix:
+`.github/workflows/live.yml` is the single entry point. Each current `tests/live/**/*.test.ts` file is one fixed Job. There is no suite input and no matrix. `.github/actions/setup-live/action.yml` only prepares the pinned Node/pnpm environment; it does not select or wrap tests.
 
-| Selection | Evidence |
-| --- | --- |
-| `all` | Every current `tests/live/**/*.test.ts` test (including production media and external CLIs); scheduled default |
-| `core` | Health plus successful Codex, Grok and xAI text/Responses paths; **not** all product capabilities |
-| `codex`, `grok`, `xai` | Every Live capability owned by that surface's directory |
-| `images`, `videos`, `files` | Both Grok and xAI real task/media/file lifecycle tests |
-| `clients` | Real Codex and Grok installed CLIs, including Grok text/image/video |
-| `access` | Real cross-surface rejection and undeclared-path/method denial |
-| `credits`, `billing` | Deployed admission state and route-qualified metering |
-| `xai-resources` | xAI stored Response retrieval/deletion, shared list reads, and synthetic-file public URL/revoke lifecycle |
+`needs` follows a result dependency, not a directory:
 
-Provider suite directories are organizational boundaries; an `images` selection covers **both** image directories. A green narrower selection says nothing about excluded providers or capabilities.
+- Reachability is `/healthz` on the three production hosts. Every other Job waits for it.
+- Codex runs Catalog, then Contract, then Responses. Realtime and the Codex CLI wait for Responses.
+- Grok runs Catalog, then Responses. Audio, Files, Images, Videos and the Grok text CLI wait for Responses. The Grok image CLI waits for Images. The Grok video CLI waits for Videos.
+- xAI runs Catalog, then Responses. Audio, Files, Images, Videos, WebSocket, Resources and Public URL wait for Responses. Responses also receives the Grok surface key because that file checks cross-surface denial.
+- Authority · Access waits only for Reachability. Authority · Credits waits only for Reachability; it creates its own user.
+- Accounting · Billing waits until every Job that can write the Codex Responses, Grok Responses, Grok Images or Grok Videos ledgers has finished. It still runs when one of those Jobs failed, and it does not run after cancellation. Its own calls must be the only new rows in that window.
 
-The Jobs are **Reachability** (smoke), **Codex**, **Grok**, **xAI**, **Clients**, **Authority** (access and credits), and **Accounting** (billing). Each selected `.test.ts` file runs exactly once; missing or failed tests are not converted into a successful gate. The scheduled run still selects `all` and uses real production credentials and providers. When introducing a new root-level Live test, assign it explicitly to the owning Job; tests added under a Provider or client directory are picked up by that directory's full suite.
+A scheduled or manual run starts the whole graph. A failed parent skips its children. Each file runs once. A new Live file needs its own Job and an explicit `needs` edge. Do not add it by widening a directory glob.
 
 ## Success evidence
 
