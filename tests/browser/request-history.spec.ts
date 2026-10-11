@@ -40,6 +40,7 @@ for (const width of [320, 390, 1440]) test.describe(`request history ${width}px`
     await page.evaluate(() => { document.documentElement.dataset.taskDocument = "filtered-requests"; });
     const filteredUrl = page.url();
     const record = page.getByRole("link", { name: /查看请求.*history-27/ });
+    const recordHref = await record.getAttribute("href");
     await record.focus();
     const taskRead = page.waitForRequest(request => request.method() === 'GET'
       && new URL(request.url()).pathname === '/admin' && new URL(request.url()).searchParams.get('record') === 'history-27');
@@ -57,6 +58,7 @@ for (const width of [320, 390, 1440]) test.describe(`request history ${width}px`
     await expect(page.getByRole("textbox", { name: "请求 ID" })).toHaveValue("request-shared");
     await expect(page.getByRole("textbox", { name: "成员", exact: true })).toHaveValue("member");
     await expect(page.getByRole("combobox", { name: "服务与路由", exact: true })).toHaveValue("codex.responses");
+    await expect(page.getByRole("link", { name: /查看请求.*history-27/ })).toHaveAttribute("href", recordHref!);
     await expect(page.getByRole("link", { name: /查看请求.*history-27/ })).toBeFocused();
     await page.goForward();
     await expect(page.locator('[data-request-detail="history-27"]')).toBeVisible();

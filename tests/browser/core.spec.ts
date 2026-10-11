@@ -1,7 +1,7 @@
 import { consoleClientPath } from "../../src/admin/app";
 import { openNativeConfirmation, test, expect, authenticate, openMemberCreate, openKeyEditor, reopenRestoredConsolePage } from "./fixtures";
 import { ATTACKER_ORIGIN, ORIGIN } from "./worker";
-import { request as apiRequest, type Dialog, type Page } from "@playwright/test";
+import { request as apiRequest, type Page } from "@playwright/test";
 
 async function ready(page: Page) {
   await expect(page.locator('#console-dialog-root')).toBeAttached();
@@ -202,7 +202,7 @@ test('pending admin write, Back and stop waiting never replay the committed oper
   expect(worker.requests.filter((request) => request.path === '/admin/ui/users/other/status')).toHaveLength(1);
 });
 
-test('pending native Back can be dismissed or accepted without replaying the committed write', async ({page, worker}) => {
+test('pending native Back can be dismissed or accepted without replaying the committed write', async ({page, worker}, testInfo) => {
   await page.goto('/admin?view=quotas');
   await ready(page);
   const previous = page.url();
@@ -211,23 +211,42 @@ test('pending native Back can be dismissed or accepted without replaying the com
   const target = page.url();
   const held = worker.hold({method:'POST', path:'/admin/ui/users/other/status'});
   const backWithConfirmation = async (choice:'dismiss'|'accept'): Promise<void> => {
-    let onDialog: (dialog:Dialog) => void = () => {};
-    const handled = new Promise<void>((resolve, reject) => {
-      onDialog = dialog => {
-        // Always settle the real dialog before asserting its kind. The handled
-        // promise owns the asynchronous response, including assertion failures.
-        void (async () => {
-          const type = dialog.type();
-          await dialog[choice]();
-          expect(type).toBe('beforeunload');
-        })().then(resolve, reject);
-      };
+    const observed = {choice, dialogReceived:false, dialogSettled:false, historySettled:false};
+    // The event wait removes its owned listener on timeout. Named steps bound
+    // observation; a stalled browser evaluation may still need fixture teardown.
+    const handled = test.step(`${choice}: receive and settle native confirmation`, async () => {
+      const dialog = await page.waitForEvent('dialog', {timeout:5000});
+      observed.dialogReceived = true;
+      const type = dialog.type();
+      // Settle even an unexpected dialog before asserting its kind.
+      await test.step(`${choice}: settle dialog`, () => dialog[choice](), {timeout:5000});
+      observed.dialogSettled = true;
+      expect(type).toBe('beforeunload');
     });
-    page.once('dialog', onDialog);
+    const action = test.step(`${choice}: settle history action`, async () => {
+      await page.evaluate(() => history.back());
+      observed.historySettled = true;
+    }, {timeout:5000});
     try {
       // Evaluation may remain pending until synchronous confirmation ends.
-      await Promise.all([handled, page.evaluate(() => history.back())]);
-    } finally { page.off('dialog', onDialog); }
+      await Promise.all([handled, action]);
+    } catch (error) {
+      const settled = await Promise.allSettled([handled, action]);
+      const state = await test.step(`${choice}: read safe failure state`, () => page.evaluate(() => ({
+        activated: navigator.userActivation.hasBeenActive,
+        pending: document.querySelector('main')?.getAttribute('data-mutation-pending') === 'true',
+        unload: (window as unknown as {pendingUnload?: {trusted:boolean; prevented:boolean}}).pendingUnload ?? null,
+        recovery: Boolean(document.querySelector('[data-console-recovery]'))
+      })), {timeout:1000}).catch(() => null);
+      const diagnostic = JSON.stringify({...observed, state});
+      console.error(`NATIVE_BACK_SAFE_STATE ${diagnostic}`);
+      await testInfo.attach(`native-back-${choice}-state`, {
+        body: diagnostic, contentType:'application/json'
+      });
+      const secondary = settled.flatMap(result => result.status === 'rejected' && result.reason !== error ? [result.reason] : []);
+      if (secondary.length) throw new AggregateError([error, ...secondary], `${choice}: native Back confirmation and action failed`);
+      throw error;
+    }
   };
   try {
     await page.getByRole('switch', {name:/启用账号/}).click();
@@ -243,14 +262,14 @@ test('pending native Back can be dismissed or accepted without replaying the com
         };
       }, {once:true});
     });
-    await backWithConfirmation('dismiss');
+    await test.step('dismiss native Back and retain pending operation', () => backWithConfirmation('dismiss'));
     expect(await page.evaluate(() => (window as unknown as {pendingUnload?: {trusted:boolean; prevented:boolean}}).pendingUnload))
       .toEqual({trusted:true, prevented:true});
     await expect(page).toHaveURL(target);
     await expect(page.locator('main')).toHaveAttribute('data-mutation-pending','true');
 
-    await backWithConfirmation('accept');
-    await page.waitForURL(/view=quotas/, {waitUntil:'load'});
+    await test.step('accept native Back', () => backWithConfirmation('accept'));
+    await test.step('accepted Back reaches previous document', () => page.waitForURL(/view=quotas/, {waitUntil:'load', timeout:5000}));
     await expect.poll(() => page.evaluate(() => (window as unknown as {pageShowObserved?:boolean}).pageShowObserved === true)).toBe(true);
     if (await page.evaluate(() => (window as unknown as {restoredFromCache?:boolean}).restoredFromCache === true)) {
       // Keep the native Forward entry: opening this recovery link would start
@@ -261,8 +280,10 @@ test('pending native Back can be dismissed or accepted without replaying the com
       await expect(page.getByRole('link', {name:'查看当前页面',exact:true})).toHaveAttribute('href',url.pathname + url.search);
     } else await expect(page.locator('[data-view-role="quotas"]')).toBeVisible();
   } finally { held.release(); }
-  await page.goForward({waitUntil:'load'});
-  await reopenRestoredConsolePage(page, target);
+  await test.step('Forward reads current authority without replay', async () => {
+    await page.goForward({waitUntil:'load', timeout:5000});
+    await reopenRestoredConsolePage(page, target);
+  }, {timeout:10000});
   await expect(page).toHaveURL(target);
   await expect(page.getByRole('switch', {name:/启用账号/})).toHaveAttribute('aria-checked','false');
   expect(worker.requests.filter(request => request.path === '/admin/ui/users/other/status')).toHaveLength(1);

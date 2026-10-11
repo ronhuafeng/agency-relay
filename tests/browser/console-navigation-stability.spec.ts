@@ -22,12 +22,16 @@ for (const width of [390, 1440]) test(`ordinary navigation loads a fresh server 
   await page.waitForURL(/view=quotas/, {waitUntil: "load"});
   await expect(page.locator('main[data-dashboard-view="quotas"]')).toBeVisible();
   await expect(page.locator("html")).not.toHaveAttribute("data-navigation-probe");
+  if (width < 1000) {
+    await expect(page.locator("#console-navigation-toggle")).not.toBeChecked();
+    await expect(page.getByRole("navigation", { name: "控制台页面" })).toBeHidden();
+    await page.locator(".nav-toggle-label").click();
+  }
   await expect(page.getByRole("navigation", { name: "控制台页面" }).getByRole("link", { name: "额度政策", exact: true })).toHaveAttribute("aria-current", "page");
   await expect(page.locator(".nav-toggle-label strong")).toHaveText("额度政策");
   await expect(page.locator('[data-confirmation-fallback]:not([hidden])')).toHaveCount(0);
 
   await page.evaluate(() => { document.documentElement.dataset.navigationProbe = "quotas"; });
-  if (width < 1000) await page.locator(".nav-toggle-label").click();
   await page.getByRole("navigation", { name: "控制台页面" }).getByRole("link", { name: "成员与服务", exact: true }).click();
   await page.waitForURL(/view=access/, {waitUntil: "load"});
   await expect(page.locator("html")).not.toHaveAttribute("data-navigation-probe");
