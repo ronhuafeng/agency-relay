@@ -1,6 +1,8 @@
 import { it } from "vitest";
 import { HOST, call, catalogModel, env, expectJson, firstDataId, voiceId } from "../support";
 
+const NONE = /$^/;
+
 it("reads one xAI model and its media catalogs", async () => {
   const key = env("MINI_XAI_API_KEY");
   const listed = await call(`${HOST.xai}/v1/models`, key);

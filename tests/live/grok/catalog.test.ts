@@ -1,6 +1,8 @@
 import { it } from "vitest";
 import { HOST, call, catalogModel, env, expectJson, voiceId } from "../support";
 
+const NONE = /$^/;
+
 it("lists Grok models", async () => {
   expectJson(await call(`${HOST.grok}/v1/models`, env("MINI_GROK_API_KEY")));
 });

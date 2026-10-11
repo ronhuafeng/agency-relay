@@ -5,20 +5,20 @@ import { languageModel, requireEnv, send } from "../runtime";
 it("completes an xAI HTTP response and enforces surface isolation", async () => {
   const key = requireEnv("MINI_XAI_API_KEY");
   const control = requireEnv("MINI_GROK_API_KEY");
-  const model = await languageModel(HOST, key);
-  const models = await send(`${HOST}/v1/models`, key);
+  const model = await languageModel(HOST.xai, key);
+  const models = await send(`${HOST.xai}/v1/models`, key);
   expect(models.status).toBe(200);
   expect(models.contentType.toLowerCase()).toContain("application/json");
-  const response = await send(`${HOST}/v1/responses`, key, {
+  const response = await send(`${HOST.xai}/v1/responses`, key, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ model, input: "Reply exactly OK.", stream: false })
   }, 180_000);
   expect(response.status).toBe(200);
-  const denied = await send(`${HOST}/v1/models`, control);
+  const denied = await send(`${HOST.xai}/v1/models`, control);
   expect(denied.status).toBe(403);
   expect(parseJson(denied.text)).toMatchObject({ error: { code: "scope_denied" } });
-  const missing = await send(`${HOST}/v1/not-a-mini-plan`, key);
+  const missing = await send(`${HOST.xai}/v1/not-a-mini-plan`, key);
   expect(missing.status).toBe(404);
   expect(parseJson(missing.text)).toMatchObject({ error: { code: "not_found" } });
 }, 600_000);

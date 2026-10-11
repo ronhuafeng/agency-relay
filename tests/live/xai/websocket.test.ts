@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { isRecord, languageModel, parseJson, requireEnv } from "../runtime";
+import { isRecord, languageModel, parseJson, requireEnv, send } from "../runtime";
 import { bytesToUtf8 } from "../support";
 import { StorySocket, type SocketMessage } from "../websocket";
 
