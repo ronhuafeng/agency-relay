@@ -1,6 +1,7 @@
 import { expect, it } from "vitest";
 import { HOST, call, catalogModel, env, expectJson, parseJson } from "../support";
 import { languageModel, requireEnv, send } from "../runtime";
+import { assertResponseHasText } from "../oracles";
 
 it("completes an xAI HTTP response and enforces surface isolation", async () => {
   const key = requireEnv("MINI_XAI_API_KEY");
@@ -15,6 +16,7 @@ it("completes an xAI HTTP response and enforces surface isolation", async () => 
     body: JSON.stringify({ model, input: "Reply exactly OK.", stream: false })
   }, 180_000);
   expect(response.status).toBe(200);
+  assertResponseHasText(parseJson(response.text));
   const denied = await send(`${HOST.xai}/v1/models`, control);
   expect(denied.status).toBe(403);
   expect(parseJson(denied.text)).toMatchObject({ error: { code: "scope_denied" } });
@@ -30,7 +32,7 @@ it("uses a real xAI key for Chat Completions and Responses compact", async () =>
     method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ model, messages: [{ role: "user", content: "Reply exactly OK." }], stream: false })
   }, 180_000));
-  expect(chat).toMatchObject({ choices: expect.arrayContaining([expect.any(Object)]) });
+  expect(chat).toMatchObject({ choices: expect.arrayContaining([expect.objectContaining({ message: expect.objectContaining({ content: expect.any(String) }) })]) });
   expectJson(await call(`${HOST.xai}/v1/responses/compact`, key, {
     method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ model, input: "Remember the word amber." })

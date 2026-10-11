@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { HOST, call, codexLanguageModel, env, expectErrorCode, parseJson, upgrade } from "../support";
+import { HOST, codexLanguageModel, call, codexLanguageModel, env, expectErrorCode, parseJson, upgrade } from "../support";
 
 it("rejects a Codex websocket upgrade on Responses", async () => {
   const response = await upgrade(`${HOST.codex}/v1/responses`, env("MINI_CODEX_API_KEY"), {}, 60_000);
@@ -37,4 +37,24 @@ it("rejects malformed Codex response JSON", async () => {
     body: Uint8Array.from([0xff])
   });
   expect(response.status).toBe(400);
+});
+
+it("accepts a unary Codex response or a controlled 400", async () => {
+  const key = env("MINI_CODEX_API_KEY");
+  const model = await codexLanguageModel(key);
+  const response = await call(`${HOST.codex}/v1/responses`, key, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model,
+      instructions: "Reply concisely.",
+      input: [{ role: "user", content: [{ type: "input_text", text: "Reply exactly OK." }] }],
+      store: false,
+      stream: false
+    })
+  }, 180_000);
+  expect([200, 400]).toContain(response.status);
+  if (response.status === 200) {
+    expect(response.contentType.toLowerCase()).toContain("application/json");
+  }
 });
