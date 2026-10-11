@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { renderToString } from "react-dom/server";
 import { dashboardViewTitle, DASHBOARD_VIEW_DEFINITIONS, type AdminDashboardPageModelBase, type AdminDashboardPageModel } from "../dashboard-data";
-import { consoleStyles } from "../generated/console-styles";
+import { consoleStylesheetPath } from "../app";
 import { buildClientSetupTemplates, CLIENT_SETUP_TOKEN_PLACEHOLDER } from "../client-setup";
 import { HomePage } from "./pages/home";
 import { AccountsPage } from "./pages/accounts";
@@ -45,7 +45,7 @@ function PageHeader({model}: {readonly model: AdminDashboardPageModelBase}) {
   return <h1 className="sr-only">{titles[model.view]}</h1>;
 }
 function DashboardDocument({model, nonce, children, revision}: {readonly model: AdminDashboardPageModelBase; readonly nonce: string; readonly children: ReactNode; readonly revision?: string}) {
-  return <html lang="zh-CN"><head><meta charSet="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" /><meta name="color-scheme" content="light dark" /><meta name="robots" content="noindex,nofollow" /><title>{model.documentTitle}</title><meta name="description" content="Agency Relay 管理控制台。" />{model.appEnabled ? <AppHead /> : null}<style nonce={nonce}>{consoleStyles}</style></head><body id="top">
+  return <html lang="zh-CN"><head><meta charSet="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" /><meta name="color-scheme" content="light dark" /><meta name="robots" content="noindex,nofollow" /><title>{model.documentTitle}</title><meta name="description" content="Agency Relay 管理控制台。" />{model.appEnabled ? <AppHead /> : null}<link rel="stylesheet" href={consoleStylesheetPath()} /></head><body id="top">
     <a className="skip-link" href="#content">跳到正文</a><ConsoleHeader email={model.operatorLabel} role="admin" actorId={model.operatorId} />
     <SidebarProvider className="shell" data-dashboard-nav="vertical"><Navigation model={model} /><main id="content" tabIndex={-1} data-dashboard-view={model.view} data-dashboard-range={model.range.key} data-dashboard-url={model.canonicalUrl} data-dashboard-mutation={model.mutationFlash?.kind} data-console-read-url={revision ? model.canonicalUrl : undefined} data-console-revision={revision}><PageHeader model={model} />
       <div className="dashboard-notice" data-dashboard-notice="" role="status" aria-live="polite" aria-atomic="true" hidden><span data-notice-message="" /><a hidden>打开页面</a><Button type="button" variant="outline" hidden data-stop-waiting="true">停止等待</Button></div><div data-dashboard-panel="">{children}</div>

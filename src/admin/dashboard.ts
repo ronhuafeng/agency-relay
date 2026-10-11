@@ -299,8 +299,8 @@ function htmlResponse(html: string, status: number, nonce: string, allowScript =
       // form-action 'self' is required for board HTML form POSTs (/admin/ui/*).
       // Read-only era used 'none'; writable console must allow same-origin submits.
       // Radix uses style attributes for SSR form inputs and control geometry.
-      // Stylesheets and executable scripts remain nonce-bound.
-      "Content-Security-Policy": `default-src 'none'; script-src ${allowScript ? `'nonce-${nonce}'` : "'none'"}; ${allowScript ? `connect-src 'self'${socket ? ` ${socket.href}` : ""}; manifest-src 'self'; img-src 'self'; worker-src 'self'; ` : ""}style-src 'nonce-${nonce}'; style-src-attr 'unsafe-inline'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'`,
+      // The versioned generated stylesheet is same-origin; executable scripts remain nonce-bound.
+      "Content-Security-Policy": `default-src 'none'; script-src ${allowScript ? `'nonce-${nonce}'` : "'none'"}; ${allowScript ? `connect-src 'self'${socket ? ` ${socket.href}` : ""}; manifest-src 'self'; img-src 'self'; worker-src 'self'; ` : ""}style-src 'self' 'nonce-${nonce}'; style-src-attr 'unsafe-inline'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'`,
       "Content-Type": "text/html; charset=utf-8",
       "Referrer-Policy": "same-origin",
       "X-Content-Type-Options": "nosniff",

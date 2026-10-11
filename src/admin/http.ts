@@ -29,7 +29,7 @@ import { credentialControlResponse, serviceAvailabilityResponse } from "./creden
 import { commitCredentialDefault, credentialActor, migrateCredentialBindings, disconnectCredential, retryCredentialCleanup, type OrganizationSurface } from "../auth/credential-defaults";
 import { adminDashboardResponse, dashboardAccountForMutation, dashboardKeyReturnUrl, dashboardPersonReturnUrl, consoleLifecycleOutcome, consoleUnknownOutcome } from "./dashboard";
 import { type DashboardMutationFlash } from "./dashboard-data";
-import { consoleClientResponse, dashboardAppResponse, isDashboardAppPath } from "./app";
+import { consoleClientResponse, consoleStylesheetPath, consoleStylesheetResponse, dashboardAppResponse, isDashboardAppPath } from "./app";
 import {
   beginCodexCredentialOAuth,
   beginGrokCredentialOAuth,
@@ -116,6 +116,10 @@ interface RequestAuditCleanupResult {
 }
 
 export async function routeAdmin(request: Request, env: Env, url: URL, deps: AppDependencies, requestContext: RequestContext): Promise<Response> {
+  // Public, content-addressed CSS also styles the login page before a session exists.
+  if (url.hostname === env.ADMIN_DASHBOARD_HOST && request.method === "GET" && url.search === "" && url.pathname === consoleStylesheetPath()) {
+    return consoleStylesheetResponse(url.pathname)!;
+  }
   if (url.hostname === env.ADMIN_DASHBOARD_HOST) {
     const login = await routeConsoleLogin(request, env, url, deps, requestContext);
     if (login) return login;
@@ -780,6 +784,7 @@ function isDashboardRoute(request: Request, url: URL, env: Env): boolean {
     return true;
   }
   if (url.pathname === "/admin/console.js" && request.method === "GET") return true;
+  if (url.pathname === consoleStylesheetPath() && url.search === "" && request.method === "GET") return true;
   return request.method === "GET"
     && (
       isAdminDashboardPage(url, env)

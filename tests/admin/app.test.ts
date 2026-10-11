@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { dashboardAppResponse, dashboardAppWorkerSource } from "../../src/admin/app";
+import { consoleStylesheetPath, consoleStylesheetResponse, dashboardAppResponse, dashboardAppWorkerSource } from "../../src/admin/app";
+import { consoleStyles } from "../../src/admin/generated/console-styles";
 
 function workerFixture(fetcher: (request: unknown) => Promise<Response>) {
   const listeners = new Map<string, (event: unknown) => void>();
@@ -21,6 +22,18 @@ function workerFixture(fetcher: (request: unknown) => Promise<Response>) {
 }
 
 describe("dashboard application resources", () => {
+  it("serves only its content-addressed CSS with browser caching and no private data", async () => {
+    const path = consoleStylesheetPath();
+    expect(path).toMatch(/^\/admin\/console-[a-z0-9]+-[a-z0-9]+\.css$/);
+    const response = consoleStylesheetResponse(path)!;
+    expect(response.headers.get("Content-Type")).toBe("text/css; charset=utf-8");
+    expect(response.headers.get("Cache-Control")).toBe("public, max-age=31536000, immutable");
+    expect(response.headers.get("X-Content-Type-Options")).toBe("nosniff");
+    expect(await response.text()).toBe(consoleStyles);
+    expect(consoleStylesheetResponse("/admin/console-other.css")).toBeNull();
+    expect(consoleStylesheetResponse("/admin/app-worker.js")).toBeNull();
+  });
+
   it("provides a stable standalone entry and real maskable PNG icons", async () => {
     const response = dashboardAppResponse("/admin/app.webmanifest")!;
     expect(response.headers.get("Content-Type")).toBe("application/manifest+json");

@@ -3,6 +3,33 @@ import { APP_ICON_PNG } from "./app-icons";
 import { consoleClientSource } from "./generated/console-client";
 import { consoleStyles, consoleTheme } from "./generated/console-styles";
 
+// CSS contains no account data. The two independent 32-bit fingerprints are
+// cache keys, not security identifiers. Changing the generated CSS changes
+// the URL while authenticated HTML continues to be no-store.
+const CONSOLE_STYLESHEET_PATH = (() => {
+  let a = 0x811c9dc5;
+  let b = 0x9e3779b9;
+  for (let index = 0; index < consoleStyles.length; index++) {
+    const code = consoleStyles.charCodeAt(index);
+    a = Math.imul(a ^ code, 0x01000193);
+    b = Math.imul(b ^ code, 0x85ebca6b);
+  }
+  return `/admin/console-${(a >>> 0).toString(36)}-${(b >>> 0).toString(36)}.css`;
+})();
+
+export function consoleStylesheetPath(): string { return CONSOLE_STYLESHEET_PATH; }
+
+/** Exact public CSS route; independent of console identity and private reads. */
+export function consoleStylesheetResponse(path: string): Response | null {
+  if (path !== CONSOLE_STYLESHEET_PATH) return null;
+  return new Response(consoleStyles, {headers: {
+    "Content-Type": "text/css; charset=utf-8",
+    "Cache-Control": "public, max-age=31536000, immutable",
+    "X-Content-Type-Options": "nosniff",
+    "X-Robots-Tag": "noindex, nofollow"
+  }});
+}
+
 export const DASHBOARD_APP_PATHS = [
   "/admin/app.webmanifest", "/admin/app-worker.js",
   "/admin/app-icon-192.png", "/admin/app-icon-512.png"
