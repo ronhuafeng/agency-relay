@@ -97,6 +97,43 @@ describe("retained request SQL projection", () => {
 });
 
 describe("request history protected router and HTML", () => {
+  it("uses one canonical task address after native GET filtering and history return", async () => {
+    const f = setup();
+    f.seed("audit-native", {status:"error"});
+    f.seed("different-person", {status:"error", user_id:"member"});
+    f.seed("different-result", {status:"ok"});
+    // Native forms include empty controls in DOM order, without the dashboard's
+    // default range. Their task links must still use its canonical address.
+    const native = "/admin?view=audit&audit_from=&audit_to=&audit_plan=codex.responses&audit_result=error&audit_user=other&audit_request=request-duplicate";
+    const canonical = "/admin?view=audit&range=7d&audit_plan=codex.responses&audit_user=other&audit_result=error&audit_request=request-duplicate";
+    const filters = {view:"audit", range:"7d", audit_plan:"codex.responses", audit_user:"other", audit_result:"error", audit_request:"request-duplicate"};
+    const taskLinks: string[] = [];
+    for (const path of [native, canonical]) {
+      const response = await f.open(path);
+      expect(response.status).toBe(200);
+      const doc = new JSDOM(await response.text()).window.document;
+      const pageUrl = new URL(doc.querySelector('main')!.getAttribute('data-dashboard-url')!, 'https://admin.example.test');
+      expect(Object.fromEntries(pageUrl.searchParams)).toEqual(filters);
+      expect(Array.from(doc.querySelectorAll('[data-request-record]'), row => row.getAttribute('data-request-record'))).toEqual(['audit-native']);
+      taskLinks.push(doc.querySelector('a[aria-label="查看请求 audit-native"]')!.getAttribute('href')!);
+    }
+    // Identity is stable across equivalent addresses; parameter ordering itself
+    // is not prescribed. Different objects and filters must still stay distinct.
+    expect(taskLinks[0]).toBe(taskLinks[1]);
+    const detail = new URL(taskLinks[0]!, 'https://admin.example.test');
+    expect(detail.pathname).toBe('/admin');
+    expect(detail.hash).toBe('#request-detail');
+    expect(Object.fromEntries(detail.searchParams)).toEqual({...filters, record:'audit-native'});
+    const response = await f.open(taskLinks[0]!);
+    expect(response.status).toBe(200);
+    const doc = new JSDOM(await response.text()).window.document;
+    expect(doc.querySelector('[data-request-detail="audit-native"]')).not.toBeNull();
+    const close = new URL(doc.querySelector('a[aria-label="收起请求详情"]')!.getAttribute('href')!, 'https://admin.example.test');
+    expect(close.pathname).toBe('/admin');
+    expect(close.hash).toBe('#request-history');
+    expect(Object.fromEntries(close.searchParams)).toEqual(filters);
+  });
+
   it("shows independent results and unknown evidence in SSR, preserving detail return context", async () => {
     const f = setup(); f.seed("audit-safe", { latency_ms: null, status: "error", error_code: "response_observation_parse_failed" });
     const response = await f.open("/admin?view=audit&audit_result=error&audit_request=request-duplicate&record=audit-safe");
@@ -105,6 +142,9 @@ describe("request history protected router and HTML", () => {
     const html = await response.text(); const doc = new JSDOM(html).window.document;
     expect(doc.querySelector('[data-request-detail="audit-safe"]')).not.toBeNull();
     expect(doc.querySelector('[data-request-record="audit-safe"]')).not.toBeNull();
+    expect(doc.querySelector('form[data-dashboard-search]')?.getAttribute("action")).toBe("/admin#request-history");
+    expect(doc.querySelector('input[name="view"]')?.getAttribute("value")).toBe("audit");
+    expect(doc.querySelector('input[name="audit_request"]')?.getAttribute("value")).toBe("request-duplicate");
     expect(doc.querySelector('select[name="audit_result"]')?.getAttribute("name")).toBe("audit_result");
     expect(doc.querySelector('a[aria-label="收起请求详情"]')?.getAttribute("href")).toContain("audit_result=error");
     expect(html).toContain("不单独证明 SSE 终止成功");

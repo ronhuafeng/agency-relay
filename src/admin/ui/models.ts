@@ -77,7 +77,6 @@ export interface SearchField {
 export interface InventorySearchControl {
   readonly id: string;
   readonly action: string;
-  readonly anchor: string;
   readonly label: string;
   readonly field: "q" | "key_q";
   readonly value: string;

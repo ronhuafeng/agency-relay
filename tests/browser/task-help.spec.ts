@@ -23,8 +23,9 @@ for (const script of [true, false]) test.describe(`contextual help with script=$
       await expect(example).toBeVisible();
       expect(await example.locator('h3').textContent()).toBe(file.filename);
       expect(await example.locator('code').textContent()).toBe(file.installTarget);
-      if(script && await configuration.locator('.setup-template-disclosure').getAttribute('open') === null) await configuration.getByText('查看配置模板',{exact:true}).click();
-      const templateScope = script ? configuration.locator('.setup-template-disclosure') : example;
+      const separateTemplate = script || await example.locator('figure.setup-template').count() === 0;
+      if(separateTemplate && await configuration.locator('.setup-template-disclosure').getAttribute('open') === null) await configuration.getByText('查看配置模板',{exact:true}).click();
+      const templateScope = separateTemplate ? configuration.locator('.setup-template-disclosure') : example;
       await expect(templateScope.locator('figure.setup-template figcaption')).toHaveText('配置模板 · 密钥为占位符');
       const template=templateScope.locator('figure.setup-template pre');
       expect(await template.getAttribute('aria-label')).toBeNull();

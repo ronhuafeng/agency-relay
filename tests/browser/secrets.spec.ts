@@ -49,7 +49,7 @@ async function clipboardMode(page: Page, mode: ClipboardMode) {
 
 async function resultPage(page: Page, identity: Identity, token = displayValue) {
   await page.goto(identity === 'member' ? '/admin?view=keys' : '/admin?view=access');
-  await expect(page.locator('[data-confirmation-fallback]:visible')).toHaveCount(0);
+  await expect(page.locator('[data-confirmation-fallback]:not([hidden])')).toHaveCount(0);
   const html = renderToString(createElement('section', { 'data-one-time-key': 'true', 'data-synthetic-secret': '', className: 'panel setup-package' },
     createElement('h2', null, '一次性密钥显示测试'),
     identity === 'member' ? createElement(CopySecretIsland, { control: { token } })

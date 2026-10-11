@@ -1,8 +1,8 @@
 import type { Locator, Page } from "@playwright/test";
-import { test, expect } from "./fixtures";
+import { openNativeConfirmation, test, expect } from "./fixtures";
 
 async function submit(page: Page, form: Locator, button: Locator, script: boolean, label: string) {
-  if (!script) await form.locator('[data-confirmation-fallback] input').check();
+  if (!script) {await openNativeConfirmation(form); await form.locator('[data-confirmation-fallback] input').check();}
   await button.click();
   if (script) {
     const dialog = page.getByRole('alertdialog');
@@ -29,7 +29,7 @@ for (const script of [true, false]) test.describe(`credential tasks script ${scr
     expect(saveGeometry.lines).toBe(1);
     await form.getByRole('combobox').selectOption('task-new');
     if (script) {
-      await expect(page.locator('[data-confirmation-fallback]:visible')).toHaveCount(0);
+      await expect(page.locator('[data-confirmation-fallback]:not([hidden])')).toHaveCount(0);
       await save.click();
       const dialog = page.getByRole('alertdialog');
       await expect(dialog).toContainText('Synthetic task-new');

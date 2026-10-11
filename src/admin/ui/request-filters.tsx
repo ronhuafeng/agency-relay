@@ -1,11 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { Button } from "./components/button";
 import { Input } from "./components/input";
 import { NativeSelect } from "./components/native-select";
 import { Field, FieldLabel } from "./components/field";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "./components/collapsible";
-import { useEnhanced } from "./use-enhanced";
 import { InfoPopover } from "./components/info-popover";
 
 export interface RequestFiltersControl {
@@ -35,9 +33,10 @@ export function RequestScope({retentionDays, id = "request-history-scope"}: {rea
 }
 
 export function RequestFiltersView({control}: {readonly control: RequestFiltersControl}) {
-  const enhanced = useEnhanced();
   const q = control.query;
   const [expanded, setExpanded] = useState(Boolean(q.user || q.request));
+  const disclosure = useRef<HTMLDetailsElement | null>(null);
+  useLayoutEffect(() => {if (disclosure.current) setExpanded(disclosure.current.open);}, []);
   const form = useRef<HTMLFormElement>(null);
   const exactCount = Number(Boolean(q.user)) + Number(Boolean(q.request));
   const filtered = Boolean(q.from || q.to || q.plan || q.user || q.result || q.request);
@@ -50,9 +49,9 @@ export function RequestFiltersView({control}: {readonly control: RequestFiltersC
     current.addEventListener("console:restore", restore);
     return () => current.removeEventListener("console:restore", restore);
   }, []);
-  return <form ref={form} method="get" action={control.action} data-dashboard-search="" data-search-anchor="request-history" className="board-form request-filters" aria-label="筛选请求记录">
+  return <form ref={form} method="get" action={`${control.action}#request-history`} data-dashboard-search="" className="board-form request-filters" aria-label="筛选请求记录">
     <input type="hidden" name="view" value="audit" />
-    <Collapsible open={!enhanced || expanded} onOpenChange={setExpanded}>
+    <div>
       <div className="request-filter-primary">
         <Field><FieldLabel htmlFor="request-from">开始日期（UTC）</FieldLabel><Input id="request-from" type="date" name="audit_from" defaultValue={q.from} /></Field>
         <Field><FieldLabel htmlFor="request-to">结束日期（UTC）</FieldLabel><Input id="request-to" type="date" name="audit_to" defaultValue={q.to} /></Field>
@@ -64,15 +63,15 @@ export function RequestFiltersView({control}: {readonly control: RequestFiltersC
         <Field><FieldLabel htmlFor="request-result">结果</FieldLabel><NativeSelect id="request-result" name="audit_result" defaultValue={q.result}><option value="">全部结果</option><option value="ok">成功</option><option value="error">失败</option><option value="unknown">未识别</option></NativeSelect></Field>
       </div>
       <div className="request-filter-actions">
-        {enhanced ? <CollapsibleTrigger asChild><Button type="button" variant="outline">精确定位{exactCount ? ` · ${exactCount}` : ""}<ChevronDown className="ui-icon" aria-hidden="true" /></Button></CollapsibleTrigger> : null}
+        <details ref={disclosure} className="request-exact-disclosure" open={expanded} onToggle={event=>setExpanded(event.currentTarget.open)}><Button asChild variant="outline"><summary role="button" aria-controls="request-exact-filters">精确定位{exactCount ? ` · ${exactCount}` : ""}<ChevronDown className="ui-icon" aria-hidden="true" /></summary></Button></details>
         <Button type="submit">筛选请求</Button>
         {filtered ? <Button asChild variant="ghost"><a data-dashboard-link="" href="?view=audit#request-history">清除筛选</a></Button> : null}
         <RequestScope retentionDays={control.retentionDays}/>
       </div>
-      <CollapsibleContent forceMount hidden={enhanced && !expanded} className="request-exact-filters">
+      <div id="request-exact-filters" className="request-exact-filters">
         <Field><FieldLabel htmlFor="request-person">成员</FieldLabel><Input id="request-person" name="audit_user" placeholder="邮箱或成员 ID · 精确匹配" defaultValue={q.user} maxLength={254} /></Field>
         <Field><FieldLabel htmlFor="request-correlation">请求 ID</FieldLabel><Input id="request-correlation" name="audit_request" placeholder="精确匹配" defaultValue={q.request} maxLength={128} autoComplete="off" /></Field>
-      </CollapsibleContent>
-    </Collapsible>
+      </div>
+    </div>
   </form>;
 }

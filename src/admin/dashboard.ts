@@ -19,7 +19,7 @@ import { consoleDocument } from "./console-shell";
 import { ReadError } from "./ui/read-error";
 import { RecoveryPage } from "./ui/recovery-page";
 import { consoleLoginHref, consoleReturnTarget } from "./return-target";
-import { consoleDataRevision } from "./console-revision";
+import { consoleDataRevision, unchangedConsoleRead } from "./console-revision";
 
 
 
@@ -85,6 +85,8 @@ export async function adminDashboardResponse(input: AdminDashboardInput): Promis
     // ledgers participate in periodic console updates. Write results stay put.
     const revision = !input.mutationFlash && !task && !(view === "credentials" && requestedAccount)
       ? await consoleDataRevision(model) : undefined;
+    const unchanged = unchangedConsoleRead(input.unchangedRevision, revision, input.identity.userId);
+    if (unchanged) return unchanged;
     return htmlResponse(renderDashboardDocument(model, nonce, createElement(DashboardContent, {model}), revision), 200, nonce, true, input.url.origin);
   } catch (error) {
     const requestId = presentText(input.requestId);
@@ -299,8 +301,8 @@ function htmlResponse(html: string, status: number, nonce: string, allowScript =
       // form-action 'self' is required for board HTML form POSTs (/admin/ui/*).
       // Read-only era used 'none'; writable console must allow same-origin submits.
       // Radix uses style attributes for SSR form inputs and control geometry.
-      // Stylesheets and executable scripts remain nonce-bound.
-      "Content-Security-Policy": `default-src 'none'; script-src ${allowScript ? `'nonce-${nonce}'` : "'none'"}; ${allowScript ? `connect-src 'self'${socket ? ` ${socket.href}` : ""}; manifest-src 'self'; img-src 'self'; worker-src 'self'; ` : ""}style-src 'nonce-${nonce}'; style-src-attr 'unsafe-inline'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'`,
+      // The versioned generated stylesheet is same-origin; executable scripts remain nonce-bound.
+      "Content-Security-Policy": `default-src 'none'; script-src ${allowScript ? `'nonce-${nonce}'` : "'none'"}; ${allowScript ? `connect-src 'self'${socket ? ` ${socket.href}` : ""}; manifest-src 'self'; img-src 'self'; worker-src 'self'; ` : ""}style-src 'self' 'nonce-${nonce}'; style-src-attr 'unsafe-inline'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'`,
       "Content-Type": "text/html; charset=utf-8",
       "Referrer-Policy": "same-origin",
       "X-Content-Type-Options": "nosniff",

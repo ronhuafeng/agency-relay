@@ -69,10 +69,26 @@ for (const scenario of [
       expect(worker.requests.every(request => request.method === 'GET')).toBe(true);
       expect(await page.locator('[data-one-time-key],[data-created-token]').count()).toBe(0);
       expect(await page.locator('[name="existing_key"]').evaluateAll(nodes => nodes.every(node => !(node as HTMLInputElement).value))).toBe(true);
-      await page.evaluate(() => scrollTo(0, 0));
+      // Capture the real viewport containing the focused task. Full-page
+      // capture temporarily enlarges the viewport and triggers legitimate resize
+      // focus recovery, so its fixed-layer pixels are not a user-visible frame.
+      await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+      const captureScroll = await page.evaluate(() => scrollY);
+      const assertCaptureState = async () => {
+        expect(await page.evaluate(() => scrollY), 'capture preserves the live task position').toBe(captureScroll);
+        await expect(control).toBeFocused();
+        const skip = await page.getByRole('link', {name:'跳到正文',exact:true}).evaluate(link => {
+          const box = link.getBoundingClientRect();
+          return {focused:link.matches(':focus'), outsideViewport:box.bottom <= 0 || box.right <= 0 || box.left >= innerWidth};
+        });
+        expect(skip, 'unfocused skip link stays outside the live viewport').toEqual({focused:false,outsideViewport:true});
+      };
+      await assertCaptureState();
       const stem = `safe-${scenario.identity}-${scenario.subject.replaceAll(' ', '-')}-${scenario.width}-${scenario.colorScheme}`;
       const path = testInfo.outputPath(`${stem}.png`);
-      await page.screenshot({ path, animations: 'disabled', fullPage: true });
+      await page.screenshot({ path, animations: 'disabled' });
+      // Capture must not move the task or reveal the unfocused skip link.
+      await assertCaptureState();
       writeFileSync(testInfo.outputPath(`${stem}.json`), JSON.stringify({
         schema: 2, checkout_sha: execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(),
         tracked_dirty: execFileSync('git', ['status', '--porcelain', '--untracked-files=no'], { encoding: 'utf8' }).trim().length > 0,
@@ -103,7 +119,7 @@ test.describe('SSR and hydration parity', () => {
       const nativeCodex = await plain.getByRole('checkbox', { name: 'Codex', exact: true }).isEnabled();
       const nativeGrok = await plain.getByRole('checkbox', { name: 'Grok', exact: true }).isEnabled();
       await page.goto('/admin?view=keys');
-      await expect(page.locator('[data-confirmation-fallback]:visible')).toHaveCount(0);
+      await expect(page.locator('[data-confirmation-fallback]:not([hidden])')).toHaveCount(0);
       await openMemberCreate(page);
       await expect(page.getByRole('combobox', { name: '有效期' })).toHaveValue(nativeExpiry);
       expect(await page.getByRole('checkbox', { name: 'Codex', exact: true }).isEnabled()).toBe(nativeCodex);

@@ -33,3 +33,6 @@
   .setup-workbench .form-footer>[data-slot=button] { white-space:normal; height:auto; }
   .setup-workbench-key .task-head-actions { margin-left:auto; }
 }
+
+.setup-local-fields { display:contents; }
+.setup-workbench:has(.setup-native-fallback) [data-client-verification][hidden] { display:block!important; }

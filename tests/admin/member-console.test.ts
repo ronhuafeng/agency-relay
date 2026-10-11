@@ -132,7 +132,7 @@ describe("role-aware console", () => {
     expect(homeHtml).toContain("我的额度");
     expect(homeHtml).toContain('data-sign-out="true"');
     expect(homeHtml).toContain('id="console-dialog-root"');
-    expect(homeHtml).toContain('src="/admin/console.js"');
+    expect(homeHtml).toContain('data-console-bootstrap=""');
     expect(homeHtml).not.toContain("hidden-person@example.com");
     expect(homeHtml).not.toContain("shared_default");
     expect(homeHtml).not.toContain("Accounts");

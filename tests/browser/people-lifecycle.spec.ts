@@ -1,4 +1,4 @@
-import { test, expect } from './fixtures';
+import { openNativeConfirmation, test, expect } from './fixtures';
 import { ORIGIN } from './worker';
 
 // Feature-owned extension for #354; SQL races and last-admin policy stay in Vitest.
@@ -31,13 +31,17 @@ test.describe('native role/email results', () => {
   test.use({ script: false });
   test('both native writes render their exact outcome and preserve the selected person', async ({ page, worker }) => {
     await page.goto('/admin?view=access&person=other&q=other&range=30d');
+    await page.getByRole('button',{name:'更改角色',exact:true}).click();
     const role = page.locator('form[action="/admin/ui/users/other/role"]');
+    await openNativeConfirmation(role);
     await role.getByRole('checkbox').check();
     await role.getByRole('button', { name: '设为管理员' }).click();
     await expect(page.locator('[data-mutation-flash="user_role"]')).toContainText('当前角色为管理员');
     expect(worker.person('other@example.test')?.role).toBe('admin');
+    await page.getByRole('button',{name:'更改登录邮箱',exact:true}).click();
     const email = page.locator('form[action="/admin/ui/users/other/email"]');
     await email.getByRole('textbox', { name: '新的组织邮箱' }).fill('renamed@example.test');
+    await openNativeConfirmation(email);
     await email.getByRole('checkbox').check();
     await email.getByRole('button', { name: '迁移邮箱' }).click();
     await expect(page.locator('[data-mutation-flash="user_email"]')).toContainText('other@example.test → renamed@example.test');
@@ -51,7 +55,7 @@ test.describe('native role/email results', () => {
 
 test('self-demotion keeps the confirmed result and hands off to the personal entry', async ({ page, worker }) => {
   await page.goto('/admin?view=access&person=admin');
-  await expect(page.locator('[data-confirmation-fallback]:visible')).toHaveCount(0);
+  await expect(page.locator('[data-confirmation-fallback]:not([hidden])')).toHaveCount(0);
   await page.getByRole('button',{name:'更改角色',exact:true}).click();
   await page.getByRole('button', { name: '设为普通成员' }).click();
   await page.getByRole('alertdialog').getByRole('button', { name: '设为普通成员' }).click();
@@ -68,7 +72,7 @@ test.describe('390px self-email confirmation', () => {
   test.use({ viewport: { width: 390, height: 900 } });
   test('the dialog names the submitted mailbox, then ends at reauthentication and rejects the old cookie', async ({ page, context, worker }) => {
     await page.goto('/admin?view=access&person=admin');
-    await expect(page.locator('[data-confirmation-fallback]:visible')).toHaveCount(0);
+    await expect(page.locator('[data-confirmation-fallback]:not([hidden])')).toHaveCount(0);
     const oldCookies = await context.cookies();
     await page.getByRole('button',{name:'更改登录邮箱',exact:true}).click();
     const email = page.getByRole('textbox', { name: '新的组织邮箱' });

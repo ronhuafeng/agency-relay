@@ -1,11 +1,11 @@
 import type { Locator, Page, WebSocketRoute } from "@playwright/test";
-import { test, expect } from "./fixtures";
+import { test, expect, openNativeConfirmation } from "./fixtures";
 
 const target = "/admin?view=credentials&account=codex%3Afixture-codex&range=30d&q=Synthetic";
 const admission = (page: Page) => page.locator('[data-account-detail="codex:fixture-codex"] [data-account-admission]');
 const admissionPosts = (requests: Array<{method: string; path: string}>) => requests.filter(request => request.method === "POST" && /\/codex-auths\/fixture-codex\/(pause|resume)$/.test(request.path));
 async function confirm(page: Page, form: Locator, script: boolean, label: string) {
-  if (!script) await form.locator('[data-confirmation-fallback] input').check();
+  if (!script) {await openNativeConfirmation(form); await form.locator('[data-confirmation-fallback] input').check();}
   await form.getByRole("switch", {name: "ChatGPT · Synthetic Codex：允许新请求", exact: true}).click();
   if (script) await page.getByRole("alertdialog").getByRole("button", {name: label, exact: true}).click();
 }

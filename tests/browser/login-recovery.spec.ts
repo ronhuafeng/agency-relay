@@ -54,7 +54,7 @@ for (const identity of ['admin', 'member'] as const) test.describe(`${identity} 
       ? `/me/service-accounts/${service}?view=keys&key=${key}#member-key-inventory`
       : '/admin?view=access&range=30d&person=other&q=other#person-status';
     await page.goto(service ? target : target.split('#')[0]);
-    await expect(page.locator('[data-confirmation-fallback]:visible')).toHaveCount(0);
+    await expect(page.locator('[data-confirmation-fallback]:not([hidden])')).toHaveCount(0);
     if (!service) await page.goto(target);
     await expect(page).toHaveURL(new URL(target,page.url()).href);
     worker.expireSessions(); worker.loginAs(identity);

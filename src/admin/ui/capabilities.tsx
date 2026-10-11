@@ -1,11 +1,8 @@
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "./components/table";
-import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "./components/collapsible";
-import { useEnhanced } from "./use-enhanced";
 import type { CapabilityComparisonModel } from "./models";
 
 export function CapabilityComparison({ model }: { readonly model: CapabilityComparisonModel }) {
   const { view } = model;
-  const enhanced = useEnhanced();
   const content = <>
         <div className="surface-capability-authorities" role="list" aria-label="服务权限模型">
           {view.surfaces.map((surface) => (
@@ -54,6 +51,5 @@ export function CapabilityComparison({ model }: { readonly model: CapabilityComp
         </div>
         <a className="action-link" href={model.routesHref} data-dashboard-link="">查看路由</a>
   </>;
-  if (!enhanced) return <details id="capabilities" className="surface-capability-view" data-surface-capability-view="true"><summary><strong>比较客户端能力</strong></summary><div className="surface-capability-body">{content}</div></details>;
-  return <Collapsible id="capabilities" className="surface-capability-view" data-surface-capability-view="true"><CollapsibleTrigger className="radix-collapsible-trigger capability-trigger"><strong>比较客户端能力</strong></CollapsibleTrigger><CollapsibleContent className="surface-capability-body">{content}</CollapsibleContent></Collapsible>;
+  return <details id="capabilities" className="surface-capability-view" data-surface-capability-view="true"><summary><strong>比较客户端能力</strong></summary><div className="surface-capability-body">{content}</div></details>;
 }

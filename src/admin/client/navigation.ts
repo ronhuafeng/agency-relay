@@ -4,7 +4,7 @@ import type { Drafts } from "./drafts";
 import { setConsoleStatus } from "./background-refresh";
 interface Context { url: string; scroll: number; focusLink: string | null; filters: string[] }
 interface Entry { miniEntry: string; miniDepth: number }
-export interface Navigation {
+export interface TaskController {
   notice(message: string, kind?: string, url?: URL | null, linkLabel?: string): void;
   currentUrl(): URL;
   discardDraft(form: HTMLFormElement): void;
@@ -59,7 +59,8 @@ function retainNavigation(current: HTMLElement, incoming: HTMLElement): boolean 
   return true;
 }
 
-export function createNavigation(initialize: (root: ParentNode) => void, drafts: Drafts): Navigation {
+/** In-document task transitions, mutation results and background reads; page links use the browser. */
+export function createTaskController(initialize: (root: ParentNode) => void, drafts: Drafts): TaskController {
   const shell = (): HTMLElement => required(document.querySelector<HTMLElement>(shellSelector), "shell missing");
   const main = (): HTMLElement => required(document.querySelector<HTMLElement>("main#content"), "main missing");
   const integrate = (doc: Document, incoming: HTMLElement): void => {
@@ -93,7 +94,7 @@ export function createNavigation(initialize: (root: ParentNode) => void, drafts:
     region.hidden = !message || kind === "loading"; region.dataset.state = kind;
     setConsoleStatus(kind === "loading" ? message : "", "pending");
     const text = region.querySelector("[data-notice-message]"); if (text) text.textContent = message;
-    const link = region.querySelector<HTMLAnchorElement>("a"); if (link) { link.hidden = !url; if (url) { link.href = url.href; link.textContent = label; link.dataset.dashboardLink = ""; link.dataset.dashboardRefresh = ""; } }
+    const link = region.querySelector<HTMLAnchorElement>("a"); if (link) { link.hidden = !url; if (url) { link.href = url.href; link.textContent = label; link.dataset.dashboardLink = ""; link.dataset.taskLink = ""; link.dataset.dashboardRefresh = ""; } }
     const stop = region.querySelector<HTMLElement>("[data-stop-waiting]"); if (stop) stop.hidden = kind !== "pending"; updateInset();
   };
   const clearPrivatePage = (): void => {
@@ -132,7 +133,7 @@ export function createNavigation(initialize: (root: ParentNode) => void, drafts:
     if (next) { entry = next.miniEntry; depth = next.miniDepth; } else { entry = crypto.randomUUID(); depth++; history.pushState(state(), "", url); }
     restoreFilters(context); position(url, context);
   };
-  const navigate = async (url: URL, mode: "push" | "refresh" | "back", next: Entry | null = null, source: HTMLAnchorElement | null = null): Promise<void> => {
+  const navigateTask = async (url: URL, mode: "push" | "refresh" | "back", next: Entry | null = null, source: HTMLAnchorElement | null = null): Promise<void> => {
     save(source); const requestSequence = ++sequence; controller?.abort(); controller = new AbortController(); busy = true;
     main().setAttribute("aria-busy", "true"); notice(mode === "refresh" ? "正在刷新页面…" : "正在打开页面…", "loading");
     try {
@@ -186,19 +187,18 @@ export function createNavigation(initialize: (root: ParentNode) => void, drafts:
   };
   document.addEventListener("submit", (event) => {
     const form = event.target; if (event.defaultPrevented || !(form instanceof HTMLFormElement) || !form.matches("[data-dashboard-search]") || form.method !== "get") return;
-    const url = new URL(form.action, location.href); if (url.origin !== location.origin || url.pathname !== currentUrl.pathname) return;
-    event.preventDefault(); if (pending()) return; url.search = "";
-    for (const [name, value] of new FormData(form)) if (typeof value === "string") url.searchParams.append(name, value);
-    url.hash = form.dataset.searchAnchor ?? ""; void navigate(url, "push");
+    // GET queries and their fragment are complete in SSR. Do not replace the
+    // browser's document navigation with a duplicate fetch/parse/render pipeline.
+    if (pending()) event.preventDefault();
   }, { signal });
   document.addEventListener("click", (event) => {
     if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
     const target = event.target instanceof Element ? event.target : null;
     if (pending() && target?.closest("a[data-dashboard-link],.section-links a")) { event.preventDefault(); return; }
     const section = target?.closest<HTMLAnchorElement>('.section-links a[href^="#"]'); if (section) { event.preventDefault(); sectionNavigation(new URL(section.href, location.href)); return; }
-    const link = target?.closest<HTMLAnchorElement>("a[data-dashboard-link]"); if (!link || link.target || link.hasAttribute("download")) return;
+    const link = target?.closest<HTMLAnchorElement>("a[data-task-link]"); if (!link || link.target || link.hasAttribute("download")) return;
     const url = new URL(link.href, location.href); if (url.origin !== location.origin || url.pathname !== currentUrl.pathname) return;
-    event.preventDefault(); void navigate(url, link.hasAttribute("data-dashboard-refresh") || url.href === currentUrl.href ? "refresh" : "push", null, link);
+    event.preventDefault(); void navigateTask(url, link.hasAttribute("data-dashboard-refresh") || url.href === currentUrl.href ? "refresh" : "push", null, link);
   }, { signal });
   const paneTarget = (target: EventTarget | null): HTMLElement | null => target instanceof HTMLElement && target.matches("input,select,textarea,button,a[href],summary") && target.closest(".object-workspace-collection,[data-task-close]") ? target : null;
   document.addEventListener("pointerdown", (event) => { paneFocus = paneTarget(event.target); }, { signal });
@@ -215,7 +215,7 @@ export function createNavigation(initialize: (root: ParentNode) => void, drafts:
     if (pending()) { const distance = depth - (next?.miniDepth ?? 0); if (distance) { restoring = entry; history.go(distance); } else history.replaceState(state(), "", currentUrl); return; }
     const url = new URL(location.href);
     if (url.pathname === currentUrl.pathname && url.search === currentUrl.search) { if (next) sectionNavigation(url, next); else { currentUrl = url; position(url); } return; }
-    void navigate(url, "back", next);
+    void navigateTask(url, "back", next);
   }, { signal });
   window.addEventListener("pagehide", () => { contexts.clear(); paneFocus = null; drafts.clear(); }, { signal });
   updateInset(); drafts.restore(shell());

@@ -1,4 +1,4 @@
-import { test, expect, openKeyEditor, openMemberCreate } from './fixtures';
+import { test, expect, openKeyEditor, openMemberCreate, acceptUnknownOutcomeRead } from './fixtures';
 import { NOW } from './worker';
 
 test.use({identity: 'member'});
@@ -109,7 +109,7 @@ test('an unknown write result locks other mounted key forms until an authorized 
   expect(worker.requests.filter(request => request.method === 'POST')).toHaveLength(1);
   const recovery = page.locator('[data-member-feedback]').getByRole('link', {name: '查看当前密钥', exact: true});
   await expect(recovery).toHaveAttribute('href', '/admin?area=me&view=keys&key=member-key');
-  await recovery.click();
+  await acceptUnknownOutcomeRead(page, recovery);
   await expect(page).toHaveURL('/admin?area=me&view=keys&key=member-key');
   await expect(page.locator('[data-member-key-row="member-key"]')).toBeVisible();
   await expect(page.locator('main')).not.toHaveAttribute('data-member-mutation-blocked', 'true');

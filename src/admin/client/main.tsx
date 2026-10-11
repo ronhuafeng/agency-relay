@@ -1,10 +1,11 @@
+import { afterDocumentParsed } from "./document-ready";
 import { initializeRecovery } from "./recovery";
 import { useEffect, useRef, useState } from "react";
 import { createRoot, hydrateRoot, type Root } from "react-dom/client";
 import { flushSync } from "react-dom";
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from "../ui/components/alert-dialog";
 import { createDrafts } from "./drafts";
-import { createNavigation } from "./navigation";
+import { createTaskController } from "./navigation";
 import { initializeBackgroundRefresh } from "./background-refresh";
 import { initializeCredentialStatus } from "./credential-status";
 import { initializeMutations } from "./mutations";
@@ -13,11 +14,9 @@ import { initializeMemberKeyRows, disposeMemberKeyRows } from "./member-key-rows
 import { initializeVisibleRowFilters } from "./filters";
 import { initializeSetup, initializeView } from "./setup";
 import { AccessChoiceView, AddAccountView, MemberKeyForm } from "../ui/forms";
-import { CapabilityComparison } from "../ui/capabilities";
-import { UsageReport } from "../ui/usage-report";
 import { UsageComparison, readUsageComparison } from "../ui/usage-comparison";
 import { CopySecretView, DisclosureView } from "../ui/secrets";
-import { readAccessChoice, readAddAccount, readCapabilityComparison, readCopySecret, readDisclosure, readMemberKeyForm, readUsageReport } from "../ui/models";
+import { readAccessChoice, readAddAccount, readCopySecret, readDisclosure, readMemberKeyForm } from "../ui/models";
 import { AccountMenuView, readAccountMenu } from "../ui/account-menu";
 import { SetupFilesView, readSetupFiles } from "../ui/setup-files";
 import { SetupWorkbenchView, readSetupWorkbench } from "../ui/setup-workbench";
@@ -170,24 +169,11 @@ function hydrateControl(node: HTMLScriptElement): void {
     hydrated.set(root, hydrateRoot(root, <SetupWorkbenchView control={control}/>));
     return;
   }
-  if (node.dataset.uiProps === "usage-report") {
-    const control = readUsageReport(value); const root = document.getElementById("usage-report");
-    if (!control || !root || hydrated.has(root)) return;
-    hydrated.set(root, hydrateRoot(root, <UsageReport control={control} />));
-    return;
-  }
   if (node.dataset.uiProps === "member-key-form") {
     const model = readMemberKeyForm(value);
     const root = document.getElementById("member-key-form");
     if (!model || !root || hydrated.has(root)) return;
     hydrated.set(root, hydrateRoot(root, <MemberKeyForm model={model} />));
-    return;
-  }
-  if (node.dataset.uiProps === "capability") {
-    const model = readCapabilityComparison(value);
-    const root = document.getElementById("capability-comparison");
-    if (!model || !root || hydrated.has(root)) return;
-    hydrated.set(root, hydrateRoot(root, <CapabilityComparison model={model} />));
     return;
   }
   if (node.dataset.uiProps === "disclosure") {
@@ -256,6 +242,7 @@ function clearSecrets(): void {
   document.querySelectorAll<HTMLInputElement>('input[type="password"],input[name="callback_url"]').forEach((input) => { input.value = ""; });
   document.querySelectorAll<HTMLScriptElement>('script[data-ui-props="copy-secret"],script[data-ui-props="disclosure"]').forEach((node) => { node.textContent = ""; });
 }
+afterDocumentParsed(() => {
 const mount = document.querySelector("#console-dialog-root");
 if (mount) {
   const unmount = mountConsoleDialog(mount);
@@ -272,10 +259,10 @@ if (mount) {
     initialize(next);
   };
   if (document.querySelector('.shell[data-dashboard-nav]')) {
-    const navigation = createNavigation(initialize, createDrafts());
-    const stopMutations = initializeMutations(navigation);
-    acceptBackground = navigation.acceptBackground;
-    stop = () => { stopMutations(); navigation.dispose(); };
+    const tasks = createTaskController(initialize, createDrafts());
+    const stopMutations = initializeMutations(tasks);
+    acceptBackground = tasks.acceptBackground;
+    stop = () => { stopMutations(); tasks.dispose(); };
   } else if (document.querySelector("[data-member-nav]")) stop = initializeMemberMutations();
   const stopBackground = initializeBackgroundRefresh(doc => acceptBackground(doc));
   const stopCredentials = initializeCredentialStatus();
@@ -287,3 +274,4 @@ if (mount) {
     void navigator.serviceWorker.register("/admin/app-worker.js", { scope: "/", updateViaCache: "none" }).catch(() => {});
   }
 }
+});

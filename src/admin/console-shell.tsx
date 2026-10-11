@@ -1,6 +1,7 @@
+import { ConsoleRuntime } from "./ui/console-runtime";
 import type { ReactNode } from "react";
 import { renderToString } from "react-dom/server";
-import { consoleStyles } from "./generated/console-styles";
+import { consoleStylesheetPath } from "./app";
 import { AppHead, ConsoleHeader, ConsoleNavigation } from "./ui/console-chrome";
 import { SidebarProvider } from "./ui/components/sidebar";
 
@@ -34,7 +35,7 @@ export function consoleDocument(input: ConsoleDocumentInput): string {
         <meta name="robots" content="noindex,nofollow" />
         <title>{input.title}</title>
         {input.appEnabled ? <AppHead /> : null}
-        <style nonce={input.nonce}>{consoleStyles}</style>
+        <link rel="stylesheet" href={consoleStylesheetPath()} />
       </head>
       <body className="console-simple">
         <a className="skip-link" href="#content">跳到正文</a>
@@ -49,7 +50,7 @@ export function consoleDocument(input: ConsoleDocumentInput): string {
         {input.confirm ? (
           <>
             <div id="console-dialog-root" />
-            <script type="module" src="/admin/console.js" nonce={input.nonce} />
+            <ConsoleRuntime nonce={input.nonce} />
           </>
         ) : null}
       </body>

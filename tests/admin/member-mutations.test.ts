@@ -12,6 +12,26 @@ beforeEach(() => {
 afterEach(() => {dispose?.(); dispose = null; vi.restoreAllMocks(); vi.unstubAllGlobals();});
 const html = (body: string): string => `<!doctype html><html><head><title>我的密钥 · Mini</title></head><body class="console-simple"><header class="site-header"><div class="identity" data-console-actor-id="actor-A" data-console-email="viewer@example.test" data-console-role="user"></div></header><main id="content">${body}</main></body></html>`;
 describe("member mutation outcomes", () => {
+  it.each(["response lost", "navigation abort"])("keeps unknown exit protection after transport rejects before beforeunload: %s", async failure => {
+    let reject!: (error: Error) => void;
+    const fetch = vi.fn().mockReturnValue(new Promise<Response>((_resolve, fail) => {reject = fail;}));
+    vi.stubGlobal("fetch", fetch); dispose = initializeMemberMutations();
+    const form = element("form",HTMLFormElement); submit(form);
+    reject(failure === "navigation abort" ? new DOMException("Navigation interrupted transport", "AbortError") : new Error("Response lost"));
+    await vi.waitFor(() => expect(element("main",HTMLElement).dataset.memberMutationBlocked).toBe("true"));
+    expect(form.hasAttribute("aria-busy")).toBe(false);
+    expect(element("main",HTMLElement).dataset.consoleOutcome).toBe("unknown");
+    const leaving = new Event("beforeunload", {cancelable:true}); window.dispatchEvent(leaving);
+    expect(leaving.defaultPrevented).toBe(true);
+    submit(form); expect(fetch).toHaveBeenCalledOnce();
+    expect(element('button[type=submit]',HTMLButtonElement).disabled).toBe(true);
+    // A native fresh-read document gets a new runtime with no old outcome.
+    dispose(); document.body.innerHTML = new DOMParser().parseFromString(html('<div data-member-view="keys">Current server state</div>'), "text/html").body.innerHTML;
+    dispose = initializeMemberMutations();
+    const readLeaving = new Event("beforeunload", {cancelable:true}); window.dispatchEvent(readLeaving);
+    expect(readLeaving.defaultPrevented).toBe(false);
+    expect(fetch).toHaveBeenCalledOnce();
+  });
   it("shows the one-time result once and leaves a GET address for refresh", async () => {
     const fetch = vi.fn().mockResolvedValue(new Response(html('<article data-one-time-key><h1>密钥已创建</h1><a download="codex-config.toml">下载</a></article>'), {headers: {"Content-Type": "text/html"}}));
     vi.stubGlobal("fetch", fetch); dispose = initializeMemberMutations(); const form = element("form", HTMLFormElement); submit(form); submit(form);
@@ -44,6 +64,8 @@ describe("member mutation outcomes", () => {
     await vi.waitFor(()=>expect(document.body.textContent).toContain("密钥已撤销。 列表未刷新"));
     expect(document.body.textContent).not.toContain("操作结果尚未确认");
     expect(element("[data-member-feedback]",HTMLElement).dataset.state).toBe("success");
+    const leaving = new Event("beforeunload", {cancelable:true}); window.dispatchEvent(leaving);
+    expect(leaving.defaultPrevented).toBe(false);
     submit(form); expect(fetch).toHaveBeenCalledTimes(2);
     expect(element("main",HTMLElement).dataset.memberMutationBlocked).toBe("true");
     expect(element('#another-write button',HTMLButtonElement).disabled).toBe(true);

@@ -1,6 +1,6 @@
 import { writeFileSync } from 'node:fs';
 import type { Page } from '@playwright/test';
-import { test, expect } from './fixtures';
+import { openNativeConfirmation, test, expect, reopenRestoredConsolePage } from './fixtures';
 
 async function geometry(page: Page) {
   return page.locator('main').evaluate(main => {
@@ -93,9 +93,9 @@ test('route filtering, exact provider selection and Back retain context', async 
   await expect(page.locator('[data-account-key="grok:fixture-codex"] a')).toBeFocused();
 });
 
-test('quota drafts survive navigation and cancellation never writes', async ({ page, worker }) => {
+test('quota cancellation preserves the draft until native document departure and never writes', async ({ page, worker }) => {
   await page.goto('/admin?view=quotas');
-  await expect(page.locator('[data-confirmation-fallback]:visible')).toHaveCount(0);
+  await expect(page.locator('[data-confirmation-fallback]:not([hidden])')).toHaveCount(0);
   const quota = page.locator('[data-quota-default="codex"]');
   await quota.getByRole('spinbutton').fill('123');
   await page.locator('.organization-policy-form').getByRole('button', { name:'保存', exact:true }).click();
@@ -105,19 +105,25 @@ test('quota drafts survive navigation and cancellation never writes', async ({ p
   await page.keyboard.press('Escape');
   await expect(page.locator('.organization-policy-form').getByRole('button', { name:'保存', exact:true })).toBeFocused();
   expect(worker.requests.filter(request => request.method === 'POST').length).toBe(0);
-  await page.getByRole('navigation', { name:'控制台页面' }).getByRole('link', { name:'管理记录', exact:true }).click();
-  await expect(page.locator('[data-view-role="control-audit"]')).toBeVisible();
-  await page.goBack();
   await expect(quota.getByRole('spinbutton')).toHaveValue('123');
   await expect(page.locator('.organization-policy-form').getByText('有未保存的修改')).toBeVisible();
+  const saved = String(worker.quotaDefault('codex'));
+  const target = page.url();
+  await page.getByRole('navigation', { name:'控制台页面' }).getByRole('link', { name:'管理记录', exact:true }).click();
+  await page.waitForURL(/view=control-audit/, {waitUntil:'load'});
+  await expect(page.locator('[data-view-role="control-audit"]')).toBeVisible();
+  await page.goBack({waitUntil:'load'});
+  await reopenRestoredConsolePage(page, target);
+  await expect(quota.getByRole('spinbutton')).toHaveValue(saved);
+  await expect(page.locator('.organization-policy-form').getByText('有未保存的修改')).toBeHidden();
+  expect(worker.requests.filter(request => request.method === 'POST')).toHaveLength(0);
 });
 
 for(const script of [true,false]) test.describe(`administrator local configuration with script=${script}`,()=>{
   test.use({script,viewport:{width:390,height:900}});
   test('existing-key configuration remains with exact selection and retains inventory context',async({page,worker})=>{
     await page.goto('/admin?view=setup&person=member&key=member-key&range=30d&q=member&page=2');
-    if(script) await page.getByRole('button',{name:'已有密钥',exact:true}).click();
-    else await page.getByRole('link',{name:'用已有密钥生成配置',exact:true}).click();
+    await page.getByRole('button',{name:'已有密钥',exact:true}).click();
     await expect(page.locator('[data-sync-configuration="local-only"]')).toBeVisible();
     const current=new URL(page.url());
     expect(current.searchParams.get('view')).toBe('setup');
@@ -130,7 +136,8 @@ for(const script of [true,false]) test.describe(`administrator local configurati
     await expect(page.locator('[data-setup-selected-key="member-key"]')).toBeVisible();
     await expect(page.getByRole('searchbox',{name:'搜索账号或密钥'})).toHaveValue('member');
     const form=page.locator('[data-local-config-sync]');
-    if(script) await expect(form).toBeVisible(); else await expect(form).toBeHidden();
+    await expect(form).toBeVisible();
+    if(!script) await expect(form.getByLabel('已有密钥')).toBeDisabled();
     expect(await form.getAttribute('method')).toBeNull();
     expect(await form.getAttribute('action')).toBeNull();
     expect(worker.requests.every(request=>request.method==='GET')).toBe(true);
@@ -142,7 +149,9 @@ test.describe('native narrow administrator details', () => {
   test('disclosures and exact parent links work without scripting', async ({ page, worker }) => {
     worker.seedAdminLayouts();
     await page.goto('/admin?view=surfaces');
-    await expect(page.getByRole('searchbox')).toHaveCount(0);
+    for (const filter of await page.getByRole('searchbox').all()) await expect(filter).toBeDisabled();
+    expect(await page.locator('[data-surface-hostname]').evaluateAll(hosts => hosts.map(host => host.getAttribute('data-surface-hostname')))).toEqual(['api.trustedtunnel.app', 'grok.trustedtunnel.app', 'xai.trustedtunnel.app']);
+    for (const host of await page.locator('[data-surface-hostname]').all()) await expect(host).toBeVisible();
     const route=page.locator('[data-route-id="codex.responses"]');
     await route.getByRole('button', {name:'请求与授权详情',exact:true}).click();
     await expect(route.getByText('ChatGPT',{exact:true})).toBeVisible();
@@ -181,7 +190,7 @@ test.describe('enlarged administrator workspace', () => {
 
 test('one quota save commits all three confirmed values in the enhanced workspace', async ({ page, worker }) => {
   await page.goto('/admin?view=quotas');
-  await expect(page.locator('[data-confirmation-fallback]:visible')).toHaveCount(0);
+  await expect(page.locator('[data-confirmation-fallback]:not([hidden])')).toHaveCount(0);
   const quota=page.locator('[data-quota-default="codex"]');
   await quota.getByRole('spinbutton').fill('123');
   await page.locator('[data-quota-default="grok"]').getByRole('spinbutton').fill('456');
@@ -197,7 +206,7 @@ test('one quota save commits all three confirmed values in the enhanced workspac
 
 test('stale organization quota form rejects every change and offers a fresh read', async ({page,worker}) => {
   await page.goto('/admin?view=quotas');
-  await expect(page.locator('[data-confirmation-fallback]:visible')).toHaveCount(0);
+  await expect(page.locator('[data-confirmation-fallback]:not([hidden])')).toHaveCount(0);
   const initial = ['codex','grok','xai'].map(surface => worker.quotaDefault(surface));
   await page.locator('[data-quota-default="codex"]').getByRole('spinbutton').fill('321');
   worker.setQuotaDefault('grok',333);
@@ -217,6 +226,7 @@ test.describe('native quota save',()=>{
     await page.goto('/admin?view=quotas');
     const quota=page.locator('[data-quota-default="codex"]');
     await quota.getByRole('spinbutton').fill('124');
+    await openNativeConfirmation(page.locator('.organization-policy-form'));
     await page.locator('.organization-policy-form').getByRole('checkbox').check();
     await page.locator('.organization-policy-form').getByRole('button',{name:'保存',exact:true}).click();
     await expect(page).toHaveURL(/\/admin\/ui\/credit-defaults$/);
@@ -233,6 +243,7 @@ test.describe('native quota save',()=>{
     worker.failQuotaLayoutRead(0);
     const quota=page.locator('[data-quota-default="codex"]');
     await quota.getByRole('spinbutton').fill('129');
+    await openNativeConfirmation(page.locator('.organization-policy-form'));
     await page.locator('.organization-policy-form').getByRole('checkbox').check();
     await page.locator('.organization-policy-form').getByRole('button',{name:'保存',exact:true}).click();
     await expect(page.locator('[data-mutation-flash="credit_default"]')).toContainText('每月 129 credits');
@@ -249,7 +260,7 @@ test.describe('native quota save',()=>{
 
 test('quota confirmed write survives a failed page read and recovers without replay', async ({page,worker})=>{
   await page.goto('/admin?view=quotas');
-  await expect(page.locator('[data-confirmation-fallback]:visible')).toHaveCount(0);
+  await expect(page.locator('[data-confirmation-fallback]:not([hidden])')).toHaveCount(0);
   worker.failQuotaLayoutRead(0); // The bulk command commits before the following layout read.
   const quota=page.locator('[data-quota-default="codex"]');
   await quota.getByRole('spinbutton').fill('126');
@@ -267,7 +278,7 @@ test('quota confirmed write survives a failed page read and recovers without rep
 
 test('quota pending actions and stop-waiting reconcile the committed value once', async ({page,worker})=>{
   await page.goto('/admin?view=quotas');
-  await expect(page.locator('[data-confirmation-fallback]:visible')).toHaveCount(0);
+  await expect(page.locator('[data-confirmation-fallback]:not([hidden])')).toHaveCount(0);
   const hold=worker.hold({method:'POST',path:'/admin/ui/credit-defaults'});
   const quota=page.locator('[data-quota-default="codex"]');
   await quota.getByRole('spinbutton').fill('127');

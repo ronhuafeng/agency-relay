@@ -8,6 +8,11 @@ export function recordConsoleOutcome(outcome: Exclude<ConsoleOutcome, 'read'>): 
   const main = document.querySelector<HTMLElement>('main#content');
   if (main) main.dataset.consoleOutcome = outcome;
 }
+/** Transport completion does not settle a write. Fresh read replacement or a
+ * confirmed/rejected result releases the current document's unknown outcome. */
+export function hasUnknownConsoleOutcome(): boolean {
+  return document.querySelector<HTMLElement>('main#content')?.dataset.consoleOutcome === 'unknown';
+}
 export function consoleActorId(root: ParentNode = document): string | null {
   return root.querySelector<HTMLElement>('[data-console-actor-id]')?.dataset.consoleActorId || null;
 }

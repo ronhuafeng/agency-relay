@@ -1,7 +1,35 @@
 /** PWA resources for the console-session-protected dashboard host. No operator data. */
 import { APP_ICON_PNG } from "./app-icons";
-import { consoleClientSource } from "./generated/console-client";
-import { consoleStyles, consoleTheme } from "./generated/console-styles";
+import { consoleClientSource, consoleClientDigest } from "./generated/console-client";
+import { consoleStyles, consoleStylesDigest, consoleTheme } from "./generated/console-styles";
+
+// Generated public code and styling have no account data. Content-addressed
+// immutable URLs are distinct from no-store authenticated documents and PWA data.
+const CONSOLE_STYLESHEET_PATH = `/admin/console-${consoleStylesDigest}.css`;
+const CONSOLE_CLIENT_PATH = `/admin/console-${consoleClientDigest}.js`;
+export function consoleClientPath(): string { return CONSOLE_CLIENT_PATH; }
+export function consoleVersionedClientResponse(path: string): Response | null {
+  if (path !== CONSOLE_CLIENT_PATH) return null;
+  return new Response(consoleClientSource, {headers: {
+    "Content-Type": "text/javascript; charset=utf-8",
+    "Cache-Control": "public, max-age=31536000, immutable",
+    "X-Content-Type-Options": "nosniff",
+    "X-Robots-Tag": "noindex, nofollow"
+  }});
+}
+
+export function consoleStylesheetPath(): string { return CONSOLE_STYLESHEET_PATH; }
+
+/** Exact public CSS route; independent of console identity and private reads. */
+export function consoleStylesheetResponse(path: string): Response | null {
+  if (path !== CONSOLE_STYLESHEET_PATH) return null;
+  return new Response(consoleStyles, {headers: {
+    "Content-Type": "text/css; charset=utf-8",
+    "Cache-Control": "public, max-age=31536000, immutable",
+    "X-Content-Type-Options": "nosniff",
+    "X-Robots-Tag": "noindex, nofollow"
+  }});
+}
 
 export const DASHBOARD_APP_PATHS = [
   "/admin/app.webmanifest", "/admin/app-worker.js",

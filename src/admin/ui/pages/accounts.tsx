@@ -9,7 +9,7 @@ import { keyStateLabel } from "../../key-label";
 import { AddAccountIsland } from "../islands";
 import { Button } from "../components/button";
 import { ConfirmationFallback, Field, InventorySearchView } from "../fields";
-import { DashLink } from "../chrome";
+import { TaskLink } from "../chrome";
 import { accountDashboardUrl, inventoryUrl } from "../href";
 import { Icon } from "../icon";
 import { InventoryPages, inventorySearchControl } from "../inventory";
@@ -106,7 +106,7 @@ function AccountAdmission({ model }: { readonly model: AccountsPageModel }) {
       {impact ? <p className="caption" data-admission-impact="">{impactText}</p> : null}
       {blocked ? <p className="caption">{blocked}</p> : <ConfirmationFallback message={confirmation}/>}
       <p className="caption" data-credential-admission-changed="" hidden>请求准入已变化，请先查看当前状态，再确认操作。</p>
-      <a data-credential-admission-read="" data-dashboard-link="" href={accountDashboardUrl(model.canonicalUrl, account.key)} hidden={!blocked}>查看当前状态</a>
+      <a data-credential-admission-read="" data-dashboard-link="" data-task-link="" href={accountDashboardUrl(model.canonicalUrl, account.key)} hidden={!blocked}>查看当前状态</a>
     </form>
   </section>;
 }
@@ -233,7 +233,7 @@ function AuthorizingStrip(props: {
           <a href={projection.authorizeUrl} data-oauth-open="true" target="_blank" rel="noopener noreferrer">{actionButtonLabel("continue_authorize")}</a>
         </Button>
         <Button asChild variant="outline">
-          <a href={props.cancelUrl} data-dashboard-link="" data-action="oauth-cancel">{actionButtonLabel("cancel")}</a>
+          <a href={props.cancelUrl} data-dashboard-link="" data-task-link="" data-action="oauth-cancel">{actionButtonLabel("cancel")}</a>
         </Button>
       </div>
       <form className="board-form credential-complete" method="post" action={props.routes.complete} data-action={props.routes.completeAction}>
@@ -300,7 +300,7 @@ function IdentityCard(props: {
       </div>
       <div className="credential-body">
         <p className="credential-callout" data-operator-hint="true" data-credential-hint="" role="status" hidden={!hint}>{hint}</p>
-        <a data-credential-read-current="" data-dashboard-link="" href={props.cancelUrl} hidden>查看当前连接</a>
+        <a data-credential-read-current="" data-dashboard-link="" data-task-link="" href={props.cancelUrl} hidden>查看当前连接</a>
         <dl className="data-list compact credential-status" data-credential-dates="" hidden={!(projection.email || projection.expiresAt || projection.lastRefreshAt)}>
           {projection.email ? <div><dt>邮箱</dt><dd>{presentText(projection.email)}</dd></div> : null}
           <div data-credential-expiry="" hidden={!projection.expiresAt}><dt>{projection.state === "expired" ? "已过期" : "到期时间"}</dt><dd>{projection.expiresAt ? formatOperatorInstant(projection.expiresAt) : ""}</dd></div>
@@ -342,7 +342,7 @@ function LinkedKeys(props: { readonly model: AccountsPageModel; readonly readOnl
             const identity = <><span className="linked-key-identity"><strong>{presentText(personLabel({ id: key.user_id, email: key.user_email }))}</strong><span><code>{presentText(key.key_prefix)}</code> · {presentText(clients)}</span></span><span className="key-state">{keyStateLabel(key, key.user_status ? { status: key.user_status } : undefined, props.model.nowMs)}</span><Icon name="arrow" /></>;
             return (
               <li key={key.id} data-linked-key={key.id}>
-                {props.readOnly ? <span className="linked-key-link" aria-disabled="true">{identity}</span> : <DashLink className="linked-key-link" href={href}>{identity}</DashLink>}
+                {props.readOnly ? <span className="linked-key-link" aria-disabled="true">{identity}</span> : <TaskLink className="linked-key-link" href={href}>{identity}</TaskLink>}
               </li>
             );
           })}
@@ -408,7 +408,7 @@ export function AccountsPage({ model }: { readonly model: AccountsPageModel }) {
         </div>
       ) : null} collection={<aside id="accounts-list" className="accounts-index" tabIndex={-1} aria-label="账号列表">
         <div className="accounts-toolbar">
-          {authorizing ? <Button disabled><Icon name="plus" />添加上游账号</Button> : <Button asChild><DashLink href={inventoryUrl(parentUrl, { task: "add-account" }, "account-detail")}><Icon name="plus" />添加上游账号</DashLink></Button>}
+          {authorizing ? <Button disabled><Icon name="plus" />添加上游账号</Button> : <Button asChild><TaskLink href={inventoryUrl(parentUrl, { task: "add-account" }, "account-detail")}><Icon name="plus" />添加上游账号</TaskLink></Button>}
         </div>
         {authorizing ? <p role="status" className="caption">请先完成或取消当前授权。账号列表与其他设置暂时只读。</p> : null}
         <fieldset className="oauth-task-controls" disabled={authorizing}><InventorySearchView control={{...inventorySearchControl(model.canonicalUrl, "q", "page", "搜索账号", "accounts-list"),...(authorizing ? {clearHref:null} : {})}} /></fieldset>
@@ -418,7 +418,7 @@ export function AccountsPage({ model }: { readonly model: AccountsPageModel }) {
             const identity = <><span className="account-identity"><strong>{presentText(account.label)}</strong><small>{account.provider === "codex" ? "ChatGPT" : "Grok"}{account.provider === "codex" ? <span data-credential-admission="" hidden={account.projection.admissionState !== "paused"}> · 已暂停</span> : null}</small></span><Badge data-credential-status="" className={`account-state tone-${statusToneForState(account.projection.state)}`}>{presentText(account.projection.statusLabel)}</Badge><Icon name="arrow" /></>;
             return (
             <li key={account.key} data-account-key={account.key} data-credential-key={account.key}>
-              {authorizing ? <span className="account-link" aria-disabled="true" aria-current={account.key === model.selectedAccountKey ? "true" : undefined}>{identity}</span> : <DashLink className="account-link" href={`${accountDashboardUrl(model.canonicalUrl, account.key)}#account-detail`} current={account.key === model.selectedAccountKey}>{identity}</DashLink>}
+              {authorizing ? <span className="account-link" aria-disabled="true" aria-current={account.key === model.selectedAccountKey ? "true" : undefined}>{identity}</span> : <TaskLink className="account-link" href={`${accountDashboardUrl(model.canonicalUrl, account.key)}#account-detail`} current={account.key === model.selectedAccountKey}>{identity}</TaskLink>}
             </li>
           );})}
         </ul>

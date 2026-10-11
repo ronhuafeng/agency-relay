@@ -1,4 +1,4 @@
-import { retainConsoleActor, endConsoleRuntime, recordConsoleOutcome } from "./authority";
+import { retainConsoleActor, endConsoleRuntime, recordConsoleOutcome, hasUnknownConsoleOutcome } from "./authority";
 import { memberHref as personalHref } from "../member-href";
 import { consoleLoginHref } from "../return-target";
 import { buttonVariants } from "../ui/components/button";
@@ -62,7 +62,7 @@ export function initializeMemberMutations(): () => void {
     const link = event.target instanceof Element ? event.target.closest("a[href]") : null;
     if (pending && link) event.preventDefault();
   }, {signal});
-  window.addEventListener("beforeunload", event => {if (pending) {event.preventDefault(); event.returnValue = "";}}, {signal});
+  window.addEventListener("beforeunload", event => {if (pending || hasUnknownConsoleOutcome()) {event.preventDefault(); event.returnValue = "";}}, {signal});
   const submit = async (form: HTMLFormElement, body: URLSearchParams): Promise<void> => {
     const controller = new AbortController(); pending = controller;
     const controls = Array.from(document.querySelectorAll("main form button,main form input,main form select")).filter(isControl);

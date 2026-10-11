@@ -3,7 +3,7 @@ import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import type { Page, TestInfo } from '@playwright/test';
 import { consoleStyles } from '../../src/admin/generated/console-styles';
-import { test, expect, authenticate, openMemberCreate } from './fixtures';
+import { test, expect, authenticate, openMemberCreate, openNativeConfirmation } from './fixtures';
 
 const head=execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim();
 const stylesSha256=createHash('sha256').update(consoleStyles).digest('hex');
@@ -96,8 +96,11 @@ test.describe('native narrow policy and key controls',()=>{
   test('native policy form keeps the exact person and acknowledgement',async({page,worker},info)=>{
     await page.goto('/admin?view=access&person=member&q=member');
     await page.getByRole('navigation',{name:'人员内容'}).getByRole('link',{name:'额度',exact:true}).click();
+    await page.locator('[data-credit-user=member][data-credit-surface=codex]').getByRole('button',{name:'调整 Codex 额度',exact:true}).click();
     const policy=page.locator('#credit-policy-member-codex-editor');
-    await policy.getByRole('spinbutton').fill('37');await policy.getByRole('checkbox').check();
+    await policy.getByRole('spinbutton').fill('37');
+    await openNativeConfirmation(policy.locator('form[data-action=credit-set]'));
+    await policy.getByRole('checkbox').check();
     await inspect(page,info,'native-person-policy','admin');
     await policy.getByRole('button',{name:'保存',exact:true}).click();
     await expect(page.locator('[data-mutation-flash]')).toBeVisible();

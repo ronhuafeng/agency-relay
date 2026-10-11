@@ -29,7 +29,7 @@ import { credentialControlResponse, serviceAvailabilityResponse } from "./creden
 import { commitCredentialDefault, credentialActor, migrateCredentialBindings, disconnectCredential, retryCredentialCleanup, type OrganizationSurface } from "../auth/credential-defaults";
 import { adminDashboardResponse, dashboardAccountForMutation, dashboardKeyReturnUrl, dashboardPersonReturnUrl, consoleLifecycleOutcome, consoleUnknownOutcome } from "./dashboard";
 import { type DashboardMutationFlash } from "./dashboard-data";
-import { consoleClientResponse, dashboardAppResponse, isDashboardAppPath } from "./app";
+import { consoleClientPath, consoleVersionedClientResponse, consoleClientResponse, consoleStylesheetPath, consoleStylesheetResponse, dashboardAppResponse, isDashboardAppPath } from "./app";
 import {
   beginCodexCredentialOAuth,
   beginGrokCredentialOAuth,
@@ -116,11 +116,18 @@ interface RequestAuditCleanupResult {
 }
 
 export async function routeAdmin(request: Request, env: Env, url: URL, deps: AppDependencies, requestContext: RequestContext): Promise<Response> {
+  if (url.hostname === env.ADMIN_DASHBOARD_HOST && request.method === "GET" && url.search === "" && url.pathname === consoleClientPath()) {
+    return consoleVersionedClientResponse(url.pathname)!;
+  }
+  // Public, content-addressed CSS also styles the login page before a session exists.
+  if (url.hostname === env.ADMIN_DASHBOARD_HOST && request.method === "GET" && url.search === "" && url.pathname === consoleStylesheetPath()) {
+    return consoleStylesheetResponse(url.pathname)!;
+  }
   if (url.hostname === env.ADMIN_DASHBOARD_HOST) {
     const login = await routeConsoleLogin(request, env, url, deps, requestContext);
     if (login) return login;
   }
-  const authorized = await authorizeConsole(request, env, url, requestContext);
+  const authorized = await authorizeConsole(request, env, url, requestContext, deps.now);
   if (authorized instanceof Response) return authorized;
   const admin = authorized;
   if (["/admin/credential-status", "/admin/events/credentials"].includes(url.pathname)) {
@@ -143,7 +150,8 @@ export async function routeAdmin(request: Request, env: Env, url: URL, deps: App
   if (credentialResponse) return credentialResponse;
 
   if (isAdminDashboardPage(url, env) && request.method === "GET") {
-    return adminDashboardResponse({
+    const response = await adminDashboardResponse({
+      unchangedRevision: request.headers.get("X-Console-Revision"),
       env,
       url,
       identity: admin,
@@ -158,6 +166,8 @@ export async function routeAdmin(request: Request, env: Env, url: URL, deps: App
         }
       }
     });
+    if (response.status === 204) await assertUnchangedReadAuthority(request, env, admin.userId, admin.email, "admin", admin.sessionEpoch, deps.now());
+    return response;
   }
 
   // Access Dashboard mutations (dashboard host only — allowlist).
@@ -780,6 +790,7 @@ function isDashboardRoute(request: Request, url: URL, env: Env): boolean {
     return true;
   }
   if (url.pathname === "/admin/console.js" && request.method === "GET") return true;
+  if ([consoleStylesheetPath(), consoleClientPath()].includes(url.pathname) && url.search === "" && request.method === "GET") return true;
   return request.method === "GET"
     && (
       isAdminDashboardPage(url, env)
@@ -804,11 +815,21 @@ function memberKeyActionReturn(pathname: string): string | undefined {
   } catch { return undefined; }
 }
 
+/** An empty acknowledgement cannot carry fresh identity UI. Recheck the exact
+ * active session after model reads, before permitting the retained private DOM. */
+async function assertUnchangedReadAuthority(request: Request, env: Env, id: string | null | undefined, email: string | null | undefined, role: string, epoch: number | undefined, now: Date): Promise<void> {
+  const current = await verifyConsoleAccess(request, env, now);
+  if (!current || current.id !== id || current.email !== email || current.role !== role || current.sessionEpoch !== epoch) {
+    throw new HttpError(403, "Console authority changed", "authentication_error", "console_identity_changed");
+  }
+}
+
 async function authorizeConsole(
   request: Request,
   env: Env,
   url: URL,
-  requestContext: RequestContext
+  requestContext: RequestContext,
+  currentTime: () => Date
 ): Promise<AdminIdentity | Response> {
   if (url.hostname === CODEX_API_HOSTNAME) return requireOperator(request, env);
   if (url.hostname !== env.ADMIN_DASHBOARD_HOST) {
@@ -849,7 +870,7 @@ async function authorizeConsole(
     let response: Response;
     if ((suffix === "" || suffix === "/setup") && request.method === "GET") {
       if (suffix === "/setup") scopedUrl.searchParams.set("view", "setup");
-      response = wantsHtml(request) || suffix === "/setup" ? await memberConsoleResponse({env,url:scopedUrl,principal,service,now,requestId:requestContext.requestId})
+      response = wantsHtml(request) || suffix === "/setup" ? await memberConsoleResponse({env,url:scopedUrl,principal,service,now,requestId:requestContext.requestId,unchangedRevision:request.headers.get("X-Console-Revision")})
         : jsonResponse({service}, {headers:{"Cache-Control":"no-store"}});
     } else if (suffix === "/credits" && request.method === "GET") response = meCreditResponse(await listSurfaceCreditStates(env,now,service.id));
     else if (suffix === "/usage" && request.method === "GET") response = await memberUsageResponse({env,url:scopedUrl,principal,service,now});
@@ -857,6 +878,7 @@ async function authorizeConsole(
     // Read projections cannot return an old delegation after intervening awaits.
     // Writes are authorized by the committing operation and retain truthful outcomes.
     if (request.method === "GET") await delegatedService(env,principal,service.id);
+    if (response.status === 204) await assertUnchangedReadAuthority(request,env,principal.id,principal.email,principal.role,principal.sessionEpoch,currentTime());
     return response;
   }
   if (url.pathname === "/me" && request.method === "GET") return meResponse(principal);
@@ -887,17 +909,22 @@ async function authorizeConsole(
     if (url.searchParams.getAll("area").length !== 1 || url.searchParams.get("area") !== "me") {
       throw new HttpError(404, "Console area not found", "invalid_request_error", "not_found");
     }
-    return memberConsoleResponse({ env, url, principal, now: new Date(requestContext.startedAt), requestId: requestContext.requestId });
+    const response = await memberConsoleResponse({ env, url, principal, now: new Date(requestContext.startedAt), requestId: requestContext.requestId, unchangedRevision: request.headers.get("X-Console-Revision") });
+    if (response.status === 204) await assertUnchangedReadAuthority(request,env,principal.id,principal.email,principal.role,principal.sessionEpoch,currentTime());
+    return response;
   }
   if (principal.role !== "admin") {
     if (request.method === "GET" && isAdminDashboardPage(url, env)) {
-      return memberConsoleResponse({
+      const response = await memberConsoleResponse({
+        unchangedRevision: request.headers.get("X-Console-Revision"),
         env,
         url,
         principal,
         now: new Date(requestContext.startedAt),
         requestId: requestContext.requestId
       });
+      if (response.status === 204) await assertUnchangedReadAuthority(request,env,principal.id,principal.email,principal.role,principal.sessionEpoch,currentTime());
+      return response;
     }
     if (wantsHtml(request) && request.method === "POST" && (url.pathname.startsWith("/admin/ui/users") || url.pathname.startsWith("/admin/ui/services"))) {
       return consoleLifecycleOutcome({ rejected: true, href: "/admin?view=keys", label: "打开我的密钥", message: "你当前没有管理员权限，这次管理操作没有执行。个人密钥仍可在我的密钥中管理。" });

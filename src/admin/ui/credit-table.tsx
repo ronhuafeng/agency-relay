@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import type { CreditPolicyControl } from "./models";
 import { readCreditPolicy } from "./models";
 import { CreditPolicyForm, CreditPolicySwitch } from "./forms";
@@ -26,6 +26,9 @@ export function readCreditTable(value: unknown): readonly CreditTableRow[] | nul
 }
 function PolicyRow({row}: {readonly row: CreditTableRow}) {
   const enhanced = useEnhanced(); const [editing,setEditing] = useState(false); const {control,state} = row;
+  const disclosure = useRef<HTMLDetailsElement | null>(null);
+  useLayoutEffect(() => {if (disclosure.current) setEditing(disclosure.current.open);}, []);
+  const trigger = useRef<HTMLElement | null>(null);
   const surface = control.id.split("-").at(-1);
   const cap = !state ? "未读到" : state.mode === "limited" ? formatNumber(state.monthly_allowance ?? 0) : state.mode === "unlimited" ? "不限" : "已停用";
   return <>
@@ -35,11 +38,11 @@ function PolicyRow({row}: {readonly row: CreditTableRow}) {
       <TableCell className="number">{cap}</TableCell>
       <TableCell className="credit-used"><strong>{state ? formatNumber(state.consumed_credits) : "未读到"}</strong>{state?.mode === "limited" && (state.monthly_allowance ?? 0) > 0 ? <Progress aria-label={`${control.clientLabel} 本月已用额度占比`} value={Math.min(100,Math.max(0,state.consumed_credits / state.monthly_allowance! * 100))}/> : null}</TableCell>
       <TableCell className="number"><strong>{state?.mode === "limited" ? formatNumber(state.remaining_credits ?? 0) : cap}</strong>{state?.mode === "limited" && state.monthly_allowance === 0 ? <span className="record-subline">仅零消耗操作</span> : null}</TableCell>
-      <TableCell><div className="credit-policy-controls">{state ? <><CreditPolicySwitch control={control} onEnable={() => setEditing(true)}/>{enhanced ? <Button type="button" variant="ghost" size="icon" title={`调整 ${control.clientLabel} 额度`} aria-label={`调整 ${control.clientLabel} 额度`} aria-expanded={editing} aria-controls={`${control.id}-editor`} onClick={()=>setEditing(!editing)}><Icon name="edit"/></Button> : null}</> : <span role="alert">读取失败</span>}</div></TableCell>
+      <TableCell><div className="credit-policy-controls">{state ? <><CreditPolicySwitch control={control} onEnable={() => setEditing(true)}/><details ref={disclosure} className="credit-policy-disclosure" open={editing} onToggle={event=>setEditing(event.currentTarget.open)}><Button asChild variant="ghost" size="icon"><summary ref={trigger} role="button" aria-expanded={enhanced ? editing : undefined} title={`调整 ${control.clientLabel} 额度`} aria-label={`调整 ${control.clientLabel} 额度`} aria-controls={`${control.id}-editor`}><Icon name="edit"/></summary></Button></details></> : <span role="alert">读取失败</span>}</div></TableCell>
     </TableRow>
-    {state ? <TableRow className="credit-editor-row" hidden={enhanced && !editing}><TableCell colSpan={6}><div id={`${control.id}-editor`} className="credit-editor" data-credit-editor-state={enhanced && !editing ? "closed" : "open"}>
+    {state ? <TableRow className="credit-editor-row"><TableCell colSpan={6}><div id={`${control.id}-editor`} className="credit-editor" data-credit-editor-state={editing ? "open" : "closed"}>
       <CreditPolicyForm control={control} initialMode={control.mode === "disabled" ? "limited" : control.mode}/>
-      <div className="credit-editor-secondary">{state.source === "personal" ? <form className="inline-form" method="post" action={control.action} data-action="credit-inherit" data-confirmation={`去掉 ${control.personLabel} 的个人 ${control.clientLabel} 额度，改用组织默认？已用量不会重置。`}><ConfirmationFallback message="确认改用组织默认额度"/><input type="hidden" name="action" value="inherit"/><input type="hidden" name="confirm" value="1"/><Button type="submit" variant="outline">使用组织默认</Button></form> : null}{enhanced ? <Button type="button" variant="ghost" onClick={()=>setEditing(false)}>取消</Button> : null}</div>
+      <div className="credit-editor-secondary">{state.source === "personal" ? <form className="inline-form" method="post" action={control.action} data-action="credit-inherit" data-confirmation={`去掉 ${control.personLabel} 的个人 ${control.clientLabel} 额度，改用组织默认？已用量不会重置。`}><ConfirmationFallback message="确认改用组织默认额度"/><input type="hidden" name="action" value="inherit"/><input type="hidden" name="confirm" value="1"/><Button type="submit" variant="outline">使用组织默认</Button></form> : null}{enhanced ? <Button type="button" variant="ghost" onClick={()=>{setEditing(false);trigger.current?.focus({preventScroll:true});}}>取消</Button> : null}</div>
     </div></TableCell></TableRow> : null}
   </>;
 }

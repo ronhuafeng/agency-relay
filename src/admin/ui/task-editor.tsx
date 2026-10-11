@@ -1,6 +1,5 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { Button } from "./components/button";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "./components/collapsible";
 import { Field, ConfirmationFallback } from "./fields";
 import { SelectView } from "./forms";
 import { Icon } from "./icon";
@@ -43,7 +42,9 @@ export function readTaskEditor(value: unknown): TaskEditorControl | null {
 export function TaskEditorView({control}: {readonly control: TaskEditorControl}) {
   const enhanced = useEnhanced(); const [open, setOpen] = useState(control.fields.some(field=>field.invalid));
   const [hasDraft, setHasDraft] = useState(false);
-  const trigger = useRef<HTMLButtonElement | null>(null);
+  const disclosure = useRef<HTMLDetailsElement | null>(null);
+  useLayoutEffect(() => {if (disclosure.current) setOpen(disclosure.current.open);}, []);
+  const trigger = useRef<HTMLElement | null>(null);
   const form = useRef<HTMLFormElement | null>(null);
   useLayoutEffect(() => {
     const current = form.current; if (!current || control.draftKind !== "person") return;
@@ -60,17 +61,16 @@ export function TaskEditorView({control}: {readonly control: TaskEditorControl})
     current.addEventListener("console:restore", () => update(true), {signal:listeners.signal});
     return () => listeners.abort();
   }, [control.draftKind]);
-  return <Collapsible className="task-editor" open={!enhanced || open} onOpenChange={setOpen}>
-    {enhanced ? <CollapsibleTrigger asChild><Button ref={trigger} type="button" variant="ghost"><Icon name="edit"/>{control.label}</Button></CollapsibleTrigger> : <h3>{control.label}</h3>}
-    {enhanced && !open && hasDraft ? <span className="caption" data-task-draft-indicator="" role="status">有未保存的修改</span> : null}
-    <CollapsibleContent forceMount hidden={enhanced && !open}>
-      <form ref={form} className="board-form task-editor-form" method="post" action={control.action} data-dashboard-draft={control.draftKind} data-draft-scope={control.draftScope} data-confirmation={control.confirmation} data-confirm-email={control.confirmEmail ? "" : undefined}>
+  return <details ref={disclosure} className="task-editor" open={open} onToggle={event => setOpen(event.currentTarget.open)}>
+    <Button asChild variant="ghost"><summary ref={trigger} role="button" aria-label={control.label} aria-expanded={enhanced ? open : undefined}><Icon name="edit"/>{control.label}{!open && hasDraft ? <span className="caption" data-task-draft-indicator="" role="status">有未保存的修改</span> : null}</summary></Button>
+    <div>
+      <form ref={form} className="board-form task-editor-form" method="post" action={control.action} autoComplete="off" data-dashboard-draft={control.draftKind} data-draft-scope={control.draftScope} data-confirmation={control.confirmation} data-confirm-email={control.confirmEmail ? "" : undefined}>
         {Object.entries(control.hidden).map(([name,value]) => <input key={name} type="hidden" name={name} value={value}/>)}
         {control.fields.map(field => <Field key={field.name} control={field}/>)}
         {control.select ? <SelectView control={control.select}/> : null}
         {control.confirmation ? <ConfirmationFallback message={control.confirmation}/> : null}
         <div className="person-form-actions"><Button type="submit">{control.submitLabel}</Button>{enhanced ? <Button type="button" variant="ghost" onClick={() => {setOpen(false);trigger.current?.focus({preventScroll:true});}}>取消</Button> : null}</div>
       </form>
-    </CollapsibleContent>
-  </Collapsible>;
+    </div>
+  </details>;
 }

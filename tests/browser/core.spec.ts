@@ -1,11 +1,12 @@
-import { test, expect, authenticate, openMemberCreate, openKeyEditor } from "./fixtures";
+import { consoleClientPath } from "../../src/admin/app";
+import { openNativeConfirmation, test, expect, authenticate, openMemberCreate, openKeyEditor, reopenRestoredConsolePage, acceptUnknownOutcomeRead } from "./fixtures";
 import { ATTACKER_ORIGIN, ORIGIN } from "./worker";
 import { request as apiRequest, type Page } from "@playwright/test";
 
 async function ready(page: Page) {
   await expect(page.locator('#console-dialog-root')).toBeAttached();
   // This is a production enhancement outcome, not a test-only readiness hook.
-  await expect(page.locator('[data-confirmation-fallback]:visible')).toHaveCount(0);
+  await expect(page.locator('[data-confirmation-fallback]:not([hidden])')).toHaveCount(0);
 }
 
 async function noSecretPersistence(page: Page) {
@@ -132,40 +133,53 @@ for (const width of [390, 1440]) {
   });
 }
 
-test('latest navigation wins; failed read and expired session have distinct recovery', async ({ page, worker }) => {
+test('native navigation supersedes a pending document and serves distinct unavailable and login responses', async ({ page, worker }) => {
   await page.goto('/admin?view=access');
   await ready(page);
+  const quotas = page.getByRole('navigation', {name:'控制台页面'}).getByRole('link', {name:'额度政策',exact:true});
+  await expect(quotas).toBeInViewport();
+  const quotaTarget = await quotas.boundingBox();
+  expect(quotaTarget).not.toBeNull();
+  const originalUrl = page.url();
   const slow = worker.hold({ method: 'GET', path: '/admin', view: 'usage' });
-  const firstRead = page.waitForRequest((request) => new URL(request.url()).searchParams.get('view') === 'usage');
-  await page.getByRole('navigation', { name: '控制台页面' }).getByRole('link', { name: '用量报告', exact: true }).click();
-  await slow.entered;
-  const firstRequest = await firstRead;
-  const oldSettled = Promise.race([
-    page.waitForEvent('requestfinished', { predicate: (request) => request === firstRequest }),
-    page.waitForEvent('requestfailed', { predicate: (request) => request === firstRequest })
-  ]);
-  await page.getByRole('navigation', { name: '控制台页面' }).getByRole('link', { name: '额度政策', exact: true }).click();
-  await expect(page.locator('[data-view-role="quotas"]')).toBeVisible();
-  slow.release();
-  // Observe settlement, then let the browser paint any response-driven DOM work.
-  // Merely releasing the server gate could otherwise assert before a stale write.
-  await oldSettled;
-  await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+  const firstRead = page.waitForRequest(request => request.isNavigationRequest()
+    && request.frame() === page.mainFrame() && new URL(request.url()).searchParams.get('view') === 'usage');
+  try {
+    await page.getByRole('navigation', { name: '控制台页面' }).getByRole('link', { name: '用量报告', exact: true }).click({noWaitAfter:true});
+    await slow.entered;
+    const firstRequest = await firstRead;
+    expect(page.url()).toBe(originalUrl);
+    // Native navigation leaves the old document interactive before headers.
+    // A locator click waits for that request; real mouse input must not.
+    const nextRead = page.waitForRequest(request => request.isNavigationRequest()
+      && request.frame() === page.mainFrame() && new URL(request.url()).searchParams.get('view') === 'quotas');
+    await Promise.all([
+      page.waitForEvent('load'),
+      page.mouse.click(quotaTarget!.x + quotaTarget!.width / 2, quotaTarget!.y + quotaTarget!.height / 2)
+    ]);
+    expect((await nextRead).method()).toBe('GET');
+    await page.waitForURL(/view=quotas/, {waitUntil:'load'});
+    await expect.poll(() => firstRequest.failure()).not.toBeNull();
+  } finally { slow.release(); }
   await expect(page).toHaveURL(/view=quotas/);
   await expect(page.locator('[data-view-role="quotas"]')).toBeVisible();
-  const failed = worker.hold({ method: 'GET', path: '/admin', view: 'usage' });
+
+  worker.failMemberRead('usage');
+  const unavailableResponse = page.waitForResponse(response => response.request().isNavigationRequest()
+    && new URL(response.url()).searchParams.get('view') === 'usage');
   await page.getByRole('navigation', { name: '控制台页面' }).getByRole('link', { name: '用量报告', exact: true }).click();
-  await failed.entered; failed.release(503);
-  await expect(page.locator('[data-dashboard-notice]')).toContainText('页面暂时打不开');
-  await expect(page.locator('[data-dashboard-notice]').getByRole('link', { name: '重试' })).toBeVisible();
-  await expect(page.locator('[data-view-role="quotas"]')).toBeVisible();
+  expect((await unavailableResponse).status()).toBe(503);
+  await expect(page.locator('[data-dashboard-unavailable]')).toBeVisible();
+  await expect(page.locator('[data-dashboard-unavailable]').getByRole('link', { name: '重试' })).toBeVisible();
+  await expect(page.locator('[data-view-role="quotas"],[data-trend-plan]')).toHaveCount(0);
+  worker.failMemberRead(null);
   worker.expireSessions();
   const usageLink = page.getByRole('navigation', { name: '控制台页面' }).getByRole('link', { name: '用量报告', exact: true });
   const target = new URL((await usageLink.getAttribute('href'))!, page.url());
   await usageLink.click();
-  await expect(page.locator('[data-dashboard-notice]')).toContainText('登录状态无法验证');
-  await expect(page.locator('[data-dashboard-notice]').getByRole('link', { name: '重新登录' })).toHaveAttribute('href', `${ORIGIN}/login?${new URLSearchParams({return: target.pathname + target.search + target.hash})}`);
-  await expect(page.locator('[data-view-role="quotas"],.nav-rail,.identity-person strong')).toHaveCount(0);
+  await expect(page).toHaveURL(`${ORIGIN}/login?${new URLSearchParams({return: target.pathname + target.search})}`);
+  await expect(page.getByRole('button', {name:'使用飞书继续',exact:true})).toBeVisible();
+  await expect(page.locator('[data-dashboard-view],.nav-rail,.identity-person strong')).toHaveCount(0);
 });
 
 test('pending admin write, Back and stop waiting never replay the committed operation', async ({ page, worker }) => {
@@ -186,6 +200,86 @@ test('pending admin write, Back and stop waiting never replay the committed oper
   await page.getByRole('link', { name: '查看当前状态' }).click();
   await expect(page.getByRole('switch', { name: /启用账号/ })).toHaveAttribute('aria-checked', 'false');
   expect(worker.requests.filter((request) => request.path === '/admin/ui/users/other/status')).toHaveLength(1);
+});
+
+test('pending or unknown native Back can be dismissed or accepted without replaying the committed write', async ({page, worker}) => {
+  await page.goto('/admin?view=quotas');
+  await ready(page);
+  const previous = page.url();
+  await page.goto('/admin?view=access&person=other');
+  await ready(page);
+  const target = page.url();
+  const held = worker.hold({method:'POST', path:'/admin/ui/users/other/status'});
+  const backWithConfirmation = async (choice:'dismiss'|'accept'): Promise<void> => {
+    const handled = test.step(`${choice}: receive and settle native confirmation`, async () => {
+      const dialog = await page.waitForEvent('dialog', {timeout:5000});
+      const type = dialog.type();
+      await test.step(`${choice}: settle dialog`, () => dialog[choice](), {timeout:5000});
+      expect(type).toBe('beforeunload');
+    });
+    const action = test.step(`${choice}: settle history action`, () => page.evaluate(() => history.back()), {timeout:5000});
+    // Both branches have bounded observation. A stalled protocol call remains
+    // owned by context teardown; step timeout is not browser cancellation.
+    const settled = await Promise.allSettled([handled, action]);
+    const failures = settled.flatMap(result => result.status === 'rejected' ? [result.reason] : []);
+    if (failures.length) throw new AggregateError(failures, `${choice}: native Back confirmation failed`);
+  };
+  try {
+    await page.getByRole('switch', {name:/启用账号/}).click();
+    await page.getByRole('alertdialog').getByRole('button', {name:'停用账号',exact:true}).click();
+    await held.entered;
+    expect(worker.status('other')).toBe('disabled');
+    await expect(page.locator('main')).toHaveAttribute('data-mutation-pending','true');
+    expect(await page.evaluate(() => navigator.userActivation.hasBeenActive)).toBe(true);
+    await page.evaluate(() => {
+      window.addEventListener('beforeunload', event => {
+        const main = document.querySelector<HTMLElement>('main');
+        (window as unknown as {pendingUnload?:object}).pendingUnload = {
+          trusted:event.isTrusted, prevented:event.defaultPrevented,
+          pending:main?.dataset.mutationPending === 'true', unknown:main?.dataset.consoleOutcome === 'unknown'
+        };
+      }, {once:true});
+    });
+    await test.step('dismiss native Back and retain unresolved operation', () => backWithConfirmation('dismiss'));
+    const unload = await page.evaluate(() => (window as unknown as {pendingUnload?:object}).pendingUnload);
+    expect([
+      {trusted:true, prevented:true, pending:true, unknown:true},
+      {trusted:true, prevented:true, pending:false, unknown:true}
+    ]).toContainEqual(unload);
+    await expect(page).toHaveURL(target);
+    // WebKit can abort the fetch before beforeunload. Dismissing departure
+    // cannot resurrect that transport; the honest state is blocked/unknown.
+    const pending = await page.locator('main').getAttribute('data-mutation-pending') === 'true';
+    await expect(page.locator('main')).toHaveAttribute('data-console-outcome','unknown');
+    await expect(page.getByRole('switch', {name:/启用账号/})).toBeDisabled();
+    if (pending) {
+      await expect(page.locator('main')).not.toHaveAttribute('data-dashboard-mutation-blocked','true');
+      await expect(page.locator('[data-dashboard-notice]')).toHaveAttribute('data-state','pending');
+    } else {
+      await expect(page.locator('main')).toHaveAttribute('data-mutation-pending','false');
+      await expect(page.locator('main')).toHaveAttribute('data-dashboard-mutation-blocked','true');
+      await expect(page.locator('[data-dashboard-notice]')).toContainText('操作结果尚未确认');
+      await expect(page.getByRole('link', {name:'查看当前状态'})).toBeVisible();
+    }
+    await test.step('accept native Back', () => backWithConfirmation('accept'));
+    await test.step('accepted Back reaches previous document', () => page.waitForURL(/view=quotas/, {waitUntil:'load', timeout:5000}));
+    await expect.poll(() => page.evaluate(() => (window as unknown as {pageShowObserved?:boolean}).pageShowObserved === true)).toBe(true);
+    if (await page.evaluate(() => (window as unknown as {restoredFromCache?:boolean}).restoredFromCache === true)) {
+      await expect(page.locator('[data-console-recovery]')).toBeVisible();
+      await expect(page.locator('.shell,[data-ui-props]')).toHaveCount(0);
+      const url = new URL(previous);
+      await expect(page.getByRole('link', {name:'查看当前页面',exact:true})).toHaveAttribute('href',url.pathname + url.search);
+    } else await expect(page.locator('[data-view-role="quotas"]')).toBeVisible();
+  } finally { held.release(); }
+  await test.step('Forward reads current authority without replay', async () => {
+    await page.goForward({waitUntil:'load', timeout:5000});
+    await reopenRestoredConsolePage(page, target);
+  }, {timeout:10000});
+  await expect(page).toHaveURL(target);
+  await expect(page.getByRole('switch', {name:/启用账号/})).toHaveAttribute('aria-checked','false');
+  await expect(page.locator('main')).not.toHaveAttribute('data-console-outcome','unknown');
+  expect(worker.requests.filter(request => request.path === '/admin/ui/users/other/status')).toHaveLength(1);
+  expect(worker.status('other')).toBe('disabled');
 });
 
 test.describe('member secret lifecycle (no recordings)', () => {
@@ -255,7 +349,7 @@ test.describe('member secret lifecycle (no recordings)', () => {
     await expect(page.locator('[data-member-feedback]')).toContainText('操作结果尚未确认');
     await expect(page.locator('[data-member-key-create]').getByRole('button', { name: '创建密钥' })).toBeDisabled();
     held.release();
-    await page.getByRole('link', { name: '查看当前密钥' }).click();
+    await acceptUnknownOutcomeRead(page, page.getByRole('link', { name: '查看当前密钥' }));
     await expect(page.locator('.member-keys-table')).toContainText('Uncertain result');
     await expect.poll(() => page.locator('[data-created-token]').count()).toBe(0);
     expect(worker.countKeys()).toBe(2);
@@ -272,6 +366,7 @@ test.describe('native HTML without JavaScript', () => {
     await page.locator('[data-user-id="other"] .person-link').click();
     await expect(page.getByRole('heading', { name: 'other@example.test', exact: true })).toBeVisible();
     const form = page.locator('[data-action="user-status"]');
+    await openNativeConfirmation(form);
     await form.getByRole('checkbox').check();
     await form.getByRole('switch', { name: /启用账号/ }).click();
     await expect(page.getByRole('switch', { name: /启用账号/ })).toHaveAttribute('aria-checked', 'false');
@@ -281,7 +376,7 @@ test.describe('native HTML without JavaScript', () => {
     await expect(page).toHaveURL(/\/admin\?view=overview/);
     await expect(page.locator('main[data-dashboard-view=overview]')).toBeVisible();
     expect(worker.status('other')).toBe('disabled');
-    expect(worker.requests.some((request) => request.path === '/admin/console.js')).toBe(false);
+    expect(worker.requests.some((request) => request.path === consoleClientPath())).toBe(false);
   });
 });
 
@@ -307,17 +402,19 @@ test.describe('native administrator issuance recovery',()=>{
     await page.goto(`/admin?view=${view}&person=member&key=member-key`);
     const form=page.locator('form[action="/admin/ui/keys/member-key/replace"]');
     await form.getByLabel('到期时间（UTC，可选）').fill(invalid);
+    await openNativeConfirmation(form);
     await form.getByRole('checkbox').check();
     const response=page.waitForResponse(r=>r.request().method()==='POST' && r.url().endsWith('/admin/ui/keys/member-key/replace'));
-    await form.getByRole('button').click();
+    await form.locator('button[type=submit]').click();
     const rejected=await response;
     expect(rejected.status()).toBe(400);
     expect(rejected.headers()['content-type']).toContain('text/html');
     await expect(page.getByRole('heading',{name:'密钥没有换发',exact:true})).toBeVisible();
     expect(worker.countKeys()).toBe(1);
     await form.getByLabel('到期时间（UTC，可选）').fill('2026-07-24T12:00');
+    await openNativeConfirmation(form);
     await form.getByRole('checkbox').check();
-    await form.getByRole('button').click();
+    await form.locator('button[type=submit]').click();
     await expect.poll(()=>page.locator('[data-one-time-key]').isVisible()).toBe(true);
     expect(worker.countKeys()).toBe(2);
   });
@@ -325,8 +422,9 @@ test.describe('native administrator issuance recovery',()=>{
     await page.goto(`/admin?view=${view}&person=member&key=member-key`);
     const form=page.locator('form[action="/admin/ui/keys/member-key/replace"]');
     await form.getByLabel('到期时间（UTC，可选）').fill('2026-07-24T12:00');
+    await openNativeConfirmation(form);
     await form.getByRole('checkbox').check();
-    await form.getByRole('button').click();
+    await form.locator('button[type=submit]').click();
     await expect.poll(()=>page.locator('[data-one-time-key]').isVisible()).toBe(true);
     const issued=worker.keyMetadata().find(row=>row.id!=='member-key')!;
     expect(issued.expires_at).toBe('2026-07-24T12:00:00.000Z');

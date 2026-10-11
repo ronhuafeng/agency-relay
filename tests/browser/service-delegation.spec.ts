@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test';
-import { test, expect, authenticate, openMemberCreate, openKeyEditor } from './fixtures';
+import { openNativeConfirmation, test, expect, authenticate, openMemberCreate, openKeyEditor, acceptUnknownOutcomeRead } from './fixtures';
 import { ORIGIN } from './worker';
 
 async function createKey(page: Page, enhanced = true) {
@@ -128,7 +128,7 @@ test.describe('delegated service management', () => {
     await gate.entered; await page.getByRole('button', {name: '停止等待', exact: true}).click(); gate.release();
     await expect(page.locator('[data-member-feedback]')).toContainText('不要重复提交');
     await expect(form.getByRole('button', {name: '创建密钥', exact: true})).toBeDisabled();
-    await page.getByRole('link', {name: '查看当前密钥', exact: true}).click();
+    await acceptUnknownOutcomeRead(page, page.getByRole('link', {name: '查看当前密钥', exact: true}));
     await expect(page).toHaveURL(prefix + '?view=keys');
     await expect(page.locator('[data-key-id]')).toHaveCount(1);
     expect(worker.requests.filter(request => request.method === 'POST' && request.path === prefix + '/ui/keys')).toHaveLength(1);
@@ -150,7 +150,8 @@ test.describe('native delegated recovery', () => {
     await expect(page.getByRole('button', {name: '更换', exact: true})).toHaveCount(0);
     const form = page.locator(`form[action="${prefix}/ui/keys/revoke-all"]`);
     await page.locator('thead .member-bulk-actions > button').click();
-    await form.getByRole('checkbox').check(); await form.getByRole('button').click();
+    await openNativeConfirmation(form);
+    await form.getByRole('checkbox').check(); await form.locator('button[type=submit]').click();
     await expect(page.locator('[data-member-result="confirmed"]')).toContainText('已撤销 1 个密钥');
     worker.setServiceStatus(id, 'active'); await page.getByRole('link', {name: '查看当前密钥', exact: true}).click();
     await expect(page.locator('[data-key-state="revoked"]')).toHaveCount(1);
@@ -226,11 +227,12 @@ test.describe('native owner removal',()=>{
   test('native disabled-owner form requires an explicit choice before removing assignment',async({page,worker})=>{
     const id=await worker.seedDelegatedService();
     await page.goto('/admin?view=access&person=member');
-    const status=page.locator('[data-action="user-status"]');await status.getByRole('checkbox').check();await status.getByRole('switch',{name:/启用账号/}).click();
+    const status=page.locator('[data-action="user-status"]');await openNativeConfirmation(status);await status.getByRole('checkbox').check();await status.getByRole('switch',{name:/启用账号/}).click();
     await expect(page.locator('[data-mutation-flash="user_status"]')).toBeVisible();
     await page.goto(`/admin?view=access&person=${id}`);
     const form=page.locator(`form[action="/admin/ui/services/${id}/owner"]`);
     expect(await form.evaluate(node=>(node as HTMLFormElement).checkValidity())).toBe(false);
+    await openNativeConfirmation(form);
     await form.getByRole('checkbox').check();await form.getByRole('button',{name:'更新管理人',exact:true}).click();
     expect(worker.serviceOwner(id)).toEqual({owner_user_id:'member',revision:1});
     await form.getByRole('combobox',{name:'新的管理人'}).selectOption('remove');

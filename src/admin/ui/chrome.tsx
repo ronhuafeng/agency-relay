@@ -4,7 +4,7 @@ import { Input } from "./components/input";
 import { Icon, type IconName } from "./icon";
 import { Card, CardContent, CardHeader } from "./components/card";
 
-/** In-app navigation link. The attribute is how the shell intercepts clicks. */
+/** Ordinary page navigation stays native; the marker lets pending writes guard departure. */
 export function DashLink({ current, action, ariaLabel, ...props }: ComponentProps<"a"> & {
   readonly current?: boolean;
   readonly action?: string;
@@ -21,6 +21,11 @@ export function DashLink({ current, action, ariaLabel, ...props }: ComponentProp
       {props.children}
     </a>
   );
+}
+
+/** Exact task selection keeps safe in-document drafts, focus and close/return context. */
+export function TaskLink(props: ComponentProps<typeof DashLink>) {
+  return <DashLink {...props} data-task-link="" />;
 }
 
 export function Panel(props: {
@@ -74,6 +79,7 @@ export function VisibleRowFilter(props: {
             spellCheck={false}
             placeholder={props.shownRowsOnly ? `本页：${props.placeholder}` : props.placeholder}
             data-visible-row-filter-input=""
+            disabled
           />
         </Label>
         {props.hideCount ? null : <span className="meta" data-visible-row-filter-count="" aria-live="polite">{props.countLabel}</span>}

@@ -1,3 +1,4 @@
+import { consoleClientPath } from "../../src/admin/app";
 import { test, expect, authenticate, openKeyEditor } from './fixtures';
 import { ORIGIN } from './worker';
 
@@ -8,9 +9,7 @@ for(const failure of ['quota','defaults'] as const) test(`known key remains mana
   const key=page.locator('[data-key-detail="member-key"]');
   await openKeyEditor(page, 'rename');
   await expect(key.getByRole('textbox',{name:'密钥名称',exact:true})).toBeVisible();
-  await openKeyEditor(page, 'rename');
   await key.getByRole('textbox',{name:'密钥名称',exact:true}).fill('Laptop');
-  await openKeyEditor(page, 'rename');
   await key.getByRole('button',{name:'保存名称',exact:true}).click();
   await expect(page.locator('[data-member-feedback]')).toContainText('名称已保存');
   expect(worker.keyMetadata().find(key=>key.id==='member-key')?.name).toBe('Laptop');
@@ -80,7 +79,12 @@ test('held-key configuration is local-only and clears its input on departure',as
   const setupUrl=ORIGIN+'/admin?area=me&view=setup';
   const keysUrl=ORIGIN+'/admin?area=me&view=keys';
   const destination=worker.hold({method:'GET',path:'/admin',view:'keys'});
-  const script=worker.hold({method:'GET',path:'/admin/console.js'});
+  // This journey deliberately holds the runtime. Normal repeat visits reuse
+  // the immutable script; routing disables HTTP cache for this interruption probe.
+  const bypassCache = (route: import('@playwright/test').Route) => route.continue();
+  const scriptPattern = '**' + consoleClientPath();
+  await page.route(scriptPattern, bypassCache);
+  const script=worker.hold({method:'GET',path:consoleClientPath()});
   const help=page.locator('[data-task-help="configuration"]');
   await help.getByRole('button',{name:'配置说明',exact:true}).click();
   const departure=help.getByRole('link',{name:'只读查看本账号的密钥',exact:true}).click();
@@ -92,7 +96,7 @@ test('held-key configuration is local-only and clears its input on departure',as
     await script.entered;
     await expect(page).toHaveURL(keysUrl);
     await expect(page.locator('[data-key-id="member-key"]')).toBeVisible();
-  } finally {script.release();}
+  } finally {script.release(); await page.unroute(scriptPattern, bypassCache);}
   await departure;
   // Native click waits for commit; even visible SSR can precede document load.
   // Finish this departure before testing the separate Back journey.
@@ -125,7 +129,7 @@ test('native result refresh cannot issue a second secret and GET return stays ex
     await expect.poll(()=>page.locator('[data-one-time-key]').isVisible()).toBe(true);expect(worker.countKeys()).toBe(2);
     await page.reload();await expect.poll(()=>page.locator('[data-member-result="confirmed"]').isVisible()).toBe(true);expect(await page.locator('[data-one-time-key]').count()).toBe(0);expect(worker.countKeys()).toBe(2);
     await page.getByRole('link',{name:'查看当前密钥',exact:true}).click();await expect(page).toHaveURL(/view=keys&key=key_ui_/);
-    await page.goto('/admin?area=me&view=setup');await expect(page.getByLabel('已有密钥')).toBeHidden();
+    await page.goto('/admin?area=me&view=setup');await expect(page.getByLabel('已有密钥')).toBeDisabled();
   }finally{await context.close();}
 });
 

@@ -159,6 +159,11 @@ describe("usage router scope and failure boundaries", () => {
       expect(response.status).toBe(200);
       const html = await response.text();
       expect(html).not.toContain("foreign-only-model");
+      const search = doc(html).querySelector('form[data-dashboard-search]')!;
+      expect(search.getAttribute("action")).toBe("/admin#usage-details");
+      for (const [name, value] of [["area", "me"], ["view", "usage"], ["range", "7d"]]) {
+        expect(search.querySelector(`input[name="${name}"]`)?.getAttribute("value")).toBe(value);
+      }
       expect(textFor(doc(html).querySelector('[data-trend-plan]')!, "Requests")).toBe(requests);
       for (const bad of ["day=2026-02-30", "day=2026-06-24&scope=all", "from=2026-06-01", "from=2026-06-25&to=2026-06-01", "from=2000-01-01&to=2026-06-24"]) expect((await request(email, `/me/usage?${bad}`)).status).toBe(400);
     }

@@ -99,6 +99,7 @@ export type DashboardMutationFlash =
   | { kind: "credential_binding"; key_id: string; surface_grant: string };
 
 export interface AdminDashboardInput {
+  unchangedRevision?: string | null;
   env: Env;
   url: URL;
   identity: AdminIdentity;
@@ -410,7 +411,9 @@ export async function loadDashboard(input: AdminDashboardInput, base: AdminDashb
     }
     case "audit": {
     const detail = input.url.searchParams.has("record");
-    const history = await readRequestHistory(input.env, input.url);
+    // Use the same validated address as the document and its history entry.
+    // Native GET forms can send empty fields and a different query order.
+    const history = await readRequestHistory(input.env, new URL(base.canonicalUrl, input.url));
     model = { ...base, view, history, ...(detail ? { documentTitle: "请求记录详情 · Agency Relay 控制台" } : {}) };
     break;
     }

@@ -38,6 +38,8 @@ For UI tests, prefer accessible task-local selectors and visible outcomes. A coi
 
 Use request/event barriers or observable committed state to control races, not arbitrary sleeps. A delayed result must be attributed to the request, page and account that initiated it after navigation, retry or replacement.
 
+Observation during a deliberately held native navigation must not wait for that navigation to finish. Capture any required target geometry before the hold, and handle modal confirmation concurrently with the action that opens it. Otherwise the test can create its own deadlock instead of exercising the intended race.
+
 Every held request, listener, timer and background operation must have bounded ownership and failure-safe cleanup. Stop creating work, release barriers, drain owned in-flight operations, then close its page/context. Remove only owned handlers and restore changed local fixtures. Preserve both the primary assertion failure and any cleanup failure. Increasing timeout/retries must not be the default repair for uncertain readiness.
 
 ## Diagnose, refine and remove

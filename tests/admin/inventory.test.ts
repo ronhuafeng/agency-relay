@@ -369,7 +369,7 @@ describe("complete dashboard inventories", () => {
     expect(list.status).toBe(200);
     expect(list.html).not.toContain('data-action="create-setup-package"');
     const listDoc = new JSDOM(list.html).window.document;
-    expect(listDoc.querySelector('[data-local-config-sync]')?.hasAttribute('hidden')).toBe(true);
+    expect(listDoc.querySelector('[data-local-config-sync] fieldset')?.hasAttribute('disabled')).toBe(true);
     expect(listDoc.querySelector('[data-local-config-sync]')?.getAttribute('method')).toBeNull();
     expect(reads.mock.calls.some(([sql]) => sql.includes("request_audit"))).toBe(false);
     const detail = await f.render("view=setup&person=person-000&key=key-000&q=absent&page=3&range=30d");
@@ -428,8 +428,8 @@ describe("complete dashboard inventories", () => {
     const { html, status } = await inventoryFixture().render("view=setup&task=sync-configuration&q=absent&page=2&range=30d");
     expect(status).toBe(200);
     expect(html).toContain('data-sync-configuration="local-only"');
-    expect(html).toMatch(/<form\b[^>]*data-dashboard-draft="sync"[^>]*\bhidden/);
-    expect(html).toContain("要在这台设备上生成文件，请启用 JavaScript。");
+    expect(new JSDOM(html).window.document.querySelector('[data-dashboard-draft="sync"] fieldset')?.hasAttribute("disabled")).toBe(true);
+    expect(html).toContain("要在这台设备上生成文件或切换客户端，请启用 JavaScript。");
     expect(html).toContain('name="existing_key"');
     expect(html).toContain('type="password"');
     expect(html).not.toContain('data-action="create-setup-package"');
@@ -473,7 +473,7 @@ describe("complete dashboard inventories", () => {
     const { html } = await f.render(query);
     const searchForm = html.match(/<form class="inventory-search"[\s\S]*?<\/form>/)?.[0];
     expect(searchForm).toContain('method="get"');
-    expect(searchForm).toContain('action="/admin"');
+    expect(searchForm).toContain('action="/admin#people-list"');
     for (const [name, value] of [["view", "access"], ["range", "30d"], ["person", "person-100"], ["task", "give-access"], ["key_page", "3"], ["page_size", "10"]]) {
       expect(searchForm).toContain(`name="${name}" value="${value}"`);
     }

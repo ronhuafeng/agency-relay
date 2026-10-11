@@ -75,7 +75,7 @@ function mediaRecord(row: MediaUsageSummaryRow, index: number): UsageRecord {
 }
 export function UsagePage({model}: {readonly model: UsagePageModel}) {
   const url = new URL(model.searchUrl ?? model.trends?.navigationUrl ?? "/admin?view=usage", "https://console.invalid");
-  return <div className="usage-page view-stack">{model.trends ? <UsageTrends model={model.trends}/> : null}<section id="usage-details" tabIndex={-1} aria-label="用量明细"><form method="get" action={url.pathname} data-dashboard-search="" data-search-anchor="usage-details" className="usage-toolbar" aria-label="筛选用量明细">
+  return <div className="usage-page view-stack">{model.trends ? <UsageTrends model={model.trends}/> : null}<section id="usage-details" tabIndex={-1} aria-label="用量明细"><form method="get" action={`${url.pathname}#usage-details`} data-dashboard-search="" className="usage-toolbar" aria-label="筛选用量明细">
     {[...url.searchParams].filter(([key]) => key !== "q").map(([key, value]) => <input key={key} type="hidden" name={key} value={value}/>)}
     <div className="usage-search">
       <InputGroup>

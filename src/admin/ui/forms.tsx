@@ -38,7 +38,7 @@ export function CreditPolicyForm({control, initialMode = control.mode}: {readonl
     restore(); current.addEventListener("console:restore", restore); return () => current.removeEventListener("console:restore", restore);
   }, []);
   return (
-    <form ref={form} className="inline-form" method="post" action={control.action} data-action="credit-set" data-dashboard-draft="credit" data-confirmation={warning}>
+    <form ref={form} className="inline-form" method="post" action={control.action} data-action="credit-set" autoComplete="off" data-dashboard-draft="credit" data-confirmation={warning}>
       <SelectView
         control={{
           id: `${control.id}-mode`,
@@ -66,9 +66,9 @@ export function CreditPolicyForm({control, initialMode = control.mode}: {readonl
             min={0}
             step={1}
             required={enhanced && mode === "limited"}
+            disabled={enhanced && mode !== "limited"}
             defaultValue={control.monthlyAllowance}
             placeholder="每月额度"
-            disabled={enhanced && mode !== "limited"}
           />
         </Label>
       </div>
@@ -80,7 +80,7 @@ export function CreditPolicyForm({control, initialMode = control.mode}: {readonl
 }
 export function CreditPolicySwitch({control,onEnable}: {readonly control: CreditPolicyControl; readonly onEnable: () => void}) {
   const enhanced = useEnhanced();
-  if (control.mode === "disabled") return enhanced ? <Switch checked={false} aria-label={`${control.clientLabel} 请求准入`} onCheckedChange={onEnable}/> : <span className="caption">已停用</span>;
+  if (control.mode === "disabled") return <Switch checked={false} disabled={!enhanced} aria-label={`${control.clientLabel} 请求准入`} onCheckedChange={onEnable}/>;
   const warning = `停用 ${control.personLabel} 的 ${control.clientLabel} 请求准入？所有新请求将被拒绝，包括零消耗操作。密钥不会撤销。`;
   return <form className="inline-form" method="post" action={control.action} data-action="credit-set" data-confirmation={warning}><input type="hidden" name="mode" value="disabled"/><input type="hidden" name="confirm" value="1"/><ConfirmationFallback message={warning}/><Switch type="submit" checked aria-label={`${control.clientLabel} 请求准入`} data-confirm-label={`停用 ${control.clientLabel}`} data-variant="destructive"/></form>;
 }
@@ -93,13 +93,13 @@ export function AddAccountView({ control }: { readonly control: AddAccountContro
         <Label className="radix-check" htmlFor="add-chatgpt"><RadioGroupItem value="chatgpt" id="add-chatgpt" />ChatGPT</Label>
         <Label className="radix-check" htmlFor="add-grok"><RadioGroupItem value="grok" id="add-grok" />Grok</Label>
       </RadioGroup> : <p className="caption">选择下面的账号类型，填写名称后添加。</p>}
-      <form className="board-form add-chatgpt" method="post" action="/admin/ui/codex-auths" aria-label="添加 ChatGPT 账号" data-dashboard-draft="account">
+      <form className="board-form add-chatgpt" method="post" action="/admin/ui/codex-auths" aria-label="添加 ChatGPT 账号" autoComplete="off" data-dashboard-draft="account">
         {!enhanced ? <h3>ChatGPT</h3> : null}
         <AccountReturnFields control={control} />
         <Label>名称 <Input name="label" required autoComplete="off" placeholder="团队或负责人" /></Label>
         <Button type="submit">添加账号</Button>
       </form>
-      <form className="board-form add-grok" method="post" action="/admin/ui/subscriptions" aria-label="添加 Grok 账号" data-dashboard-draft="account">
+      <form className="board-form add-grok" method="post" action="/admin/ui/subscriptions" aria-label="添加 Grok 账号" autoComplete="off" data-dashboard-draft="account">
         {!enhanced ? <h3>Grok</h3> : null}
         <AccountReturnFields control={control} />
         <input type="hidden" name="capability_source" value="grok" />

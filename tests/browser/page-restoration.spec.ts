@@ -19,7 +19,7 @@ for (const identity of ['member', 'admin'] as const) test.describe(`${identity} 
     const target = identity === 'admin' ? '/admin?view=access&range=7d&person=other' : '/admin?area=me&view=keys&key=member-key';
     await page.goto(target);
     await expect(page.locator(identity === 'admin' ? '[data-person-detail]' : '[data-member-view=keys]')).toBeVisible();
-    await expect(page.locator('[data-confirmation-fallback]:visible')).toHaveCount(0);
+    await expect(page.locator('[data-confirmation-fallback]:not([hidden])')).toHaveCount(0);
     await expect(page).toHaveURL(ORIGIN + target);
     // Invalid display-only marker exercises one-time removal with no usable key.
     await page.locator('main').evaluate(main => main.insertAdjacentHTML('beforeend', '<section data-one-time-key><span data-created-token>INVALID-DISPLAY-ONLY</span></section>'));

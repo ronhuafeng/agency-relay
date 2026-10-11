@@ -3,7 +3,7 @@ import { NOW } from "./worker";
 
 test("an unknown management result blocks other mounted forms until a fresh authorized read", async ({ page, worker }) => {
   await page.goto("/admin?view=access&person=other");
-  await expect(page.locator("[data-confirmation-fallback]:visible")).toHaveCount(0);
+  await expect(page.locator("[data-confirmation-fallback]:not([hidden])")).toHaveCount(0);
   const write = worker.hold({ method: "POST", path: "/admin/ui/users/other/status" });
   await page.getByRole("switch", { name: /启用账号/ }).click();
   await page.getByRole("alertdialog").getByRole("button", { name: "停用账号", exact: true }).click();
@@ -21,8 +21,18 @@ test("an unknown management result blocks other mounted forms until a fresh auth
   expect(worker.requests.filter(request => request.method === "POST")).toHaveLength(1);
   expect(worker.person("other@example.test")?.id).toBe("other");
 
-  await page.getByRole("link", { name: "查看当前状态", exact: true }).click();
+  await expect(page.locator('main#content')).toHaveAttribute('data-console-outcome', 'unknown');
+  await page.evaluate(() => { document.documentElement.dataset.recoveryDocument = "unknown-management"; });
+  const recovery = page.getByRole("link", { name: "查看当前状态", exact: true });
+  const target = new URL((await recovery.getAttribute('href'))!, page.url()); target.hash = '';
+  const [read] = await Promise.all([
+    page.waitForRequest(request => request.method() === 'GET' && request.url() === target.href),
+    recovery.click()
+  ]);
+  expect(read.isNavigationRequest()).toBe(false);
   await expect(page.getByRole("switch", { name: /启用账号/ })).not.toBeChecked();
+  await expect(page.locator('html')).toHaveAttribute('data-recovery-document', 'unknown-management');
+  await expect(page.locator('main#content')).not.toHaveAttribute('data-console-outcome', 'unknown');
   await page.getByRole("button", { name: "更改登录邮箱", exact: true }).click();
   await expect(page.locator('form[action="/admin/ui/users/other/email"] button[type="submit"]')).toBeEnabled();
   expect(worker.requests.filter(request => request.method === "POST")).toHaveLength(1);
@@ -30,7 +40,7 @@ test("an unknown management result blocks other mounted forms until a fresh auth
 
 for (const change of ["demotion", "expiry"] as const) test(`a rejected quota save discards private administration after ${change}`, async ({ page, worker }) => {
   await page.goto("/admin?view=quotas");
-  await expect(page.locator("[data-confirmation-fallback]:visible")).toHaveCount(0);
+  await expect(page.locator("[data-confirmation-fallback]:not([hidden])")).toHaveCount(0);
   const defaults = ["codex", "grok", "xai"].map(surface => worker.quotaDefault(surface));
   await page.locator('[data-quota-default="codex"]').getByRole("spinbutton").fill("321");
   if (change === "demotion") worker.setRole("admin", "user");

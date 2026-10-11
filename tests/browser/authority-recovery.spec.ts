@@ -6,17 +6,17 @@ async function foreground(page: import('@playwright/test').Page) {
   await page.evaluate(()=>document.dispatchEvent(new Event('visibilitychange')));
 }
 async function ready(page: import('@playwright/test').Page) {
-  await expect(page.locator('[data-confirmation-fallback]:visible')).toHaveCount(0);
+  await expect(page.locator('[data-confirmation-fallback]:not([hidden])')).toHaveCount(0);
   await expect(page.locator('[data-console-actor-id]')).toHaveCount(1);
 }
 
-test('an in-flight real navigation cannot escape the pending document privacy mask',async({page,worker})=>{
+test('an in-flight exact-person task read cannot escape the pending document privacy mask',async({page,worker})=>{
   await page.goto('/admin?view=access'); await ready(page);
-  const navigation=worker.hold({method:'GET',path:'/admin',view:'usage'});
-  await page.getByRole('navigation',{name:'控制台页面'}).getByRole('link',{name:'用量报告',exact:true}).click(); await navigation.entered;
+  const navigation=worker.hold({method:'GET',path:'/admin',view:'access'});
+  await page.locator('[data-user-id=other] .person-link').click(); await navigation.entered;
   const authority=worker.hold({method:'GET',path:'/me'}); await foreground(page); await authority.entered;
   navigation.release();
-  await expect.poll(()=>page.locator('[data-dashboard-view="usage"]').count()).toBe(1);
+  await expect.poll(()=>page.locator('[data-person-detail="other"]').count()).toBe(1);
   expect(await page.evaluate(async()=>{
     await new Promise<void>(done=>requestAnimationFrame(()=>requestAnimationFrame(()=>done())));
     return document.documentElement.hasAttribute('data-console-authority-pending') && document.body.inert

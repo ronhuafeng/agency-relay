@@ -279,9 +279,19 @@ a performance task; check that measured actions still match the current UI.
 `NODE_ENV=production pnpm exec playwright test --config=playwright.performance.config.ts`
 runs the diagnostic after generated-asset checks, on an identified clean checkout
 without competing browser/build jobs. Only its allowlisted numeric
-`tmp/console-performance/**/scalars.json` output is shareable; never upload the
+`tmp/console-performance/**/scalars.json` and `weak-network-scalars.json` output is shareable; never upload the
 whole output directory. Preserve failures and compare named revisions under the
 same fixture/toolchain. An unsupported or outdated probe establishes no result.
+
+For an opt-in CI comparison, add the `console-performance` label to a pull
+request before its next push. The existing Chromium browser job then runs the
+[weak-network diagnostic](../../tests/performance/weak-network.spec.ts) on the
+actual checkout and PR base, using the same harness, synthetic fixtures, lockfile,
+browser and fonts. Normal unlabeled runs incur no diagnostic work. Each selected
+step is bounded to 15 minutes; a failed or incompatible experiment remains failed,
+not a performance result. Only `weak-network-scalars.json` files are retained in
+the seven-day `weak-network-scalars-attempt-*` artifact, with revision and input
+hashes. Timings are diagnostic observations, not new admission thresholds.
 
 Local timings and attribution are not field INP, edge/D1 latency or a provider
 result. Field targets in [Product experience](../product/experience.md#application-quality-and-lifecycle)
