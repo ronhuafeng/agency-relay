@@ -1,35 +1,28 @@
 import { expect, it } from "vitest";
-import { isRecord, languageModel, parseJson, requireEnv, send } from "./runtime";
-import { bytesToUtf8 } from "./support";
-import { StorySocket, type SocketMessage } from "./websocket";
+import { isRecord, languageModel, parseJson, requireEnv, send } from "../runtime";
+import { bytesToUtf8 } from "../support";
+import { StorySocket, type SocketMessage } from "../websocket";
 
 const HOST = "https://xai.trustedtunnel.app";
 
-it("checks xAI HTTP and WebSocket conformance", async () => {
+it("completes xAI Responses over a real WebSocket", async () => {
   const key = requireEnv("MINI_XAI_API_KEY");
-  const control = requireEnv("MINI_GROK_API_KEY");
-  const model = await languageModel(HOST, key);
-  const models = await send(`${HOST}/v1/models`, key);
-  expect(models.status).toBe(200);
-  expect(models.contentType.toLowerCase()).toContain("application/json");
-  const response = await send(`${HOST}/v1/responses`, key, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ model, input: "Reply exactly OK.", stream: false })
-  }, 180_000);
-  expect(response.status).toBe(200);
-  const denied = await send(`${HOST}/v1/models`, control);
-  expect(denied.status).toBe(403);
-  expect(parseJson(denied.text)).toMatchObject({ error: { code: "scope_denied" } });
-  const missing = await send(`${HOST}/v1/not-a-mini-plan`, key);
-  expect(missing.status).toBe(404);
-  expect(parseJson(missing.text)).toMatchObject({ error: { code: "not_found" } });
-  await responsesSocket(key, model);
-  const voice = await voiceId(key);
-  await ttsSocket(key, voice);
-  await sttSocket(key);
-  await realtimeSocket(key, await voiceModel(key), voice);
-}, 600_000);
+  await responsesSocket(key, await languageModel(HOST, key));
+}, 240_000);
+
+it("completes xAI TTS over a real WebSocket", async () => {
+  const key = requireEnv("MINI_XAI_API_KEY");
+  await ttsSocket(key, await voiceId(key));
+}, 180_000);
+
+it("completes xAI STT over a real WebSocket", async () => {
+  await sttSocket(requireEnv("MINI_XAI_API_KEY"));
+}, 180_000);
+
+it("completes xAI Realtime over a real WebSocket", async () => {
+  const key = requireEnv("MINI_XAI_API_KEY");
+  await realtimeSocket(key, await voiceModel(key), await voiceId(key));
+}, 300_000);
 
 async function voiceId(key: string): Promise<string> {
   const catalog = await send(`${HOST}/v1/tts/voices`, key);

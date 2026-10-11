@@ -21,16 +21,19 @@ export function createHome(prefix: string): ClientHome {
   for (const dir of [work, codexHome, grokHome]) {
     mkdirSync(dir, { recursive: true, mode: 0o700 });
   }
-  const baseEnv: NodeJS.ProcessEnv = {
-    ...process.env,
+  // Isolated child environment: production operator and unrelated Provider
+  // secrets must never reach third-party installers or external CLI processes.
+  const baseEnv = {
+    CI: process.env.CI,
+    LANG: process.env.LANG,
+    USER: process.env.USER,
+    SHELL: process.env.SHELL,
+    TMPDIR: process.env.TMPDIR,
     HOME: home,
     CODEX_HOME: codexHome,
     GROK_HOME: grokHome,
     PATH: `${join(home, ".local/bin")}:${join(home, ".grok/bin")}:${process.env.PATH ?? ""}`
-  };
-  delete baseEnv.OPENAI_API_KEY;
-  delete baseEnv.XAI_API_KEY;
-  delete baseEnv.GROK_DEPLOYMENT_KEY;
+  } as unknown as NodeJS.ProcessEnv;
   return {
     home,
     work,
