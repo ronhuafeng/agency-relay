@@ -31,106 +31,189 @@ concurrency:
   group: mini-live-dispatch
   cancel-in-progress: false
 
+
 jobs:
-  select:
-    name: select
+  reachability:
+    name: Reachability · Production ingress
+    if: ${{ github.event_name == 'schedule' || contains(fromJSON('["all","core"]'), inputs.suite) }}
     runs-on: ubuntu-latest
-    outputs:
-      files: ${{ steps.files.outputs.files }}
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - name: Select live files
-        id: files
-        env:
-          EVENT_NAME: ${{ github.event_name }}
-          SUITE: ${{ inputs.suite }}
+        with:
+          persist-credentials: false
+      - name: Prepare Live tooling
+        uses: ./.github/actions/setup-live
+      - name: Verify Reachability · Production ingress
         run: |
           set -euo pipefail
-          suite="${SUITE:-all}"
-          if [ "$EVENT_NAME" = "schedule" ]; then
-            suite="all"
-          fi
-          files=()
-          case "$suite" in
-            all)
-              while IFS= read -r file; do files+=("$file"); done < <(find tests/live -name '*.test.ts' | sort)
-              ;;
-            core)
-              files=(
-                tests/live/smoke.test.ts
-                tests/live/codex/core.test.ts
-                tests/live/grok/core.test.ts
-                tests/live/xai/core.test.ts
-              )
-              ;;
-            codex|grok|xai)
-              while IFS= read -r file; do files+=("$file"); done < <(find "tests/live/${suite}" -name '*.test.ts' | sort)
-              ;;
-            images|videos|files)
-              files=(
-                "tests/live/grok/${suite}.test.ts"
-                "tests/live/xai/${suite}.test.ts"
-              )
-              ;;
-            xai-resources)
-              files=(
-                tests/live/xai/resources.test.ts
-                tests/live/xai/public-url.test.ts
-              )
-              ;;
-            clients)
-              while IFS= read -r file; do files+=("$file"); done < <(find tests/live/clients -name '*.test.ts' | sort)
-              ;;
-            access|credits|billing)
-              files=("tests/live/${suite}.test.ts")
-              ;;
-            *)
-              echo "suite rejected"
-              exit 1
-              ;;
-          esac
-          if [ "${#files[@]}" -eq 0 ]; then
-            echo "suite selected no files"
-            exit 1
-          fi
-          json=$(printf '%s\n' "${files[@]}" | jq -R . | jq -s -c .)
-          {
-            echo "files<<EOF"
-            echo "$json"
-            echo "EOF"
-          } >> "$GITHUB_OUTPUT"
-          echo "selected ${#files[@]} files for ${suite}"
+          pnpm test:live -- tests/live/smoke.test.ts --no-file-parallelism
 
-  live:
-    name: ${{ matrix.file }}
-    needs: select
+  codex:
+    name: Codex · Responses & Realtime
+    if: ${{ github.event_name == 'schedule' || contains(fromJSON('["all","core","codex"]'), inputs.suite) }}
     runs-on: ubuntu-latest
     timeout-minutes: 150
-    strategy:
-      fail-fast: false
-      max-parallel: 6
-      matrix:
-        file: ${{ fromJson(needs.select.outputs.files) }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - name: Setup pnpm
-        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
         with:
-          version: 10.28.2
-      - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: 26
-          cache: pnpm
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-      - name: Run live test
+          persist-credentials: false
+      - name: Prepare Live tooling
+        uses: ./.github/actions/setup-live
+      - name: Verify Codex · Responses & Realtime
         env:
+          SUITE: ${{ inputs.suite || 'all' }}
+          MINI_ONLY_CODEX_SURFACE_API_KEY: ${{ secrets.MINI_ONLY_CODEX_SURFACE_API_KEY }}
+        run: |
+          set -euo pipefail
+          case "$SUITE" in
+            core)
+              pnpm test:live -- tests/live/codex/core.test.ts --no-file-parallelism
+              ;;
+            *)
+              pnpm test:live -- tests/live/codex --no-file-parallelism
+              ;;
+          esac
+
+  grok:
+    name: Grok · Gateway & Media
+    if: ${{ github.event_name == 'schedule' || contains(fromJSON('["all","core","grok","images","videos","files"]'), inputs.suite) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Prepare Live tooling
+        uses: ./.github/actions/setup-live
+      - name: Verify Grok · Gateway & Media
+        env:
+          SUITE: ${{ inputs.suite || 'all' }}
+          MINI_ONLY_GROK_SURFACE_API_KEY: ${{ secrets.MINI_ONLY_GROK_SURFACE_API_KEY }}
+          MINI_ADMIN_SECRET: ${{ secrets.MINI_ADMIN_SECRET }}
+        run: |
+          set -euo pipefail
+          case "$SUITE" in
+            core)
+              pnpm test:live -- tests/live/grok/core.test.ts --no-file-parallelism
+              ;;
+            images|videos|files)
+              pnpm test:live -- "tests/live/grok/${SUITE}.test.ts" --no-file-parallelism
+              ;;
+            *)
+              pnpm test:live -- tests/live/grok --no-file-parallelism
+              ;;
+          esac
+
+  xai:
+    name: xAI · API & Resources
+    if: ${{ github.event_name == 'schedule' || contains(fromJSON('["all","core","xai","images","videos","files","xai-resources"]'), inputs.suite) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Prepare Live tooling
+        uses: ./.github/actions/setup-live
+      - name: Verify xAI · API & Resources
+        env:
+          SUITE: ${{ inputs.suite || 'all' }}
+          MINI_ONLY_XAI_SURFACE_API_KEY: ${{ secrets.MINI_ONLY_XAI_SURFACE_API_KEY }}
+          MINI_ONLY_GROK_SURFACE_API_KEY: ${{ secrets.MINI_ONLY_GROK_SURFACE_API_KEY }}
+        run: |
+          set -euo pipefail
+          case "$SUITE" in
+            core)
+              pnpm test:live -- tests/live/xai/core.test.ts --no-file-parallelism
+              ;;
+            images|videos|files)
+              pnpm test:live -- "tests/live/xai/${SUITE}.test.ts" --no-file-parallelism
+              ;;
+            xai-resources)
+              pnpm test:live -- tests/live/xai/resources.test.ts tests/live/xai/public-url.test.ts --no-file-parallelism
+              ;;
+            *)
+              pnpm test:live -- tests/live/xai --no-file-parallelism
+              ;;
+          esac
+
+  clients:
+    name: Clients · Native CLI
+    if: ${{ github.event_name == 'schedule' || contains(fromJSON('["all","clients"]'), inputs.suite) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Prepare Live tooling
+        uses: ./.github/actions/setup-live
+      - name: Verify Clients · Native CLI
+        env:
+          MINI_ONLY_CODEX_SURFACE_API_KEY: ${{ secrets.MINI_ONLY_CODEX_SURFACE_API_KEY }}
+          MINI_ONLY_GROK_SURFACE_API_KEY: ${{ secrets.MINI_ONLY_GROK_SURFACE_API_KEY }}
+        run: |
+          set -euo pipefail
+          pnpm test:live -- tests/live/clients --maxWorkers=2
+
+  authority:
+    name: Authority · Access & Credits
+    if: ${{ github.event_name == 'schedule' || contains(fromJSON('["all","access","credits"]'), inputs.suite) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Prepare Live tooling
+        uses: ./.github/actions/setup-live
+      - name: Verify Authority · Access & Credits
+        env:
+          SUITE: ${{ inputs.suite || 'all' }}
           MINI_ONLY_CODEX_SURFACE_API_KEY: ${{ secrets.MINI_ONLY_CODEX_SURFACE_API_KEY }}
           MINI_ONLY_GROK_SURFACE_API_KEY: ${{ secrets.MINI_ONLY_GROK_SURFACE_API_KEY }}
           MINI_ONLY_XAI_SURFACE_API_KEY: ${{ secrets.MINI_ONLY_XAI_SURFACE_API_KEY }}
           MINI_ONLY_GROK_SURFACE_CONTROL_API_KEY: ${{ secrets.MINI_ONLY_GROK_SURFACE_CONTROL_API_KEY }}
           MINI_ADMIN_SECRET: ${{ secrets.MINI_ADMIN_SECRET }}
-        run: pnpm test:live -- "${{ matrix.file }}"
+        run: |
+          set -euo pipefail
+          case "$SUITE" in
+            access)
+              pnpm test:live -- tests/live/access.test.ts --no-file-parallelism
+              ;;
+            credits)
+              pnpm test:live -- tests/live/credits.test.ts --no-file-parallelism
+              ;;
+            *)
+              pnpm test:live -- tests/live/access.test.ts tests/live/credits.test.ts --no-file-parallelism
+              ;;
+          esac
+
+  accounting:
+    name: Accounting · Usage & Billing
+    needs: [reachability, codex, grok, xai, clients, authority]
+    if: ${{ !cancelled() && (github.event_name == 'schedule' || contains(fromJSON('["all","billing"]'), inputs.suite)) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Prepare Live tooling
+        uses: ./.github/actions/setup-live
+      - name: Verify Accounting · Usage & Billing
+        env:
+          MINI_ONLY_CODEX_SURFACE_API_KEY: ${{ secrets.MINI_ONLY_CODEX_SURFACE_API_KEY }}
+          MINI_ONLY_GROK_SURFACE_API_KEY: ${{ secrets.MINI_ONLY_GROK_SURFACE_API_KEY }}
+          MINI_ADMIN_SECRET: ${{ secrets.MINI_ADMIN_SECRET }}
+        run: |
+          set -euo pipefail
+          pnpm test:live -- tests/live/billing.test.ts --no-file-parallelism

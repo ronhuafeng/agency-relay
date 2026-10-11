@@ -4,7 +4,7 @@ All files under this directory use actual Agency Relay API keys and deployed Pro
 
 ## Selection and ownership
 
-`.github/workflows/live.yml` is the single entry point. Each selected test file runs as its own job, named with that file path, so a failure identifies the file. At most six of those jobs run at once:
+`.github/workflows/live.yml` is the single entry point. Seven stable, capability-owned Jobs run native Vitest suites. `.github/actions/setup-live/action.yml` only prepares the pinned Node/pnpm environment; it does not select or wrap tests. Jobs run independently where possible; Accounting waits until the other Live Jobs have finished, then records its own result even if another Job failed (but not after cancellation). Provider and authority Jobs use one Vitest file worker at a time; native client tests allow two, avoiding the unbounded concurrency of a file-level matrix:
 
 | Selection | Evidence |
 | --- | --- |
@@ -18,6 +18,8 @@ All files under this directory use actual Agency Relay API keys and deployed Pro
 | `xai-resources` | xAI stored Response retrieval/deletion, shared list reads, and synthetic-file public URL/revoke lifecycle |
 
 Provider suite directories are organizational boundaries; an `images` selection covers **both** image directories. A green narrower selection says nothing about excluded providers or capabilities.
+
+The Jobs are **Reachability** (smoke), **Codex**, **Grok**, **xAI**, **Clients**, **Authority** (access and credits), and **Accounting** (billing). Each selected `.test.ts` file runs exactly once; missing or failed tests are not converted into a successful gate. The scheduled run still selects `all` and uses real production credentials and providers. When introducing a new root-level Live test, assign it explicitly to the owning Job; tests added under a Provider or client directory are picked up by that directory's full suite.
 
 ## Success evidence
 
