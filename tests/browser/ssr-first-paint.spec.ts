@@ -60,6 +60,10 @@ for (const width of [390, 999, 1000, 1440]) test.describe(`SSR first paint ${wid
       try {
         await page.goto(`/admin?${view}`, { waitUntil: 'commit' });
         await arrival;
+        // Native parsing and fragment selection must finish without downloading
+        // the enhancement runtime. This is an event boundary, not a delay.
+        await page.waitForLoadState('domcontentloaded');
+        if (view.includes('#route-host-1-title')) await expect(page.locator(':target')).toHaveAttribute('id', 'route-host-1-title');
         await expect(page.locator('main#content')).toBeVisible();
         if (view.includes('view=setup')) await expect(page.getByRole('button', { name: '下载配置文件', exact: true })).toBeDisabled();
         const before = await geometry(page); valid(before);

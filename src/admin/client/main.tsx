@@ -1,3 +1,4 @@
+import { afterDocumentParsed } from "./document-ready";
 import { initializeRecovery } from "./recovery";
 import { useEffect, useRef, useState } from "react";
 import { createRoot, hydrateRoot, type Root } from "react-dom/client";
@@ -241,6 +242,7 @@ function clearSecrets(): void {
   document.querySelectorAll<HTMLInputElement>('input[type="password"],input[name="callback_url"]').forEach((input) => { input.value = ""; });
   document.querySelectorAll<HTMLScriptElement>('script[data-ui-props="copy-secret"],script[data-ui-props="disclosure"]').forEach((node) => { node.textContent = ""; });
 }
+afterDocumentParsed(() => {
 const mount = document.querySelector("#console-dialog-root");
 if (mount) {
   const unmount = mountConsoleDialog(mount);
@@ -272,3 +274,4 @@ if (mount) {
     void navigator.serviceWorker.register("/admin/app-worker.js", { scope: "/", updateViaCache: "none" }).catch(() => {});
   }
 }
+});

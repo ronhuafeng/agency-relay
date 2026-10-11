@@ -49,7 +49,7 @@ export function consoleDocument(input: ConsoleDocumentInput): string {
         {input.confirm ? (
           <>
             <div id="console-dialog-root" />
-            <script type="module" src={consoleClientPath()} nonce={input.nonce} />
+            <script type="module" async src={consoleClientPath()} nonce={input.nonce} />
           </>
         ) : null}
       </body>
