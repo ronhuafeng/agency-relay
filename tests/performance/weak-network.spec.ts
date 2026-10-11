@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page, type CDPSession } from '@playwright/test';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -21,6 +21,12 @@ async function painted(page: Page, view: string) {
     && typeof history.state?.miniEntry === 'string', view);
   await page.evaluate(async () => { await document.fonts.ready; await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))); });
 }
+async function cpuScalars(cdp: CDPSession) {
+  const {metrics} = await cdp.send('Performance.getMetrics');
+  const values = new Map<string, number>(metrics.map((value: {name: string; value: number}) => [value.name, value.value]));
+  return Object.fromEntries(['ScriptDuration', 'TaskDuration', 'LayoutDuration', 'RecalcStyleDuration'].map(name => [name, values.has(name) ? values.get(name)! * 1000 : null]));
+}
+
 async function scalars(page: Page) {
   return page.evaluate(() => {
     window.weakNetworkLab.drain();
@@ -68,13 +74,14 @@ for (const width of [390, 1440]) test(`150 ms RTT / 1 Mbps ${width}px: cold, war
         const page = await context.newPage();
         const cdp = await context.newCDPSession(page);
         await cdp.send('Network.enable');
+        await cdp.send('Performance.enable');
         await cdp.send('Network.emulateNetworkConditions', { offline: false, latency: profile.latencyMs,
           downloadThroughput: profile.downloadBytesPerSecond, uploadThroughput: profile.uploadBytesPerSecond });
         await cdp.send('Emulation.setCPUThrottlingRate', { rate: profile.cpuRate });
         await page.goto(source, { waitUntil: 'load' }); await painted(page, 'access');
-        const cold = await scalars(page);
+        const cold = {...await scalars(page), cpuMs: await cpuScalars(cdp)};
         await page.reload({ waitUntil: 'load' }); await painted(page, 'access');
-        const warm = await scalars(page);
+        const warm = {...await scalars(page), cpuMs: await cpuScalars(cdp)};
         const navigation = [];
         // Counterbalance order to avoid giving one mode every first request.
         for (const mode of repeat % 2 ? ['document', 'enhanced'] : ['enhanced', 'document']) {
@@ -94,7 +101,7 @@ for (const width of [390, 1440]) test(`150 ms RTT / 1 Mbps ${width}px: cold, war
           navigation.push({ mode, completionMs, status: result.status(), responseBodyBytes: (await result.body()).byteLength,
             requestToResponseHeadersMs: result.request().timing().responseStart, retainedShell: retained });
         }
-        const reduce = ({ shifts, ...value }: Awaited<ReturnType<typeof scalars>>) => ({ ...value, boundedCls: value.layoutShiftSupported ? labCls(shifts) : null });
+        const reduce = ({ shifts, ...value }: Awaited<ReturnType<typeof scalars>> & {cpuMs: Awaited<ReturnType<typeof cpuScalars>>}) => ({ ...value, boundedCls: value.layoutShiftSupported ? labCls(shifts) : null });
         samples.push({ repeat: repeat + 1, cold: reduce(cold), warm: reduce(warm), navigation });
       } finally { await context.close(); }
     }
@@ -110,7 +117,7 @@ for (const width of [390, 1440]) test(`150 ms RTT / 1 Mbps ${width}px: cold, war
       browser: browser.version(), playwright: JSON.parse(readFileSync('node_modules/@playwright/test/package.json', 'utf8')).version,
       fontHashes: ['Noto Sans CJK SC', 'Noto Sans CJK SC:weight=bold'].map(font => hash(execFileSync('fc-match', ['-f', '%{file}', font], { encoding: 'utf8' }))),
       node: process.version, width, repetitions, profile,
-      limits: 'Local uncompressed synthetic Node/SQLite fixture; no edge/D1/RUM, field INP or performance threshold claim. Cold=fresh context; warm=same context reload with eligible cache. Completion ends at committed target plus fonts/two rendering frames. System fonts. No arbitrary settling delay. Same generated product assets must be built for each compared revision.',
+      limits: 'Local uncompressed synthetic Node/SQLite fixture; no edge/D1/RUM, field INP or performance threshold claim. Cold=fresh context; warm=same context reload with eligible cache. Completion ends at committed target plus fonts/two rendering frames. System fonts. Document CPU counters include probe and all JS, not isolated hydration cost. No arbitrary settling delay. Same generated product assets must be built for each compared revision.',
       summary, samples }, null, 2) + '\n');
   } finally { await worker.close(); }
 });
