@@ -1,4 +1,5 @@
 import { expect, it } from "vitest";
+import { assertCompletedSse } from "./oracles";
 import { codexLanguageModel } from "./support";
 import { admin, expectTerminal, isRecord, languageModel, newestModel, parseJson, requireEnv, send, sleep } from "./runtime";
 
@@ -8,13 +9,27 @@ it("records attributed Responses and media usage from real provider calls", asyn
   const grokKey = requireEnv("MINI_ONLY_GROK_SURFACE_API_KEY");
   const codex = await send("https://api.trustedtunnel.app/v1/responses", codexKey, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ model: await codexLanguageModel(codexKey), input: "Reply exactly OK.", stream: false })
+    headers: { Accept: "text/event-stream", "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: await codexLanguageModel(codexKey),
+      instructions: "Reply concisely.",
+      input: [{ role: "user", content: [{ type: "input_text", text: "Reply exactly OK." }] }],
+      store: false,
+      stream: true
+    })
   }, 180_000);
-  expectTerminal(codex);
-  const codexBody = parseJson(codex.text);
-  if (isRecord(codexBody) && isRecord(codexBody.usage)) {
-    expect(codexBody.usage.cost_in_usd_ticks).not.toEqual(expect.any(Number));
+  expect(codex.status).toBe(200);
+  expect(codex.contentType.toLowerCase()).toContain("text/event-stream");
+  assertCompletedSse(codex.text);
+  const completed = [...codex.text.split(/\r?\n\r?\n/)].reverse().map((block) => {
+    const data = block.split(/\r?\n/).filter((line) => line.startsWith("data:")).map((line) => line.slice(5).trim()).join("\n");
+    return block.includes("event: response.completed") ? data : "";
+  }).find((data) => data.length > 0);
+  const completedBody = completed ? parseJson(completed) : null;
+  const completedResponse = isRecord(completedBody) ? completedBody.response : null;
+  const usage = isRecord(completedResponse) ? completedResponse.usage : null;
+  if (isRecord(usage)) {
+    expect(usage.cost_in_usd_ticks).not.toEqual(expect.any(Number));
   }
   const grokModel = await languageModel("https://grok.trustedtunnel.app", grokKey);
   expectTerminal(await send("https://grok.trustedtunnel.app/v1/responses", grokKey, {

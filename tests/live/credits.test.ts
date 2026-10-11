@@ -1,4 +1,5 @@
 import { expect, it } from "vitest";
+import { assertCompletedSse } from "./oracles";
 import { admin, expectTerminal, isRecord, languageModel, parseJson, send } from "./runtime";
 
 it("admits Codex and Grok surface credits independently", async () => {
@@ -21,15 +22,25 @@ it("admits Codex and Grok surface credits independently", async () => {
     ]);
     keyIds.push(second.id);
     const codexModel = await codexModelId(first.token);
-    expectTerminal(await send("https://api.trustedtunnel.app/v1/responses", first.token, {
+    const codexBody = JSON.stringify({
+      model: codexModel,
+      instructions: "Reply concisely.",
+      input: [{ role: "user", content: [{ type: "input_text", text: "Reply exactly OK." }] }],
+      store: false,
+      stream: true
+    });
+    const admitted = await send("https://api.trustedtunnel.app/v1/responses", first.token, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ model: codexModel, input: "Reply exactly OK.", stream: false })
-    }, 180_000));
+      headers: { Accept: "text/event-stream", "Content-Type": "application/json" },
+      body: codexBody
+    }, 180_000);
+    expect(admitted.status).toBe(200);
+    expect(admitted.contentType.toLowerCase()).toContain("text/event-stream");
+    assertCompletedSse(admitted.text);
     const denied = await send("https://api.trustedtunnel.app/v1/responses", second.token, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ model: codexModel, input: "Reply exactly OK.", stream: false })
+      headers: { Accept: "text/event-stream", "Content-Type": "application/json" },
+      body: codexBody
     }, 60_000);
     expect(denied.status).toBe(429);
     expect(parseJson(denied.text)).toMatchObject({ error: { code: "surface_credit_exhausted" } });
