@@ -5,7 +5,7 @@ import { renderToString } from "react-dom/server";
 import { createRoot, type Root } from "react-dom/client";
 import { MemberKeyForm, CreditPolicyForm, AddAccountView } from "../../src/admin/ui/forms";
 import { Button } from "../../src/admin/ui/components/button";
-import { DashLink } from "../../src/admin/ui/chrome";
+import { DashLink, VisibleRowFilter } from "../../src/admin/ui/chrome";
 import { initializeVisibleRowFilters } from "../../src/admin/client/filters";
 import { readMemberKeyForm, readCapabilityComparison, readUsageReport, type UsageReportControl } from "../../src/admin/ui/models";
 import { UsageReport } from "../../src/admin/ui/usage-report";
@@ -90,6 +90,19 @@ describe("typed console controls", () => {
     expect(readUsageReport(usage)).toEqual(usage);
     expect(readUsageReport({...usage, exportUrl: "/me/usage"})?.exportUrl).toBe("/me/usage");
     expect(readUsageReport({...usage, exportUrl: "/me/usage?user_id=someone"})).toBe(null);
+  });
+  it("renders a disabled local filter before its runtime can handle input", () => {
+    const table = createElement("table", null, createElement("tbody", null,
+      createElement("tr", null, createElement("td", null, "Codex")),
+      createElement("tr", null, createElement("td", null, "Grok"))));
+    document.body.innerHTML = renderToString(createElement(VisibleRowFilter, {label:"服务",placeholder:"过滤服务",countLabel:"2 条",rowCount:2,children:table}));
+    const input = element("input", HTMLInputElement);
+    expect(input.disabled).toBe(true);
+    expect(input.closest("[hidden]")).toBeNull();
+    initializeVisibleRowFilters(document);
+    expect(input.disabled).toBe(false);
+    input.value = "Grok"; input.dispatchEvent(new Event("input"));
+    expect([...document.querySelectorAll("tbody tr")].filter(row=>!(row as HTMLElement).hidden).map(row=>row.textContent)).toEqual(["Grok"]);
   });
   it.each(["table", "list"])("filters only the rendered %s and exposes its empty state", (kind) => {
     const rows = kind === "table" ? '<div data-visible-row-filter-table><table><tbody><tr><td>Codex</td></tr><tr><td>Grok</td></tr></tbody></table></div>' : '<ul data-filter-list><li>Codex</li><li>Grok</li></ul>';

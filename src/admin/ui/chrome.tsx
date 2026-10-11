@@ -74,6 +74,7 @@ export function VisibleRowFilter(props: {
             spellCheck={false}
             placeholder={props.shownRowsOnly ? `本页：${props.placeholder}` : props.placeholder}
             data-visible-row-filter-input=""
+            disabled
           />
         </Label>
         {props.hideCount ? null : <span className="meta" data-visible-row-filter-count="" aria-live="polite">{props.countLabel}</span>}

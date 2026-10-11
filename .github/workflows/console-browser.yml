@@ -48,7 +48,8 @@ jobs:
       - id: browser
         timeout-minutes: 15
         run: pnpm run test:browser --project=${{ matrix.project }}
-      - name: Measure bounded weak-network head diagnostics
+      - id: performance_head
+        name: Measure bounded weak-network head diagnostics
         if: matrix.project == 'chromium' && github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'console-performance')
         timeout-minutes: 15
         run: NODE_ENV=production pnpm exec playwright test --config playwright.performance.config.ts tests/performance/weak-network.spec.ts
@@ -68,13 +69,14 @@ jobs:
           cp playwright.performance.config.ts "$RUNNER_TEMP/console-performance-base/"
           cd "$RUNNER_TEMP/console-performance-base"
           pnpm run console:check
-      - name: Measure bounded weak-network base diagnostics
+      - id: performance_base
+        name: Measure bounded weak-network base diagnostics
         if: matrix.project == 'chromium' && github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'console-performance')
         timeout-minutes: 15
         working-directory: ${{ runner.temp }}/console-performance-base
         run: NODE_ENV=production pnpm exec playwright test --config playwright.performance.config.ts tests/performance/weak-network.spec.ts
       - name: Retain scalar-only weak-network diagnostics
-        if: always() && matrix.project == 'chromium' && github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'console-performance')
+        if: always() && (steps.performance_head.outcome == 'success' || steps.performance_head.outcome == 'failure' || steps.performance_head.outcome == 'cancelled') && matrix.project == 'chromium' && github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'console-performance')
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: weak-network-scalars-attempt-${{ github.run_attempt }}

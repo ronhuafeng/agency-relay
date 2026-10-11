@@ -21,7 +21,14 @@ test('quiet reads retain unchanged content and apply changed SQL data without mo
   const unchanged = await unchangedRead;
   expect(unchanged.status()).toBe(204);
   expect(unchanged.headers()["cache-control"]).toBe("private, no-store");
-  expect(await unchanged.text()).toBe("");
+  // HTTP 204 has no content body; Chromium does not expose one through
+  // Network.getResponseBody. Assert the wire status/headers and retained UI,
+  // rather than treating an unavailable debugger body as a product failure.
+  expect(unchanged.headers()["x-console-revision"]).toBe(unchanged.request().headers()["x-console-revision"]);
+  expect(unchanged.headers()["x-console-actor-id"]).toBe("admin");
+  expect(unchanged.headers()["content-length"]).toBeUndefined();
+  expect(unchanged.headers()["transfer-encoding"]).toBeUndefined();
+  await unchanged.finished();
   await expect.poll(reads).toBeGreaterThan(before);
   expect(await root!.evaluate(node => node === document.querySelector('main#content'))).toBe(true);
   expect(await page.locator('[data-console-status]').isVisible()).toBe(false);

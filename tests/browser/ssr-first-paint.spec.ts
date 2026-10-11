@@ -8,7 +8,10 @@ async function geometry(page: Page) {
   // Wait for parser/CSS ownership, not the held script or an elapsed delay.
   await page.waitForFunction(() => document.readyState !== 'loading'
     && [...document.querySelectorAll<HTMLLinkElement>('link[rel=stylesheet]')].every(link => link.sheet !== null));
-  await page.evaluate(() => document.fonts.ready);
+  // The fixture uses installed system fonts, not asynchronous @font-face loads.
+  // WebKit ties fonts.ready to document load, which this probe deliberately
+  // withholds. Wait for painted frames after CSS rather than the held runtime.
+  await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
   return page.evaluate(() => {
     const box = (selector: string) => {
       const element = [...document.querySelectorAll(selector)].find(candidate => candidate.checkVisibility());
@@ -57,11 +60,16 @@ for (const width of [390, 999, 1000, 1440]) test.describe(`SSR first paint ${wid
         await page.goto(`/admin?${view}`, { waitUntil: 'commit' });
         await arrival;
         await expect(page.locator('main#content')).toBeVisible();
+        if (view.includes('view=setup')) await expect(page.getByRole('button', { name: '下载配置文件', exact: true })).toBeDisabled();
         const before = await geometry(page); valid(before);
         release();
         await page.waitForLoadState('load');
-        await page.waitForFunction(() => document.querySelector('#console-dialog-root') !== null
-          && (document.querySelector('[data-member-nav]') !== null || typeof history.state?.miniEntry === 'string'));
+        if (view.includes('view=setup')) {
+          // Native member navigation is already present in SSR. Only the enabled
+          // local download proves that this setup island has actually enhanced.
+          await expect(page.getByRole('button', { name: '下载配置文件', exact: true })).toBeEnabled();
+        } else await page.waitForFunction(() => document.querySelector('#console-dialog-root') !== null
+          && typeof history.state?.miniEntry === 'string');
         await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
         const after = await geometry(page); valid(after);
         for (const landmark of ['main', 'rail', 'task'] as const) for (const dimension of ['x', 'y', 'width', 'height'] as const)

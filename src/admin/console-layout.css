@@ -891,7 +891,7 @@ body:has(.console-nav-account) { --header-h:0px; }
 summary[data-slot=button] { list-style:none; cursor:pointer; }
 summary[data-slot=button]::-webkit-details-marker { display:none; }
 .route-catalog:has(.route-native-fallback) [data-slot=tabs-content][hidden] { display:block!important; }
-.confirmation-disclosure > summary { min-height:44px; display:flex; align-items:center; padding-inline:8px; border-radius:var(--radius); cursor:pointer; font-size:12px; color:var(--muted-foreground); }
+.confirmation-disclosure > summary { min-height:44px; min-width:var(--control-target); white-space:nowrap; display:flex; align-items:center; padding-inline:8px; border-radius:var(--radius); cursor:pointer; font-size:12px; color:var(--muted-foreground); }
 .confirmation-disclosure > summary:hover { background:var(--accent); }
 .confirmation-disclosure > summary:focus-visible { outline:3px solid var(--ring); outline-offset:2px; }
 .confirmation-disclosure > p { max-width:36em; white-space:normal; }

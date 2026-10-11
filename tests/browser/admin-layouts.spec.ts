@@ -116,8 +116,7 @@ for(const script of [true,false]) test.describe(`administrator local configurati
   test.use({script,viewport:{width:390,height:900}});
   test('existing-key configuration remains with exact selection and retains inventory context',async({page,worker})=>{
     await page.goto('/admin?view=setup&person=member&key=member-key&range=30d&q=member&page=2');
-    if(script) await page.getByRole('button',{name:'已有密钥',exact:true}).click();
-    else await page.getByRole('link',{name:'用已有密钥生成配置',exact:true}).click();
+    await page.getByRole('button',{name:'已有密钥',exact:true}).click();
     await expect(page.locator('[data-sync-configuration="local-only"]')).toBeVisible();
     const current=new URL(page.url());
     expect(current.searchParams.get('view')).toBe('setup');
@@ -130,7 +129,8 @@ for(const script of [true,false]) test.describe(`administrator local configurati
     await expect(page.locator('[data-setup-selected-key="member-key"]')).toBeVisible();
     await expect(page.getByRole('searchbox',{name:'搜索账号或密钥'})).toHaveValue('member');
     const form=page.locator('[data-local-config-sync]');
-    if(script) await expect(form).toBeVisible(); else await expect(form).toBeHidden();
+    await expect(form).toBeVisible();
+    if(!script) await expect(form.getByLabel('已有密钥')).toBeDisabled();
     expect(await form.getAttribute('method')).toBeNull();
     expect(await form.getAttribute('action')).toBeNull();
     expect(worker.requests.every(request=>request.method==='GET')).toBe(true);

@@ -227,11 +227,12 @@ test.describe('native owner removal',()=>{
   test('native disabled-owner form requires an explicit choice before removing assignment',async({page,worker})=>{
     const id=await worker.seedDelegatedService();
     await page.goto('/admin?view=access&person=member');
-    const status=page.locator('[data-action="user-status"]');await status.getByRole('checkbox').check();await status.getByRole('switch',{name:/启用账号/}).click();
+    const status=page.locator('[data-action="user-status"]');await openNativeConfirmation(status);await status.getByRole('checkbox').check();await status.getByRole('switch',{name:/启用账号/}).click();
     await expect(page.locator('[data-mutation-flash="user_status"]')).toBeVisible();
     await page.goto(`/admin?view=access&person=${id}`);
     const form=page.locator(`form[action="/admin/ui/services/${id}/owner"]`);
     expect(await form.evaluate(node=>(node as HTMLFormElement).checkValidity())).toBe(false);
+    await openNativeConfirmation(form);
     await form.getByRole('checkbox').check();await form.getByRole('button',{name:'更新管理人',exact:true}).click();
     expect(worker.serviceOwner(id)).toEqual({owner_user_id:'member',revision:1});
     await form.getByRole('combobox',{name:'新的管理人'}).selectOption('remove');

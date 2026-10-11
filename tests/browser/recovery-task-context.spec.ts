@@ -154,7 +154,7 @@ for (const [script, delegated] of [[false, false], [false, true], [true, true]] 
     const keyId = `${owner}-setup-new`;
     const target = `${service ? `/me/service-accounts/${service}?view=keys` : '/admin?area=me&view=keys'}&key=${keyId}`;
     await page.goto(target);
-    if (script) await openKeyEditor(page,'rename');
+    await openKeyEditor(page,'rename');
     const detail = page.locator(`[data-key-detail="${keyId}"]`);
     await detail.getByRole('textbox',{name:'密钥名称',exact:true}).fill('Rejected name');
     worker.expireSessions();

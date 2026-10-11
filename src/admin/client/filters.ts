@@ -19,6 +19,6 @@ export function initializeVisibleRowFilters(root: Pick<ParentNode, "querySelecto
       }
       empty.hidden = visible !== 0;
     };
-    input.addEventListener("input", apply); filter.dataset.visibleRowFilterReady = "true"; apply();
+    input.disabled = false; input.addEventListener("input", apply); filter.dataset.visibleRowFilterReady = "true"; apply();
   });
 }
