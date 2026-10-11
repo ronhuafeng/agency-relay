@@ -1,9 +1,9 @@
 import { expect, it } from "vitest";
-import { admin, isRecord, newestModel, parseJson, requireEnv, send, sleep } from "./runtime";
+import { admin, isRecord, newestModel, parseJson, requireEnv, send, sleep } from "../runtime";
 
 const HOST = "https://grok.trustedtunnel.app";
 
-it("generates one Grok video for its owner only", async () => {
+it("generates and downloads one Grok video, denying another owner", async () => {
   const key = requireEnv("MINI_GROK_API_KEY");
   const catalog = await send(`${HOST}/v1/video-generation-models`, key);
   expect(catalog.status).toBe(200);
