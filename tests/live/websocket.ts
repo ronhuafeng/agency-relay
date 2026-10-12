@@ -13,7 +13,8 @@ export class StorySocket {
   private waiter: (() => void) | null = null;
   private failed: Error | null = null;
 
-  private constructor(private readonly socket: TLSSocket) {
+  private constructor(private readonly socket: TLSSocket, remaining: Buffer) {
+    this.buffer = remaining;
     socket.on("data", (chunk: Buffer) => {
       this.buffer = Buffer.concat([this.buffer, chunk]);
       this.readFrames();
@@ -26,6 +27,8 @@ export class StorySocket {
     socket.on("close", () => {
       this.waiter?.();
     });
+    this.readFrames();
+    socket.resume();
   }
 
   static async connect(urlString: string, headers: Record<string, string>): Promise<StorySocket> {
@@ -48,12 +51,12 @@ export class StorySocket {
       ""
     ];
     socket.write(lines.join("\r\n"));
-    const header = await readHeader(socket);
+    const { header, remaining } = await readHeader(socket);
     if (!/^HTTP\/1\.[01] 101\b/.test(header)) {
       socket.destroy();
       throw new Error("websocket upgrade rejected");
     }
-    return new StorySocket(socket);
+    return new StorySocket(socket, remaining);
   }
 
   sendText(text: string): void {
@@ -66,12 +69,14 @@ export class StorySocket {
 
   async waitFor(match: (message: SocketMessage) => boolean, timeoutMs: number): Promise<void> {
     const deadline = Date.now() + timeoutMs;
+    let inspected = 0;
     while (Date.now() < deadline) {
       if (this.failed) {
         throw this.failed;
       }
-      if (this.messages.some(match)) {
-        return;
+      while (inspected < this.messages.length) {
+        const message = this.messages[inspected++];
+        if (message && match(message)) return;
       }
       if (this.socket.destroyed) {
         throw new Error("socket closed");
@@ -141,17 +146,17 @@ export class StorySocket {
   }
 }
 
-function readHeader(socket: TLSSocket): Promise<string> {
+function readHeader(socket: TLSSocket): Promise<{ header: string; remaining: Buffer }> {
   return new Promise((resolve, reject) => {
-    let header = "";
+    let buffer = Buffer.alloc(0);
     const onData = (chunk: Buffer) => {
-      header += bytesToUtf8(chunk);
-      const end = header.indexOf("\r\n\r\n");
+      buffer = Buffer.concat([buffer, chunk]);
+      const end = buffer.indexOf("\r\n\r\n");
       if (end >= 0) {
+        socket.pause();
         socket.off("data", onData);
-        const rest = Buffer.from(header.slice(end + 4));
-        if (rest.length > 0) socket.unshift(rest);
-        resolve(header.slice(0, end));
+        socket.off("error", reject);
+        resolve({ header: bytesToUtf8(buffer.subarray(0, end)), remaining: buffer.subarray(end + 4) });
       }
     };
     socket.on("data", onData);

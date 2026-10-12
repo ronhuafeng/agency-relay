@@ -2,9 +2,12 @@ import { request as httpsRequest } from "node:https";
 import { expect } from "vitest";
 import {
   assertNoSecret,
+  assertJsonShape,
+  fetchLive,
   isRecord,
   newestModel,
   parseJson,
+  providerUrl,
   requireEnv,
   sleep
 } from "./runtime";
@@ -45,7 +48,7 @@ export async function call(
   if (apiKey) {
     headers.set("Authorization", `Bearer ${apiKey}`);
   }
-  const response = await fetch(url, {
+  const response = await fetchLive(url, {
     ...init,
     headers,
     signal: AbortSignal.timeout(timeoutMs)
@@ -71,11 +74,11 @@ export function expectJson(response: LiveResponse, status = 200): unknown {
 }
 
 export function expectErrorCode(body: unknown, code: string): void {
-  expect(isRecord(body) && isRecord(body.error) ? body.error.code : undefined).toBe(code);
+  expect(isRecord(body) && isRecord(body.error) && body.error.code === code).toBe(true);
 }
 
 export function assertModelId(id: string): void {
-  expect(id).toMatch(MODEL_ID);
+  expect(MODEL_ID.test(id)).toBe(true);
 }
 
 export function assertNotClosed(response: LiveResponse): void {
@@ -413,7 +416,7 @@ export async function pollVideo(origin: string, apiKey: string, jobId: string): 
     if (state === "done") {
       return body;
     }
-    expect(["pending", "queued", "processing", "in_progress"]).toContain(state);
+    expect(["pending", "queued", "processing", "in_progress"].includes(state)).toBe(true);
     await sleep(15_000);
   }
   throw new Error("terminal not reached");
@@ -421,7 +424,7 @@ export async function pollVideo(origin: string, apiKey: string, jobId: string): 
 
 /** Verify the two distinct provider video transformations against a real completed source. */
 export async function verifyVideoTransformations(origin: string, apiKey: string, sourceUrl: string): Promise<void> {
-  const videoUrl = new URL(sourceUrl);
+  const videoUrl = providerUrl(sourceUrl);
   expect(videoUrl.protocol).toBe("https:");
   // The source is the actual result of a preceding successful generation.
   // Edit and extension must each finish successfully and return video media.
@@ -437,14 +440,14 @@ export async function verifyVideoTransformations(origin: string, apiKey: string,
       })
     }, 180_000));
     const requestId = isRecord(started) && typeof started.request_id === "string" ? started.request_id : "";
-    expect(requestId).toMatch(/^[A-Za-z0-9_-]{1,200}$/);
+    expect(/^[A-Za-z0-9_-]{1,200}$/.test(requestId)).toBe(true);
     const result = await pollVideo(origin, apiKey, requestId);
     if (!isRecord(result) || !isRecord(result.video) || typeof result.video.url !== "string") {
       throw new Error("transformed video reference missing");
     }
-    const mediaUrl = new URL(result.video.url);
+    const mediaUrl = providerUrl(result.video.url);
     expect(mediaUrl.protocol).toBe("https:");
-    const response = await fetch(mediaUrl, { signal: AbortSignal.timeout(180_000) });
+    const response = await fetchLive(mediaUrl, { signal: AbortSignal.timeout(180_000) });
     expect(response.ok).toBe(true);
     expect(response.headers.get("content-type") ?? "").toMatch(/^video\/mp4/i);
     assertVideo(Buffer.from(await response.arrayBuffer()));
@@ -475,4 +478,4 @@ function headersFrom(source: NodeJS.Dict<string | string[] | undefined>): Header
   return headers;
 }
 
-export { isRecord, parseJson };
+export { assertJsonShape, isRecord, parseJson };

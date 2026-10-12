@@ -26,6 +26,18 @@ and allowlisted candidate counts are diagnostics, not substitutes for the caller
 transcript and returned audio. Raw SDP, candidates, transcript and audio remain
 in memory and are not uploaded as artifacts.
 
+Manual `audio_diagnostic=true, realtime_only=false` selects one xAI STT WebSocket
+using the same checked-in spoken fixture and outcome oracle as the normal
+WebSocket gate. No TTS, HTTP STT or catalog call runs. All normal graph jobs are
+unselected. The job emits fixture lengths/format, event counts and transcript-match
+booleans only. Success establishes this STT operation, not full Audio or Live
+acceptance. This selection needs separate operator authorization; it does not
+retry the full graph.
+
+The PCM16 WAV reader accepts observed unknown-size data declarations
+`0x7fffffff` and `0xffffffff` using actual remaining bytes. Ordinary declared
+lengths still require complete data; empty or silent samples remain invalid.
+
 ## Success evidence
 
 Use a completed Provider terminal state, real response content, completed SSE, a validated media artifact, or a completed asynchronous video job as appropriate. A 200 status, SSE Content-Type, open route, empty result collection, or unsuccessful terminal state **alone** is not a completed task. The Codex realtime test calls the issued client base `/backend-api/codex/realtime/calls` and must receive an SDP answer, the caller's transcript, and output audio packets. A non-404 response is not that session. Codex Responses live proof uses canonical `POST /backend-api/codex/responses`, with one legacy `POST /v1/responses` stream as compatibility for the same operation. Deterministic tests own the exact alias. This suite does not establish ChatGPT Realtime WebSocket, subscription speech, or a paid Live session unless that job is actually run.
@@ -37,6 +49,24 @@ request that uses it to recover prior synthetic context. Accept either
 `response.output_item.done` or the final response output as the item carrier;
 trigger and completion event names alone are insufficient. Keep the item and
 continuation output in memory and use secret-safe failure assertions.
+
+xAI compact proof keeps the complete returned output array unchanged and appends
+one question that does not repeat the synthetic fact. The continuation must
+complete and recover that fact. HTTP and WebSocket speech proof requires actual
+audio samples and the known spoken fixture's transcript, not just an open route
+or a completion event. STT requires `transcript.done` plus a known-phrase match
+in its terminal text or one individual locked `transcript.partial` with boolean
+`is_final=true`. Unlocked text and phrases assembled from separate partials do
+not establish the result. The provider's [STT event contract](https://docs.x.ai/developers/model-capabilities/audio/speech-to-text)
+defines locked chunks separately from completion. WebSocket Responses requires generated text and a
+successful terminal state; Voice requires audio, its assistant transcript and
+completion. Chunk counts and chunk boundaries do not decide success.
+
+Failure assertions expose only safe scalar/boolean projections or fixed errors,
+not whole provider/client bodies. Credits cleanup attempts every owned key and
+personal policy removal, confirms their effects, and preserves both task and
+cleanup failures. The created test user, revoked-key records and usage/audit
+history remain as metadata; there is no user-deletion endpoint in this workflow.
 
 The Codex CLI gate uses the unchanged official non-interactive installer with its
 supported GitHub Releases source in an isolated HOME. Native curl controls own

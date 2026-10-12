@@ -1,5 +1,6 @@
 import { expect, it } from "vitest";
-import { HOST, call, env, expectJson, isRecord } from "../support";
+import { HOST, assertJsonShape, call, env, expectJson, isRecord } from "../support";
+import { providerUrl, withCleanup } from "../runtime";
 
 it("creates and revokes a public URL only for a temporary synthetic xAI image file", async () => {
   const apiKey = env("MINI_ONLY_XAI_SURFACE_API_KEY");
@@ -12,28 +13,30 @@ it("creates and revokes a public URL only for a temporary synthetic xAI image fi
     method: "POST", body: form
   }, 120_000));
   const id = isRecord(uploaded) && typeof uploaded.id === "string" ? uploaded.id : "";
-  expect(id).toMatch(/^file_[A-Za-z0-9_-]{1,200}$/);
-  let urlActive = false;
-  try {
+  expect(/^file_[A-Za-z0-9_-]{1,200}$/.test(id)).toBe(true);
+  let urlActive = true;
+  await withCleanup(async () => {
     const issued = expectJson(await call(`${HOST.xai}/v1/files/${encodeURIComponent(id)}/public-url`, apiKey, {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ expires_after: 3600 })
     }));
-    expect(issued).toMatchObject({ public_url: expect.any(String) });
-    urlActive = true;
-    const publicUrl = new URL((issued as { public_url: string }).public_url);
+    assertJsonShape(issued, { public_url: expect.any(String) });
+    const publicUrl = providerUrl((issued as { public_url: string }).public_url);
     expect(publicUrl.protocol).toBe("https:");
     // Revoke promptly; do not print or retain the secret-bearing public URL.
     const revoked = expectJson(await call(`${HOST.xai}/v1/files/${encodeURIComponent(id)}/public-url/revoke`, apiKey, {
       method: "POST"
     }));
-    expect(revoked).toMatchObject({ revoked: true });
+    assertJsonShape(revoked, { revoked: true });
     urlActive = false;
-  } finally {
+  }, [{ message: "owned public URL revocation failed", run: async () => {
     if (urlActive) {
       const revoked = await call(`${HOST.xai}/v1/files/${encodeURIComponent(id)}/public-url/revoke`, apiKey, { method: "POST" });
       expect(revoked.status).toBe(200);
+      assertJsonShape(expectJson(revoked), { revoked: true });
     }
+  } }, { message: "owned public file deletion failed", run: async () => {
     const deleted = await call(`${HOST.xai}/v1/files/${encodeURIComponent(id)}`, apiKey, { method: "DELETE" });
     expect([200, 204]).toContain(deleted.status);
-  }
+    expect((await call(`${HOST.xai}/v1/files/${encodeURIComponent(id)}`, apiKey)).status).toBe(404);
+  } }]);
 }, 360_000);

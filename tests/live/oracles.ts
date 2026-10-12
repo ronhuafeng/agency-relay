@@ -23,6 +23,135 @@ export function assertResponseHasText(body: unknown): void {
   if (!responseText(body).trim()) throw new Error("completed response has no output text");
 }
 
+export function assertPcmAudio(bytes: Uint8Array): void {
+  if (bytes.length < 2 || bytes.length % 2 !== 0 || !bytes.some(byte => byte !== 0)) {
+    throw new Error("audio contains no usable PCM16 samples");
+  }
+}
+
+/** Read the selected PCM16 WAV fixture, including non-audio chunks and padding. */
+export function waveAudio(bytes: Buffer): { pcm: Buffer; sampleRate: number } {
+  const invalid = () => { throw new Error("audio WAV contract mismatch"); };
+  if (bytes.length < 44 || bytes.toString("ascii", 0, 4) !== "RIFF" || bytes.toString("ascii", 8, 12) !== "WAVE") return invalid();
+  let sampleRate = 0;
+  let pcm: Buffer | undefined;
+  for (let offset = 12; offset + 8 <= bytes.length;) {
+    const kind = bytes.toString("ascii", offset, offset + 4);
+    const declared = bytes.readUInt32LE(offset + 4);
+    const size = (declared === 0xffffffff || declared === 0x7fffffff) && kind === "data" ? bytes.length - offset - 8 : declared;
+    const start = offset + 8;
+    if (start + size > bytes.length) return invalid();
+    if (kind === "fmt ") {
+      if (size < 16 || bytes.readUInt16LE(start) !== 1 || bytes.readUInt16LE(start + 14) !== 16 || bytes.readUInt16LE(start + 2) < 1) return invalid();
+      sampleRate = bytes.readUInt32LE(start + 4);
+    } else if (kind === "data") {
+      pcm = bytes.subarray(start, start + size);
+    }
+    offset = start + size + (size & 1);
+  }
+  if (!sampleRate || !pcm) return invalid();
+  assertPcmAudio(pcm);
+  return { pcm, sampleRate };
+}
+
+function transcriptMatches(body: unknown, expected: string): boolean {
+  const normalize = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  return isRecord(body) && typeof body.text === "string" && Boolean(normalize(expected))
+    && (` ${normalize(body.text)} `).includes(` ${normalize(expected)} `);
+}
+
+export function assertTranscript(body: unknown, expected: string): void {
+  if (!transcriptMatches(body, expected)) throw new Error("spoken fixture transcript mismatch");
+}
+
+/** Official tokenize-text output must reconstruct the nonempty ASCII probe. */
+export function assertTokenization(body: unknown, input: string): void {
+  const invalid = () => { throw new Error("tokenization result mismatch"); };
+  if (!isRecord(body) || !Array.isArray(body.token_ids) || !body.token_ids.length) return invalid();
+  const bytes: number[] = [];
+  let text = "";
+  for (const token of body.token_ids) {
+    if (!isRecord(token) || !Number.isInteger(token.token_id) || Number(token.token_id) < 0
+      || typeof token.string_token !== "string" || !Array.isArray(token.token_bytes)
+      || !token.token_bytes.every(byte => Number.isInteger(byte) && byte >= 0 && byte <= 255)) return invalid();
+    bytes.push(...token.token_bytes);
+    text += token.string_token;
+  }
+  if (!input || text !== input || !Buffer.from(bytes).equals(Buffer.from(input))) return invalid();
+}
+
+export function compactOutput(body: unknown): unknown[] {
+  if (!isRecord(body) || !Array.isArray(body.output) || !body.output.some(item => isRecord(item)
+    && item.type === "compaction" && typeof item.encrypted_content === "string" && item.encrypted_content.trim().length > 0)) {
+    throw new Error("compact result has no reusable opaque item");
+  }
+  return body.output;
+}
+
+/** One isolated request/turn; event names alone never establish completion. */
+export class SocketOutcome {
+  private text = "";
+  private readonly audio: Buffer[] = [];
+  private responseId: string | undefined;
+  private lockedTranscriptMatches = false;
+
+  constructor(private readonly kind: "responses" | "tts" | "stt" | "voice", private readonly spoken = "") {}
+
+  observe(body: unknown): boolean {
+    if (!isRecord(body) || typeof body.type !== "string") return false;
+    if (["error", "response.failed", "response.incomplete"].includes(body.type)) {
+      throw new Error("provider WebSocket operation failed");
+    }
+    if (!this.responseId && body.type === "response.created" && isRecord(body.response) && typeof body.response.id === "string") {
+      this.responseId = body.response.id;
+    }
+    const id = typeof body.response_id === "string" ? body.response_id
+      : isRecord(body.response) && typeof body.response.id === "string" ? body.response.id : undefined;
+    if (id && this.responseId && id !== this.responseId) return false;
+    if (this.kind === "responses" && body.type === "response.output_text.delta" && typeof body.delta === "string") {
+      this.text += body.delta;
+    }
+    const audioEvent = this.kind === "tts" ? body.type === "audio.delta"
+      : this.kind === "voice" && ["response.audio.delta", "response.output_audio.delta"].includes(body.type);
+    if (audioEvent) {
+      if (typeof body.delta !== "string" || !/^[A-Za-z0-9+/]*={0,2}$/.test(body.delta)) throw new Error("provider audio encoding rejected");
+      const bytes = Buffer.from(body.delta, "base64");
+      if (bytes.toString("base64").replace(/=+$/, "") !== body.delta.replace(/=+$/, "")) throw new Error("provider audio encoding rejected");
+      this.audio.push(bytes);
+    }
+    if (this.kind === "voice" && ["response.audio_transcript.delta", "response.output_audio_transcript.delta"].includes(body.type)
+      && typeof body.delta === "string") this.text += body.delta;
+    if (this.kind === "responses" && body.type === "response.completed") {
+      if (!isRecord(body.response) || body.response.status !== "completed"
+        || !(this.text || responseText(body.response)).trim()) throw new Error("WebSocket response has no completed text result");
+      return true;
+    }
+    if (this.kind === "stt") {
+      if (body.type === "transcript.partial" && body.is_final === true) {
+        this.lockedTranscriptMatches ||= transcriptMatches(body, this.spoken);
+      }
+      if (body.type === "transcript.done") {
+        if (!this.lockedTranscriptMatches) assertTranscript(body, this.spoken);
+        return true;
+      }
+    }
+    if (this.kind === "tts" && body.type === "audio.done") {
+      assertPcmAudio(Buffer.concat(this.audio));
+      return true;
+    }
+    if (this.kind === "voice" && body.type === "response.done") {
+      const response = isRecord(body.response) ? body.response : undefined;
+      if (response && ["failed", "incomplete", "cancelled", "canceled"].includes(String(response.status))) {
+        throw new Error("provider WebSocket operation failed");
+      }
+      assertPcmAudio(Buffer.concat(this.audio));
+      assertTranscript({ text: this.text }, this.spoken);
+      return true;
+    }
+    return false;
+  }
+}
+
 function completedSse(text: string): { events: { event: string; payload: unknown }[]; result: Record<string, unknown> } {
   const relevant = ["error", "response.failed", "response.incomplete", "response.completed", "response.output_item.done", "response.output_text.delta"];
   const events = text.split(/\r?\n\r?\n/).flatMap((block) => {
