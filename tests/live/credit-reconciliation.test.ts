@@ -72,7 +72,11 @@ async function credits(user: string): Promise<SurfaceCreditState[]> {
   expect(response.status).toBe(200);
   const body = response.json;
   if (!isRecord(body) || !Array.isArray(body.states) || body.states.length !== 3) throw new Error("Credit projection unavailable");
-  for (const state of body.states) {
+  const states: unknown[] = body.states;
+  const grants = ["surface:codex:production", "surface:grok:production", "surface:xai:production"];
+  expect(grants.every(grant => states.filter(state => isRecord(state)
+    && state.surface_grant === grant && state.user_id === user).length === 1)).toBe(true);
+  for (const state of states) {
     assertJsonShape(state, { period_start: expect.any(String), consumed_credits: expect.any(Number),
       surface_grant: expect.any(String), reconciliation: {
         opening_credits: expect.any(Number), opening_balance_captured: expect.any(Boolean),
@@ -80,5 +84,5 @@ async function credits(user: string): Promise<SurfaceCreditState[]> {
         terminal_unconfirmed_credits: expect.any(Number), balance_difference: expect.any(Number),
         charged_admissions: expect.any(Number), terminal_confirmed_admissions: expect.any(Number) } });
   }
-  return body.states as SurfaceCreditState[];
+  return (states as SurfaceCreditState[]).sort((left, right) => left.surface_grant.localeCompare(right.surface_grant));
 }
