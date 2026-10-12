@@ -4,7 +4,7 @@ All files under this directory use actual Agency Relay API keys and deployed Pro
 
 ## Selection and ownership
 
-`.github/workflows/live.yml` is the single entry point. Each current `tests/live/**/*.test.ts` file is one fixed Job. There is no suite input and no matrix. `.github/actions/setup-live/action.yml` only prepares the pinned Node/pnpm environment; it does not select or wrap tests.
+`.github/workflows/live.yml` is the single entry point. Each current `tests/live/**/*.test.ts` file is one fixed Job. There is no matrix. `.github/actions/setup-live/action.yml` only prepares the pinned Node/pnpm environment; it does not select or wrap tests.
 
 `needs` follows a result dependency, not a directory:
 
@@ -15,7 +15,16 @@ All files under this directory use actual Agency Relay API keys and deployed Pro
 - Authority · Access waits only for Reachability. Authority · Credits waits only for Reachability; it creates its own user.
 - Accounting · Billing waits until every Job that can write the Codex Responses, Grok Responses, Grok Images or Grok Videos ledgers has finished. It still runs when one of those Jobs failed, and it does not run after cancellation. Its own calls must be the only new rows in that window.
 
-A scheduled or manual run starts the whole graph. A failed parent skips its children. Each file runs once. A new Live file needs its own Job and an explicit `needs` edge. Do not add it by widening a directory glob.
+A scheduled run or a manual run with `realtime_only=false` starts the whole graph. A failed parent skips its children. Each file runs once. A new Live file needs its own Job and an explicit `needs` edge. Do not add it by widening a directory glob.
+
+A manual run with `realtime_only=true` runs only Codex · Realtime, independently
+of the Responses dependency. Reachability and its descendants, including Billing,
+are not selected. This diagnostic run uses only the existing Codex surface secret
+and makes one Realtime creation call without runner retries. It proves neither
+the skipped dependencies nor full Live acceptance. ICE/DTLS/data-channel states
+and allowlisted candidate counts are diagnostics, not substitutes for the caller
+transcript and returned audio. Raw SDP, candidates, transcript and audio remain
+in memory and are not uploaded as artifacts.
 
 ## Success evidence
 

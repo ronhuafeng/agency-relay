@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { expect, it } from "vitest";
 import { RTCPeerConnection, usePCMU } from "werift";
 import { HOST, call, env } from "../support";
+import { projectRtcStats } from "./realtime-diagnostics";
 
 const SESSION = JSON.parse(readFileSync(new URL("./fixtures/session.json", import.meta.url), "utf8")) as {
   instructions: string;
@@ -84,8 +85,27 @@ it("completes a Codex realtime call and returns the caller's words plus audio", 
   const pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
   const messages: string[] = [];
   let audioPackets = 0;
+  const startedAt = performance.now();
+  const disposers: (() => void)[] = [];
+  const transition = (layer: string, state: string) => console.info("realtime_transport", {
+    layer, state, elapsed_ms: Math.round(performance.now() - startedAt)
+  });
+  disposers.push(pc.iceGatheringStateChange.subscribe(state => transition("gathering", state)).unSubscribe);
+  disposers.push(pc.iceConnectionStateChange.subscribe(state => transition("ice", state)).unSubscribe);
+  disposers.push(pc.connectionStateChange.subscribe(state => transition("connection", state)).unSubscribe);
   try {
     const channel = pc.createDataChannel("oai-events");
+    disposers.push(channel.stateChanged.subscribe(state => transition("data_channel", state)).unSubscribe);
+    const snapshot = async (phase: string) => {
+      let stats: ReturnType<typeof projectRtcStats> | null = null;
+      try { stats = projectRtcStats((await pc.getStats()).values()); } catch { /* unavailable is not zero */ }
+      console.info("realtime_transport", {
+        phase, elapsed_ms: Math.round(performance.now() - startedAt),
+        connection: pc.connectionState, gathering: pc.iceGatheringState, ice: pc.iceConnectionState,
+        transports: pc.dtlsTransports.map(t => ({ ice: t.iceTransport.state, dtls: t.state })),
+        data_channel: channel.readyState, stats
+      });
+    };
     channel.onmessage = (event) => {
       messages.push(String(event.data));
     };
@@ -97,6 +117,10 @@ it("completes a Codex realtime call and returns the caller's words plus audio", 
     const transceiver = pc.addTransceiver("audio", { direction: "sendrecv" });
     transceiver.setCodecPreferences([usePCMU()]);
     await pc.setLocalDescription(await pc.createOffer());
+    for (const transport of pc.dtlsTransports) {
+      disposers.push(transport.onStateChange.subscribe(state => transition("dtls", state)).unSubscribe);
+    }
+    await snapshot("local_offer");
     const response = await call(
       `${HOST.codex}/backend-api/codex/realtime/calls?intent=quicksilver&architecture=avas`,
       key,
@@ -119,12 +143,18 @@ it("completes a Codex realtime call and returns the caller's words plus audio", 
     expect(/^rtc_[A-Za-z0-9_-]+$/.test(callId)).toBe(true);
 
     await pc.setRemoteDescription({ type: "answer", sdp: response.text });
-    const connectedBy = Date.now() + 12_000;
-    while (pc.connectionState !== "connected" && Date.now() < connectedBy) {
-      await new Promise((resolve) => setTimeout(resolve, 100));
-    }
+    await snapshot("remote_answer");
+    await new Promise<void>(resolve => {
+      const timer = setTimeout(finish, 12_000);
+      const subscriptions = [pc.connectionStateChange.subscribe(check), channel.stateChanged.subscribe(check)];
+      function finish() { clearTimeout(timer); subscriptions.forEach(s => s.unSubscribe()); resolve(); }
+      function check() { if (pc.connectionState === "connected" && channel.readyState === "open") finish(); }
+      check();
+    });
+    await snapshot("connection_boundary");
     console.info("Realtime connection state", pc.connectionState);
     expect(pc.connectionState).toBe("connected");
+    expect(channel.readyState).toBe("open");
 
     const sender = pc.getTransceivers()[0]?.sender;
     if (!sender) {
@@ -152,6 +182,7 @@ it("completes a Codex realtime call and returns the caller's words plus audio", 
     expect(transcriptMatches).toBe(true);
     expect(audioPackets).toBeGreaterThan(0);
   } finally {
-    pc.close();
+    disposers.forEach(dispose => dispose());
+    await pc.close();
   }
 }, 60_000);
