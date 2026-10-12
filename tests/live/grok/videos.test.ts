@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { isRecord, newestModel, parseJson, requireEnv, send, sleep } from "../runtime";
+import { assertJsonShape, fetchLive, isRecord, newestModel, parseJson, providerUrl, requireEnv, send, sleep } from "../runtime";
 import { verifyVideoTransformations } from "../support";
 
 const HOST = "https://grok.trustedtunnel.app";
@@ -16,7 +16,7 @@ it("generates, edits, extends, and downloads Grok video with owner isolation", a
   }, 180_000);
   expect(started.status).toBe(200);
   const startedBody = parseJson(started.text);
-  expect(startedBody).toMatchObject({ request_id: expect.stringMatching(/^[A-Za-z0-9_-]{1,200}$/) });
+  assertJsonShape(startedBody, { request_id: expect.stringMatching(/^[A-Za-z0-9_-]{1,200}$/) });
   const jobId = (startedBody as { request_id: string }).request_id;
   await expectOtherUserRejected(jobId);
   const completed = await poll(key, jobId);
@@ -30,7 +30,7 @@ it("generates, edits, extends, and downloads Grok video with owner isolation", a
 async function expectOtherUserRejected(jobId: string): Promise<void> {
   const denied = await send(`${HOST}/v1/videos/${jobId}`, requireEnv("MINI_AGENCY_RELAY_2_GROK_SURFACE_API_KEY"));
   expect(denied.status).toBe(404);
-  expect(parseJson(denied.text)).toMatchObject({ error: { code: "video_job_not_found" } });
+  assertJsonShape(parseJson(denied.text), { error: { code: "video_job_not_found" } });
 }
 
 async function poll(key: string, jobId: string): Promise<unknown> {
@@ -44,18 +44,18 @@ async function poll(key: string, jobId: string): Promise<unknown> {
     if (state === "done") {
       return body;
     }
-    expect(["pending", "queued", "processing", "in_progress"]).toContain(state);
+    expect(["pending", "queued", "processing", "in_progress"].includes(state)).toBe(true);
     await sleep(15_000);
   }
   expect.fail("terminal not reached");
 }
 
 async function download(body: unknown): Promise<void> {
-  expect(body).toMatchObject({ video: { url: expect.any(String) } });
-  const url = new URL((body as { video: { url: string } }).video.url);
+  assertJsonShape(body, { video: { url: expect.any(String) } });
+  const url = providerUrl((body as { video: { url: string } }).video.url);
   expect(url.protocol).toBe("https:");
   expect(url.hostname === "trustedtunnel.app" || url.hostname.endsWith(".trustedtunnel.app")).toBe(false);
-  const response = await fetch(url, { signal: AbortSignal.timeout(180_000) });
+  const response = await fetchLive(url, { signal: AbortSignal.timeout(180_000) });
   expect(response.ok).toBe(true);
   const bytes = Buffer.from(await response.arrayBuffer());
   expect(response.headers.get("content-type") ?? "").toMatch(/^video\/mp4/);

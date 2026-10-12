@@ -8,6 +8,6 @@ it("lists Codex models with an etag and a priced language model", async () => {
   expect(clientBase.status).toBe(200);
   expect(publicBase.status).toBe(200);
   expect(clientBase.headers.get("etag")).toBeTruthy();
-  expect(clientBase.text).toBe(publicBase.text);
+  expect(clientBase.text === publicBase.text).toBe(true);
   await codexLanguageModel(key);
 });

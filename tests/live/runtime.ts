@@ -20,6 +20,36 @@ export function assertNoSecret(text: string, secret: string): void {
   }
 }
 
+/** Keep native shape matching, but never attach live values to a failure diff. */
+export function assertJsonShape(body: unknown, shape: object): void {
+  try {
+    expect(body).toMatchObject(shape);
+  } catch {
+    throw new Error("live JSON contract mismatch");
+  }
+}
+
+export function providerUrl(value: string): URL {
+  try { return new URL(value); }
+  catch { throw new Error("provider URL rejected"); }
+}
+
+/** External exceptions can retain signed URLs or request data in their causes. */
+export async function fetchLive(url: string | URL, init?: RequestInit): Promise<Response> {
+  try { return await fetch(url, init); }
+  catch { throw new Error("live HTTP transport failed"); }
+}
+
+/** Drain all owned cleanup operations and retain the task failure separately. */
+export async function withCleanup(task: () => Promise<void>, cleanups: readonly { message: string; run: () => Promise<void> }[]): Promise<void> {
+  const failures: unknown[] = [];
+  try { await task(); } catch (error) { failures.push(error); }
+  for (const cleanup of cleanups) {
+    try { await cleanup.run(); }
+    catch { failures.push(new Error(cleanup.message)); }
+  }
+  if (failures.length) throw new AggregateError(failures, "live task or owned cleanup failed");
+}
 
 export async function send(
   url: string,
@@ -29,7 +59,7 @@ export async function send(
 ): Promise<{ status: number; contentType: string; text: string }> {
   const headers = new Headers(init.headers);
   headers.set("Authorization", `Bearer ${key}`);
-  const response = await fetch(url, {
+  const response = await fetchLive(url, {
     ...init,
     headers,
     signal: AbortSignal.timeout(timeoutMs)
@@ -76,7 +106,7 @@ export async function admin(
   body?: unknown
 ): Promise<{ status: number; json: unknown }> {
   const secret = requireEnv("MINI_ADMIN_SECRET");
-  const response = await fetch(`https://api.trustedtunnel.app${path}`, {
+  const response = await fetchLive(`https://api.trustedtunnel.app${path}`, {
     method,
     headers: {
       Authorization: `Bearer ${secret}`,
@@ -102,7 +132,10 @@ export function expectTerminal(response: { status: number; contentType: string; 
   expect(response.contentType.toLowerCase()).toContain("application/json");
   // A real provider request that reached a failed or incomplete terminal state
   // is not evidence that the user task completed successfully.
-  expect(parseJson(response.text)).toMatchObject({ status: "completed" });
+  const body = parseJson(response.text);
+  if (!isRecord(body) || body.status !== "completed") {
+    throw new Error("provider terminal status is not completed");
+  }
 }
 
 export function sleep(ms: number): Promise<void> {

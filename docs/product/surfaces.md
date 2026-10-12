@@ -33,7 +33,7 @@ Defaults choose credentials only when a new key is issued. Runtime uses `api_key
 
 ## Codex
 
-Canonical Codex ingress on `api.trustedtunnel.app` is the exact ChatGPT backend operation, one Execution Plan each:
+Canonical Codex ingress on `api.trustedtunnel.app` uses these exact registered Execution Plans. Registration defines transport routing, not proof of a successful provider business outcome:
 
 - `GET /backend-api/codex/models` → shim `/models` → `https://chatgpt.com/backend-api/codex/models`;
 - `POST /backend-api/codex/responses` → shim `/responses` → `https://chatgpt.com/backend-api/codex/responses`;
@@ -44,6 +44,10 @@ Canonical Codex ingress on `api.trustedtunnel.app` is the exact ChatGPT backend 
 Transcription is that separate native path. It is not `/backend-api/codex/audio/transcriptions`. WebSocket `GET /backend-api/codex/responses` stays the typed `426` rejection. The HTTP shim does not forward Upgrade, and Agency Relay does not carry WebRTC UDP.
 
 Previously configured clients may still call the same operations at the exact legacy paths `GET /v1/models`, `POST /v1/responses`, `POST /v1/realtime/calls`, `POST /v1/live`, and `POST /v1/audio/transcriptions`. Those paths are aliases onto the canonical plans. The alias copies method, query, headers and body unchanged. It does not convert a public-API JSON body into a ChatGPT backend body, and it does not make an old `/v1` client select backend-only request shapes. WebSocket `GET /v1/responses` aliases to the same `426`. Any other method or Upgrade on an aliased path fails closed with the canonical plan's method rule.
+
+Verified end-user capability scope excludes `POST /backend-api/codex/live` and `POST /backend-api/transcribe`, including their exact legacy aliases. These retained opaque transports have no verified producer/wire contract or successful terminal business result. Do not present route registration as verified Live creation or file transcription support. Current Codex backend WebRTC sessions use `realtime/calls`, including FramelessBidi sessions; the non-backend Live branch does not establish a ChatGPT backend Live contract.
+
+Unregistered host/method/path/Upgrade combinations fail closed without a Provider Attempt or Credit charge. This does not require body validation or conversion for retained opaque transports.
 
 These Codex paths are not plans and must not reach a provider or a ledger charge: `POST /v1/audio/speech`, WebSocket `GET /v1/realtime`, WebSocket `GET /v1/live`, WebSocket `GET /v1/live/{call_id}`, and native-looking copies such as `/backend-api/codex/audio/speech`. No Codex plan uses `api.openai.com`. Native ChatGPT Realtime WebSocket and subscription speech remain unproven; they are not implemented here.
 

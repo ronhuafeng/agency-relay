@@ -38,6 +38,20 @@ request that uses it to recover prior synthetic context. Accept either
 trigger and completion event names alone are insufficient. Keep the item and
 continuation output in memory and use secret-safe failure assertions.
 
+xAI compact proof keeps the complete returned output array unchanged and appends
+one question that does not repeat the synthetic fact. The continuation must
+complete and recover that fact. HTTP and WebSocket speech proof requires actual
+audio samples and the known spoken fixture's transcript, not just an open route
+or a completion event. WebSocket Responses requires generated text and a
+successful terminal state; Voice requires audio, its assistant transcript and
+completion. Chunk counts and chunk boundaries do not decide success.
+
+Failure assertions expose only safe scalar/boolean projections or fixed errors,
+not whole provider/client bodies. Credits cleanup attempts every owned key and
+personal policy removal, confirms their effects, and preserves both task and
+cleanup failures. The created test user, revoked-key records and usage/audit
+history remain as metadata; there is no user-deletion endpoint in this workflow.
+
 The Codex CLI gate uses the unchanged official non-interactive installer with its
 supported GitHub Releases source in an isolated HOME. Native curl controls own
 connection and transfer stalls: 10-second connection establishment, and 60 seconds

@@ -1,6 +1,8 @@
 import { expect, it } from "vitest";
-import { isRecord, languageModel, parseJson, requireEnv, send } from "../runtime";
+import { readFileSync } from "node:fs";
+import { assertJsonShape, assertNoSecret, isRecord, languageModel, parseJson, requireEnv, send } from "../runtime";
 import { bytesToUtf8 } from "../support";
+import { SocketOutcome, waveAudio } from "../oracles";
 import { StorySocket, type SocketMessage } from "../websocket";
 
 const HOST = "https://xai.trustedtunnel.app";
@@ -30,9 +32,9 @@ async function voiceId(key: string): Promise<string> {
   const body = parseJson(catalog.text);
   const voices = isRecord(body) && Array.isArray(body.voices) ? body.voices : [];
   expect(voices.length).toBeGreaterThan(0);
-  expect(voices[0]).toEqual(expect.objectContaining({ voice_id: expect.any(String) }));
+  assertJsonShape(voices[0], { voice_id: expect.any(String) });
   const voice = (voices[0] as { voice_id: string }).voice_id;
-  expect(voice).toMatch(/^[A-Za-z0-9_-]{1,200}$/);
+  expect(/^[A-Za-z0-9_-]{1,200}$/.test(voice)).toBe(true);
   return voice;
 }
 
@@ -57,30 +59,38 @@ async function responsesSocket(key: string, model: string): Promise<void> {
       input: [{ type: "message", role: "user", content: [{ type: "input_text", text: "Reply exactly OK." }] }],
       tools: []
     }));
-    await socket.waitFor((message) => eventType(message, key) === "response.completed", 180_000);
+    const outcome = new SocketOutcome("responses");
+    await socket.waitFor(message => outcome.observe(eventBody(message, key)), 180_000);
   } finally {
     socket.close();
   }
 }
 
 async function ttsSocket(key: string, voice: string): Promise<void> {
-  const socket = await StorySocket.connect(`wss://xai.trustedtunnel.app/v1/tts?voice=${encodeURIComponent(voice)}&language=en`, { Authorization: `Bearer ${key}` });
+  const socket = await StorySocket.connect(`wss://xai.trustedtunnel.app/v1/tts?voice=${encodeURIComponent(voice)}&language=en&codec=pcm&sample_rate=16000`, { Authorization: `Bearer ${key}` });
   try {
     socket.sendText(JSON.stringify({ type: "text.delta", delta: "OK" }));
     socket.sendText(JSON.stringify({ type: "text.done" }));
-    await socket.waitFor((message) => eventType(message, key) === "audio.done", 120_000);
+    const outcome = new SocketOutcome("tts");
+    await socket.waitFor(message => outcome.observe(eventBody(message, key)), 120_000);
   } finally {
     socket.close();
   }
 }
 
 async function sttSocket(key: string): Promise<void> {
-  const socket = await StorySocket.connect("wss://xai.trustedtunnel.app/v1/stt?sample_rate=8000&encoding=pcm", { Authorization: `Bearer ${key}` });
+  const fixture = waveAudio(readFileSync(new URL("../codex/fixtures/probe.wav", import.meta.url)));
+  const socket = await StorySocket.connect(`wss://xai.trustedtunnel.app/v1/stt?sample_rate=${fixture.sampleRate}&encoding=pcm`, { Authorization: `Bearer ${key}` });
   try {
-    await socket.waitFor((message) => eventType(message, key) === "transcript.created", 60_000);
-    socket.sendBinary(tone());
+    await socket.waitFor(message => eventBody(message, key)?.type === "transcript.created", 60_000);
+    const chunkSize = Math.floor(fixture.sampleRate / 10) * 2;
+    for (let offset = 0; offset < fixture.pcm.length; offset += chunkSize) {
+      socket.sendBinary(fixture.pcm.subarray(offset, offset + chunkSize));
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
     socket.sendText(JSON.stringify({ type: "audio.done" }));
-    await socket.waitFor((message) => eventType(message, key) === "transcript.done", 120_000);
+    const outcome = new SocketOutcome("stt", "agency relay");
+    await socket.waitFor(message => outcome.observe(eventBody(message, key)), 120_000);
   } finally {
     socket.close();
   }
@@ -89,23 +99,24 @@ async function sttSocket(key: string): Promise<void> {
 async function realtimeSocket(key: string, model: string, voice: string): Promise<void> {
   const socket = await StorySocket.connect(`wss://xai.trustedtunnel.app/v1/realtime?model=${encodeURIComponent(model)}`, { Authorization: `Bearer ${key}` });
   try {
-    await socket.waitFor((message) => eventType(message, key) === "session.created", 60_000);
+    await socket.waitFor(message => eventBody(message, key)?.type === "session.created", 60_000);
     socket.sendText(JSON.stringify({ type: "session.update", session: { voice, instructions: "Reply briefly.", turn_detection: { type: "server_vad" } } }));
-    await socket.waitFor((message) => eventType(message, key) === "session.updated", 60_000);
+    await socket.waitFor(message => eventBody(message, key)?.type === "session.updated", 60_000);
     socket.sendText(JSON.stringify({ type: "conversation.item.create", item: { type: "message", role: "user", content: [{ type: "input_text", text: "Say OK." }] } }));
     socket.sendText(JSON.stringify({ type: "response.create" }));
-    await socket.waitFor((message) => eventType(message, key) === "response.done", 180_000);
+    const outcome = new SocketOutcome("voice", "OK");
+    await socket.waitFor(message => outcome.observe(eventBody(message, key)), 180_000);
   } finally {
     socket.close();
   }
 }
 
-function eventType(message: SocketMessage, key: string): string | null {
+function eventBody(message: SocketMessage, key: string): Record<string, unknown> | null {
   if (message.kind !== "text") {
     return null;
   }
   const text = bytesToUtf8(message.data);
-  expect(text).not.toContain(key);
+  assertNoSecret(text, key);
   let body: unknown;
   try {
     body = parseJson(text);
@@ -115,14 +126,6 @@ function eventType(message: SocketMessage, key: string): string | null {
   if (!isRecord(body) || typeof body.type !== "string") {
     return null;
   }
-  expect(body.type).not.toBe("error");
-  return body.type;
-}
-
-function tone(): Buffer {
-  const data = Buffer.alloc(1600 * 2);
-  for (let index = 0; index < 1600; index += 1) {
-    data.writeInt16LE(Math.round(Math.sin((2 * Math.PI * 440 * index) / 8000) * 8000), index * 2);
-  }
-  return data;
+  if (body.type === "error") throw new Error("provider WebSocket operation failed");
+  return body;
 }
