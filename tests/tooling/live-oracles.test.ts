@@ -232,6 +232,31 @@ describe("Live WebSocket terminal outcomes", () => {
     expect(() => new SocketOutcome("stt", "agency relay").observe({ type: "transcript.done", text: "" })).toThrow();
     expect(new SocketOutcome("stt", "agency relay").observe({ type: "transcript.done", text: "Agency Relay." })).toBe(true);
   });
+  it("accepts a locked STT transcript only when the same session completes", () => {
+    const stt = new SocketOutcome("stt", "agency relay");
+    expect(stt.observe({ type: "transcript.partial", is_final: true, text: "Agency Relay." })).toBe(false);
+    expect(stt.observe({ type: "transcript.done", text: "" })).toBe(true);
+  });
+  it("rejects unlocked, wrong or separately split STT phrases even after completion", () => {
+    const cases = [
+      [{ type: "transcript.partial", is_final: false, text: "Agency Relay." }],
+      [{ type: "transcript.partial", is_final: "true", text: "Agency Relay." }],
+      [{ type: "transcript.partial", is_final: true, text: "unrelated words" }],
+      [{ type: "transcript.partial", is_final: true, text: "Agency" },
+        { type: "transcript.partial", is_final: true, text: "Relay" }]
+    ];
+    for (const events of cases) {
+      const stt = new SocketOutcome("stt", "agency relay");
+      for (const event of events) expect(stt.observe(event)).toBe(false);
+      expect(() => stt.observe({ type: "transcript.done", text: "" })).toThrow("spoken fixture transcript mismatch");
+    }
+  });
+  it("does not turn a locked STT match into success before completion or after an error", () => {
+    const stt = new SocketOutcome("stt", "agency relay");
+    expect(stt.observe({ type: "transcript.partial", is_final: true, text: "Agency Relay." })).toBe(false);
+    expect(stt.observe({ type: "transcript.created" })).toBe(false);
+    expect(() => stt.observe({ type: "error", message: "SYNTHETIC_PRIVATE_TRANSCRIPT" })).toThrow("provider WebSocket operation failed");
+  });
   it.each(["response.audio.delta", "response.output_audio.delta"])("accepts documented voice audio %s only with transcript and completion", type => {
     const voice = new SocketOutcome("voice", "OK");
     voice.observe({ type, delta: audio });

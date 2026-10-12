@@ -26,13 +26,13 @@ and allowlisted candidate counts are diagnostics, not substitutes for the caller
 transcript and returned audio. Raw SDP, candidates, transcript and audio remain
 in memory and are not uploaded as artifacts.
 
-Manual `audio_diagnostic=true, realtime_only=false` selects only Audio metadata
-diagnosis: at most two TTS calls (one per Grok/xAI surface), two HTTP STT calls
-using those same-surface outputs, and one xAI STT WebSocket using the fresh xAI
-PCM fixture. All normal graph jobs are unselected. The job emits allowlisted
-container lengths/format values and transcript-match booleans only. A successful
-diagnostic job is not Audio acceptance. This selection needs separate operator
-authorization; it does not retry the full graph.
+Manual `audio_diagnostic=true, realtime_only=false` selects one xAI STT WebSocket
+using the same checked-in spoken fixture and outcome oracle as the normal
+WebSocket gate. No TTS, HTTP STT or catalog call runs. All normal graph jobs are
+unselected. The job emits fixture lengths/format, event counts and transcript-match
+booleans only. Success establishes this STT operation, not full Audio or Live
+acceptance. This selection needs separate operator authorization; it does not
+retry the full graph.
 
 The PCM16 WAV reader accepts observed unknown-size data declarations
 `0x7fffffff` and `0xffffffff` using actual remaining bytes. Ordinary declared
@@ -54,7 +54,11 @@ xAI compact proof keeps the complete returned output array unchanged and appends
 one question that does not repeat the synthetic fact. The continuation must
 complete and recover that fact. HTTP and WebSocket speech proof requires actual
 audio samples and the known spoken fixture's transcript, not just an open route
-or a completion event. WebSocket Responses requires generated text and a
+or a completion event. STT requires `transcript.done` plus a known-phrase match
+in its terminal text or one individual locked `transcript.partial` with boolean
+`is_final=true`. Unlocked text and phrases assembled from separate partials do
+not establish the result. The provider's [STT event contract](https://docs.x.ai/developers/model-capabilities/audio/speech-to-text)
+defines locked chunks separately from completion. WebSocket Responses requires generated text and a
 successful terminal state; Voice requires audio, its assistant transcript and
 completion. Chunk counts and chunk boundaries do not decide success.
 

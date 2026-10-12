@@ -54,12 +54,14 @@ export function waveAudio(bytes: Buffer): { pcm: Buffer; sampleRate: number } {
   return { pcm, sampleRate };
 }
 
-export function assertTranscript(body: unknown, expected: string): void {
+function transcriptMatches(body: unknown, expected: string): boolean {
   const normalize = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-  if (!isRecord(body) || typeof body.text !== "string" || !normalize(expected)
-    || !(` ${normalize(body.text)} `).includes(` ${normalize(expected)} `)) {
-    throw new Error("spoken fixture transcript mismatch");
-  }
+  return isRecord(body) && typeof body.text === "string" && Boolean(normalize(expected))
+    && (` ${normalize(body.text)} `).includes(` ${normalize(expected)} `);
+}
+
+export function assertTranscript(body: unknown, expected: string): void {
+  if (!transcriptMatches(body, expected)) throw new Error("spoken fixture transcript mismatch");
 }
 
 /** Official tokenize-text output must reconstruct the nonempty ASCII probe. */
@@ -91,6 +93,7 @@ export class SocketOutcome {
   private text = "";
   private readonly audio: Buffer[] = [];
   private responseId: string | undefined;
+  private lockedTranscriptMatches = false;
 
   constructor(private readonly kind: "responses" | "tts" | "stt" | "voice", private readonly spoken = "") {}
 
@@ -123,9 +126,14 @@ export class SocketOutcome {
         || !(this.text || responseText(body.response)).trim()) throw new Error("WebSocket response has no completed text result");
       return true;
     }
-    if (this.kind === "stt" && body.type === "transcript.done") {
-      assertTranscript(body, this.spoken);
-      return true;
+    if (this.kind === "stt") {
+      if (body.type === "transcript.partial" && body.is_final === true) {
+        this.lockedTranscriptMatches ||= transcriptMatches(body, this.spoken);
+      }
+      if (body.type === "transcript.done") {
+        if (!this.lockedTranscriptMatches) assertTranscript(body, this.spoken);
+        return true;
+      }
     }
     if (this.kind === "tts" && body.type === "audio.done") {
       assertPcmAudio(Buffer.concat(this.audio));

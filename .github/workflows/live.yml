@@ -11,7 +11,7 @@ on:
         type: boolean
         default: false
       audio_diagnostic:
-        description: Diagnostic only (two TTS, two HTTP STT, one STT WebSocket; no full graph)
+        description: Focused STT proof (one STT WebSocket; no other Live calls)
         type: boolean
         default: false
 
@@ -37,7 +37,6 @@ jobs:
         uses: ./.github/actions/setup-live
       - name: Inspect bounded audio metadata
         env:
-          MINI_ONLY_GROK_SURFACE_API_KEY: ${{ secrets.MINI_ONLY_GROK_SURFACE_API_KEY }}
           MINI_ONLY_XAI_SURFACE_API_KEY: ${{ secrets.MINI_ONLY_XAI_SURFACE_API_KEY }}
         run: pnpm exec vitest run --config vitest.live.config.ts tests/live/audio-diagnostic.test.ts --no-file-parallelism
 
