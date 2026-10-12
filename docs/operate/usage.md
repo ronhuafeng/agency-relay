@@ -42,6 +42,13 @@ Visible Usage pages read their current scoped Agency Relay ledgers in the backgr
 | Surface Credit usage | User + surface + UTC month | Agency Relay admission units; not provider measurement |
 | `operator_mutation_audit` | Actor + operation + target + time | Canonical control-plane changes; not a usage ledger |
 
+Credit reconciliation uses committed admission facts, not reconstructed charges
+from terminal audit counts or today's plan prices. [Credit operations](credits.md#fact-backed-reconciliation)
+owns that invariant and its opening-balance coverage. A terminal confirmation can
+exist without provider usage; a missing confirmation does not establish zero
+Credit consumption. Responses totals count committed terminal outcomes, including
+errors, only on observed Responses plans. They do not count every admitted route.
+
 The retained `route_profile_id` reporting column identifies the exact Execution Plan for current data. Do not collapse the same model reached through Grok and xAI into one authority bucket. `response_model` is provider-reported and applies to Responses rows, not media rows.
 
 The non-routable `codex.historical.responses` attribution preserves old data whose source can be identified without inferring a live plan. Unattributed `N/A` rows and historical missing coverage stay explicit; organization migration must not rewrite them as newly observed measurements.

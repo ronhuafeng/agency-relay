@@ -28,7 +28,7 @@ async function setup(db: ReturnType<typeof createTestD1>) {
   await commitServiceOwner(env,operator,service.id,{owner_user_id:"owner",expected_revision:0},now);
   const issue = (who: KeyActor, ownerId = service.id) => commitIssuedKey(env,who,{user_id:ownerId,name:"Build",scopes:[grant],expires_at:"2026-12-01T00:00:00.000Z",selections:[{surface_grant:grant,credential_account_id:"account"}],action:"key.create"},now);
   const key = await issue(operator);
-  db.sqlite.prepare("INSERT INTO user_surface_credit_usage VALUES (?,?,'2026-10-01',3,3,?)").run(service.id,grant,at);
+  db.sqlite.prepare("INSERT INTO user_surface_credit_usage (user_id,surface_grant,period_start,consumed_credits,admitted_attempts,last_seen_at) VALUES (?,?,'2026-10-01',3,3,?)").run(service.id,grant,at);
   db.sqlite.prepare("INSERT INTO request_audit (id,route_profile_id,user_id,key_id,status,created_at,total_tokens) VALUES ('prior','codex.production.responses',?,?,'ok',?,7)").run(service.id,key.id,at);
   return {env,service,key,issue};
 }

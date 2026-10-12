@@ -957,6 +957,7 @@ function meCreditResponse(states: Awaited<ReturnType<typeof listSurfaceCreditSta
       monthly_allowance: state.monthly_allowance,
       source: state.source,
       consumed_credits: state.consumed_credits,
+      reconciliation: state.reconciliation,
       remaining_credits: state.remaining_credits,
       period_start: state.period_start,
       reset_at: state.reset_at
