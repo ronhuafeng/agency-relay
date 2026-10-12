@@ -27,11 +27,16 @@ transcript and returned audio. Raw SDP, candidates, transcript and audio remain
 in memory and are not uploaded as artifacts.
 
 Manual `audio_diagnostic=true, realtime_only=false` selects only Audio metadata
-diagnosis: at most two TTS calls (one per Grok/xAI surface) and one xAI STT
-WebSocket. All normal graph jobs are unselected. The job emits allowlisted
+diagnosis: at most two TTS calls (one per Grok/xAI surface), two HTTP STT calls
+using those same-surface outputs, and one xAI STT WebSocket using the fresh xAI
+PCM fixture. All normal graph jobs are unselected. The job emits allowlisted
 container lengths/format values and transcript-match booleans only. A successful
 diagnostic job is not Audio acceptance. This selection needs separate operator
 authorization; it does not retry the full graph.
+
+The PCM16 WAV reader accepts observed unknown-size data declarations
+`0x7fffffff` and `0xffffffff` using actual remaining bytes. Ordinary declared
+lengths still require complete data; empty or silent samples remain invalid.
 
 ## Success evidence
 

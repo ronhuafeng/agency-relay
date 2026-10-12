@@ -176,6 +176,17 @@ describe("Live speech and compact result contracts", () => {
     expect(() => assertPcmAudio(Buffer.from([1]))).toThrow();
     expect(() => assertPcmAudio(Buffer.from([1, 0]))).not.toThrow();
   });
+  it("reads observed streaming data-size placeholders without accepting ordinary truncation", () => {
+    for (const placeholder of [0x7fffffff, 0xffffffff]) {
+      const bytes = wave();
+      bytes.writeUInt32LE(placeholder, 40);
+      expect(waveAudio(bytes).pcm).toEqual(bytes.subarray(44));
+      expect(() => waveAudio(bytes.subarray(0, 44))).toThrow();
+    }
+    const truncated = wave();
+    truncated.writeUInt32LE(8, 40);
+    expect(() => waveAudio(truncated)).toThrow();
+  });
   it("matches known spoken words while tolerating punctuation, case and whitespace", () => {
     expect(() => assertTranscript({ text: "AGENCY,  relay voice probe!" }, "Agency relay voice probe.")).not.toThrow();
     for (const body of [{}, { text: "" }, { text: "unrelated words" }]) {

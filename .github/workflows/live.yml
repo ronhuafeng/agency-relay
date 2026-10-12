@@ -11,7 +11,7 @@ on:
         type: boolean
         default: false
       audio_diagnostic:
-        description: Diagnostic only (two TTS calls and one STT WebSocket; no full graph)
+        description: Diagnostic only (two TTS, two HTTP STT, one STT WebSocket; no full graph)
         type: boolean
         default: false
 

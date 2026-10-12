@@ -38,7 +38,7 @@ export function waveAudio(bytes: Buffer): { pcm: Buffer; sampleRate: number } {
   for (let offset = 12; offset + 8 <= bytes.length;) {
     const kind = bytes.toString("ascii", offset, offset + 4);
     const declared = bytes.readUInt32LE(offset + 4);
-    const size = declared === 0xffffffff && kind === "data" ? bytes.length - offset - 8 : declared;
+    const size = (declared === 0xffffffff || declared === 0x7fffffff) && kind === "data" ? bytes.length - offset - 8 : declared;
     const start = offset + 8;
     if (start + size > bytes.length) return invalid();
     if (kind === "fmt ") {

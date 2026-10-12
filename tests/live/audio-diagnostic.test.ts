@@ -1,18 +1,22 @@
-import { readFileSync } from "node:fs";
 import { it } from "vitest";
 import { HOST, call, env, voiceId } from "./support";
 import { isRecord, parseJson, assertNoSecret } from "./runtime";
-import { waveAudio } from "./oracles";
+import { assertTranscript, waveAudio } from "./oracles";
 import { StorySocket } from "./websocket";
 
 // Diagnostic evidence only. Completion of this job is not Audio acceptance.
-it("inspects two TTS containers and one STT fixture without persisting content", async () => {
+it("inspects paired speech and locked STT segments without persisting content", async () => {
+  const spoken = "Agency relay voice probe.";
+  let fixture: ReturnType<typeof waveAudio> | undefined;
+  const phraseMatches = (text: string) => {
+    try { assertTranscript({ text }, spoken); return true; } catch { return false; }
+  };
   for (const surface of ["grok", "xai"] as const) {
     const key = env(surface === "grok" ? "MINI_ONLY_GROK_SURFACE_API_KEY" : "MINI_ONLY_XAI_SURFACE_API_KEY");
     const voice = await voiceId(HOST[surface], key);
     const result = await call(`${HOST[surface]}/v1/tts`, key, {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text: "Agency relay voice probe.", voice_id: voice, language: "en", output_format: { codec: "wav", sample_rate: 16000 } })
+      body: JSON.stringify({ text: spoken, voice_id: voice, language: "en", output_format: { codec: "wav", sample_rate: 16000 } })
     });
     const bytes = result.bytes;
     const riff = bytes.length >= 12 && bytes.toString("ascii", 0, 4) === "RIFF" && bytes.toString("ascii", 8, 12) === "WAVE";
@@ -38,8 +42,18 @@ it("inspects two TTS containers and one STT fixture without persisting content",
       riff_wave: riff, riff_declared: riff ? bytes.readUInt32LE(4) : null, chunks,
       current_oracle_accepts: currentOracleAccepts, content_length_present: length !== null,
       content_length_matches: length === null || result.headers.has("content-encoding") ? null : Number(length) === bytes.length }));
+    const decoded = waveAudio(bytes);
+    if (surface === "xai") fixture = decoded;
+    const form = new FormData();
+    form.append("file", new Blob([Uint8Array.from(bytes)], { type: "audio/wav" }), "probe.wav");
+    const transcribed = await call(`${HOST[surface]}/v1/stt`, key, { method: "POST", body: form });
+    const resultBody = parseJson(transcribed.text);
+    const text = isRecord(resultBody) && typeof resultBody.text === "string" ? resultBody.text : "";
+    console.log(JSON.stringify({ diagnostic: "http-stt", surface, http_status: transcribed.status,
+      text_present: isRecord(resultBody) && typeof resultBody.text === "string", characters: text.length,
+      expected_phrase_match: phraseMatches(text) }));
   }
-  const fixture = waveAudio(readFileSync(new URL("./codex/fixtures/probe.wav", import.meta.url)));
+  if (!fixture) throw new Error("diagnostic generated fixture unavailable");
   const key = env("MINI_ONLY_XAI_SURFACE_API_KEY");
   const socket = await StorySocket.connect(`wss://xai.trustedtunnel.app/v1/stt?sample_rate=${fixture.sampleRate}&encoding=pcm`, { Authorization: `Bearer ${key}` });
   try {
@@ -60,16 +74,25 @@ it("inspects two TTS containers and one STT fixture without persisting content",
       await new Promise(resolve => setTimeout(resolve, 100));
     }
     socket.sendText(JSON.stringify({ type: "audio.done" }));
+    const locked: string[] = [];
+    let partials = 0;
     await socket.waitFor(message => {
       const event = body(message);
+      if (event?.type === "transcript.partial") {
+        partials += 1;
+        if (event.is_final === true && typeof event.text === "string") locked.push(event.text);
+      }
       if (event?.type !== "transcript.done") return false;
       const text = typeof event.text === "string" ? event.text : "";
       const words = text.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim().split(/\s+/).filter(Boolean);
       console.log(JSON.stringify({ diagnostic: "stt-fixture", terminal_received: true, text_present: typeof event.text === "string",
         characters: text.length, words: words.length, expected_phrase_match: (` ${words.join(" ")} `).includes(" agency relay "),
         agency_word_match: words.includes("agency"), relay_word_match: words.includes("relay"),
-        pcm_bytes_sent: sent, fixture_pcm_bytes: fixture.pcm.length, sample_rate: fixture.sampleRate }));
+        partial_events: partials, locked_partial_events: locked.length,
+        locked_partial_characters_total: locked.reduce((count, text) => count + text.length, 0),
+        locked_partial_phrase_match: locked.some(phraseMatches),
+        pcm_bytes_sent: sent, fixture_pcm_bytes: fixture!.pcm.length, sample_rate: fixture!.sampleRate }));
       return true;
     }, 120_000);
   } finally { socket.close(); }
-}, 360_000);
+}, 480_000);
