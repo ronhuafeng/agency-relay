@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { HOST, assertJsonShape, call, catalogModel, env, expectJson, grokGatewayModel, parseJson } from "../support";
+import { HOST, assertJsonShape, call, catalogModel, env, expectJson, grokGatewayModel, isRecord, parseJson } from "../support";
 import { assertCompletedSse, assertResponseHasText } from "../oracles";
 import { expectTerminal, requireEnv, send } from "../runtime";
 
@@ -24,6 +24,8 @@ it("uses a real Grok key for Chat Completions", async () => {
     body: JSON.stringify({ model, messages: [{ role: "user", content: "Reply exactly OK." }], stream: false })
   }, 180_000));
   assertJsonShape(body, { choices: expect.arrayContaining([expect.objectContaining({ message: expect.objectContaining({ content: expect.any(String) }) })]) });
+  expect(isRecord(body) && Array.isArray(body.choices) && body.choices.some(choice => isRecord(choice)
+    && isRecord(choice.message) && typeof choice.message.content === "string" && choice.message.content.trim().length > 0)).toBe(true);
 }, 180_000);
 
 it("tokenizes Grok text with a real key", async () => {
