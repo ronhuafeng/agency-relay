@@ -1,11 +1,15 @@
 name: Live
-run-name: ${{ inputs.audio_diagnostic && 'Live · Audio metadata diagnostic' || inputs.realtime_only && 'Live · Codex Realtime only' || 'Live · Full graph' }}
+run-name: ${{ inputs.credit_reconciliation_only && 'Live · Credit reconciliation only' || inputs.audio_diagnostic && 'Live · Audio metadata diagnostic' || inputs.realtime_only && 'Live · Codex Realtime only' || 'Live · Full graph' }}
 
 on:
   schedule:
     - cron: "17 19 * * *"
   workflow_dispatch:
     inputs:
+      credit_reconciliation_only:
+        description: Four Responses invocations for Credit reconciliation; no other Live jobs
+        type: boolean
+        default: false
       realtime_only:
         description: Run only Codex Realtime (one real call; no other Live jobs)
         type: boolean
@@ -23,9 +27,30 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  credit_reconciliation:
+    name: Accounting · Credit reconciliation
+    if: ${{ inputs.credit_reconciliation_only && !inputs.audio_diagnostic && !inputs.realtime_only }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Prepare Live tooling
+        uses: ./.github/actions/setup-live
+      - name: Verify bounded Credit reconciliation
+        env:
+          MINI_ADMIN_SECRET: ${{ secrets.MINI_ADMIN_SECRET }}
+          MINI_LIVE_RECONCILIATION_USER_ID: ${{ secrets.MINI_LIVE_RECONCILIATION_USER_ID }}
+          MINI_ONLY_CODEX_SURFACE_API_KEY: ${{ secrets.MINI_ONLY_CODEX_SURFACE_API_KEY }}
+          MINI_ONLY_GROK_SURFACE_API_KEY: ${{ secrets.MINI_ONLY_GROK_SURFACE_API_KEY }}
+          MINI_ONLY_XAI_SURFACE_API_KEY: ${{ secrets.MINI_ONLY_XAI_SURFACE_API_KEY }}
+        run: pnpm exec vitest run --config vitest.live.config.ts tests/live/credit-reconciliation.test.ts --no-file-parallelism
+
   audio_diagnostic:
     name: Diagnostic · Audio metadata
-    if: ${{ inputs.audio_diagnostic && !inputs.realtime_only }}
+    if: ${{ inputs.audio_diagnostic && !inputs.realtime_only && !inputs.credit_reconciliation_only }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -42,7 +67,7 @@ jobs:
 
   reachability:
     name: Reachability · Production ingress
-    if: ${{ !inputs.realtime_only && !inputs.audio_diagnostic }}
+    if: ${{ !inputs.realtime_only && !inputs.audio_diagnostic && !inputs.credit_reconciliation_only }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -129,7 +154,7 @@ jobs:
   codex_realtime:
     name: Codex · Realtime
     needs: [codex_responses]
-    if: ${{ !cancelled() && !inputs.audio_diagnostic && (inputs.realtime_only || needs.codex_responses.result == 'success') }}
+    if: ${{ !cancelled() && !inputs.audio_diagnostic && !inputs.credit_reconciliation_only && (inputs.realtime_only || needs.codex_responses.result == 'success') }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -489,7 +514,7 @@ jobs:
   billing:
     name: Accounting · Billing
     needs: [codex_contract, codex_responses, codex_client, grok_responses, grok_images, grok_videos, grok_client_text, grok_client_image, grok_client_video, credits]
-    if: ${{ !cancelled() && !inputs.realtime_only && !inputs.audio_diagnostic }}
+    if: ${{ !cancelled() && !inputs.realtime_only && !inputs.audio_diagnostic && !inputs.credit_reconciliation_only }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:

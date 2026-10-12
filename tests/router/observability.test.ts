@@ -305,7 +305,7 @@ function environment(fetchImpl: typeof fetch, prohibitedValues: string[] = []): 
       }),
       async batch(statements: Array<{ sql?: string }>) {
         if (statements.some((statement) => statement.sql?.includes("user_surface_credit_usage"))) {
-          return [{ success: true, results: [], meta: { changes: 1 } }];
+          return statements.map(() => ({ success: true, results: [], meta: { changes: 1 } }));
         }
         return [
           { success: true, results: [], meta: { changes: 0 } },

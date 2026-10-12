@@ -15,7 +15,17 @@ All files under this directory use actual Agency Relay API keys and deployed Pro
 - Authority · Access waits only for Reachability. Authority · Credits waits only for Reachability; it creates its own user.
 - Accounting · Billing waits until every Job that can write the Codex Responses, Grok Responses, Grok Images or Grok Videos ledgers has finished. It still runs when one of those Jobs failed, and it does not run after cancellation. Its own calls must be the only new rows in that window.
 
-A scheduled run or a manual run with `realtime_only=false` starts the whole graph. A failed parent skips its children. Each file runs once. A new Live file needs its own Job and an explicit `needs` edge. Do not add it by widening a directory glob.
+A scheduled run or a manual run with all diagnostic selectors false starts the whole graph. A failed parent skips its children. Each file runs once. A new Live file needs its own Job and an explicit `needs` edge. Do not add it by widening a directory glob.
+
+Manual `credit_reconciliation_only=true` with the other selectors false runs only
+the fixed Credit reconciliation Job: three successful Responses invocations,
+one Grok provider-rejected model invocation, one wrong-grant denial and required
+free catalog/operator reads. It changes no permissions, policies or bindings and
+has no paid retries. Its dedicated-user operator snapshots prove projection
+deltas only. Final acceptance also requires independent, exact-owner D1 receipt
+and audit identity readback by the release operator, as specified in
+[Credit operations](../../docs/operate/credits.md#live-acceptance). A Job PASS alone
+is not a complete receipt-identity proof or a full Live PASS.
 
 A manual run with `realtime_only=true` runs only Codex · Realtime, independently
 of the Responses dependency. Reachability and its descendants, including Billing,
