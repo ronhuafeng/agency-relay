@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { assertJsonShape, expectTerminal, fetchLive, providerUrl, withCleanup } from "../live/runtime";
-import { assertCompletedSse, assertPcmAudio, assertResponseHasText, assertTranscript, completedSseText, compactionItem, compactOutput, SocketOutcome, waveAudio } from "../live/oracles";
+import { assertCompletedSse, assertPcmAudio, assertResponseHasText, assertTokenization, assertTranscript, completedSseText, compactionItem, compactOutput, SocketOutcome, waveAudio } from "../live/oracles";
 
 describe("Live Responses success oracle", () => {
   const response = (status: string) => ({
@@ -191,6 +191,15 @@ describe("Live speech and compact result contracts", () => {
     expect(() => compactOutput({ output: [] })).toThrow();
     expect(() => compactOutput({ output: [{ type: "compaction", encrypted_content: "" }] })).toThrow();
   });
+});
+
+it("requires actual tokenization, accepting equivalent token splits without fixed ids", () => {
+  const token = (text: string, id: number) => ({ token_id: id, string_token: text, token_bytes: [...Buffer.from(text)] });
+  expect(() => assertTokenization({ token_ids: [token("OK", 17)] }, "OK")).not.toThrow();
+  expect(() => assertTokenization({ token_ids: [token("O", 100), token("K", 200)] }, "OK")).not.toThrow();
+  for (const body of [{}, { token_ids: [] }, { token_ids: [token("wrong", 17)] }, { token_ids: [{ ...token("OK", 17), token_bytes: [999] }] }]) {
+    expect(() => assertTokenization(body, "OK")).toThrow("tokenization result mismatch");
+  }
 });
 
 describe("Live WebSocket terminal outcomes", () => {

@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
 import { HOST, assertJsonShape, call, catalogModel, env, expectJson, grokGatewayModel, isRecord, parseJson } from "../support";
-import { assertCompletedSse, assertResponseHasText } from "../oracles";
+import { assertCompletedSse, assertResponseHasText, assertTokenization } from "../oracles";
 import { expectTerminal, requireEnv, send } from "../runtime";
 
 it("completes one Grok production response", async () => {
@@ -31,9 +31,9 @@ it("uses a real Grok key for Chat Completions", async () => {
 it("tokenizes Grok text with a real key", async () => {
   const key = env("MINI_ONLY_GROK_SURFACE_API_KEY");
   const model = await catalogModel(HOST.grok, key, "/v1/language-models", /voice|imagine|embedding/i);
-  expectJson(await call(`${HOST.grok}/v1/tokenize-text`, key, {
+  assertTokenization(expectJson(await call(`${HOST.grok}/v1/tokenize-text`, key, {
     method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ model, text: "OK" })
-  }));
+  })), "OK");
 });
 
 it("streams a completed Grok response through the real CLI gateway", async () => {

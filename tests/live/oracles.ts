@@ -62,6 +62,22 @@ export function assertTranscript(body: unknown, expected: string): void {
   }
 }
 
+/** Official tokenize-text output must reconstruct the nonempty ASCII probe. */
+export function assertTokenization(body: unknown, input: string): void {
+  const invalid = () => { throw new Error("tokenization result mismatch"); };
+  if (!isRecord(body) || !Array.isArray(body.token_ids) || !body.token_ids.length) return invalid();
+  const bytes: number[] = [];
+  let text = "";
+  for (const token of body.token_ids) {
+    if (!isRecord(token) || !Number.isInteger(token.token_id) || Number(token.token_id) < 0
+      || typeof token.string_token !== "string" || !Array.isArray(token.token_bytes)
+      || !token.token_bytes.every(byte => Number.isInteger(byte) && byte >= 0 && byte <= 255)) return invalid();
+    bytes.push(...token.token_bytes);
+    text += token.string_token;
+  }
+  if (!input || text !== input || !Buffer.from(bytes).equals(Buffer.from(input))) return invalid();
+}
+
 export function compactOutput(body: unknown): unknown[] {
   if (!isRecord(body) || !Array.isArray(body.output) || !body.output.some(item => isRecord(item)
     && item.type === "compaction" && typeof item.encrypted_content === "string" && item.encrypted_content.trim().length > 0)) {

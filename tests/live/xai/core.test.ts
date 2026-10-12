@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 import { expect, it } from "vitest";
 import { HOST, assertJsonShape, call, catalogModel, env, expectJson, isRecord, parseJson } from "../support";
 import { languageModel, requireEnv, send } from "../runtime";
-import { assertResponseHasText, assertTranscript, compactOutput, responseText } from "../oracles";
+import { assertResponseHasText, assertTokenization, assertTranscript, compactOutput, responseText } from "../oracles";
 
 it("completes an xAI HTTP response and enforces surface isolation", async () => {
   const key = requireEnv("MINI_ONLY_XAI_SURFACE_API_KEY");
@@ -56,7 +56,7 @@ it("uses a real xAI key for Chat Completions and Responses compact", async () =>
 it("tokenizes xAI text with a real key", async () => {
   const key = env("MINI_ONLY_XAI_SURFACE_API_KEY");
   const model = await catalogModel(HOST.xai, key, "/v1/language-models", /voice|imagine|embedding/i);
-  expectJson(await call(`${HOST.xai}/v1/tokenize-text`, key, {
+  assertTokenization(expectJson(await call(`${HOST.xai}/v1/tokenize-text`, key, {
     method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ model, text: "OK" })
-  }));
+  })), "OK");
 });
