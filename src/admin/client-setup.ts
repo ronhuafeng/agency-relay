@@ -35,7 +35,8 @@ export interface ClientSetupFile {
 
 export const CLIENT_SETUP_TOKEN_PLACEHOLDER = "__MINI_END_USER_KEY__";
 
-const CODEX_BASE_URL = `https://${codexProfile.hostname}/v1`;
+// Codex emits the ChatGPT-backend realtime JSON body only when base_url contains `/backend-api`.
+const CODEX_BASE_URL = `https://${codexProfile.hostname}/backend-api/codex`;
 const GROK_BASE_URL = `https://${grokProfile.hostname}/v1`;
 const XAI_BASE_URL = `https://${xaiProfile.hostname}/v1`;
 

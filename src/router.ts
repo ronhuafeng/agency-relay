@@ -9,6 +9,7 @@ import { adoptIdentityVersions, IDENTITY_VERSION_CRON } from "./plans/identity-v
 import { executeCodexPlan } from "./codex/execute";
 import { executeGrokPlan } from "./grok/execute";
 import {
+  CODEX_API_HOSTNAME,
   matchExecutionPlan,
   plansForHostname,
   type ExecutionPlan
@@ -20,6 +21,19 @@ import {
 } from "./proxy/protocol";
 import { isAdminSurface, routeAdmin } from "./admin/http";
 import type { AppDependencies, ExecutionDependencies, RequestContext } from "./types";
+
+
+const CODEX_BACKEND_API_PREFIX = "/backend-api/codex";
+
+/** Codex emits `{sdp, session}` only when base_url contains `/backend-api`. Map that prefix onto the public `/v1` plans. */
+function codexBackendApiRequest(request: Request): Request {
+  const url = new URL(request.url);
+  if (url.pathname !== CODEX_BACKEND_API_PREFIX && !url.pathname.startsWith(`${CODEX_BACKEND_API_PREFIX}/`)) {
+    return request;
+  }
+  url.pathname = `/v1${url.pathname.slice(CODEX_BACKEND_API_PREFIX.length)}`;
+  return new Request(url, request);
+}
 
 export async function handleRequest(
   request: Request,
@@ -35,6 +49,9 @@ export async function handleRequest(
   let surfaceProbe: ExecutionPlan | undefined;
 
   try {
+    if (new URL(request.url).hostname.toLowerCase() === CODEX_API_HOSTNAME) {
+      request = codexBackendApiRequest(request);
+    }
     const url = new URL(request.url);
 
     if (url.pathname === "/healthz" && request.method === "GET") {

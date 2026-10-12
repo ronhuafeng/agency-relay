@@ -133,6 +133,60 @@ describe("Codex forwarding", () => {
     expect(fixture.fetchCalls[0].headers.get("Authorization")).toBe("Bearer shared_access");
   });
 
+  it("accepts Codex backend-api paths without moving /v1/responses", async () => {
+    const fixture = makeFixture();
+    const created = await createUser(fixture, "backend-api@example.com");
+    const keyBody = await createKey(fixture, created.user.id, ["surface:codex:production"]);
+    await importSharedAuth(fixture);
+    const headers = {
+      Authorization: `Bearer ${keyBody.api_key}`,
+      "Content-Type": "application/json",
+      "OpenAI-Alpha": "quicksilver=v2"
+    };
+    const session = {
+      instructions: "Say ready.",
+      model: "gpt-live-1-codex",
+      audio: { output: { voice: "cove" } },
+      delegation: { type: "client", ack_filler: false }
+    };
+
+    const calls = await handleRequest(new Request(
+      "https://api.trustedtunnel.app/backend-api/codex/realtime/calls?intent=quicksilver&architecture=avas",
+      { method: "POST", headers, body: JSON.stringify({ sdp: "v=0\r\n", session }) }
+    ), fixture.env, fixture.ctx, fixture.deps);
+    expect(calls.status).toBe(200);
+    expect(fixture.fetchCalls[0]).toMatchObject({
+      url: "https://codex-egress-us-west1-a.trustedtunnel.app/realtime/calls?intent=quicksilver&architecture=avas",
+      method: "POST"
+    });
+    expect(fixture.fetchCalls[0].headers.get("OpenAI-Alpha")).toBe("quicksilver=v2");
+
+    const responses = await handleRequest(new Request("https://api.trustedtunnel.app/backend-api/codex/responses", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ model: "gpt-5.4", input: "with-usage", stream: true })
+    }), fixture.env, fixture.ctx, fixture.deps);
+    expect(responses.status).toBe(200);
+    expect(fixture.fetchCalls[1]?.url).toBe("https://codex-egress-us-west1-a.trustedtunnel.app/responses");
+
+    const publicResponses = await handleRequest(new Request("https://api.trustedtunnel.app/v1/responses", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ model: "gpt-5.4", input: "with-usage", stream: true })
+    }), fixture.env, fixture.ctx, fixture.deps);
+    expect(publicResponses.status).toBe(200);
+    expect(fixture.fetchCalls[2]?.url).toBe("https://codex-egress-us-west1-a.trustedtunnel.app/responses");
+
+    const before = fixture.fetchCalls.length;
+    const unknown = await handleRequest(new Request("https://api.trustedtunnel.app/backend-api/codex/not-a-route", {
+      method: "POST",
+      headers,
+      body: "{}"
+    }), fixture.env, fixture.ctx, fixture.deps);
+    expect(unknown.status).toBe(404);
+    expect(fixture.fetchCalls).toHaveLength(before);
+  });
+
   it("authenticates with one joined read and defers a throttled last-used write", async () => {
     const fixture = makeFixture();
     const user = await createUser(fixture, "auth-hot-path@example.com");
