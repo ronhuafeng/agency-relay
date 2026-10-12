@@ -86,7 +86,7 @@ it("inspects paired speech and locked STT segments without persisting content", 
       const text = typeof event.text === "string" ? event.text : "";
       const words = text.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim().split(/\s+/).filter(Boolean);
       console.log(JSON.stringify({ diagnostic: "stt-fixture", terminal_received: true, text_present: typeof event.text === "string",
-        characters: text.length, words: words.length, expected_phrase_match: (` ${words.join(" ")} `).includes(" agency relay "),
+        characters: text.length, words: words.length, expected_phrase_match: phraseMatches(text),
         agency_word_match: words.includes("agency"), relay_word_match: words.includes("relay"),
         partial_events: partials, locked_partial_events: locked.length,
         locked_partial_characters_total: locked.reduce((count, text) => count + text.length, 0),
