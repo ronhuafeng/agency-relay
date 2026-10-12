@@ -23,33 +23,58 @@ export function assertResponseHasText(body: unknown): void {
   if (!responseText(body).trim()) throw new Error("completed response has no output text");
 }
 
-/** A completed SSE frame must be observed, with actual model text produced. */
-export function assertCompletedSse(text: string): void {
+function completedSse(text: string): { events: { event: string; payload: unknown }[]; result: Record<string, unknown> } {
+  const relevant = ["error", "response.failed", "response.incomplete", "response.completed", "response.output_item.done", "response.output_text.delta"];
   const events = text.split(/\r?\n\r?\n/).flatMap((block) => {
     const lines = block.split(/\r?\n/);
     const event = lines.find((line) => line.startsWith("event:"))?.slice(6).trim();
     const data = lines.filter((line) => line.startsWith("data:"))
       .map((line) => line.slice(5).trim()).join("\n");
-    return event ? [{ event, data }] : [];
+    if ((event && !relevant.includes(event)) || !data || data === "[DONE]") return [];
+    let payload: unknown;
+    try { payload = JSON.parse(data); }
+    catch {
+      if (!event) return [];
+      throw new Error("provider SSE payload is not JSON");
+    }
+    const type = event ?? (isRecord(payload) && typeof payload.type === "string" ? payload.type : "");
+    return relevant.includes(type) ? [{ event: type, payload }] : [];
   });
   if (events.some((e) => ["error", "response.failed", "response.incomplete"].includes(e.event))) {
     throw new Error("provider SSE stream failed");
   }
   const completed = [...events].reverse().find((e) => e.event === "response.completed");
   if (!completed) throw new Error("provider SSE stream missing completed event");
-  let payload: unknown;
-  try { payload = JSON.parse(completed.data) as unknown; }
-  catch { throw new Error("completed SSE payload is not JSON"); }
+  const payload = completed.payload;
   const result = isRecord(payload) ? payload.response : undefined;
   if (!isRecord(result) || result.status !== "completed") {
     throw new Error("provider SSE terminal status is not completed");
   }
-  const streamedText = events.some((e) => {
-    if (e.event !== "response.output_text.delta" || !e.data) return false;
-    try {
-      const data: unknown = JSON.parse(e.data);
-      return isRecord(data) && typeof data.delta === "string" && data.delta.length > 0;
-    } catch { return false; }
-  });
-  if (!streamedText && !responseText(result).trim()) throw new Error("completed SSE had no model output");
+  return { events, result };
+}
+
+export function completedSseText(text: string): string {
+  const { events, result } = completedSse(text);
+  const deltas = events.flatMap(({ event, payload }) => event === "response.output_text.delta"
+    && isRecord(payload) && typeof payload.delta === "string" ? [payload.delta] : []).join("");
+  const output = deltas || responseText(result);
+  if (!output.trim()) throw new Error("completed SSE had no model output");
+  return output;
+}
+
+/** A completed SSE frame must be observed, with actual model text produced. */
+export function assertCompletedSse(text: string): void {
+  completedSseText(text);
+}
+
+/** Keep the opaque item in memory, unchanged, for the continuation request. */
+export function compactionItem(text: string): Record<string, unknown> {
+  const { events, result } = completedSse(text);
+  const items = events.flatMap(({ event, payload }) => event === "response.output_item.done"
+    && isRecord(payload) ? [payload.item] : []);
+  if (Array.isArray(result.output)) items.push(...result.output);
+  const item = items.find(value => isRecord(value) && value.type === "compaction"
+    && typeof value.encrypted_content === "string" && value.encrypted_content.length > 0);
+  if (!isRecord(item)) throw new Error("completed stream has no reusable compaction item");
+  return item;
 }

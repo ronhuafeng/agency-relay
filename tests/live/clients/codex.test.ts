@@ -20,4 +20,6 @@ it("completes a Codex CLI reply through Agency Relay", async () => {
   } finally {
     client.cleanup();
   }
-}, 1_200_000);
+// Download progress, not elapsed installation time, owns the installer limit.
+// CLI execution keeps its separate bound; CI cancellation still owns the Job.
+}, 0);

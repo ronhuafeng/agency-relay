@@ -109,18 +109,21 @@ it("completes a Codex realtime call and returns the caller's words plus audio", 
         body: JSON.stringify({ sdp: pc.localDescription?.sdp, session: SESSION })
       }
     );
+    console.info("Realtime creation status", response.status);
     expect(response.status).toBe(201);
-    expect(response.text.startsWith("v=")).toBe(true);
-    expect(response.text).toContain("m=audio");
-    expect(response.text.toLowerCase()).not.toContain("<html");
+    const validSdp = response.text.startsWith("v=") && response.text.includes("m=audio")
+      && !response.text.toLowerCase().includes("<html");
+    console.info("Realtime SDP answer valid", validSdp);
+    expect(validSdp).toBe(true);
     const callId = response.headers.get("location")?.split("/").filter(Boolean).at(-1) ?? "";
-    expect(callId).toMatch(/^rtc_[A-Za-z0-9_-]+$/);
+    expect(/^rtc_[A-Za-z0-9_-]+$/.test(callId)).toBe(true);
 
     await pc.setRemoteDescription({ type: "answer", sdp: response.text });
     const connectedBy = Date.now() + 12_000;
     while (pc.connectionState !== "connected" && Date.now() < connectedBy) {
       await new Promise((resolve) => setTimeout(resolve, 100));
     }
+    console.info("Realtime connection state", pc.connectionState);
     expect(pc.connectionState).toBe("connected");
 
     const sender = pc.getTransceivers()[0]?.sender;
@@ -144,8 +147,9 @@ it("completes a Codex realtime call and returns the caller's words plus audio", 
       await new Promise((resolve) => setTimeout(resolve, 200));
     }
     const transcript = messages.join("\n");
-    expect(transcript).toMatch(/agency relay/i);
-    expect(transcript.toLowerCase()).not.toContain("<html");
+    const transcriptMatches = /agency relay/i.test(transcript) && !transcript.toLowerCase().includes("<html");
+    console.info("Realtime transcript matched", transcriptMatches, "audio packets", audioPackets);
+    expect(transcriptMatches).toBe(true);
     expect(audioPackets).toBeGreaterThan(0);
   } finally {
     pc.close();

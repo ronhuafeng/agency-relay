@@ -23,6 +23,18 @@ Use a completed Provider terminal state, real response content, completed SSE, a
 
 External-client tests use isolated synthetic HOME directories with real scoped API keys; CI operator credentials must not be inherited by the installer process. Tests that create external resources must clean their own IDs in failure paths where the Provider API supports it.
 
+Codex compaction must produce a nonempty opaque item and complete a subsequent
+request that uses it to recover prior synthetic context. Accept either
+`response.output_item.done` or the final response output as the item carrier;
+trigger and completion event names alone are insufficient. Keep the item and
+continuation output in memory and use secret-safe failure assertions.
+
+The Codex CLI gate uses the unchanged official non-interactive installer with its
+supported GitHub Releases source in an isolated HOME. Native curl controls own
+connection and transfer stalls: 10-second connection establishment, and 60 seconds
+below 1 byte/s. There is no installation wall-clock deadline. CLI execution retains
+its separate limit; the CI Job still has its declared overall cancellation bound.
+
 ## Coverage limits
 
 This suite still does **not** establish successful xAI Batch submission/results/cancel, deferred Chat completion retrieval, Documents Search, or creation of realtime client secrets. Those shared-authority workflows require explicit valid fixtures and honest independent outcome oracles before being counted as covered. Deployed Feishu login and production MCP authorization are separate release acceptance boundaries.
