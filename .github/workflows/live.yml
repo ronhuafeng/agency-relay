@@ -1,9 +1,15 @@
 name: Live
+run-name: ${{ inputs.realtime_only && 'Live · Codex Realtime only' || 'Live · Full graph' }}
 
 on:
   schedule:
     - cron: "17 19 * * *"
   workflow_dispatch:
+    inputs:
+      realtime_only:
+        description: Run only Codex Realtime (one real call; no other Live jobs)
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -15,6 +21,7 @@ concurrency:
 jobs:
   reachability:
     name: Reachability · Production ingress
+    if: ${{ !inputs.realtime_only }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -101,6 +108,7 @@ jobs:
   codex_realtime:
     name: Codex · Realtime
     needs: [codex_responses]
+    if: ${{ !cancelled() && (inputs.realtime_only || needs.codex_responses.result == 'success') }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -460,7 +468,7 @@ jobs:
   billing:
     name: Accounting · Billing
     needs: [codex_contract, codex_responses, codex_client, grok_responses, grok_images, grok_videos, grok_client_text, grok_client_image, grok_client_video, credits]
-    if: ${{ !cancelled() }}
+    if: ${{ !cancelled() && !inputs.realtime_only }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
