@@ -26,6 +26,13 @@ and allowlisted candidate counts are diagnostics, not substitutes for the caller
 transcript and returned audio. Raw SDP, candidates, transcript and audio remain
 in memory and are not uploaded as artifacts.
 
+Manual `audio_diagnostic=true, realtime_only=false` selects only Audio metadata
+diagnosis: at most two TTS calls (one per Grok/xAI surface) and one xAI STT
+WebSocket. All normal graph jobs are unselected. The job emits allowlisted
+container lengths/format values and transcript-match booleans only. A successful
+diagnostic job is not Audio acceptance. This selection needs separate operator
+authorization; it does not retry the full graph.
+
 ## Success evidence
 
 Use a completed Provider terminal state, real response content, completed SSE, a validated media artifact, or a completed asynchronous video job as appropriate. A 200 status, SSE Content-Type, open route, empty result collection, or unsuccessful terminal state **alone** is not a completed task. The Codex realtime test calls the issued client base `/backend-api/codex/realtime/calls` and must receive an SDP answer, the caller's transcript, and output audio packets. A non-404 response is not that session. Codex Responses live proof uses canonical `POST /backend-api/codex/responses`, with one legacy `POST /v1/responses` stream as compatibility for the same operation. Deterministic tests own the exact alias. This suite does not establish ChatGPT Realtime WebSocket, subscription speech, or a paid Live session unless that job is actually run.
