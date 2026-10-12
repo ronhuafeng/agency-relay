@@ -98,7 +98,7 @@ it("completes a Codex realtime call and returns the caller's words plus audio", 
     transceiver.setCodecPreferences([usePCMU()]);
     await pc.setLocalDescription(await pc.createOffer());
     const response = await call(
-      `${HOST.codex}/v1/realtime/calls?intent=quicksilver&architecture=avas`,
+      `${HOST.codex}/backend-api/codex/realtime/calls?intent=quicksilver&architecture=avas`,
       key,
       {
         method: "POST",

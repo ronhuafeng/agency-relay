@@ -8,7 +8,9 @@ import { HttpError, jsonResponse } from "./errors";
 import { adoptIdentityVersions, IDENTITY_VERSION_CRON } from "./plans/identity-version";
 import { executeCodexPlan } from "./codex/execute";
 import { executeGrokPlan } from "./grok/execute";
+import { codexIngressRequest } from "./plans/codex-ingress";
 import {
+  CODEX_API_HOSTNAME,
   matchExecutionPlan,
   plansForHostname,
   type ExecutionPlan
@@ -20,6 +22,7 @@ import {
 } from "./proxy/protocol";
 import { isAdminSurface, routeAdmin } from "./admin/http";
 import type { AppDependencies, ExecutionDependencies, RequestContext } from "./types";
+
 
 export async function handleRequest(
   request: Request,
@@ -35,6 +38,9 @@ export async function handleRequest(
   let surfaceProbe: ExecutionPlan | undefined;
 
   try {
+    if (new URL(request.url).hostname.toLowerCase() === CODEX_API_HOSTNAME) {
+      request = codexIngressRequest(request);
+    }
     const url = new URL(request.url);
 
     if (url.pathname === "/healthz" && request.method === "GET") {

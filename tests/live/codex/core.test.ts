@@ -5,6 +5,28 @@ import { assertCompletedSse } from "../oracles";
 it("streams a Codex response", async () => {
   const key = env("MINI_ONLY_CODEX_SURFACE_API_KEY");
   const model = await codexLanguageModel(key);
+  const response = await call(`${HOST.codex}/backend-api/codex/responses`, key, {
+    method: "POST",
+    headers: {
+      Accept: "text/event-stream",
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      model,
+      instructions: "Reply concisely.",
+      input: [{ role: "user", content: [{ type: "input_text", text: "Reply exactly OK." }] }],
+      store: false,
+      stream: true
+    })
+  }, 180_000);
+  expect(response.status).toBe(200);
+  expect(response.contentType.toLowerCase()).toContain("text/event-stream");
+  assertCompletedSse(response.text);
+});
+
+it("keeps a legacy Responses stream on the same ChatGPT operation", async () => {
+  const key = env("MINI_ONLY_CODEX_SURFACE_API_KEY");
+  const model = await codexLanguageModel(key);
   const response = await call(`${HOST.codex}/v1/responses`, key, {
     method: "POST",
     headers: {
@@ -27,7 +49,7 @@ it("streams a Codex response", async () => {
 it("compacts a Codex response", async () => {
   const key = env("MINI_ONLY_CODEX_SURFACE_API_KEY");
   const model = await codexLanguageModel(key);
-  const response = await call(`${HOST.codex}/v1/responses`, key, {
+  const response = await call(`${HOST.codex}/backend-api/codex/responses`, key, {
     method: "POST",
     headers: {
       Accept: "text/event-stream",

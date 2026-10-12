@@ -56,12 +56,13 @@ test('service tabs retain exact hash, independent filters and keyboard selection
   await expect(page.locator('[data-surface-hostname="api.trustedtunnel.app"]')).toBeHidden();
   await page.getByRole('tab',{name:'Codex',exact:true}).click();
   const codex=page.locator('[data-surface-hostname="api.trustedtunnel.app"]');
-  await codex.getByRole('searchbox').fill('/v1/responses');
+  await codex.getByRole('searchbox').fill('/backend-api/codex/responses');
   await page.getByRole('tab',{name:'Grok',exact:true}).click();
   await page.getByRole('tab',{name:'Grok',exact:true}).focus();
   await page.keyboard.press('ArrowLeft');
   await expect(page.getByRole('tab',{name:'Codex',exact:true})).toBeFocused();
-  await expect(codex.getByRole('searchbox')).toHaveValue('/v1/responses');
+  await expect(codex.getByRole('searchbox')).toHaveValue('/backend-api/codex/responses');
+  await expect(codex.locator('[data-route-id="codex.responses"]')).toBeVisible();
   await expect(codex.locator('[data-route-id="codex.models"]')).toBeHidden();
   expect(worker.requests.filter(request=>request.method==='POST')).toHaveLength(0);
 });

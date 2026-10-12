@@ -284,7 +284,6 @@ describe("Execution Plans", () => {
   it("keeps product verification bound to active task-producing plans", () => {
     expect(REAL_TASK_EXECUTION_PLAN_IDS).toEqual([
       "codex.responses",
-      "codex.audio_speech",
       "codex.audio_transcriptions",
       "codex.realtime_calls",
       "codex.live",
@@ -600,57 +599,52 @@ describe("Execution Plans", () => {
     ), plans)).toBeNull();
   });
 
-  it("matches Codex speech, transcription, and Codex Realtime OpenAI paths", () => {
+  it("matches canonical ChatGPT backend paths and keeps public OpenAI API routes closed", () => {
     const plans = plansForHostname("api.trustedtunnel.app") ?? [];
-    expect(matchExecutionPlan(new Request("https://api.trustedtunnel.app/v1/audio/speech", {
+    expect(plans.map((plan) => [plan.id, plan.method, plan.auditPath, plan.upgrade ?? null])).toEqual([
+      ["codex.models", "GET", "/backend-api/codex/models", null],
+      ["codex.responses", "POST", "/backend-api/codex/responses", null],
+      ["codex.responses_websocket", "GET", "/backend-api/codex/responses", "websocket"],
+      ["codex.audio_transcriptions", "POST", "/backend-api/transcribe", null],
+      ["codex.realtime_calls", "POST", "/backend-api/codex/realtime/calls", null],
+      ["codex.live", "POST", "/backend-api/codex/live", null]
+    ]);
+    for (const plan of plans) {
+      expect(plan.providerBaseUrl, plan.id).toBeUndefined();
+      expect(plan.credentialSlot).toBe("chatgpt_production");
+    }
+    expect(matchExecutionPlan(new Request("https://api.trustedtunnel.app/backend-api/codex/models"), plans))
+      .toMatchObject({ id: "codex.models" });
+    expect(matchExecutionPlan(new Request("https://api.trustedtunnel.app/backend-api/transcribe", {
       method: "POST"
-    }), plans)).toMatchObject({
-      id: "codex.audio_speech",
-      providerBaseUrl: "https://api.openai.com",
-      upstreamClientIdentity: "none"
-    });
-    const transcription = matchExecutionPlan(new Request("https://api.trustedtunnel.app/v1/audio/transcriptions", {
+    }), plans)).toMatchObject({ id: "codex.audio_transcriptions", auditPath: "/backend-api/transcribe" });
+    expect(matchExecutionPlan(new Request("https://api.trustedtunnel.app/backend-api/codex/realtime/calls?intent=quicksilver", {
       method: "POST"
-    }), plans);
-    expect(transcription).toMatchObject({ id: "codex.audio_transcriptions" });
-    expect(transcription?.providerBaseUrl).toBeUndefined();
-    expect(matchExecutionPlan(new Request("https://api.trustedtunnel.app/v1/realtime?intent=quicksilver&model=gpt-realtime-1.5", {
-      headers: { Upgrade: "websocket" }
-    }), plans)).toMatchObject({
-      id: "codex.realtime_websocket",
-      providerBaseUrl: "https://api.openai.com",
-      mode: "websocket_transparent"
-    });
-    const realtimeCalls = matchExecutionPlan(new Request("https://api.trustedtunnel.app/v1/realtime/calls?intent=quicksilver&architecture=avas", {
+    }), plans)).toMatchObject({ id: "codex.realtime_calls" });
+    expect(matchExecutionPlan(new Request("https://api.trustedtunnel.app/backend-api/codex/live", {
       method: "POST"
-    }), plans);
-    expect(realtimeCalls).toMatchObject({
-      id: "codex.realtime_calls",
-      upstreamClientIdentity: "none"
-    });
-    expect(realtimeCalls?.providerBaseUrl).toBeUndefined();
-    const live = matchExecutionPlan(new Request("https://api.trustedtunnel.app/v1/live", {
-      method: "POST"
-    }), plans);
-    expect(live).toMatchObject({ id: "codex.live" });
-    expect(live?.providerBaseUrl).toBeUndefined();
-    expect(matchExecutionPlan(new Request("https://api.trustedtunnel.app/v1/live?model=gpt-live-1-codex", {
+    }), plans)).toMatchObject({ id: "codex.live" });
+    expect(matchExecutionPlan(new Request("https://api.trustedtunnel.app/backend-api/codex/responses", {
       headers: { Upgrade: "websocket" }
-    }), plans)).toMatchObject({
-      id: "codex.live_websocket",
-      mode: "websocket_transparent"
-    });
-    expect(matchExecutionPlan(new Request("https://api.trustedtunnel.app/v1/live/rtc_test", {
-      headers: { Upgrade: "websocket" }
-    }), plans)).toMatchObject({
-      id: "codex.live_call_websocket",
-      auditPath: "/v1/live/{call_id}"
-    });
-    expect(matchExecutionPlan(new Request("https://api.trustedtunnel.app/v1/realtime"), plans)).toBeNull();
-    expect(matchExecutionPlan(new Request("https://api.trustedtunnel.app/v1/realtime/calls", {
-      headers: { Upgrade: "websocket" }
-    }), plans)).toBeNull();
-    expect(matchExecutionPlan(new Request("https://api.trustedtunnel.app/v1/live"), plans)).toBeNull();
+    }), plans)).toMatchObject({ id: "codex.responses_websocket", mode: "websocket_426" });
+    for (const url of [
+      "https://api.trustedtunnel.app/v1/models",
+      "https://api.trustedtunnel.app/v1/audio/speech",
+      "https://api.trustedtunnel.app/v1/audio/transcriptions",
+      "https://api.trustedtunnel.app/v1/realtime",
+      "https://api.trustedtunnel.app/v1/realtime/calls",
+      "https://api.trustedtunnel.app/v1/live",
+      "https://api.trustedtunnel.app/v1/live/rtc_test",
+      "https://api.trustedtunnel.app/backend-api/codex/audio/speech",
+      "https://api.trustedtunnel.app/backend-api/codex/audio/transcriptions",
+      "https://api.trustedtunnel.app/backend-api/codex/realtime",
+      "https://api.trustedtunnel.app/backend-api/codex/live/rtc_test"
+    ]) {
+      expect(matchExecutionPlan(new Request(url, {
+        method: "POST",
+        headers: { Upgrade: "websocket" }
+      }), plans), url).toBeNull();
+    }
   });
 
   it("marks the Codex WebSocket 426 compatibility surface deprecated", () => {

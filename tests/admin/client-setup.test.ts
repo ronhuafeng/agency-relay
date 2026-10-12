@@ -37,7 +37,16 @@ describe("client setup projection", () => {
       'model = "gpt-6.1-sol"'
     );
     expect(files.find((file) => file.client === "codex")?.content).toContain(
-      'base_url = "https://api.trustedtunnel.app/v1"'
+      'base_url = "https://api.trustedtunnel.app/backend-api/codex"'
+    );
+    expect(files.find((file) => file.client === "codex")?.content).toContain(
+      'name = "Agency Relay Codex"'
+    );
+    expect(files.find((file) => file.client === "codex")?.content).toContain(
+      "experimental_bearer_token"
+    );
+    expect(files.find((file) => file.client === "codex")?.content).toContain(
+      "不能当作完整官方 Codex 功能开关"
     );
     // Accounts are administrator-owned; member setup must not imply permission
     // to reconnect provider credentials (experience.md: Administrator Accounts).
@@ -74,7 +83,7 @@ describe("client setup projection", () => {
       models: { codex: "gpt-5.6-sol", grok: "grok-4.6" }
     });
     expect(files.find((file) => file.client === "codex")?.content).toContain('model = "gpt-5.6-sol"');
-    expect(files.find((file) => file.client === "codex")?.content).toContain('base_url = "https://api.trustedtunnel.app/v1"');
+    expect(files.find((file) => file.client === "codex")?.content).toContain('base_url = "https://api.trustedtunnel.app/backend-api/codex"');
     expect(files.find((file) => file.client === "grok")?.content).toContain('model = "grok-4.6"');
     expect(files.find((file) => file.client === "grok")?.content).toContain('base_url = "https://grok.trustedtunnel.app/v1"');
     expect(() => buildClientSetupFiles({
