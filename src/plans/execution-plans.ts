@@ -12,7 +12,6 @@ export const CODEX_API_HOSTNAME = "api.trustedtunnel.app";
 export const XAI_API_HOSTNAME = "xai.trustedtunnel.app";
 const GROK_CLI_PROVIDER_BASE_URL = "https://cli-chat-proxy.grok.com";
 const XAI_API_PROVIDER_BASE_URL = "https://api.x.ai";
-const OPENAI_API_PROVIDER_BASE_URL = "https://api.openai.com";
 
 type PlanEnvironment = "production";
 export type CredentialSlotId = "chatgpt_production" | "grok_production";
@@ -161,138 +160,81 @@ function codexProductionPlans(): ExecutionPlan[] {
     {
       id: "codex.models",
       method: "GET",
-      pathname: "/v1/models",
+      pathname: "/backend-api/codex/models",
       mode: "transparent",
       upstreamClientIdentity: "codex_cli",
       usageObserver: "none",
       creditCharge: 0,
       realTask: false,
+      auditPath: "/backend-api/codex/models",
       supportStatus: "active",
-      notes: "Codex models — transparent egress"
+      notes: "Codex models — ChatGPT backend /backend-api/codex/models through egress"
     },
     {
       id: "codex.responses",
       method: "POST",
-      pathname: "/v1/responses",
+      pathname: "/backend-api/codex/responses",
       mode: "transparent",
       upstreamClientIdentity: "codex_cli",
       usageObserver: "responses",
       creditCharge: 1,
       realTask: true,
-      auditPath: "/v1/responses",
+      auditPath: "/backend-api/codex/responses",
       supportStatus: "active",
-      notes: "Codex Responses — single-pass transparent. ChatGPT backend compaction is a compaction_trigger input item on this path, not a separate route."
+      notes: "Codex Responses — single-pass transparent ChatGPT backend. Compaction is a compaction_trigger input item on this path, not a separate route."
     },
     {
       id: "codex.responses_websocket",
       method: "GET",
-      pathname: "/v1/responses",
+      pathname: "/backend-api/codex/responses",
       upgrade: "websocket",
       mode: "websocket_426",
       upstreamClientIdentity: "none",
       usageObserver: "none",
       creditCharge: 0,
       realTask: false,
+      auditPath: "/backend-api/codex/responses",
       supportStatus: "deprecated",
       notes: "Deprecated compatibility rejection — WebSocket upgrade receives typed 426"
     },
     {
-      id: "codex.audio_speech",
-      method: "POST",
-      pathname: "/v1/audio/speech",
-      mode: "transparent",
-      upstreamClientIdentity: "none",
-      usageObserver: "none",
-      creditCharge: 1,
-      realTask: true,
-      providerBaseUrl: OPENAI_API_PROVIDER_BASE_URL,
-      auditPath: "/v1/audio/speech",
-      supportStatus: "active",
-      notes: "Codex speech — transparent OpenAI API"
-    },
-    {
       id: "codex.audio_transcriptions",
       method: "POST",
-      pathname: "/v1/audio/transcriptions",
+      pathname: "/backend-api/transcribe",
       mode: "transparent",
       upstreamClientIdentity: "none",
       usageObserver: "none",
       creditCharge: 1,
       realTask: true,
-      auditPath: "/v1/audio/transcriptions",
+      auditPath: "/backend-api/transcribe",
       supportStatus: "active",
-      notes: "Codex transcriptions — opaque ChatGPT backend /transcribe through egress"
-    },
-    {
-      id: "codex.realtime_websocket",
-      method: "GET",
-      pathname: "/v1/realtime",
-      upgrade: "websocket",
-      mode: "websocket_transparent",
-      upstreamClientIdentity: "none",
-      usageObserver: "none",
-      creditCharge: 1,
-      realTask: false,
-      providerBaseUrl: OPENAI_API_PROVIDER_BASE_URL,
-      auditPath: "/v1/realtime",
-      supportStatus: "active",
-      notes: "Codex Realtime WebSocket — opaque OpenAI API"
+      notes: "Codex transcriptions — opaque ChatGPT backend /backend-api/transcribe through egress. Not a /backend-api/codex path."
     },
     {
       id: "codex.realtime_calls",
       method: "POST",
-      pathname: "/v1/realtime/calls",
+      pathname: "/backend-api/codex/realtime/calls",
       mode: "transparent",
       upstreamClientIdentity: "none",
       usageObserver: "none",
       creditCharge: 1,
       realTask: true,
-      auditPath: "/v1/realtime/calls",
+      auditPath: "/backend-api/codex/realtime/calls",
       supportStatus: "active",
       notes: "Codex Realtime call create — opaque ChatGPT backend /realtime/calls through egress"
     },
     {
       id: "codex.live",
       method: "POST",
-      pathname: "/v1/live",
+      pathname: "/backend-api/codex/live",
       mode: "transparent",
       upstreamClientIdentity: "none",
       usageObserver: "none",
       creditCharge: 1,
       realTask: true,
-      auditPath: "/v1/live",
+      auditPath: "/backend-api/codex/live",
       supportStatus: "active",
       notes: "Codex Realtime v3 call create — opaque ChatGPT backend /live through egress"
-    },
-    {
-      id: "codex.live_websocket",
-      method: "GET",
-      pathname: "/v1/live",
-      upgrade: "websocket",
-      mode: "websocket_transparent",
-      upstreamClientIdentity: "none",
-      usageObserver: "none",
-      creditCharge: 1,
-      realTask: false,
-      providerBaseUrl: OPENAI_API_PROVIDER_BASE_URL,
-      auditPath: "/v1/live",
-      supportStatus: "active",
-      notes: "Codex Realtime v3 WebSocket — opaque OpenAI API"
-    },
-    {
-      id: "codex.live_call_websocket",
-      method: "GET",
-      pathname: /^\/v1\/live\/(?![^/]*%2[fF])[^/]{1,200}$/,
-      upgrade: "websocket",
-      mode: "websocket_transparent",
-      upstreamClientIdentity: "none",
-      usageObserver: "none",
-      creditCharge: 1,
-      realTask: false,
-      providerBaseUrl: OPENAI_API_PROVIDER_BASE_URL,
-      auditPath: "/v1/live/{call_id}",
-      supportStatus: "active",
-      notes: "Codex Realtime v3 sideband — opaque OpenAI API"
     }
   ];
   return plans.map(operation => bindProfile(PROVIDER_RELAY_PROFILES.codex, operation));

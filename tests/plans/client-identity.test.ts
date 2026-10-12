@@ -100,6 +100,29 @@ describe("Upstream Client Identity", () => {
     );
   });
 
+  it("applies the same models client_version rule on the canonical catalog path", () => {
+    const request = new Request(
+      "https://api.trustedtunnel.app/backend-api/codex/models?future=a%20b&client_version=old&slash=%2f&client%5Fversion=older&tail=%7e",
+      {
+        headers: {
+          Originator: "codex_cli_rs",
+          "User-Agent": "third-party/9.0.0"
+        }
+      }
+    );
+
+    const projected = projectedIdentity(
+      "codex_cli",
+      request,
+      request.headers,
+      FALLBACK_VERSION
+    );
+
+    expect(projected?.search).toBe(
+      `?future=a%20b&slash=%2f&tail=%7e&client_version=${FALLBACK_VERSION}`
+    );
+  });
+
   it("does not invent a Codex fallback version", () => {
     const request = new Request("https://api.trustedtunnel.app/v1/models", {
       headers: { Originator: "codex_cli_rs", "User-Agent": "third-party/9.0.0" }

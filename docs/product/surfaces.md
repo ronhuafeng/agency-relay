@@ -33,18 +33,25 @@ Defaults choose credentials only when a new key is issued. Runtime uses `api_key
 
 ## Codex
 
-The declared Codex surface accepts:
+Canonical Codex ingress on `api.trustedtunnel.app` is the exact ChatGPT backend operation, one Execution Plan each:
 
-- `GET /v1/models`;
-- `POST /v1/responses`;
-- `POST /v1/audio/speech` and `POST /v1/audio/transcriptions`;
-- `POST /v1/realtime/calls` and `POST /v1/live`;
-- WebSocket `GET /v1/realtime`, `GET /v1/live`, and `GET /v1/live/{call_id}`;
-- deprecated WebSocket `GET /v1/responses`, which returns the explicit typed `426` compatibility rejection.
+- `GET /backend-api/codex/models` → shim `/models` → `https://chatgpt.com/backend-api/codex/models`;
+- `POST /backend-api/codex/responses` → shim `/responses` → `https://chatgpt.com/backend-api/codex/responses`;
+- `POST /backend-api/codex/realtime/calls` → shim `/realtime/calls` → `https://chatgpt.com/backend-api/codex/realtime/calls`;
+- `POST /backend-api/codex/live` → shim `/live` → `https://chatgpt.com/backend-api/codex/live`;
+- `POST /backend-api/transcribe` → shim `/transcribe` → `https://chatgpt.com/backend-api/transcribe`.
 
-The issued Codex client `base_url` is `https://api.trustedtunnel.app/backend-api/codex`. Codex sends the ChatGPT-backend realtime JSON body only when its base URL contains `/backend-api`. Agency Relay rewrites that prefix onto these same `/v1` plans. An existing `/v1` client remains valid. Models and Responses use the selected ChatGPT credential through the Codex egress shim to the ChatGPT backend at `https://chatgpt.com/backend-api/codex`. That backend has no `/responses/compact` path. Context compaction is a `compaction_trigger` input item on `POST /v1/responses`, not a separate route. `CODEX_EGRESS_BASE_URL` must match the approved hostname. Transcriptions, Realtime call creation, and Live call creation use the same ChatGPT credential through the Codex egress shim. The shim forwards `/transcribe` to `https://chatgpt.com/backend-api/transcribe`, and `/realtime/calls` and `/live` to `https://chatgpt.com/backend-api/codex`. These bodies stay opaque. `POST /v1/audio/speech` and the Realtime/Live WebSocket plans still target `https://api.openai.com`; they are not the ChatGPT subscription voice flow. The public OpenAI API and the xAI API are different origins and are not the ChatGPT backend.
+Transcription is that separate native path. It is not `/backend-api/codex/audio/transcriptions`. WebSocket `GET /backend-api/codex/responses` stays the typed `426` rejection. The HTTP shim does not forward Upgrade, and Agency Relay does not carry WebRTC UDP.
 
-Codex client voice uses Realtime/WebRTC paths rather than the two audio REST paths. Do not infer new provider support from the console service name.
+Previously configured clients may still call the same operations at the exact legacy paths `GET /v1/models`, `POST /v1/responses`, `POST /v1/realtime/calls`, `POST /v1/live`, and `POST /v1/audio/transcriptions`. Those paths are aliases onto the canonical plans. The alias copies method, query, headers and body unchanged. It does not convert a public-API JSON body into a ChatGPT backend body, and it does not make an old `/v1` client select backend-only request shapes. WebSocket `GET /v1/responses` aliases to the same `426`. Any other method or Upgrade on an aliased path fails closed with the canonical plan's method rule.
+
+These Codex paths are not plans and must not reach a provider or a ledger charge: `POST /v1/audio/speech`, WebSocket `GET /v1/realtime`, WebSocket `GET /v1/live`, WebSocket `GET /v1/live/{call_id}`, and native-looking copies such as `/backend-api/codex/audio/speech`. No Codex plan uses `api.openai.com`. Native ChatGPT Realtime WebSocket and subscription speech remain unproven; they are not implemented here.
+
+New Codex setup files, console downloads and examples use only `https://api.trustedtunnel.app/backend-api/codex`. Grok and xAI stay on their own `/v1` origins. A `base_url` ending in `/backend-api/codex` is necessary for Codex to choose the ChatGPT realtime JSON shape, but it is not sufficient for every first-party gate. Codex `supports_codex_backend_routes` also requires provider name `OpenAI`, and `uses_codex_backend` requires a compatible auth mode without `experimental_bearer_token`. Generated setup keeps `name = "Agency Relay Codex"` and `experimental_bearer_token` so Agency Relay API keys keep working. That combination does not advertise full first-party Codex fidelity.
+
+Models and Responses use the selected ChatGPT credential through the Codex egress shim. The ChatGPT backend has no `/responses/compact` path. Context compaction is a `compaction_trigger` input item on canonical `POST /backend-api/codex/responses`. `CODEX_EGRESS_BASE_URL` must match the approved hostname. Realtime call creation, Live call creation and transcription use the same ChatGPT credential. Bodies stay opaque.
+
+Codex client voice uses Realtime/WebRTC call creation rather than a speech REST path. Do not infer new provider support from the console service name.
 
 ## Grok
 
@@ -102,7 +109,7 @@ Management API, `management-api.x.ai`, custom-voice mutations, `PUT /v1/files/{f
 
 Plan-declared compatibility identity is `codex_cli`, `grok_build`, or `none`. It never authenticates a caller, selects a credential, or changes grants.
 
-`codex.models` and `codex.responses` select `codex_cli`. `grok.production.models` and `grok.production.responses` select `grok_build`. Direct xAI-backed Grok plans, xAI API plans, Codex speech/transcriptions/realtime/live and the local Codex WebSocket rejection select `none`.
+`codex.models` and `codex.responses` select `codex_cli`. `grok.production.models` and `grok.production.responses` select `grok_build`. Direct xAI-backed Grok plans, xAI API plans, Codex transcriptions/realtime/live and the local Codex WebSocket rejection select `none`.
 
 A native Codex bundle includes official Originator/User-Agent and, for models, one matching client version. A Grok bundle includes matching version, identifier and User-Agent; optional client mode must be interactive or headless. Preserve a complete native bundle as a group, including older versions. Remove mixed/conflicting/incomplete bundles together and use only the reviewed stable-channel fallback when a valid adopted version exists. Never combine caller and fallback identity fields. Invalid channel candidates cannot replace a valid stored version; channel movement alone cannot change the reviewed wire shape.
 

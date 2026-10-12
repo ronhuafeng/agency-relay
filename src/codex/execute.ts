@@ -11,13 +11,6 @@ import {
 } from "./adapter";
 import { HttpError } from "../errors";
 import { publicExecutionPlanPath, type ExecutionPlan } from "../plans/execution-plans";
-import { assertProviderBaseUrl } from "../proxy/origin";
-import {
-  forwardTransparentProxy,
-  forwardTransparentWebSocket,
-  ProxyUpstreamError,
-  type ProxyUpstreamCredentials
-} from "../proxy/adapter";
 import { admitProviderAttempt, type AdmittedProviderAttempt } from "../auth/provider-attempt";
 import type {
   AuthenticatedUser,
@@ -69,12 +62,8 @@ export async function executeCodexPlan(
       request, env, ctx, deps, requestContext, auth, plan, fallbackIdentityVersion, chatGptBackendPath
     );
   }
-  if (
-    plan.providerBaseUrl
-    && (plan.mode === "transparent" || plan.mode === "websocket_transparent")
-  ) {
-    return await routeOpenAiDirect(request, env, ctx, deps, requestContext, auth, plan, fallbackIdentityVersion);
-  }
+  // Codex plans do not select api.openai.com. Unproven public API speech and
+  // Realtime/Live WebSocket routes are absent, so they never reach this function.
   throw new HttpError(404, "Route not found", "invalid_request_error", "not_found");
 }
 
@@ -135,82 +124,6 @@ async function routeChatGptBackend(
   });
 }
 
-async function routeOpenAiDirect(
-  request: Request,
-  env: Env,
-  ctx: Pick<ExecutionContext, "waitUntil">,
-  deps: ExecutionDependencies,
-  requestContext: RequestContext,
-  auth: AuthenticatedUser,
-  plan: ExecutionPlan,
-  fallbackIdentityVersion: string | null
-): Promise<Response> {
-  requestContext.userId = auth.user.id;
-  requestContext.apiKeyId = auth.apiKey.id;
-  requestContext.sessionId = request.headers.get(CODEX_SESSION_ID_HEADER) ?? undefined;
-  requestContext.threadId = request.headers.get(CODEX_THREAD_ID_HEADER) ?? undefined;
-  const route = publicExecutionPlanPath(plan);
-  const attempt = await admitProviderAttempt({
-    env, ctx, now: deps.now, requestContext, auth, plan
-  });
-  if (!plan.providerBaseUrl) {
-    throw new HttpError(500, "Plan missing provider base URL", "server_error", "missing_provider_base_url");
-  }
-  const credentials: ProxyUpstreamCredentials = {
-    baseUrl: assertProviderBaseUrl(plan.providerBaseUrl),
-    accessToken: attempt.credential.accessToken,
-    authStyle: "bearer",
-    upstreamClientIdentity: plan.upstreamClientIdentity,
-    fallbackIdentityVersion,
-    ...(attempt.credential.accountId
-      ? { extraHeaders: [["Chatgpt-Account-Id", attempt.credential.accountId]] }
-      : {})
-  };
-  try {
-    const response = plan.mode === "websocket_transparent"
-      ? await forwardTransparentWebSocket(request, deps, credentials)
-      : await forwardTransparentProxy(request, deps, credentials, request.body);
-    const accepted = plan.mode === "websocket_transparent"
-      ? response.status === 101
-      : response.status >= 200 && response.status < 300;
-    const requestStatus = accepted ? "ok" : "error";
-    const completion = attempt.complete({
-      requestStatus,
-      providerResult: accepted ? "accepted" : "rejected",
-      upstreamStatus: response.status,
-      errorCode: null,
-      usage: null
-    });
-    ctx.waitUntil(completion.then((result) => {
-      logOutcome(
-        deps,
-        requestContext,
-        auth,
-        attempt.credential.physicalAccountId,
-        requestStatus,
-        response.status,
-        route,
-        undefined,
-        undefined,
-        result.accountingCommitted ? undefined : "request_accounting_failed"
-      );
-    }));
-    return response;
-  } catch (error) {
-    if (error instanceof ProxyUpstreamError && error.attempted) {
-      ctx.waitUntil(attempt.complete({
-        requestStatus: "error",
-        providerResult: error.upstreamStatus === null ? "transport_error" : "rejected",
-        upstreamStatus: error.upstreamStatus,
-        errorCode: error.code ?? null,
-        usage: null
-      }).then(() => undefined));
-    }
-    throw error;
-  }
-}
-
-
 async function routeResponses(
   request: Request,
   env: Env,
@@ -225,7 +138,7 @@ async function routeResponses(
   requestContext.apiKeyId = auth.apiKey.id;
   requestContext.sessionId = request.headers.get(CODEX_SESSION_ID_HEADER) ?? undefined;
   requestContext.threadId = request.headers.get(CODEX_THREAD_ID_HEADER) ?? undefined;
-  const route = "/v1/responses";
+  const route = publicExecutionPlanPath(plan);
   const attempt = await admitProviderAttempt({
     env, ctx, now: deps.now, requestContext, auth, plan
   });
