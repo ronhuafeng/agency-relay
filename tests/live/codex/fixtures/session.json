@@ -1,0 +1,13 @@
+{
+  "instructions": "Repeat the caller's words, then say ready.",
+  "model": "gpt-live-1-codex",
+  "audio": {
+    "output": {
+      "voice": "cove"
+    }
+  },
+  "delegation": {
+    "type": "client",
+    "ack_filler": false
+  }
+}

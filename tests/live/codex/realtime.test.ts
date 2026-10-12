@@ -1,47 +1,153 @@
-import { it } from "vitest";
-import { HOST, assertNotClosed, call, env, wavProbe } from "../support";
+import { readFileSync } from "node:fs";
+import { expect, it } from "vitest";
+import { RTCPeerConnection, usePCMU } from "werift";
+import { HOST, call, env } from "../support";
 
-const AUDIO_OFFER = [
-  "v=0",
-  "o=- 0 0 IN IP4 127.0.0.1",
-  "s=-",
-  "t=0 0",
-  "m=audio 9 UDP/TLS/RTP/SAVPF 111",
-  "c=IN IP4 0.0.0.0",
-  "a=rtpmap:111 opus/48000/2",
-  "a=sendrecv",
-  "a=rtcp-mux"
-].join("\r\n");
+const SESSION = JSON.parse(readFileSync(new URL("./fixtures/session.json", import.meta.url), "utf8")) as {
+  instructions: string;
+  model: string;
+  audio: { output: { voice: string } };
+  delegation: { type: "client"; ack_filler: false };
+};
 
-it("probes Codex ChatGPT-backend voice paths through Agency Relay", async () => {
+function wavPcm(bytes: Uint8Array): Uint8Array {
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  let offset = 12;
+  while (offset + 8 <= bytes.byteLength) {
+    const id = String.fromCharCode(
+      bytes[offset] ?? 0,
+      bytes[offset + 1] ?? 0,
+      bytes[offset + 2] ?? 0,
+      bytes[offset + 3] ?? 0
+    );
+    const size = view.getUint32(offset + 4, true);
+    if (id === "data") {
+      return bytes.subarray(offset + 8, offset + 8 + size);
+    }
+    offset += 8 + size + (size & 1);
+  }
+  throw new Error("wav data missing");
+}
+
+function ulaw(sample: number): number {
+  const bias = 0x84;
+  const clip = 32635;
+  let sign = (sample >> 8) & 0x80;
+  if (sign) {
+    sample = -sample;
+  }
+  if (sample > clip) {
+    sample = clip;
+  }
+  sample += bias;
+  let exponent = 7;
+  for (let mask = 0x4000; (sample & mask) === 0 && exponent > 0; exponent -= 1, mask >>= 1) {
+    // Find the highest set bit after the bias.
+  }
+  const mantissa = (sample >> (exponent + 3)) & 0x0f;
+  return ~(sign | (exponent << 4) | mantissa) & 0xff;
+}
+
+function pcmuFrames(bytes: Uint8Array): Buffer[] {
+  const pcm = wavPcm(bytes);
+  const view = new DataView(pcm.buffer, pcm.byteOffset, pcm.byteLength);
+  const samples: number[] = [];
+  for (let i = 0; i + 1 < pcm.byteLength; i += 6) {
+    samples.push(view.getInt16(i, true));
+  }
+  const frames: Buffer[] = [];
+  for (let i = 0; i < samples.length; i += 160) {
+    const frame = Buffer.alloc(160, 0xff);
+    for (let j = 0; j < 160 && i + j < samples.length; j += 1) {
+      frame[j] = ulaw(samples[i + j] ?? 0);
+    }
+    frames.push(frame);
+  }
+  for (let n = 0; n < 20; n += 1) {
+    frames.push(Buffer.alloc(160, 0xff));
+  }
+  return frames;
+}
+
+function rtp(sequence: number, timestamp: number, payload: Buffer): Buffer {
+  const header = Buffer.alloc(12);
+  header[0] = 0x80;
+  header.writeUInt16BE(sequence & 0xffff, 2);
+  header.writeUInt32BE(timestamp >>> 0, 4);
+  header.writeUInt32BE(1, 8);
+  return Buffer.concat([header, payload]);
+}
+
+it("completes a Codex realtime call and returns the caller's words plus audio", async () => {
   const key = env("MINI_ONLY_CODEX_SURFACE_API_KEY");
-  const audio = new FormData();
-  audio.append("file", new Blob([Uint8Array.from(wavProbe())], { type: "audio/wav" }), "probe.wav");
-  assertNotClosed(await call(`${HOST.codex}/v1/audio/transcriptions`, key, { method: "POST", body: audio }));
-  assertNotClosed(await call(`${HOST.codex}/v1/realtime/calls`, key, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      sdp: AUDIO_OFFER,
-      session: {
-        type: "realtime",
-        model: "gpt-realtime-1.5",
-        audio: { input: { format: { type: "audio/pcm", rate: 24000 } }, output: { voice: "cove" } },
-        instructions: "."
+  const wav = readFileSync(new URL("./fixtures/probe.wav", import.meta.url));
+  const pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
+  const messages: string[] = [];
+  let audioPackets = 0;
+  try {
+    const channel = pc.createDataChannel("oai-events");
+    channel.onmessage = (event) => {
+      messages.push(String(event.data));
+    };
+    pc.ontrack = (event) => {
+      event.track.onReceiveRtp.subscribe(() => {
+        audioPackets += 1;
+      });
+    };
+    const transceiver = pc.addTransceiver("audio", { direction: "sendrecv" });
+    transceiver.setCodecPreferences([usePCMU()]);
+    await pc.setLocalDescription(await pc.createOffer());
+    const response = await call(
+      `${HOST.codex}/v1/realtime/calls?intent=quicksilver&architecture=avas`,
+      key,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "OpenAI-Alpha": "quicksilver=v2"
+        },
+        body: JSON.stringify({ sdp: pc.localDescription?.sdp, session: SESSION })
       }
-    })
-  }));
-  assertNotClosed(await call(`${HOST.codex}/v1/live`, key, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      sdp: AUDIO_OFFER,
-      session: {
-        audio: { output: { voice: "cove" } },
-        delegation: { ack_filler: false, type: "client" },
-        instructions: ".",
-        model: "gpt-live-1-codex"
+    );
+    expect(response.status).toBe(201);
+    expect(response.text.startsWith("v=")).toBe(true);
+    expect(response.text).toContain("m=audio");
+    expect(response.text.toLowerCase()).not.toContain("<html");
+    const callId = response.headers.get("location")?.split("/").filter(Boolean).at(-1) ?? "";
+    expect(callId).toMatch(/^rtc_[A-Za-z0-9_-]+$/);
+
+    await pc.setRemoteDescription({ type: "answer", sdp: response.text });
+    const connectedBy = Date.now() + 12_000;
+    while (pc.connectionState !== "connected" && Date.now() < connectedBy) {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    expect(pc.connectionState).toBe("connected");
+
+    const sender = pc.getTransceivers()[0]?.sender;
+    if (!sender) {
+      throw new Error("audio sender missing");
+    }
+    let sequence = 1;
+    let timestamp = 0;
+    for (const frame of pcmuFrames(wav)) {
+      await sender.sendRtp(rtp(sequence, timestamp, frame));
+      sequence += 1;
+      timestamp += 160;
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+
+    const heardBy = Date.now() + 8_000;
+    while (Date.now() < heardBy) {
+      if (/agency relay/i.test(messages.join("\n")) && audioPackets > 0) {
+        break;
       }
-    })
-  }));
-}, 180_000);
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    }
+    const transcript = messages.join("\n");
+    expect(transcript).toMatch(/agency relay/i);
+    expect(transcript.toLowerCase()).not.toContain("<html");
+    expect(audioPackets).toBeGreaterThan(0);
+  } finally {
+    pc.close();
+  }
+}, 60_000);

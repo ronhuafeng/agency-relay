@@ -19,7 +19,7 @@ A scheduled or manual run starts the whole graph. A failed parent skips its chil
 
 ## Success evidence
 
-Use a completed Provider terminal state, real response content, completed SSE, a validated media artifact, or a completed asynchronous video job as appropriate. A 200 status, SSE Content-Type, open route, empty result collection, or unsuccessful terminal state **alone** is not a completed task. Codex Realtime route compatibility probes are explicitly *reachability* checks; do not treat them as successful speech sessions.
+Use a completed Provider terminal state, real response content, completed SSE, a validated media artifact, or a completed asynchronous video job as appropriate. A 200 status, SSE Content-Type, open route, empty result collection, or unsuccessful terminal state **alone** is not a completed task. The Codex realtime test must receive an SDP answer, the caller's transcript, and output audio packets. A non-404 response is not that session.
 
 External-client tests use isolated synthetic HOME directories with real scoped API keys; CI operator credentials must not be inherited by the installer process. Tests that create external resources must clean their own IDs in failure paths where the Provider API supports it.
 
