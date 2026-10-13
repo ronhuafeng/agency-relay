@@ -17,7 +17,7 @@ async function challengeFor(verifier: string): Promise<string> {
   return btoa(String.fromCharCode(...new Uint8Array(digest))).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/u, "");
 }
 
-async function start(): Promise<{ runtime: { dispatchFetch: typeof fetch; dispose: () => Promise<void> } }> {
+async function start(): Promise<{ runtime: { dispatchFetch: typeof fetch; dispose: () => Promise<void>; getDurableObjectNamespace: (name: string) => Promise<DurableObjectNamespace> } }> {
   const compiled = await build({
     stdin: {
       contents: `export { RuntimeGrantAuthority } from "./tests/runtime/synthetic-oauth-worker";
@@ -51,7 +51,12 @@ async function consentCode(runtime: { dispatchFetch: typeof fetch }, verifier: s
   return new URL((await allowed.json() as { redirect: string }).redirect).searchParams.get("code")!;
 }
 
-it.each(["authorization_code", "refresh_token"])("rejects concurrent %s replay and invalidates only that grant", async (grantType) => {
+it.each([
+  { grantType: "authorization_code", expired: false },
+  { grantType: "refresh_token", expired: false },
+  { grantType: "authorization_code", expired: true },
+  { grantType: "refresh_token", expired: true }
+])("rejects $grantType replay (expired=$expired) and invalidates only that grant", async ({ grantType, expired }) => {
   const { runtime } = await start();
   try {
     await runtime.dispatchFetch(`${ISSUER}/register`, { method: "POST", body: JSON.stringify({ redirect_uris: [REDIRECT] }) });
@@ -62,7 +67,17 @@ it.each(["authorization_code", "refresh_token"])("rejects concurrent %s replay a
     const code = await consentCode(runtime, verifier);
     const fields = grantType === "authorization_code" ? codeFields(code) : { grant_type: "refresh_token", refresh_token: (await (await callToken(codeFields(code))).json() as { refresh_token: string }).refresh_token };
     const exchange = () => callToken(fields);
-    const results = await Promise.all([exchange(), exchange()]);
+    let results: Response[];
+    if (expired) {
+      const first = await exchange();
+      const namespace = await runtime.getDurableObjectNamespace("GRANTS");
+      const stub = namespace.get(namespace.idFromName("authority"));
+      const control = await stub.fetch("https://authority.internal/expire-record", { method: "POST", body: JSON.stringify({ kind: grantType === "authorization_code" ? "code" : "refresh", token: "code" in fields ? fields.code : fields.refresh_token }) });
+      expect(control.status).toBe(200);
+      results = [first, await exchange()];
+    } else {
+      results = await Promise.all([exchange(), exchange()]);
+    }
     expect(results.map((response) => response.status).sort()).toEqual([200, 400]);
     const issued = await results.find((response) => response.status === 200)!.json() as { access_token: string; refresh_token: string };
     expect(await results.find((response) => response.status === 400)!.json()).toEqual({ error: "invalid_grant" });

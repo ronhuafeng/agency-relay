@@ -41,6 +41,7 @@ function listen(handler: (request: IncomingMessage, response: ServerResponse) =>
 }
 
 it("lets Codex 0.156.1 log in and consume the protected MCP tool catalogue", async () => {
+  const bin = await codexBin();
   let resourceOrigin = "";
   let issuerOrigin = "";
   const resourceServer = await listen((request, response) => void forward(resourceOrigin, request, response));
@@ -98,7 +99,6 @@ it("lets Codex 0.156.1 log in and consume the protected MCP tool catalogue", asy
     response.end(Buffer.from(await upstream.arrayBuffer()));
   };
   const home = await mkdtemp(join(tmpdir(), "codex-oauth-"));
-  const bin = await codexBin();
   try {
     await writeFile(join(home, "config.toml"), `[mcp_servers.probe]\nurl = "${resourceOrigin}/mcp"\n`);
     await new Promise<void>((resolve, reject) => {

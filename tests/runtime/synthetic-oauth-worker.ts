@@ -88,6 +88,14 @@ export class RuntimeGrantAuthority extends DurableObject<FixtureEnv> {
       if (action === "/rebind") return jsonResponse(await this.rebind(body));
       if (action === "/budget") return jsonResponse({ storage_operations: this.storageOps });
       if (action === "/budget-reset") { this.storageOps = 0; return jsonResponse({ storage_operations: 0 }); }
+      // Fixture-only control through the DO stub, never an HTTP issuer route.
+      if (action === "/expire-record" && (body.kind === "code" || body.kind === "refresh")) {
+        const key = `${body.kind}:${stringField(body, "token")}`;
+        const row = await this.ctx.storage.get<CodeRecord | RefreshRecord>(key);
+        if (!row) return new Response(null, { status: 404 });
+        await this.ctx.storage.put(key, { ...row, expiresAt: 0 });
+        return jsonResponse({ expired: true });
+      }
       return new Response(null, { status: 404 });
     } catch (error) {
       const status = typeof error === "object" && error !== null && "status" in error && error.status === 400 ? 400 : 500;
@@ -170,7 +178,7 @@ export class RuntimeGrantAuthority extends DurableObject<FixtureEnv> {
       let binding: CodeRecord | RefreshRecord | undefined;
       const registered = await read<ClientRecord>("client");
       const client: OAuth2Server.Client = { id: "synthetic-public-client", grants: ["authorization_code", "refresh_token"], redirectUris: registered?.redirects };
-      const valid = async (row: CodeRecord | RefreshRecord | undefined): Promise<boolean> => !!row && row.generation === authority.generation && row.resource === body.resource && row.expiresAt > Date.now() && !(await read<boolean>(`revoked:${row.grant}`));
+      const valid = async (row: CodeRecord | RefreshRecord | undefined): Promise<boolean> => !!row && row.generation === authority.generation && row.resource === body.resource && !(await read<boolean>(`revoked:${row.grant}`));
       const model = {
         getClient: async (id: string) => registered && id === client.id ? client : false,
         getAccessToken: async (accessToken: string) => {
@@ -182,6 +190,7 @@ export class RuntimeGrantAuthority extends DurableObject<FixtureEnv> {
           const row = await read<CodeRecord>(`code:${code}`);
           if (!row || !(await valid(row))) return false;
           if (row.consumed) { await write(`revoked:${row.grant}`, true); return false; }
+          if (row.expiresAt <= Date.now()) return false;
           binding = row;
           return { authorizationCode: code, expiresAt: new Date(row.expiresAt), redirectUri: row.redirect, codeChallenge: row.challenge, codeChallengeMethod: "S256", scope: row.scope.split(" "), client, user: { id: "synthetic-member" } };
         },
@@ -193,6 +202,7 @@ export class RuntimeGrantAuthority extends DurableObject<FixtureEnv> {
           const row = await read<RefreshRecord>(`refresh:${refresh}`);
           if (!row || !(await valid(row))) return false;
           if (row.spent) { await write(`revoked:${row.grant}`, true); return false; }
+          if (row.expiresAt <= Date.now()) return false;
           binding = row;
           return { refreshToken: refresh, refreshTokenExpiresAt: new Date(row.expiresAt), scope: row.scope.split(" "), client, user: { id: "synthetic-member" } };
         },
