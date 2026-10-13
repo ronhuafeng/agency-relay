@@ -58,34 +58,54 @@ it.each([
   { grantType: "refresh_token", expired: true }
 ])("rejects $grantType replay (expired=$expired) and invalidates only that grant", async ({ grantType, expired }) => {
   const { runtime } = await start();
+  const priorBodyCheck = process.env.MINIFLARE_ASSERT_BODIES_CONSUMED;
+  // Use the native runner's ownership check for these bounded JSON exchanges.
+  // This is not appropriate for the separate deliberately held stream tests.
+  process.env.MINIFLARE_ASSERT_BODIES_CONSUMED = "true";
   try {
-    await runtime.dispatchFetch(`${ISSUER}/register`, { method: "POST", body: JSON.stringify({ redirect_uris: [REDIRECT] }) });
+    const statusOnly = async (response: Response): Promise<number> => {
+      const status = response.status;
+      await response.body?.cancel();
+      return status;
+    };
+    expect(await statusOnly(await runtime.dispatchFetch(`${ISSUER}/register`, { method: "POST", body: JSON.stringify({ redirect_uris: [REDIRECT] }) }))).toBe(200);
     const verifier = "v".repeat(64);
-    const callToken = (fields: Record<string, string>) => runtime.dispatchFetch(`${ISSUER}/token`, { method: "POST", body: new URLSearchParams({ client_id: "synthetic-public-client", resource: `${MCP}/mcp`, ...fields }) });
+    const callToken = async (fields: Record<string, string>) => {
+      const response = await runtime.dispatchFetch(`${ISSUER}/token`, { method: "POST", body: new URLSearchParams({ client_id: "synthetic-public-client", resource: `${MCP}/mcp`, ...fields }) });
+      // Own each response before another RPC or replay. Keep only scalar results;
+      // a live response body is not a durable token-exchange result.
+      return { status: response.status, body: await response.json() as Record<string, unknown> };
+    };
     const codeFields = (code: string) => ({ grant_type: "authorization_code", code, code_verifier: verifier, redirect_uri: REDIRECT });
-    const spare = await (await callToken(codeFields(await consentCode(runtime, verifier)))).json() as { access_token: string };
+    const spare = (await callToken(codeFields(await consentCode(runtime, verifier)))).body as { access_token: string };
     const code = await consentCode(runtime, verifier);
-    const fields = grantType === "authorization_code" ? codeFields(code) : { grant_type: "refresh_token", refresh_token: (await (await callToken(codeFields(code))).json() as { refresh_token: string }).refresh_token };
+    const fields = grantType === "authorization_code" ? codeFields(code) : { grant_type: "refresh_token", refresh_token: (await callToken(codeFields(code))).body.refresh_token as string };
     const exchange = () => callToken(fields);
-    let results: Response[];
+    let results: Awaited<ReturnType<typeof exchange>>[];
     if (expired) {
       const first = await exchange();
       const namespace = await runtime.getDurableObjectNamespace("GRANTS");
       const stub = namespace.get(namespace.idFromName("authority"));
       const control = await stub.fetch("https://authority.internal/expire-record", { method: "POST", body: JSON.stringify({ kind: grantType === "authorization_code" ? "code" : "refresh", token: "code" in fields ? fields.code : fields.refresh_token }) });
-      expect(control.status).toBe(200);
+      expect(await statusOnly(control)).toBe(200);
       results = [first, await exchange()];
     } else {
       results = await Promise.all([exchange(), exchange()]);
     }
     expect(results.map((response) => response.status).sort()).toEqual([200, 400]);
-    const issued = await results.find((response) => response.status === 200)!.json() as { access_token: string; refresh_token: string };
-    expect(await results.find((response) => response.status === 400)!.json()).toEqual({ error: "invalid_grant" });
-    expect((await runtime.dispatchFetch(`${MCP}/mcp`, { method: "POST", headers: { Authorization: `Bearer ${issued.access_token}` }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize" }) })).status).toBe(401);
-    expect((await runtime.dispatchFetch(`${ISSUER}/token`, { method: "POST", body: new URLSearchParams({ client_id: "synthetic-public-client", grant_type: "refresh_token", refresh_token: issued.refresh_token, resource: `${MCP}/mcp` }) })).status).toBe(400);
-    expect((await runtime.dispatchFetch(`${MCP}/mcp`, { method: "POST", headers: { Authorization: `Bearer ${spare.access_token}` }, body: JSON.stringify({ jsonrpc: "2.0", id: 2, method: "initialize" }) })).status).toBe(200);
+    const issued = results.find((response) => response.status === 200)!.body as { access_token: string; refresh_token: string };
+    expect(results.find((response) => response.status === 400)!.body).toEqual({ error: "invalid_grant" });
+    expect(await statusOnly(await runtime.dispatchFetch(`${MCP}/mcp`, { method: "POST", headers: { Authorization: `Bearer ${issued.access_token}` }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize" }) }))).toBe(401);
+    expect(await statusOnly(await runtime.dispatchFetch(`${ISSUER}/token`, { method: "POST", body: new URLSearchParams({ client_id: "synthetic-public-client", grant_type: "refresh_token", refresh_token: issued.refresh_token, resource: `${MCP}/mcp` }) }))).toBe(400);
+    expect(await statusOnly(await runtime.dispatchFetch(`${MCP}/mcp`, { method: "POST", headers: { Authorization: `Bearer ${spare.access_token}` }, body: JSON.stringify({ jsonrpc: "2.0", id: 2, method: "initialize" }) }))).toBe(200);
     expect((await exchange()).status).toBe(400);
-  } finally { await runtime.dispose(); }
+  } finally {
+    try { await runtime.dispose(); }
+    finally {
+      if (priorBodyCheck === undefined) delete process.env.MINIFLARE_ASSERT_BODIES_CONSUMED;
+      else process.env.MINIFLARE_ASSERT_BODIES_CONSUMED = priorBodyCheck;
+    }
+  }
 }, 20000);
 
 it("rejects the wrong client and consumes a code after a wrong PKCE verifier", async () => {
