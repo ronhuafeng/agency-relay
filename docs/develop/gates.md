@@ -130,6 +130,13 @@ Keep three levels separate: mechanism confirmed by source/deterministic tests; c
 
 A bounded probe not observing a behavior is negative evidence for that experiment only. A timeout proves the desired result was not established in its window, not which component failed. Counts, timings, order and intermediate trajectories are diagnostics unless an owned contract guarantees them.
 
+The synthetic Runtime OAuth test uses an installed Codex CLI `0.156.1`, selected
+by `CODEX_TEST_BIN` (local default: `/tmp/codex-cli/node_modules/.bin/codex`). It
+checks that version before allocating fixture resources. CI installs the pinned
+package in a separate preparation step. The test does not download software
+inside its execution window; missing preparation is a failure, not a skip.
+Its phase markers contain only fixed stage names, never OAuth traffic.
+
 Bound the experiment, not the implementation. Do not repeatedly mutate/retry a product to seek a green sample. Preserve valid historical transport constraints and prefer one owning regression seam over duplicated proof stacks.
 
 ## Artifacts, writes and stop rules

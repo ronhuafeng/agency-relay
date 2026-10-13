@@ -231,6 +231,63 @@ A credential being retired cannot simultaneously receive new bindings. Address d
 
 D1 metadata/binding transactions cannot atomically include TokenAuthority storage. Use an explicit, retry-safe staged operation: prevent further selection, commit validated binding/default changes with audit, then revoke external encrypted state. Report partial completion and recovery accurately; never report successful disconnection while cleanup is unconfirmed. Do not reopen old authority merely because a retry failed.
 
+### Runtime installation and member authority
+
+The following is the selected Runtime target, not a deployed capability. The
+existing human identity remains authoritative. A Runtime Installation is a
+reviewed, deployment-declared resource, with one upstream credential and explicit
+Installation Access for each eligible human member. Neither an administrator
+role nor a Provider allowance supplies that access. Service accounts are not
+Runtime OAuth subjects in V1.
+
+D1 owns installation state, access state and their monotonic revisions. Reads for
+authorization join the current active, login-capable human, active installation
+and unexpired explicit access in one primary-database snapshot. Missing state or
+an unavailable authority denies admission. There is no cached positive decision.
+The OAuth authority owns Client Consent and token state, not a copy of membership.
+[Security](../../SECURITY.md#runtime-admission-and-lifecycle-target) defines how
+these two authorities are checked without claiming a distributed transaction.
+
+An installation has an operation revision, which fences asynchronous credential
+work, and an Authority Revision, which invalidates client authorization. Each
+Installation Access relation has its own revision. Client Consent captures both
+the access revision and Authority Revision; a mismatch requires fresh consent.
+Removed access and retired installation identities are not recreated with an old
+revision. Resource URIs are not reassigned to a different installation.
+
+| Change | Required effect on authority |
+| --- | --- |
+| Display-name change | Preserve resource identity, access and consent. |
+| Same-authority Secret Rotation | Advance the operation revision; preserve Authority Revision only with an explicit administrator declaration that the account/workspace is unchanged. A key's shape cannot establish that fact. |
+| Disable or retire an installation | Advance both installation revisions and reject new admission; enable does not decrement either revision. |
+| Authority Rebind | Advance both installation revisions before the replacement can be admitted; old consent is invalid. |
+| Revoke or regrant Installation Access | Advance that relation's revision; regrant does not revive old consent. |
+| Disable a human | In the same D1 commit, invalidate all existing Runtime access revisions for that human; re-enable retains those new revisions. Existing Provider and browser-session rules remain unchanged. |
+| Revoke Client Consent | Invalidate only that client's grant in the OAuth authority. Do not remove administrator-managed Installation Access or another client's consent. |
+| Browser logout | End the browser session, not all OAuth client grants. |
+
+All administrative commits retain the existing current-actor, mailbox,
+session-epoch and audit guards. A concurrent new access grant must check the
+target human's current eligibility at commit, so it cannot escape human-disable
+invalidation. A failed conditional write leaves no success audit or partial
+related changes. No new cross-product subject epoch is introduced.
+
+Credential supply and rotation use staged, revision-fenced effects: store an
+encrypted candidate under the operation identity, conditionally commit the D1
+binding, then clean obsolete material. A stored candidate alone never grants
+access. Retirement first denies admission, then cleans the secret. Lost results
+require receipt/readback reconciliation; failed cleanup leaves the installation
+disabled, not restored. The Runtime secret owner and encryption context are
+separate from Provider TokenAuthority. No Provider identity or ciphertext is
+migrated. A request already admitted may finish; revocation cannot undo an
+upstream tool action.
+
+The admission result carries the immutable credential binding/operation revision
+and Authority Revision from that same D1 snapshot. Transport reads only that
+exact secret version, never an installation's latest/current replacement. If the
+admitted version has already been cleaned, fail closed without retry or fallback.
+Thus an admission for upstream authority A cannot use B after a concurrent rebind.
+
 ## 7. Browser and transport safety
 
 Apply one browser-mutation guard before all console-session writes, including JSON POST/PUT/PATCH/DELETE and native `/me/ui/*` and `/admin/ui/*` POST forms. Require an exact canonical Origin match and reject cross-site Fetch Metadata. Reject missing/invalid origin for this browser-only write surface. Console session verification and server-side authorization are still required. Checking only a subset of forms is insufficient; readable confirmation text is not CSRF protection.
