@@ -14,6 +14,8 @@ export async function createPreviewFixture(scenario: Scenario, preferredEmail?: 
   const env: Env = {
     DB: db.binding, ADMIN_DASHBOARD_HOST: new URL(PREVIEW_ORIGIN).hostname,
     CONSOLE_EMAIL_DOMAIN: "example.test", API_KEY_HASH_PEPPER: "local-preview-only",
+    RUNTIME_INSTALLATIONS: "[]",
+    RUNTIME_CREDENTIALS: undefined as unknown as Env["RUNTIME_CREDENTIALS"],
     TOKEN_ENCRYPTION_KEY_V1: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
     ADMIN_SECRET: "local-preview-only", CODEX_EGRESS_SECRET: "local-preview-only",
     CODEX_EGRESS_BASE_URL: "https://provider.invalid", CODEX_OAUTH_TOKEN_URL: "https://provider.invalid/token",

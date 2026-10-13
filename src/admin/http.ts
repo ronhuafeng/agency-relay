@@ -1,4 +1,5 @@
 import { parseUsageQuery, MAX_USAGE_RANGE_DAYS } from "./usage-query";
+import { isRuntimeControlPath, runtimeControlResponse } from "../runtime/control";
 
 import { delegatedService, listDelegatedServices, readServiceOwner, type ServiceContext } from "../auth/service-delegation";
 import { assertKeyActorAuthority } from "../auth/key-authority";
@@ -143,6 +144,8 @@ export async function routeAdmin(request: Request, env: Env, url: URL, deps: App
     return response;
   }
   const operator = operatorMutationContext(env, deps, admin, requestContext);
+  const runtimeResponse = await runtimeControlResponse(request, env, url, operator);
+  if (runtimeResponse) return runtimeResponse;
   const credentialHtmlTask = url.hostname === env.ADMIN_DASHBOARD_HOST && request.method === "POST" && wantsHtml(request)
     && /^\/admin\/ui\/(?:credential-defaults\/(?:codex|grok|xai)|(?:codex-auths|subscriptions)\/[^/]+\/(?:migrate|cleanup))$/.test(url.pathname);
   const credentialResponse = credentialHtmlTask ? null
@@ -785,6 +788,7 @@ function isDashboardRoute(request: Request, url: URL, env: Env): boolean {
     return false;
   }
   if (url.pathname === "/login" || url.pathname === "/login/callback" || url.pathname === "/logout") return true;
+  if (isRuntimeControlPath(url.pathname)) return true;
   if (isOwnConsolePath(url.pathname, request.method)) return true;
   if (url.pathname.startsWith("/admin/ui/") && request.method === "POST") {
     return true;

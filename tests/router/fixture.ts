@@ -46,6 +46,8 @@ const fixtureEnvBindings = {
   ADMIN_SECRET: "admin-secret",
   ADMIN_DASHBOARD_HOST: "admin.example.test",
   CONSOLE_EMAIL_DOMAIN: "example.com",
+  RUNTIME_INSTALLATIONS: "[]",
+  RUNTIME_CREDENTIALS: undefined as unknown as Env["RUNTIME_CREDENTIALS"],
   FEISHU_APP_ID: "cli_test",
   FEISHU_APP_SECRET: "test-secret",
   REQUEST_AUDIT_RETENTION_DAYS: "30",

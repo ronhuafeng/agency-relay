@@ -233,8 +233,7 @@ D1 metadata/binding transactions cannot atomically include TokenAuthority storag
 
 ### Runtime installation and member authority
 
-The following is the selected Runtime target, not a deployed capability. The
-existing human identity remains authoritative. A Runtime Installation is a
+Runtime lifecycle uses the existing human identity. A Runtime Installation is a
 reviewed, deployment-declared resource, with one upstream credential and explicit
 Installation Access for each eligible human member. Neither an administrator
 role nor a Provider allowance supplies that access. Service accounts are not
@@ -277,7 +276,11 @@ encrypted candidate under the operation identity, conditionally commit the D1
 binding, then clean obsolete material. A stored candidate alone never grants
 access. Retirement first denies admission, then cleans the secret. Lost results
 require receipt/readback reconciliation; failed cleanup leaves the installation
-disabled, not restored. The Runtime secret owner and encryption context are
+unavailable, not restored. The configured enablement and operation phase are
+separate facts: `writing` or `cleaning` always denies admission, even if configured
+enablement is still `enabled`. Recovery of an unknown write aborts it, disables
+the installation, invalidates consent and clears all secret versions. Recovery
+of `cleaning` finishes only that revision's cleanup. The Runtime secret owner and encryption context are
 separate from Provider TokenAuthority. No Provider identity or ciphertext is
 migrated. A request already admitted may finish; revocation cannot undo an
 upstream tool action.
@@ -287,6 +290,10 @@ and Authority Revision from that same D1 snapshot. Transport reads only that
 exact secret version, never an installation's latest/current replacement. If the
 admitted version has already been cleaned, fail closed without retry or fallback.
 Thus an admission for upstream authority A cannot use B after a concurrent rebind.
+
+Lifecycle implementation does not by itself publish an MCP resource or OAuth
+service. Deployment declarations, current source and release evidence establish
+which boundaries are available. Empty declarations expose no installations.
 
 ## 7. Browser and transport safety
 
