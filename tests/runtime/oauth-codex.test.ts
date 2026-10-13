@@ -42,12 +42,15 @@ it("lets Codex 0.156.1 complete production OAuth consent and read the protected 
     await listen(tls);servers.push(tls);
     const proxy=httpServer((_request,response)=>{unexpected.push("non_tls_target");response.writeHead(403).end();});
     proxy.on("connect",(request,client,head)=>{
+      // Own rejected CONNECT sockets too. Native child shutdown can reset a
+      // rejected startup/update connection after the 403 has been sent.
+      sockets.add(client);client.on("close",()=>sockets.delete(client));
+      client.on("error",()=>client.destroy());
       if(!["console.example.test:443","design.example.test:443"].includes(request.url??"")){
         // Codex startup/update traffic is outside Agency Relay's OAuth contract.
         // Block it all; do not make this test an external-client QA gate.
         client.end("HTTP/1.1 403 Forbidden\r\n\r\n");return;
       }
-      sockets.add(client);client.on("close",()=>sockets.delete(client));
       const upstream=connect(port(tls),"127.0.0.1",()=>{client.write("HTTP/1.1 200 Connection Established\r\n\r\n");if(head.length)upstream.write(head);client.pipe(upstream);upstream.pipe(client);});
       sockets.add(upstream);upstream.on("close",()=>sockets.delete(upstream));upstream.on("error",()=>client.destroy());client.on("error",()=>upstream.destroy());
     });

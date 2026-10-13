@@ -12,7 +12,7 @@ export const OTHER_RESOURCE="https://other.example.test/mcp";
 
 /** Actual Worker/D1 and production DO owner with test-only clock/expiry controls.
  * The external MCP service is synthetic; production owns every auth/path check. */
-export async function oauthFixture(persist?:string) {
+export async function oauthFixture(persist?:string,options:{upstream?:(request:Request)=>Promise<Response>;controlledTimers?:boolean}={}) {
   const compiled=await build({
     stdin:{resolveDir:process.cwd(),sourcefile:"runtime-oauth-fixture.ts",contents:`
       // Pin the external UTC clock so policy tests cannot cross a time window.
@@ -23,9 +23,23 @@ export async function oauthFixture(persist?:string) {
         constructor(...args){super(...(args.length?args:[fixtureTime]));}
         static now(){return fixtureTime;}
       };
+      const timers=new Map();let nextTimer=0;
+      if(${options.controlledTimers===true}) {
+        globalThis.setTimeout=(callback,delay=0)=>{const id=++nextTimer;timers.set(id,{at:fixtureTime+delay,callback});return id;};
+        globalThis.clearTimeout=id=>timers.delete(id);
+      }
       import {RuntimeOAuth} from './src/runtime/oauth';
       import {hmacSha256Hex} from './src/crypto';
       export class RuntimeOAuthFixture extends RuntimeOAuth {
+        terminalHold;terminalRelease;terminalEntered=false;
+        holdTerminal(){this.terminalHold=new Promise(resolve=>{this.terminalRelease=resolve;});return true;}
+        releaseTerminal(){this.terminalRelease?.();this.terminalHold=undefined;return true;}
+        async completeLease(id,facts){this.terminalEntered=true;if(this.terminalHold)await this.terminalHold;return super.completeLease(id,facts);}
+        relayInventory(subject){return {
+          leases:this.ctx.storage.sql.exec('SELECT count(*) AS count FROM relay_leases').one().count,
+          activity:this.ctx.storage.sql.exec('SELECT facts FROM relay_activity WHERE subject=? ORDER BY installation',subject).toArray().map(row=>JSON.parse(row.facts)),
+          terminalEntered:this.terminalEntered
+        };}
         async runCleanup(){await this.alarm();return true;}
         async cleanupBacklog(client){
           const {id}=this.ctx.storage.sql.exec('SELECT id FROM consents WHERE client=?',client).one();
@@ -54,31 +68,43 @@ export async function oauthFixture(persist?:string) {
           if(kind==='family')this.ctx.storage.sql.exec('UPDATE consents SET deadline=0 WHERE client=?',value);
           if(kind==='scope')this.ctx.storage.sql.exec("UPDATE consents SET scope='' WHERE client=?",value);
           if(kind==='time')fixtureTime=Number(value);
+          if(kind==='tick'){
+            fixtureTime+=Number(value);
+            for(const [id,timer] of [...timers].sort((a,b)=>a[1].at-b[1].at))if(timer.at<=fixtureTime&&timers.delete(id))timer.callback();
+          }
           return true;
         }
       }
-      export {RuntimeCredentials} from './src/runtime/credentials';
-      import worker from './src/index';
-      import {admitRuntimeRequest} from './src/runtime/authorization';
+      import {RuntimeCredentials} from './src/runtime/credentials';
+      export class RuntimeCredentialsFixture extends RuntimeCredentials {
+        hold;release;entered=false;
+        holdRead(){this.hold=new Promise(resolve=>{this.release=resolve;});this.entered=false;return true;}
+        releaseRead(){this.release?.();this.hold=undefined;return true;}
+        readState(){return {entered:this.entered};}
+        async read(...args){this.entered=true;if(this.hold)await this.hold;return super.read(...args);}
+      }
+      import {handleRequest} from './src/router';
+      import {RUNTIME_PROFILES} from './src/runtime/profiles';
+      // Test-only reviewed profile. No arbitrary profile/URL input is exported
+      // by the production Worker. Both profiles use the unchanged relay core.
+      RUNTIME_PROFILES['synthetic.catalog']={revision:1,upstream:'https://catalog.example.test/rpc',credentialHeader:'X-Synthetic-Credential',transport:'request-scoped'};
       export default {async fetch(request,env,ctx){
         if(new URL(request.url).hostname==='fixture.internal') {
           const {kind,value}=await request.json();
+          const secrets=env.RUNTIME_CREDENTIALS.getByName('design');
+          if(kind==='hold-read')return Response.json({done:await secrets.holdRead()});
+          if(kind==='release-read')return Response.json({done:await secrets.releaseRead()});
+          if(kind==='read-state')return Response.json(await secrets.readState());
           const owner=env.RUNTIME_OAUTH.getByName('organization');
+          if(kind==='hold-terminal')return Response.json({done:await owner.holdTerminal()});
+          if(kind==='release-terminal')return Response.json({done:await owner.releaseTerminal()});
+          if(kind==='relay-inventory')return Response.json(await owner.relayInventory(value));
           if(kind==='inventory')return Response.json(await owner.cleanupInventory(value));
           if(kind==='backlog')return Response.json({family:await owner.cleanupBacklog(value)});
           if(kind==='clean')await owner.runCleanup();else await owner.expire(kind,value);
           return Response.json({done:true});
         }
-        const admitted=await admitRuntimeRequest(request,env);
-        if(admitted instanceof Response)return admitted;
-        if(admitted) {
-          const body=await request.json();
-          if(body.method==='initialize')return Response.json({jsonrpc:'2.0',id:body.id,result:{protocolVersion:'2025-11-25',capabilities:{tools:{}},serverInfo:{name:'synthetic-runtime',version:'1'}}});
-          if(body.method==='notifications/initialized')return new Response(null,{status:202});
-          if(body.method==='tools/list')return Response.json({jsonrpc:'2.0',id:body.id,result:{tools:[{name:'synthetic_probe',description:'Synthetic admission proof',inputSchema:{type:'object',properties:{}}}]}});
-          return Response.json({jsonrpc:'2.0',id:body.id,result:{content:[{type:'text',text:'Synthetic task completed'}]}});
-        }
-        return worker.fetch(request,env,ctx);
+        return handleRequest(request,env,ctx,{fetch:(input,init)=>env.SYNTHETIC_UPSTREAM.fetch(new Request(input,init)),now:()=>new Date()});
       }};`},
     bundle:true,write:false,format:"esm",platform:"node",external:["cloudflare:workers"],
     banner:{js:'import {createRequire} from "node:module";const require=createRequire("/");'},
@@ -89,12 +115,13 @@ export async function oauthFixture(persist?:string) {
     ADMIN_SECRET:"synthetic-operator",API_KEY_HASH_PEPPER:"synthetic-pepper",TOKEN_ENCRYPTION_KEY_V1:"synthetic-root",
     RUNTIME_INSTALLATIONS:JSON.stringify([
       {id:"design",resource:RESOURCE,profile:"google.stitch",label:"Design"},
-      {id:"other",resource:OTHER_RESOURCE,profile:"google.stitch",label:"Other"}
+      {id:"other",resource:OTHER_RESOURCE,profile:"synthetic.catalog",label:"Other"}
     ])
   };
   const runtime=new Miniflare(convertV4MiniflareOptions({modules:true,script:compiled.outputFiles[0]!.text,
-    compatibilityDate:"2026-06-24",compatibilityFlags:["nodejs_compat"],bindings,d1Databases:{DB:"runtime-test"},
-    durableObjects:{RUNTIME_OAUTH:{className:"RuntimeOAuthFixture",useSQLite:true},RUNTIME_CREDENTIALS:{className:"RuntimeCredentials",useSQLite:true}},
+    compatibilityDate:"2026-06-24",compatibilityFlags:["nodejs_compat","enable_request_signal","request_signal_passthrough"],bindings,d1Databases:{DB:"runtime-test"},
+    serviceBindings:{SYNTHETIC_UPSTREAM:options.upstream??syntheticMcp},
+    durableObjects:{RUNTIME_OAUTH:{className:"RuntimeOAuthFixture",useSQLite:true},RUNTIME_CREDENTIALS:{className:"RuntimeCredentialsFixture",useSQLite:true}},
     ...(persist?{resourcePersistencePath:persist}:{})
   }));
   try {
@@ -112,15 +139,25 @@ export async function oauthFixture(persist?:string) {
     for(const id of ["member","other","admin"]) cookies.set(id,`__Host-mini-console=${await createConsoleSession(env,{id,email:`${id}@example.test`,sessionEpoch:0})}`);
     const admin=async(id:string,body:unknown)=>runtime.dispatchFetch(`https://api.trustedtunnel.app/admin/runtime-installations/${id}`,{method:"POST",headers:{Authorization:"Bearer synthetic-operator","Content-Type":"application/json"},body:JSON.stringify(body)}) as Promise<Response>;
     if(!restored)for(const id of ["design","other"]) {
-      for(const body of [{action:"configure"},{action:"supply",expectedRevision:1,operationId:"initial",authority:"rebind",material:"synthetic-stitch-key"},{action:"enable",expectedRevision:2,operationId:"enable"}]) {
+      for(const body of [{action:"configure"},{action:"supply",expectedRevision:1,operationId:"initial",authority:"rebind",material:id==="design"?"synthetic-stitch-key":"synthetic-catalog-key"},{action:"enable",expectedRevision:2,operationId:"enable"}]) {
         const response=await admin(id,body);if(!response.ok)throw new Error("Synthetic Runtime setup failed");
       }
       const granted=await runtime.dispatchFetch(`https://api.trustedtunnel.app/admin/runtime-installations/${id}/access/member`,{method:"PUT",headers:{Authorization:"Bearer synthetic-operator","Content-Type":"application/json"},body:JSON.stringify({state:"granted",expectedRevision:0,expiresAt:null})});
       if(!granted.ok)throw new Error("Synthetic Runtime grant failed");
     }
     const expire=(kind:string,value="")=>runtime.dispatchFetch("https://fixture.internal/expire",{method:"POST",body:JSON.stringify({kind,value})}) as Promise<Response>;
-    return {runtime,db,cookies,admin,expire,dispose:()=>runtime.dispose() as Promise<void>};
+    return {runtime,db,env,cookies,admin,expire,dispose:()=>runtime.dispose() as Promise<void>};
   } catch(error){await runtime.dispose();throw error;}
+}
+
+/** External task seam only. Authentication and projection remain production. */
+async function syntheticMcp(request:Request):Promise<Response> {
+  if(!["https://stitch.googleapis.com/mcp","https://catalog.example.test/rpc"].includes(request.url))throw new Error("Unexpected synthetic upstream");
+  const body=await request.json() as {id?:number;method:string};
+  if(body.method==="initialize")return Response.json({jsonrpc:"2.0",id:body.id,result:{protocolVersion:"2025-11-25",capabilities:{tools:{}},serverInfo:{name:"synthetic-runtime",version:"1"}}});
+  if(body.method==="notifications/initialized")return new Response(null,{status:202});
+  if(body.method==="tools/list")return Response.json({jsonrpc:"2.0",id:body.id,result:{tools:[{name:"synthetic_probe",description:"Synthetic admission proof",inputSchema:{type:"object",properties:{}}}]}});
+  return Response.json({jsonrpc:"2.0",id:body.id,result:{content:[{type:"text",text:"Synthetic task completed"}]}});
 }
 
 export type OAuthFixture=Awaited<ReturnType<typeof oauthFixture>>;
@@ -138,8 +175,8 @@ export async function pendingConsent(f:OAuthFixture,resource=RESOURCE,clientId?:
   const decide=(decision="allow",origin=ISSUER)=>f.runtime.dispatchFetch(target.href,{method:"POST",headers:{Cookie:cookie,Origin:origin,"Content-Type":"application/x-www-form-urlencoded"},body:new URLSearchParams({decision}).toString(),redirect:"manual"});
   return {clientId,query,cookie,target,verifier,decide};
 }
-export async function authorizedTokens(f:OAuthFixture,resource=RESOURCE) {
-  const pending=await pendingConsent(f,resource);
+export async function authorizedTokens(f:OAuthFixture,resource=RESOURCE,member="member") {
+  const pending=await pendingConsent(f,resource,undefined,member);
   const response=await pending.decide();
   if(response.status!==303||!response.headers.has("Location"))throw new Error("Synthetic consent decision failed");
   const callback=new URL(response.headers.get("Location")!);

@@ -661,6 +661,7 @@ async function executeTransparentGrokPlan(
 
 interface NpeResponseObserver {
   onChunk(chunk: Uint8Array): void;
+  beforeClose?(outcome: ProxyResponseBodyOutcome): Promise<void>;
   onDone(outcome: ProxyResponseBodyOutcome): Promise<void>;
 }
 
@@ -789,19 +790,27 @@ function createImagePlanObserver(
   now: () => Date
 ): NpeResponseObserver {
   const metadata = createImageMetadataStreamObserver();
+  let observation: ImageMetadataObservation | undefined;
+  let bindingFailed = false;
   return {
     onChunk(chunk) {
       metadata.push(chunk);
     },
+    beforeClose: plan.protocol !== "xai/api" ? async (outcome) => {
+      observation = metadata.finish();
+      if (outcome.kind === "completed" && isSuccess(outcome.upstreamStatus)) {
+        bindingFailed = await bindImageOutputs(env, userId, plan, now, observation);
+        if (bindingFailed) throw new Error("image output ownership could not be committed");
+      }
+    } : undefined,
     async onDone(outcome) {
-      const observation = metadata.finish();
       await finalizeImageObservation(
         env,
         userId,
         plan,
         now,
         outcome,
-        observation
+        observation ?? metadata.finish(), bindingFailed
       );
     }
   };
@@ -1339,35 +1348,40 @@ function createImageMetadataJsonObserver(): {
   };
 }
 
-async function finalizeImageObservation(
+async function bindImageOutputs(
   env: Env,
   userId: string,
   plan: ExecutionPlan,
   now: () => Date,
-  outcome: ProxyResponseBodyOutcome,
   observation: ImageMetadataObservation
-): Promise<void> {
-  const ok = outcome.kind === "completed" && isSuccess(outcome.upstreamStatus);
+): Promise<boolean> {
   let bindingFailed = false;
-  if (ok && plan.protocol !== "xai/api") {
-    for (const fileId of observation.fileIds) {
-      try {
-        const bound = await bindFileId(
-          env, fileId, userId, "image_output", null, now()
-        );
-        if (!bound) {
-          throw new Error("owner collision");
-        }
-      } catch {
-        bindingFailed = true;
-        console.error(JSON.stringify({
-          event: "xai_file_output_binding_failed",
-          plan_id: plan.id,
-          source: "image_output"
-        }));
+  for (const fileId of observation.fileIds) {
+    try {
+      const bound = await bindFileId(
+        env, fileId, userId, "image_output", null, now()
+      );
+      if (!bound) {
+        throw new Error("owner collision");
       }
+    } catch {
+      bindingFailed = true;
+      console.error(JSON.stringify({
+        event: "xai_file_output_binding_failed",
+        plan_id: plan.id,
+        source: "image_output"
+      }));
     }
   }
+  return bindingFailed;
+}
+
+async function finalizeImageObservation(
+  env: Env, userId: string, plan: ExecutionPlan, now: () => Date,
+  outcome: ProxyResponseBodyOutcome, observation: ImageMetadataObservation,
+  bindingFailed: boolean
+): Promise<void> {
+  const ok = outcome.kind === "completed" && isSuccess(outcome.upstreamStatus);
   try {
     await recordImageMediaUsage(env, {
       user_id: userId,
@@ -1379,9 +1393,6 @@ async function finalizeImageObservation(
     }, now());
   } catch {
     console.error(JSON.stringify({ event: "image_media_accounting_failed", plan_id: plan.id }));
-  }
-  if (bindingFailed) {
-    throw new Error("image output ownership could not be committed");
   }
 }
 
@@ -1453,6 +1464,7 @@ async function forwardNpeWithAudit(
     });
   };
   try {
+    let closeRejected = false;
     const auditOnHeaders = plan.protocol === "xai/api" && plan.usageObserver === "none";
     const forwardOptions: ProxyForwardOptions = auditOnHeaders ? {} : {
       observeUsage: observeResponseUsage,
@@ -1461,6 +1473,14 @@ async function forwardNpeWithAudit(
       onResponseChunk: responseObserver?.onChunk,
       now: deps.now,
       waitUntil: (p) => ctx.waitUntil(p),
+      beforeResponseClose: responseObserver?.beforeClose ? async (outcome) => {
+        try {
+          await responseObserver.beforeClose?.(outcome);
+        } catch (error) {
+          closeRejected = true;
+          throw error;
+        }
+      } : undefined,
       onResponseBodyDone: async (outcome) => {
         logTiming(outcome.upstreamStatus, outcome.kind, outcome.observation);
         try {
@@ -1480,10 +1500,10 @@ async function forwardNpeWithAudit(
         const accepted = plan.mode === "websocket_transparent"
           ? outcome.upstreamStatus === 101
           : isSuccess(outcome.upstreamStatus);
-        const status: "ok" | "error" = cancelled || readFailed || !accepted
+        const status: "ok" | "error" = closeRejected || cancelled || readFailed || !accepted
           ? "error"
           : "ok";
-        const errorCode = cancelled
+        const errorCode = closeRejected ? "xai_file_binding_failed" : cancelled
           ? "client_request_aborted"
           : readFailed
             ? "provider_response_read_failed"

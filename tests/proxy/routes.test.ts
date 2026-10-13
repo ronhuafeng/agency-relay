@@ -632,6 +632,26 @@ describe("Grok Route Profile", () => {
     expect(fixture.db.subscriptionLastSuccessAt).toBe("2026-07-23T00:00:00.000Z");
   });
 
+  it("commits image ownership before closure but does not hold delivery behind media accounting",async()=>{
+    let entered!:()=>void,release!:()=>void;
+    const reached=new Promise<void>(resolve=>{entered=resolve;});
+    const held=new Promise<void>(resolve=>{release=resolve;});
+    const bytes=new TextEncoder().encode(JSON.stringify({data:[{file_output:{file_id:"file_synthetic-image-accounting-barrier"}}],usage:{cost_in_usd_ticks:1}}));
+    const fixture=await makeFixture(async()=>new Response(bytes,{headers:{"Content-Type":"application/json"}}),["surface:grok:production"],{
+      beforeRun:async(sql)=>{if(sql.includes("INSERT INTO media_usage_daily")){entered();await held;}}
+    });
+    const response=await profileRequest(fixture,"grok.trustedtunnel.app","/v1/images/generations","POST",{Authorization:`Bearer ${MINI_KEY}`,"Content-Type":"application/json"},"{}");
+    const reading=response.arrayBuffer();
+    try{
+      await reached;
+      const closed=await Promise.race([reading.then(()=>true),new Promise<boolean>(resolve=>setImmediate(()=>resolve(false)))]);
+      expect(closed).toBe(true);
+      expect(fixture.db.fileOwners.length).toBe(1);
+      expect(fixture.db.imageMediaUsage.length).toBe(0);
+    }finally{release();await reading;await fixture.ctx.flush();}
+    expect(fixture.db.imageMediaUsage.at(-1)).toMatchObject({completed_jobs:1,outputs:1});
+  });
+
   it("forwards image editing as opaque JSON and accounts one media request", async () => {
     const requestBytes = new Uint8Array([123, 34, 105, 109, 97, 103, 101, 34, 58, 255, 125]);
     const upstreamBytes = new TextEncoder().encode(JSON.stringify({
@@ -1796,7 +1816,7 @@ interface Fixture {
 async function makeFixture(
   fetchImpl: typeof fetch,
   scopes = ["surface:grok:production"],
-  options: { seedGrok?: boolean } = {}
+  options: { seedGrok?: boolean;beforeRun?:(sql:string)=>void|Promise<void> } = {}
 ): Promise<Fixture> {
   const seedGrok = options.seedGrok !== false;
   const now = "2026-07-23T00:00:00.000Z";
@@ -1820,7 +1840,7 @@ async function makeFixture(
       created_at: now,
       updated_at: now
     }
-  });
+  },options.beforeRun);
   onTestFinished(() => db.close());
   const fetchMock = vi.fn(fetchImpl);
   const subscriptionByName = new Map<string, { credential?: Record<string, unknown> }>();
@@ -1948,8 +1968,9 @@ class RouteProfileDatabase {
   constructor(rows: {
     apiKey: Record<string, unknown>;
     user: Record<string, unknown>;
-  }) {
+  },beforeRun?:(sql:string)=>void|Promise<void>) {
     this.testDb = createTestD1({
+      beforeRun,
       onPrepare: (sql) => {
         if (sql.includes("FROM api_keys AS ak")) {
           this.authLookupCount += 1;

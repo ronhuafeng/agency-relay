@@ -4,10 +4,17 @@ import {hmacSha256Hex,timingSafeEqualHex} from "../crypto";
 import {readConsoleSessionPrincipalByHash} from "../auth/console-session";
 import type {ConsolePrincipal} from "../auth/principal";
 import {readRuntimeAuthority,readRuntimeAuthorityRevision,type RuntimeAuthority} from "./installations";
-import {runtimeInstallations,RUNTIME_SCOPE} from "./profiles";
+import {runtimeInstallations,RUNTIME_SCOPE,RUNTIME_PROFILES} from "./profiles";
 
 type ClientConsentView={id:string;client_id:string;client_name:string;resource:string;scope:string;created_at:string;expires_at:string};
 export interface OAuthReply {status:number;body:Record<string,string|number|string[]|ClientConsentView[]>;location?:string}
+export type RuntimeAdmission=RuntimeAuthority&{client_authorization_id:string;lease_id:string;lease_expires_at:number};
+export type RuntimeTransportError="runtime_profile_unavailable"|"upstream_credential_unavailable"|"upstream_redirect_rejected"|"upstream_transport_failed"|"client_request_aborted"|"runtime_transport_unsupported"|"request_too_large"|"stream_idle_timeout"|"lease_expired";
+export interface RuntimeTransportFacts {
+  attempted:boolean;upstream_status:number|null;terminal:"completed"|"cancelled"|"error";
+  error:RuntimeTransportError|null;duration_ms:number;headers_ms:number|null;
+  request_bytes_observed:number;response_bytes_observed:number;
+}
 type RegisteredClient = {id:string;name:string;redirect:string;expires:number};
 interface Pending {
   query:Record<string,string>;installation:string;authorityRevision:number;binding:string;
@@ -46,6 +53,15 @@ export class RuntimeOAuth extends DurableObject<Env> {
       CREATE INDEX IF NOT EXISTS refresh_consent ON refresh_tokens(consent);
       CREATE INDEX IF NOT EXISTS access_consent ON access_tokens(consent);
       CREATE INDEX IF NOT EXISTS access_expires ON access_tokens(expires);`);
+    ctx.storage.sql.exec(`CREATE TABLE IF NOT EXISTS relay_leases (
+      sequence INTEGER PRIMARY KEY AUTOINCREMENT,id TEXT NOT NULL UNIQUE,subject TEXT NOT NULL,
+      installation TEXT NOT NULL,consent TEXT NOT NULL,authority_revision INTEGER NOT NULL,
+      profile TEXT NOT NULL,profile_revision INTEGER NOT NULL,started INTEGER NOT NULL,expires INTEGER NOT NULL);
+      CREATE INDEX IF NOT EXISTS relay_lease_capacity ON relay_leases(installation,subject);
+      CREATE INDEX IF NOT EXISTS relay_lease_expiry ON relay_leases(expires);
+      CREATE TABLE IF NOT EXISTS relay_activity (
+        subject TEXT NOT NULL,installation TEXT NOT NULL,sequence INTEGER NOT NULL,
+        finished INTEGER NOT NULL,facts TEXT NOT NULL,PRIMARY KEY(subject,installation));`);
   }
 
   async register(body:Record<string,unknown>):Promise<OAuthReply> {
@@ -184,15 +200,49 @@ export class RuntimeOAuth extends DurableObject<Env> {
     },unavailable());
   }
 
-  async admit(token:string,resource:string):Promise<RuntimeAuthority|OAuthReply> {
+  async admit(token:string,resource:string):Promise<RuntimeAdmission|OAuthReply> {
     return this.gate(async(deadline)=>{
       const row=this.ctx.storage.sql.exec<{consent:string;expires:number}>("SELECT consent,expires FROM access_tokens WHERE hash=?",await this.hash(token)).toArray()[0];
       const consent=row&&row.expires>Date.now()?this.currentConsent(row.consent):null;
       if(!consent||consent.resource!==resource)return invalid(401,"invalid_token");
       if(!consent.scope.split(" ").includes(RUNTIME_SCOPE))return invalid(403,"insufficient_scope");
       const authority=await this.bounded(readRuntimeAuthority(this.env,consent.subject,consent.installation),deadline);
-      return matchesAuthority(consent,authority)?authority:invalid(403,"access_denied");
+      if(!matchesAuthority(consent,authority))return invalid(403,"access_denied");
+      const installation=runtimeInstallations(this.env).find(item=>item.id===authority.installation_id)!;
+      const profile=RUNTIME_PROFILES[installation.profile];
+      return this.ctx.storage.transactionSync<RuntimeAdmission|OAuthReply>(()=>{
+        const now=Date.now();
+        // At most 16 declarations x 16 leases. Expiry is checked at admission;
+        // a delayed alarm or lost release never creates unbounded capacity.
+        this.ctx.storage.sql.exec("DELETE FROM relay_leases WHERE expires<=?",now);
+        const count=this.ctx.storage.sql.exec<{installation:number;member:number}>(`SELECT count(*) AS installation,
+          coalesce(sum(subject=?),0) AS member FROM relay_leases WHERE installation=?`,authority.subject,authority.installation_id).one();
+        if(count.installation>=16||count.member>=4)return invalid(429,"runtime_capacity_exceeded");
+        const lease={id:crypto.randomUUID(),expires:now+10*MINUTE};
+        this.ctx.storage.sql.exec("INSERT INTO relay_leases(id,subject,installation,consent,authority_revision,profile,profile_revision,started,expires) VALUES(?,?,?,?,?,?,?,?,?)",
+          lease.id,authority.subject,authority.installation_id,consent.id,authority.authority_revision,installation.profile,profile.revision,now,lease.expires);
+        return {...authority,client_authorization_id:consent.id,lease_id:lease.id,lease_expires_at:lease.expires};
+      });
     },unavailable());
+  }
+
+  /** No upstream I/O. Terminal recording/release cannot hold a response stream.
+   * A lost result is safe: the unique lease is deleted at most once. */
+  async completeLease(id:string,facts:RuntimeTransportFacts):Promise<void> {
+    this.ctx.storage.transactionSync(()=>{
+      const lease=this.ctx.storage.sql.exec<{subject:string;installation:string;consent:string;sequence:number;profile:string;profile_revision:number;authority_revision:number;started:number}>("SELECT * FROM relay_leases WHERE id=?",id).toArray()[0];
+      if(!lease)return;
+      const record={subject:lease.subject,installation:lease.installation,client_authorization_id:lease.consent,
+        profile:lease.profile,profile_revision:lease.profile_revision,authority_revision:lease.authority_revision,
+        started_at:new Date(lease.started).toISOString(),finished_at:new Date().toISOString(),
+        attempted:facts.attempted,upstream_status:facts.upstream_status,terminal:facts.terminal,error:facts.error,
+        duration_ms:facts.duration_ms,headers_ms:facts.headers_ms,request_bytes_observed:facts.request_bytes_observed,response_bytes_observed:facts.response_bytes_observed};
+      this.ctx.storage.sql.exec("DELETE FROM relay_leases WHERE id=?",id);
+      // A delayed completion cannot replace a newer admitted request's facts.
+      this.ctx.storage.sql.exec(`INSERT INTO relay_activity VALUES(?,?,?,?,?) ON CONFLICT(subject,installation)
+        DO UPDATE SET sequence=excluded.sequence,finished=excluded.finished,facts=excluded.facts
+        WHERE excluded.sequence>relay_activity.sequence`,lease.subject,lease.installation,lease.sequence,Date.now(),JSON.stringify(record));
+    });
   }
 
   async clientConsents(session:string|null,revokeId?:string):Promise<OAuthReply> {
@@ -306,9 +356,12 @@ export class RuntimeOAuth extends DurableObject<Env> {
       this.ctx.storage.sql.exec("DELETE FROM access_tokens WHERE hash IN (SELECT hash FROM access_tokens WHERE expires<=? LIMIT 256)",now-10*MINUTE);
       this.ctx.storage.sql.exec("DELETE FROM rate_windows WHERE bucket IN (SELECT bucket FROM rate_windows WHERE expires<=? LIMIT 256)",now);
       this.ctx.storage.sql.exec("DELETE FROM clients WHERE id IN (SELECT id FROM clients WHERE expires<=? LIMIT 100)",now);
+      this.ctx.storage.sql.exec("DELETE FROM relay_leases WHERE expires<=?",now);
+      this.ctx.storage.sql.exec("DELETE FROM relay_activity WHERE rowid IN (SELECT rowid FROM relay_activity WHERE finished<=? LIMIT 256)",now-FAMILY_MS);
     });
     const retained=this.ctx.storage.sql.exec<{count:number}>(`SELECT (SELECT count(*) FROM clients)
-      +(SELECT count(*) FROM pending)+(SELECT count(*) FROM consents)+(SELECT count(*) FROM rate_windows) AS count`).one().count;
+      +(SELECT count(*) FROM pending)+(SELECT count(*) FROM consents)+(SELECT count(*) FROM rate_windows)
+      +(SELECT count(*) FROM relay_leases)+(SELECT count(*) FROM relay_activity) AS count`).one().count;
     if(retained)await this.ctx.storage.setAlarm(now+10*MINUTE);
   }
 }

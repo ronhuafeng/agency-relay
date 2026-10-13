@@ -6,7 +6,7 @@ import {assertConsoleBrowserWrite} from "../admin/browser-write";
 import {consoleDocument} from "../admin/console-shell";
 import {RuntimeConsent,RuntimeConsentFailure} from "../admin/ui/pages/runtime-consent";
 import {createElement} from "react";
-import type {RuntimeAuthority} from "./installations";
+import type {RuntimeAdmission} from "./oauth";
 import {HttpError} from "../errors";
 
 const BINDING_COOKIE="__Host-runtime-transaction";
@@ -101,13 +101,18 @@ function consentFailure(status:number):Response {
 }
 
 /** Transport consumes this exact immutable admission. Never reads request body. */
-export async function admitRuntimeRequest(request:Request,env:Env):Promise<RuntimeAuthority|Response|null> {
+export async function admitRuntimeRequest(request:Request,env:Env):Promise<RuntimeAdmission|Response|null> {
   const url=new URL(request.url);
   if(plansForHostname(url.hostname)||url.origin===`https://${env.ADMIN_DASHBOARD_HOST}`)return null;
   try {
     const installation=runtimeInstallations(env).find(item=>new URL(item.resource).origin===url.origin);
     if(!installation||url.pathname==="/.well-known/oauth-protected-resource/mcp")return null;
     if(url.href!==installation.resource||request.method!=="POST")return protocolResponse({error:"invalid_request"},request.method!=="POST"?405:404);
+    if(request.headers.has("Upgrade")||request.headers.has("Mcp-Session-Id")||request.headers.has("Last-Event-ID"))return protocolResponse({error:"runtime_transport_unsupported"},400);
+    const version=request.headers.get("Mcp-Protocol-Version");
+    // Absent during legacy initialize is forwarded, not invented by the relay.
+    if(version!==null&&version!=="2025-11-25"&&version!=="2026-07-28")return protocolResponse({error:"runtime_transport_unsupported"},400);
+    if(request.headers.has("Origin")&&request.headers.get("Origin")!==url.origin)return protocolResponse({error:"access_denied"},403);
     const header=request.headers.get("Authorization")??"";
     const token=/^Bearer ([A-Za-z0-9_-]{20,256})$/i.exec(header)?.[1];
     const admitted=token?await env.RUNTIME_OAUTH.getByName("organization").admit(token,installation.resource):null;

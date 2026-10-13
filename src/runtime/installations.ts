@@ -176,7 +176,7 @@ export async function configureRuntimeInstallation(env:Env,actor:LifecycleActor,
 export async function readRuntimeAuthority(env:Env,subject:string,id:string,now=new Date(),browser?:{hash:string;email:string;epoch:number}) {
   const declared=requireRuntimeInstallation(env,id);
   const row=await env.DB.prepare(`SELECT i.id AS installation_id,i.resource,i.authority_revision,
-      i.credential_ref,i.credential_revision,a.revision AS access_revision,u.id AS subject
+      i.credential_ref,i.credential_revision,i.profile,i.profile_revision,a.revision AS access_revision,u.id AS subject
       ,u.canonical_email,u.login_capable,u.account_kind
     FROM runtime_installations i JOIN runtime_installation_access a ON a.installation_id=i.id
       JOIN users u ON u.id=a.user_id
@@ -190,7 +190,7 @@ export async function readRuntimeAuthority(env:Env,subject:string,id:string,now=
           AND s.session_epoch=u.console_session_epoch AND s.expires_at>?)`:""}`)
     .bind(id,declared.resource,declared.profile,RUNTIME_PROFILES[declared.profile].revision,now.toISOString(),subject,organizationDomain(env)??"",
       ...(browser?[browser.email,browser.epoch,browser.hash,now.toISOString()]:[]))
-    .first<{installation_id:string;resource:string;authority_revision:number;credential_ref:string;credential_revision:number;access_revision:number;subject:string;canonical_email:string;login_capable:number;account_kind:string}>();
+    .first<{installation_id:string;resource:string;authority_revision:number;credential_ref:string;credential_revision:number;profile:string;profile_revision:number;access_revision:number;subject:string;canonical_email:string;login_capable:number;account_kind:string}>();
   if(!row||!isOrganizationLoginUser(env,row))return null;
   const {canonical_email:_email,login_capable:_login,account_kind:_kind,...authority}=row;
   return authority;
