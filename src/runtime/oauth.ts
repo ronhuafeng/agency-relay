@@ -40,7 +40,12 @@ export class RuntimeOAuth extends DurableObject<Env> {
       CREATE TABLE IF NOT EXISTS codes (hash TEXT PRIMARY KEY,consent TEXT NOT NULL,redirect TEXT NOT NULL,
         challenge TEXT NOT NULL,expires INTEGER NOT NULL,used INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS refresh_tokens (hash TEXT PRIMARY KEY,consent TEXT NOT NULL,expires INTEGER NOT NULL,spent INTEGER NOT NULL);
-      CREATE TABLE IF NOT EXISTS access_tokens (hash TEXT PRIMARY KEY,consent TEXT NOT NULL,expires INTEGER NOT NULL);`);
+      CREATE TABLE IF NOT EXISTS access_tokens (hash TEXT PRIMARY KEY,consent TEXT NOT NULL,expires INTEGER NOT NULL);
+      CREATE INDEX IF NOT EXISTS consents_deadline ON consents(deadline);
+      CREATE INDEX IF NOT EXISTS codes_consent ON codes(consent);
+      CREATE INDEX IF NOT EXISTS refresh_consent ON refresh_tokens(consent);
+      CREATE INDEX IF NOT EXISTS access_consent ON access_tokens(consent);
+      CREATE INDEX IF NOT EXISTS access_expires ON access_tokens(expires);`);
   }
 
   async register(body:Record<string,unknown>):Promise<OAuthReply> {
@@ -163,8 +168,6 @@ export class RuntimeOAuth extends DurableObject<Env> {
       const consent=row?this.currentConsent(row.consent):null;
       if(!consent||consent.client!==client.id||consent.resource!==body.resource)return invalid(400,"invalid_grant");
       if(consent.scope!==RUNTIME_SCOPE)return invalid(400,"invalid_scope");
-      const authority=await this.bounded(readRuntimeAuthority(this.env,consent.subject,consent.installation),deadline);
-      if(!matchesAuthority(consent,authority))return invalid(400,"invalid_grant");
       return this.ctx.storage.transaction(async()=>{
         const server=new OAuth2Server({model:this.model(client,consent,deadline,hash,row),accessTokenLifetime:600,refreshTokenLifetime:FAMILY_MS/1000,
           requireClientAuthentication:{authorization_code:false,refresh_token:false},alwaysIssueNewRefreshToken:true});
@@ -214,6 +217,7 @@ export class RuntimeOAuth extends DurableObject<Env> {
   private model(client:RegisteredClient,consent:Consent,deadline:number,hash?:string,row?:Code|Refresh):OAuth2Server.AuthorizationCodeModel&OAuth2Server.RefreshTokenModel {
     const wire:OAuth2Server.Client={id:client.id,redirectUris:[client.redirect],grants:["authorization_code","refresh_token"]};
     const user={id:consent.subject};
+    const hasCurrentAuthority=async()=>matchesAuthority(consent,await this.bounded(readRuntimeAuthority(this.env,consent.subject,consent.installation),deadline));
     return {
       getClient:async(id,secret)=>id===client.id&&!secret?wire:false,
       validateRedirectUri:async(uri)=>redirectMatches(client.redirect,uri),
@@ -231,12 +235,14 @@ export class RuntimeOAuth extends DurableObject<Env> {
       getAuthorizationCode:async(code)=>{
         if(!row||!("used" in row)||await this.hash(code)!==hash)return false;
         if(row.used){this.ctx.storage.sql.exec("UPDATE consents SET revoked=1 WHERE id=?",consent.id);return false;}
+        if(!await hasCurrentAuthority())return false;
         return {authorizationCode:code,expiresAt:new Date(row.expires),redirectUri:row.redirect,codeChallenge:row.challenge,codeChallengeMethod:"S256",scope:[RUNTIME_SCOPE],client:wire,user};
       },
       revokeAuthorizationCode:async()=>{this.ctx.storage.sql.exec("UPDATE codes SET used=1 WHERE hash=?",hash!);return true;},
       getRefreshToken:async(refresh)=>{
         if(!row||!("spent" in row)||await this.hash(refresh)!==hash)return false;
         if(row.spent){this.ctx.storage.sql.exec("UPDATE consents SET revoked=1 WHERE id=?",consent.id);return false;}
+        if(!await hasCurrentAuthority())return false;
         return {refreshToken:refresh,refreshTokenExpiresAt:new Date(row.expires),scope:[RUNTIME_SCOPE],client:wire,user};
       },
       revokeToken:async()=>{this.ctx.storage.sql.exec("UPDATE refresh_tokens SET spent=1 WHERE hash=?",hash!);return true;},
@@ -288,8 +294,13 @@ export class RuntimeOAuth extends DurableObject<Env> {
       const ended=this.ctx.storage.sql.exec<{id:string}>("SELECT id FROM consents WHERE deadline<=? LIMIT 128",now-10*MINUTE).toArray().map(row=>row.id);
       if(ended.length) {
         const ids=JSON.stringify(ended);
-        for(const table of ["codes","refresh_tokens","access_tokens"])this.ctx.storage.sql.exec(`DELETE FROM ${table} WHERE consent IN (SELECT value FROM json_each(?))`,ids);
-        this.ctx.storage.sql.exec("DELETE FROM consents WHERE id IN (SELECT value FROM json_each(?))",ids);
+        for(const table of ["codes","refresh_tokens","access_tokens"])this.ctx.storage.sql.exec(`DELETE FROM ${table}
+          WHERE hash IN (SELECT hash FROM ${table} WHERE consent IN (SELECT value FROM json_each(?)) LIMIT 256)`,ids);
+        // Partial cleanup retains the family identity; later alarms continue.
+        this.ctx.storage.sql.exec(`DELETE FROM consents WHERE id IN (SELECT value FROM json_each(?))
+          AND NOT EXISTS(SELECT 1 FROM codes WHERE consent=consents.id)
+          AND NOT EXISTS(SELECT 1 FROM refresh_tokens WHERE consent=consents.id)
+          AND NOT EXISTS(SELECT 1 FROM access_tokens WHERE consent=consents.id)`,ids);
       }
       this.ctx.storage.sql.exec("DELETE FROM pending WHERE id IN (SELECT id FROM pending WHERE expires<=? LIMIT 300)",now);
       this.ctx.storage.sql.exec("DELETE FROM access_tokens WHERE hash IN (SELECT hash FROM access_tokens WHERE expires<=? LIMIT 256)",now-10*MINUTE);

@@ -48,6 +48,26 @@ it("rotates refresh material and invalidates replayed families, not unrelated cl
   } finally {await f.dispose();}
 },20000);
 
+it.each(["authorization_code","refresh_token"])("revokes a replayed %s family even during same-authority credential rotation",async(grant)=>{
+  const f=await oauthFixture();try {
+    const a=await authorizedTokens(f),b=await authorizedTokens(f,OTHER_RESOURCE);
+    let descendant=a.tokens;
+    const replay=grant==="authorization_code"?a.body:{grant_type:"refresh_token",client_id:a.clientId,resource:RESOURCE,refresh_token:a.tokens.refresh_token};
+    if(grant==="refresh_token") {
+      const rotated=await tokenRequest(f,replay);expect(rotated.status).toBe(200);
+      descendant=await rotated.json() as typeof a.tokens;
+    }
+    // The external D1 authority can be temporarily unready without changing its
+    // revision. That must not suppress the OAuth owner's durable replay effect.
+    await f.db.prepare("UPDATE runtime_installations SET phase='writing' WHERE id='design'").run();
+    expect((await tokenRequest(f,replay)).status).toBe(400);
+    await f.db.prepare("UPDATE runtime_installations SET phase='ready' WHERE id='design'").run();
+    expect((await resourceRequest(f,descendant.access_token)).status).toBe(401);
+    expect((await tokenRequest(f,{grant_type:"refresh_token",client_id:a.clientId,resource:RESOURCE,refresh_token:descendant.refresh_token})).status).toBe(400);
+    expect((await resourceRequest(f,b.tokens.access_token,OTHER_RESOURCE)).status).toBe(200);
+  } finally {await f.dispose();}
+},20000);
+
 it("allows one concurrent code exchange and invalidates its family when the code is replayed",async()=>{
   const f=await oauthFixture();try {
     const pending=await pendingConsent(f),decision=await pending.decide();
@@ -128,7 +148,7 @@ it("checks expiry without waiting for cleanup and retains replay tombstones whil
     expect((await resourceRequest(f,tokens.access_token)).status).toBe(200);
     await f.expire("code",current.body.code);
     await f.expire("refresh",current.tokens.refresh_token);
-    await f.expire("clean");
+    expect((await f.expire("clean")).status).toBe(200);
     expect((await tokenRequest(f,current.body)).status).toBe(400);
     expect((await resourceRequest(f,tokens.access_token)).status).toBe(401);
     const fresh=await authorizedTokens(f);
@@ -137,6 +157,33 @@ it("checks expiry without waiting for cleanup and retains replay tombstones whil
     expect((await tokenRequest(f,{grant_type:"refresh_token",client_id:fresh.clientId,resource:RESOURCE,refresh_token:fresh.tokens.refresh_token})).status).toBe(400);
     const pending=await pendingConsent(f);await f.expire("pending",pending.target.pathname.split("/").at(-1)!);
     expect((await pending.decide()).status).toBe(400);
+  } finally {await f.dispose();}
+},20000);
+
+it("cleans a large ended family in bounded batches and retains ownership until its records are gone",async()=>{
+  const f=await oauthFixture();try {
+    const ended=await authorizedTokens(f);
+    await f.expire("backlog",ended.clientId);
+    await f.expire("family",ended.clientId);
+    const live=await authorizedTokens(f,OTHER_RESOURCE);
+    const inventory=async()=>await (await f.expire("inventory",ended.clientId)).json() as {families:number;codes:number;refresh:number;access:number};
+    const before=await inventory();expect(before).toEqual({families:1,codes:514,refresh:514,access:514});
+    expect((await f.expire("clean")).status).toBe(200);
+    const first=await inventory();
+    expect(first.families).toBe(1);
+    expect(before.codes-first.codes).toBeLessThanOrEqual(256);
+    expect(before.refresh-first.refresh).toBeLessThanOrEqual(256);
+    expect(before.access-first.access).toBeLessThanOrEqual(512);
+    expect(first.codes).toBeLessThan(before.codes);
+    expect(first.refresh).toBeLessThan(before.refresh);
+    expect(first.access).toBeLessThan(before.access);
+    expect((await resourceRequest(f,ended.tokens.access_token)).status).toBe(401);
+    expect((await tokenRequest(f,ended.body)).status).toBe(400);
+    expect((await resourceRequest(f,live.tokens.access_token,OTHER_RESOURCE)).status).toBe(200);
+    // Later bounded invocations converge; cleanup never becomes authorization.
+    for(let n=0;n<3;n++)expect((await f.expire("clean")).status).toBe(200);
+    expect(await inventory()).toEqual({families:0,codes:0,refresh:0,access:0});
+    expect((await resourceRequest(f,live.tokens.access_token,OTHER_RESOURCE)).status).toBe(200);
   } finally {await f.dispose();}
 },20000);
 

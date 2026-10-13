@@ -82,8 +82,9 @@ that family deadline. Pending login/consent transactions expire after ten
 minutes. Keep consumed-code and spent-refresh tombstones until the family ends;
 individual credential expiry is not a safe deletion boundary while descendants
 are valid. Revoke/replay blocks the whole affected family immediately. Alarm
-cleanup removes bounded batches only after the family deadline, with a
-ten-minute retention margin. Delay or failure of cleanup consumes storage but
+cleanup selects at most 128 ended families after the ten-minute retention
+margin and limits each child-record deletion to 256 rows. It retains each
+family until all its child records are removed. Delay or failure consumes storage but
 cannot restore authority. Resource reads always check expiry and revision;
 cleanup is not the expiry mechanism.
 

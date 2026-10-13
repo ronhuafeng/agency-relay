@@ -16,7 +16,9 @@ export async function oauthFixture(persist?:string) {
   const compiled=await build({
     stdin:{resolveDir:process.cwd(),sourcefile:"runtime-oauth-fixture.ts",contents:`
       // Pin the external UTC clock so policy tests cannot cross a time window.
-      const NativeDate=Date;let fixtureTime=Date.now();
+      // workerd's module-initialization clock is zero. Pin the Node clock so
+      // scheduled alarms are not accidentally created in the real-world past.
+      const NativeDate=Date;let fixtureTime=${Date.now()};
       globalThis.Date=class extends NativeDate {
         constructor(...args){super(...(args.length?args:[fixtureTime]));}
         static now(){return fixtureTime;}
@@ -24,6 +26,24 @@ export async function oauthFixture(persist?:string) {
       import {RuntimeOAuth} from './src/runtime/oauth';
       import {hmacSha256Hex} from './src/crypto';
       export class RuntimeOAuthFixture extends RuntimeOAuth {
+        async runCleanup(){await this.alarm();return true;}
+        async cleanupBacklog(client){
+          const {id}=this.ctx.storage.sql.exec('SELECT id FROM consents WHERE client=?',client).one();
+          this.ctx.storage.transactionSync(()=>{
+            for(let n=0;n<513;n++) {
+              this.ctx.storage.sql.exec('INSERT INTO codes VALUES (?,?,?,?,?,1)','fixture-code-'+n,id,'http://127.0.0.1:9/callback','fixture-challenge',0);
+              this.ctx.storage.sql.exec('INSERT INTO refresh_tokens VALUES (?,?,0,1)','fixture-refresh-'+n,id);
+              this.ctx.storage.sql.exec('INSERT INTO access_tokens VALUES (?,?,0)','fixture-access-'+n,id);
+            }
+          });
+        }
+        async cleanupInventory(client){
+          return this.ctx.storage.sql.exec(
+            'SELECT (SELECT count(*) FROM consents WHERE client=?) AS families,'+
+            '(SELECT count(*) FROM codes WHERE consent IN (SELECT id FROM consents WHERE client=?)) AS codes,'+
+            '(SELECT count(*) FROM refresh_tokens WHERE consent IN (SELECT id FROM consents WHERE client=?)) AS refresh,'+
+            '(SELECT count(*) FROM access_tokens WHERE consent IN (SELECT id FROM consents WHERE client=?)) AS access',client,client,client,client).one();
+        }
         async expire(kind,value){
           const hash=await hmacSha256Hex(this.env.API_KEY_HASH_PEPPER,'runtime-oauth\\0'+value);
           if(kind==='access')this.ctx.storage.sql.exec('UPDATE access_tokens SET expires=0 WHERE hash=?',hash);
@@ -43,7 +63,9 @@ export async function oauthFixture(persist?:string) {
         if(new URL(request.url).hostname==='fixture.internal') {
           const {kind,value}=await request.json();
           const owner=env.RUNTIME_OAUTH.getByName('organization');
-          if(kind==='clean')await owner.alarm();else await owner.expire(kind,value);
+          if(kind==='inventory')return Response.json(await owner.cleanupInventory(value));
+          if(kind==='backlog')await owner.cleanupBacklog(value);
+          else if(kind==='clean')await owner.runCleanup();else await owner.expire(kind,value);
           return Response.json({done:true});
         }
         const admitted=await admitRuntimeRequest(request,env);
