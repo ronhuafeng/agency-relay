@@ -1,4 +1,7 @@
 import { HttpError } from "../errors";
+import {plansForHostname} from "../plans/execution-plans";
+
+export const RUNTIME_SCOPE="runtime.use";
 
 /** Only reviewed code can introduce an upstream or credential header. */
 export const RUNTIME_PROFILES = {
@@ -28,6 +31,7 @@ export function runtimeInstallations(env: Env): RuntimeInstallationDeclaration[]
       const uri = new URL(row.resource);
       if (uri.protocol !== "https:" || uri.username || uri.password || uri.port || uri.search || uri.hash
         || uri.pathname !== "/mcp" || uri.href !== row.resource
+        || uri.hostname===env.ADMIN_DASHBOARD_HOST || plansForHostname(uri.hostname)
         || ids.has(row.id) || resources.has(row.resource)) throw new Error();
       ids.add(row.id); resources.add(row.resource);
       return {id:row.id,resource:row.resource,profile:row.profile as RuntimeInstallationDeclaration["profile"],label:row.label.trim()};

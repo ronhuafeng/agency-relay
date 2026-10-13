@@ -131,13 +131,37 @@ Details: [usage](../operate/usage.md), [Responses development](../develop/respon
 
 Provider profiles above do not admit an MCP client. A Runtime client presents a resource-bound OAuth bearer to one exact resource. That grant is separate from an Agency Relay API key, a console session, and a Provider credential.
 
-The selected target uses one Worker and separate origins for the authorization service and the MCP resource. The resource origin serves protected-resource metadata and `POST /mcp`. The authorization origin serves authorization-server metadata, registration, authorization, token, consent, revocation, and rebind. Neither origin answers the other's routes. Public discovery, registration, and token routes stay outside the console browser-write guard. Consent, revocation, and account rebind stay inside it. [Organization access](organization-access.md) owns that guard. A path under `/oauth/` receives no exemption.
+The authorization implementation uses the canonical console origin and separate
+deployment-declared resource origins in the same Worker. Exact discovery and
+OAuth paths are listed in [Security](../../SECURITY.md#runtime-admission-and-lifecycle).
+Public registration and token routes stay outside the console browser-write
+guard. Consent and own-client revocation stay inside it; administrator Authority
+Rebind remains the installation control operation, not a public OAuth route.
+[Organization access](organization-access.md) owns that guard. Empty declarations
+keep the OAuth surface closed. Protected MCP forwarding is a separate transport
+boundary, not established by discovery or token issuance.
 
-Each protected resource is the exact deployment-declared installation URI. A descendant path is a different resource. A bearer for one resource is rejected by another. The synthetic fixture uses `/mcp` and enforces its probe scope `relay.read`; production uses `runtime.use` for installation use, not per-tool read-only authority. Advertising a scope does not enforce it.
+Each protected resource is the exact deployment-declared installation URI. A
+descendant path is a different resource. A bearer for one resource is rejected
+by another. Production admission enforces the actual `runtime.use` consent for
+installation use, not per-tool read-only authority. Advertising a scope does not
+enforce it. Browser, Provider and operator credentials cannot replace that bearer.
 
-Discovery advertises only the authorization-code response, the authorization-code and refresh-token grants, PKCE `S256`, and public-client authentication `none`. Registration accepts one redirect URI. A later registration does not replace that client's redirect. A loopback redirect on `127.0.0.1`, `localhost`, or `::1` may change port and keeps scheme, hostname, userinfo, path, query, and fragment. The code verifier is 43 to 128 characters. Registration rejects a client secret, `jwks`, `jwks_uri`, and a body larger than 4096 bytes. It does not fetch client metadata. The synthetic fixture shares that cap across token, consent, rebind and `POST /mcp` bodies, with a one-second idle body-read limit. Those fixture limits do not establish deployed transport capacity. Production grant limits and cleanup are owned by [Security](../../SECURITY.md#runtime-admission-and-lifecycle-target).
+Discovery advertises only the authorization-code response, authorization-code
+and refresh-token grants, PKCE `S256`, and public-client authentication `none`.
+Registration accepts one redirect URI and allocates an independent client ID;
+it cannot replace an older registration. An HTTP loopback redirect on
+`127.0.0.1`, `localhost`, or `::1` may change only its port. The verifier has
+43–128 characters. Registration rejects client-secret/JWK authentication and
+does not fetch unrecognized metadata. Production grant limits, protocol body
+bounds and cleanup are owned by [Security](../../SECURITY.md#runtime-admission-and-lifecycle).
+Synthetic identity, task output and controlled clocks are test inputs, not live
+Feishu, upstream capability or transport-capacity evidence.
 
-The selected data plane is one request-scoped `POST /mcp` with a bearer and a JSON-RPC body. `GET /mcp`, a `GET` with `Accept: text/event-stream`, and `Mcp-Session-Id` do not authenticate or resume a session. The synthetic `initialize` result reports protocol version `2025-06-18`. That marker does not import session, resumption, or cancellation rules from any other MCP transport.
+The selected data-plane target is one request-scoped `POST /mcp` with a bearer
+and a JSON-RPC body. `GET /mcp`, a GET with `Accept: text/event-stream`, and
+`Mcp-Session-Id` do not authenticate or resume a session. A synthetic initialize
+version does not establish upstream session, resumption or cancellation support.
 
 The production transport target relays the supported JSON or SSE response
 without protocol conversion, body reconstruction or retries. Initialization is

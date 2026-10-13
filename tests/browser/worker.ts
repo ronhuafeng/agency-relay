@@ -74,6 +74,7 @@ export async function startConsoleWorker(options: { measure?: boolean } = {}) {
     CONSOLE_EMAIL_DOMAIN: "example.test",
     RUNTIME_INSTALLATIONS: "[]",
     RUNTIME_CREDENTIALS: undefined as unknown as Env["RUNTIME_CREDENTIALS"],
+    RUNTIME_OAUTH: undefined as unknown as Env["RUNTIME_OAUTH"],
     API_KEY_HASH_PEPPER: "browser-fixture-pepper-not-for-production",
     TOKEN_ENCRYPTION_KEY_V1: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
     ADMIN_SECRET: "browser-fixture-operator-not-for-production",

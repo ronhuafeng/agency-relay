@@ -34,10 +34,11 @@
     "enabled": true,
     "logs": {
       "enabled": true,
+      "invocation_logs": false,
       "head_sampling_rate": 1
     },
     "traces": {
-      "enabled": true,
+      "enabled": false,
       "head_sampling_rate": 0.05
     }
   },
@@ -84,6 +85,10 @@
       {
         "name": "RUNTIME_CREDENTIALS",
         "class_name": "RuntimeCredentials"
+      },
+      {
+        "name": "RUNTIME_OAUTH",
+        "class_name": "RuntimeOAuth"
       }
     ]
   },
@@ -99,6 +104,10 @@
     {
       "tag": "v3-runtime-credentials",
       "new_sqlite_classes": ["RuntimeCredentials"]
+    },
+    {
+      "tag": "v4-runtime-oauth",
+      "new_sqlite_classes": ["RuntimeOAuth"]
     }
   ]
 }

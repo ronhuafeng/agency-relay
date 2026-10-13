@@ -244,7 +244,7 @@ authorization join the current active, login-capable human, active installation
 and unexpired explicit access in one primary-database snapshot. Missing state or
 an unavailable authority denies admission. There is no cached positive decision.
 The OAuth authority owns Client Consent and token state, not a copy of membership.
-[Security](../../SECURITY.md#runtime-admission-and-lifecycle-target) defines how
+[Security](../../SECURITY.md#runtime-admission-and-lifecycle) defines how
 these two authorities are checked without claiming a distributed transaction.
 
 An installation has an operation revision, which fences asynchronous credential
@@ -294,6 +294,15 @@ Thus an admission for upstream authority A cannot use B after a concurrent rebin
 Lifecycle implementation does not by itself publish an MCP resource or OAuth
 service. Deployment declarations, current source and release evidence establish
 which boundaries are available. Empty declarations expose no installations.
+
+Runtime client authorization uses the existing console identity. The public OAuth
+protocol, exact host/resource roles, PKCE, consent, token family and revocation
+rules are owned by [Security](../../SECURITY.md#runtime-admission-and-lifecycle).
+`GET /runtime/clients` returns only the current member's recorded consent
+metadata; `DELETE /runtime/clients/:consentId` revokes that member's exact grant
+under the same browser-write guard. Foreign and absent IDs receive the same
+denial. These records do not establish current Installation Access or provider
+health. Browser logout ends the session only; it does not revoke these grants.
 
 ## 7. Browser and transport safety
 

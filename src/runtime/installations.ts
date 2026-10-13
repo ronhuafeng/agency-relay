@@ -173,7 +173,7 @@ export async function configureRuntimeInstallation(env:Env,actor:LifecycleActor,
 
 /** The first/current D1 primary read is the authority snapshot. No allow cache.
  * The OAuth owner compares captured revisions while holding its own short gate. */
-export async function readRuntimeAuthority(env:Env,subject:string,id:string,now=new Date()) {
+export async function readRuntimeAuthority(env:Env,subject:string,id:string,now=new Date(),browser?:{hash:string;email:string;epoch:number}) {
   const declared=requireRuntimeInstallation(env,id);
   const row=await env.DB.prepare(`SELECT i.id AS installation_id,i.resource,i.authority_revision,
       i.credential_ref,i.credential_revision,a.revision AS access_revision,u.id AS subject
@@ -184,10 +184,27 @@ export async function readRuntimeAuthority(env:Env,subject:string,id:string,now=
       AND i.state='enabled' AND i.phase='ready' AND i.credential_ref IS NOT NULL
       AND a.state='granted' AND (a.expires_at IS NULL OR a.expires_at>?)
       AND u.id=? AND u.account_kind='human' AND u.status='active' AND u.login_capable=1
-      AND substr(u.canonical_email,instr(u.canonical_email,'@')+1)=?`)
-    .bind(id,declared.resource,declared.profile,RUNTIME_PROFILES[declared.profile].revision,now.toISOString(),subject,organizationDomain(env)??"")
+      AND substr(u.canonical_email,instr(u.canonical_email,'@')+1)=?
+      ${browser?`AND u.canonical_email=? AND u.console_session_epoch=? AND EXISTS
+        (SELECT 1 FROM console_sessions s WHERE s.user_id=u.id AND s.token_hash=?
+          AND s.session_epoch=u.console_session_epoch AND s.expires_at>?)`:""}`)
+    .bind(id,declared.resource,declared.profile,RUNTIME_PROFILES[declared.profile].revision,now.toISOString(),subject,organizationDomain(env)??"",
+      ...(browser?[browser.email,browser.epoch,browser.hash,now.toISOString()]:[]))
     .first<{installation_id:string;resource:string;authority_revision:number;credential_ref:string;credential_revision:number;access_revision:number;subject:string;canonical_email:string;login_capable:number;account_kind:string}>();
   if(!row||!isOrganizationLoginUser(env,row))return null;
   const {canonical_email:_email,login_capable:_login,account_kind:_kind,...authority}=row;
   return authority;
 }
+
+/** Pre-login transaction captures installation authority, not member entitlement. */
+export async function readRuntimeAuthorityRevision(env:Env,id:string):Promise<number|null> {
+  const declared=requireRuntimeInstallation(env,id);
+  const row=await env.DB.prepare(`SELECT authority_revision FROM runtime_installations
+    WHERE id=? AND resource=? AND profile=? AND profile_revision=? AND state='enabled'
+      AND phase='ready' AND credential_ref IS NOT NULL`)
+    .bind(id,declared.resource,declared.profile,RUNTIME_PROFILES[declared.profile].revision)
+    .first<{authority_revision:number}>();
+  return row?.authority_revision??null;
+}
+
+export type RuntimeAuthority=NonNullable<Awaited<ReturnType<typeof readRuntimeAuthority>>>;
