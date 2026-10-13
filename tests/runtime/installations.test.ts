@@ -197,7 +197,10 @@ it.each(["before-store","after-store"])("retirement wins over a rotation held %s
   try {
     await configureRuntimeInstallation(env,operator,"design",now);
     pending=changeRuntimeInstallation(env,operator,"design",{action:"supply",expectedRevision:1,operationId:"held-supply",authority:"rebind",material:"synthetic-late"},now).then(()=>"unexpected success",error=>error.code);
-    await held.promise;
+    await Promise.race([
+      held.promise,
+      pending.then(() => { throw new Error("Supply ended before reaching the test barrier"); })
+    ]);
     await changeRuntimeInstallation(env,operator,"design",{action:"retire",expectedRevision:2,operationId:"retire-wins"},now);
     release.resolve();
     expect(await pending).toBe(point==="before-store"?"runtime_credential_pending":"runtime_changed");
