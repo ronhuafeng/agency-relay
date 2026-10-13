@@ -23,6 +23,7 @@ import {
 import { isAdminSurface, routeAdmin } from "./admin/http";
 import type { AppDependencies, ExecutionDependencies, RequestContext } from "./types";
 import { runtimeAuthorizationResponse } from "./runtime/authorization";
+import {relayRuntimeRequest} from "./runtime/relay";
 
 
 export async function handleRequest(
@@ -50,6 +51,8 @@ export async function handleRequest(
 
     const runtimeResponse=await runtimeAuthorizationResponse(request,env);
     if(runtimeResponse)return runtimeResponse;
+    const runtimeRelay=await relayRuntimeRequest(request,env,ctx,deps);
+    if(runtimeRelay)return runtimeRelay;
 
     if (isAdminSurface(request, url, env)) {
       return await routeAdmin(request, env, url, deps, requestContext);

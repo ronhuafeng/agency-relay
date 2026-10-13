@@ -158,42 +158,79 @@ bounds and cleanup are owned by [Security](../../SECURITY.md#runtime-admission-a
 Synthetic identity, task output and controlled clocks are test inputs, not live
 Feishu, upstream capability or transport-capacity evidence.
 
-The selected data-plane target is one request-scoped `POST /mcp` with a bearer
-and a JSON-RPC body. `GET /mcp`, a GET with `Accept: text/event-stream`, and
-`Mcp-Session-Id` do not authenticate or resume a session. A synthetic initialize
-version does not establish upstream session, resumption or cancellation support.
+The relay implements request-scoped `POST /mcp`. The reviewed `google.stitch`
+profile fixes the complete upstream URL to `https://stitch.googleapis.com/mcp`
+and injects the exact admitted secret version as `X-Goog-Api-Key`. No incoming
+path, query, body, header or client version selects that URL or credential.
+No query is allowed. A present Origin must equal the resource origin.
 
-The production transport target relays the supported JSON or SSE response
-without protocol conversion, body reconstruction or retries. Initialization is
-forwarded to the selected upstream; Agency Relay does not synthesize a newer
-protocol version. A profile requiring persistent upstream session/resumption is
-outside this request-scoped target and must not be enabled as if supported.
+The supported envelope headers declare `2025-11-25` or `2026-07-28`.
+An absent version during initialization is forwarded, not synthesized. The
+2025 compatibility subset forwards initialize and notifications but supports
+only stateless POST exchanges. Modern requests do not need a relay-owned
+initialize step. Agency Relay does not compare JSON-RPC bodies with headers,
+validate tool parameters or translate negotiated versions. The upstream owns
+those semantics. This is not full compatibility with every feature of either
+version.
 
-The selected V1 transport envelope is a streamed request of at most 8 MiB, a
-sixty-second idle upload/response limit, and a ten-minute admission lease.
+GET/DELETE, Upgrade, `Mcp-Session-Id` and `Last-Event-ID` are unsupported.
+They cannot authenticate or resume a session. An upstream session header is
+rejected rather than exported as a working handle. A profile requiring persistent
+session or resumability must not be enabled under this contract. Opaque
+application handles still carry shared upstream authority, not per-member object
+isolation.
+
+Request projection preserves content negotiation/encoding, `Mcp-Protocol-Version`,
+`Mcp-Method`, `Mcp-Name` and `Mcp-Param-*`, except connection-owned hop fields.
+All other request headers are removed before credential injection. Response
+projection permits content type/encoding/language, the three named MCP headers
+and Retry-After; custom headers, cookies, credentials, redirects and upstream
+authentication challenges are not exported. Responses are no-store. JSON/SSE
+bytes and SSE envelopes remain opaque, with Workers-owned re-encoding rather
+than manual compression marking.
+
+Upstream 3xx is rejected as 502 without following Location. Upstream 401/403 is
+mapped to 502 `upstream_credential_unavailable`, without its body/challenge or
+an Agency Relay OAuth re-login instruction. An absent/failed exact secret read
+returns 503 before dispatch. Other upstream statuses and bodies are preserved.
+The downstream OAuth challenge remains exclusively the admission owner's rule.
+
+The V1 transport envelope is a streamed request of at most 8 MiB, a
+sixty-second idle upload/header/response-read limit, and a ten-minute admission lease.
 There is no aggregate response-byte cap or JSON parse. The Worker cancels its
 relay at lease expiry or client disconnect and releases admission on EOF/error;
 it does not claim that the upstream tool action was undone. The OAuth authority
 owns at most four outstanding leases per member/installation and sixteen per
 installation, without holding response streams. Expired leases are removed
 before admission; recovery cannot reuse a lease or replay an upstream request.
-These are selected support limits to implement and verify, not current production
-capacity or an availability claim. Provider Responses limits remain unchanged.
+The idle read timer runs while a read waits, not while downstream backpressure
+withholds a pull. The absolute lease still bounds that hold. A declared oversize
+Content-Length rejects before dispatch; an unknown-length upload can be stopped
+after partial delivery. It cannot undo a tool action. Each admitted HTTP request
+has at most one relay dispatch; client retry is a distinct request, not exactly-once
+execution. Provider Responses limits remain unchanged.
 
-Local fixture diagnostics measured twenty DO storage operations for one
-registration/consent/code exchange and three for an authenticated resource read.
-They exclude production D1 entitlement, secret storage and stream leases. The
-production budget is one primary D1 authority read per admitted request, one
-OAuth admission transaction, one exact secret-owner read, and one terminal lease
-release. No per-event D1/DO write or retained stream is required. The admission
-transaction combines grant checks, expired-lease cleanup and capacity reservation;
-its concrete SQL/DO operation count remains to be measured after implementation.
-Deployed latency, cost and real Stitch behavior require release evidence, not
-extrapolation from these local numbers.
+The request path uses one primary D1 authority snapshot, one OAuth admission
+transaction with capacity reservation, one exact secret-owner read and one terminal
+release. Terminal recording is background work and cannot pull ahead or delay
+close/cancel. The OAuth owner retains only the newest admitted request's completed
+transport facts per member/installation, with a thirty-day cleanup horizon:
+client authorization
+reference, profile/Authority Revision, attempt/status/category, timings and observed
+byte counts. These counts describe stream chunks seen by Agency Relay, not encoded
+network volume or provider billing. Older delayed completion cannot replace newer
+facts. Cleanup can be delayed. Failed recording stays unknown; stale leases expire. No per-event write,
+tool count, semantic success, token/cost measurement or Provider ledger entry is
+created. HTTP 200 or clean SSE EOF is not a tool outcome.
+
+The second fixed profile exists only in the synthetic Worker fixture and uses this
+same core. It proves the extension seam and isolation, not another vendor's behavior.
+Deterministic/native-client evidence is separate from deployed latency, capacity,
+Feishu and a real Stitch task. Empty deployment declarations remain closed.
 
 Codex may still authenticate to the existing Provider surface with a static API key or access token. Those Provider plans stay unchanged.
 
-The grant authority is one Durable Object transaction, as stated in [Security](../../SECURITY.md). This section records that target. It does not open a production route or call Stitch.
+The grant authority is one Durable Object transaction, as stated in [Security](../../SECURITY.md). Source availability does not activate a production installation or call Stitch.
 
 ## Non-product ingress and health
 

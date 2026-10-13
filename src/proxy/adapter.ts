@@ -8,6 +8,7 @@ import {
 } from "./observation";
 import type { AppDependencies, CapturedResponseUsage, CodexTransportObservation } from "../types";
 import { projectRequiredUpstreamClientIdentity } from "../plans/identity-version";
+import {clientDrivenStream} from "./byte-stream";
 
 /** Mini-owned provider credentials (Grok opaque path). */
 export interface ProxyUpstreamCredentials {
@@ -31,6 +32,9 @@ export interface ProxyResponseBodyOutcome {
 }
 
 export interface ProxyForwardOptions {
+  /** Mandatory plan-owned safety effect, never optional accounting. Rejection
+   * errors downstream closure; onResponseBodyDone still describes upstream EOF. */
+  beforeResponseClose?: (outcome: ProxyResponseBodyOutcome) => Promise<void>;
   onResponseBodyDone?: (outcome: ProxyResponseBodyOutcome) => void | Promise<void>;
   /** Synchronous metadata observation on the client stream; must not retain chunks. */
   onResponseChunk?: (chunk: Uint8Array) => void;
@@ -177,6 +181,11 @@ export async function forwardTransparentProxy(
     );
   }
 
+  if(!upstream.body&&options.beforeResponseClose){
+    try{await options.beforeResponseClose({kind:"completed",upstreamStatus:upstream.status});}
+    catch(error){scheduleCompletion(options,{kind:"completed",upstreamStatus:upstream.status});throw error;}
+  }
+
   return transparentResponse(upstream, request, options, deps);
 }
 
@@ -242,13 +251,10 @@ export async function forwardTransparentWebSocket(
   const client = pair[0];
   const server = pair[1];
   connectWebSockets(server, upstream.webSocket, request.signal);
-  const completion = options.onResponseBodyDone?.({
+  scheduleCompletion(options,{
     kind: "completed",
     upstreamStatus: upstream.status
   });
-  if (completion instanceof Promise) {
-    options.waitUntil?.(completion);
-  }
   return runtime.createResponse(
     client,
     filteredHeaders(upstream.headers, WEBSOCKET_RESPONSE_HEADER_DENYLIST, false)
@@ -418,17 +424,14 @@ function observeResponseBody(
   transportOverride: CodexTransportObservation["transport"] | null = null
 ): ReadableStream<Uint8Array> | null {
   const body = upstream.body;
-  if (!options.onResponseBodyDone && !options.onResponseChunk && !options.observeUsage) {
+  if (!options.onResponseBodyDone && !options.onResponseChunk && !options.observeUsage && !options.beforeResponseClose) {
     return body;
   }
   if (!body) {
-    const completion = options.onResponseBodyDone?.({
+    scheduleCompletion(options,{
       kind: "completed",
       upstreamStatus: upstream.status
     });
-    if (completion instanceof Promise) {
-      options.waitUntil?.(completion);
-    }
     return null;
   }
 
@@ -471,6 +474,8 @@ function observeResponseBody(
       try {
         const next = await reader.read();
         if (next.done) {
+          try{await options.beforeResponseClose?.({kind:"completed",upstreamStatus:upstream.status});}
+          catch(error){finish("completed");controller.error(error);return;}
           finish("completed");
           controller.close();
           return;
@@ -575,40 +580,22 @@ function teeCompletionOnly(
   upstreamStatus: number,
   options: ProxyForwardOptions
 ): ReadableStream<Uint8Array> {
-  const reader = body.getReader();
-  let finalized = false;
-  const finalize = async (kind: ProxyResponseBodyOutcome["kind"]) => {
-    if (finalized) {
-      return;
-    }
-    finalized = true;
-    await options.onResponseBodyDone?.({ kind, upstreamStatus });
-  };
+  let closeRejected=false;
+  return clientDrivenStream(body,requestSignal,{
+    onChunk:(chunk)=>safelyObserveChunk(options,chunk),
+    beforeClose:options.beforeResponseClose?async()=>{
+      try{await options.beforeResponseClose?.({kind:"completed",upstreamStatus});}
+      catch(error){closeRejected=true;throw error;}
+    }:undefined,
+    onEnd:(kind)=>scheduleCompletion(options,{kind:closeRejected?"completed":kind,upstreamStatus})
+  });
+}
 
-  return new ReadableStream<Uint8Array>({
-    async pull(controller) {
-      try {
-        const next = await reader.read();
-        if (next.done) {
-          await finalize("completed");
-          controller.close();
-          return;
-        }
-        safelyObserveChunk(options, next.value);
-        controller.enqueue(next.value);
-      } catch (error) {
-        await finalize(requestSignal.aborted ? "cancelled" : "error");
-        controller.error(error);
-      }
-    },
-    async cancel(reason) {
-      try {
-        await reader.cancel(reason);
-      } finally {
-        await finalize("cancelled");
-      }
-    }
-  }, { highWaterMark: 0 });
+function scheduleCompletion(options:ProxyForwardOptions,outcome:ProxyResponseBodyOutcome):void {
+  if(!options.onResponseBodyDone)return;
+  const completion=Promise.resolve().then(()=>options.onResponseBodyDone?.(outcome))
+    .then(()=>undefined).catch(()=>{console.error(JSON.stringify({event:"provider_response_completion_failed"}));});
+  try{options.waitUntil?.(completion);}catch{/* Accounting cannot change transport. */}
 }
 
 function safelyObserveChunk(options: ProxyForwardOptions, chunk: Uint8Array): void {

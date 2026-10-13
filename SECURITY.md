@@ -12,7 +12,8 @@ Identity, roles, ownership, JIT, and offboarding follow [organization-access.md]
 
 ## Runtime grant authority
 
-Runtime is not yet a production route. The synthetic integration uses the pinned
+Runtime routes require explicit deployment declarations; empty declarations stay
+closed. The synthetic integration uses the pinned
 `@node-oauth/oauth2-server@5.3.0` token engine, Workers compatibility date
 `2026-06-24`, `nodejs_compat`, and one SQLite-backed Durable Object transaction.
 The unmodified library owns token request validation, PKCE verification and token
@@ -133,6 +134,26 @@ metadata is not a cached entitlement. DCR allocates a new public client ID and
 does not update an older registration. Unsupported self-asserted metadata is
 ignored without fetching it, as required by [RFC 7591 §2](https://www.rfc-editor.org/rfc/rfc7591.html#section-2);
 client-secret and JWK-based registration are rejected.
+
+The admitted snapshot freezes resource, profile/version, Authority Revision and
+the exact secret reference/version. Transport may not replace it with current
+or default material. Profile drift or a cleaned/missing version fails closed.
+The OAuth authority atomically reserves a ten-minute request lease after current
+admission, with four per member/installation and sixteen per installation.
+Terminal release and allowlisted latest-activity recording share a local SQL
+transaction; recording runs outside the response lifetime. A missing release is
+not a permission leak: expiry is enforced before the next reservation. Neither
+a lease nor transport completion is a provider tool-success fact.
+
+Runtime header projection is an explicit content/MCP allowlist, not a generic
+credential denylist. The profile injects only its code-owned credential header.
+No cookie, downstream bearer, custom key/routing header, upstream authentication
+challenge or session handle is exported. Upstream redirects are not followed;
+401/403 bodies and challenges are replaced with a safe upstream failure, never
+an Agency Relay OAuth login loop. Bodies remain opaque. No request replay,
+session translation, persistent-session ownership claim or Provider accounting
+is introduced. Exact supported versions, headers and transport limits are owned
+by [surfaces](docs/product/surfaces.md#runtime-mcp-authorization).
 
 Keep automatic invocation logs and traces off for this Worker. Cloudflare's
 [invocation logs](https://developers.cloudflare.com/workers/observability/logs/workers-logs/#invocation-logs)

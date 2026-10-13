@@ -285,8 +285,8 @@ separate from Provider TokenAuthority. No Provider identity or ciphertext is
 migrated. A request already admitted may finish; revocation cannot undo an
 upstream tool action.
 
-The admission result carries the immutable credential binding/operation revision
-and Authority Revision from that same D1 snapshot. Transport reads only that
+The admission result carries the immutable profile/version, credential
+binding/operation revision and Authority Revision from that same D1 snapshot. Transport reads only that
 exact secret version, never an installation's latest/current replacement. If the
 admitted version has already been cleaned, fail closed without retry or fallback.
 Thus an admission for upstream authority A cannot use B after a concurrent rebind.

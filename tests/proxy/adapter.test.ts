@@ -629,7 +629,7 @@ describe("Native Provider Execution adapter", () => {
     expect(pulls).toBe(0);
   });
 
-  it("closes the client before a slow usage callback finishes", async () => {
+  it.each([false,true])("closes the client before a slow terminal callback finishes (usage=%s)", async (observeUsage) => {
     let release: (() => void) | undefined;
     let markEntered: (() => void) | undefined;
     const entered = new Promise<void>((resolve) => { markEntered = resolve; });
@@ -644,19 +644,44 @@ describe("Native Provider Execution adapter", () => {
       credentials,
       bodyStream(new TextEncoder().encode("{}")),
       {
-        observeUsage: true,
+        observeUsage,
         onResponseBodyDone: () => {
           markEntered?.();
           return new Promise<void>((resolve) => { release = resolve; });
         }
       }
     );
-    await expect(response.text()).resolves.toBe(new TextDecoder().decode(payload));
-    await entered;
-    release?.();
+    const reading=response.text();
+    try {
+      await entered;
+      // The callback is held at an explicit barrier. Drain the event turn, not
+      // an arbitrary product delay, to distinguish closure from audit blocking.
+      const closed=await Promise.race([reading.then(()=>true),new Promise<boolean>(resolve=>setImmediate(()=>resolve(false)))]);
+      expect(closed).toBe(true);
+    } finally {release?.();await reading;}
+    expect(await reading).toBe(new TextDecoder().decode(payload));
   });
 
-  it("cancels upstream before a slow usage callback finishes", async () => {
+  it("keeps an empty provider response when a terminal observer throws",async()=>{
+    const background:Promise<void>[]=[];
+    const response=await forwardTransparentProxy(new Request("https://grok.trustedtunnel.app/v1/models"),
+      dependencies(vi.fn(async()=>new Response(null,{status:204}))),credentials,undefined,{
+        onResponseBodyDone:()=>{throw new Error("Synthetic accounting failure");},waitUntil:promise=>{background.push(promise);}
+      });
+    expect(response.status).toBe(204);
+    expect(response.body).toBeNull();
+    await Promise.all(background);
+  });
+
+  it.each([false,true])("enforces a mandatory close gate independently of observation (usage=%s)",async(observeUsage)=>{
+    const response=await forwardTransparentProxy(new Request("https://grok.trustedtunnel.app/v1/responses"),
+      dependencies(vi.fn(async()=>new Response("{}",{headers:{"Content-Type":"application/json"}}))),credentials,undefined,{
+        observeUsage,beforeResponseClose:async()=>{throw new Error("Synthetic ownership rejected");}
+      });
+    await expect(response.arrayBuffer()).rejects.toThrow("Synthetic ownership rejected");
+  });
+
+  it.each([false,true])("cancels upstream before a slow terminal callback finishes (usage=%s)", async (observeUsage) => {
     let upstreamCancelled = false;
     let release: (() => void) | undefined;
     const upstream = new ReadableStream<Uint8Array>({
@@ -674,7 +699,7 @@ describe("Native Provider Execution adapter", () => {
       credentials,
       bodyStream(new TextEncoder().encode("{}")),
       {
-        observeUsage: true,
+        observeUsage,
         onResponseBodyDone: () => new Promise<void>((resolve) => { release = resolve; })
       }
     );
