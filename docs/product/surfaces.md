@@ -133,11 +133,39 @@ Provider profiles above do not admit an MCP client. A Runtime client presents a 
 
 The selected target uses one Worker and separate origins for the authorization service and the MCP resource. The resource origin serves protected-resource metadata and `POST /mcp`. The authorization origin serves authorization-server metadata, registration, authorization, token, consent, revocation, and rebind. Neither origin answers the other's routes. Public discovery, registration, and token routes stay outside the console browser-write guard. Consent, revocation, and account rebind stay inside it. [Organization access](organization-access.md) owns that guard. A path under `/oauth/` receives no exemption.
 
-The protected resource is the exact `/mcp` URL. A descendant path is a different resource. A bearer for one resource is rejected by another. The resource handler rejects a token whose scope lacks `relay.read`. Advertising that scope does not enforce it.
+Each protected resource is the exact deployment-declared installation URI. A descendant path is a different resource. A bearer for one resource is rejected by another. The synthetic fixture uses `/mcp` and enforces its probe scope `relay.read`; production uses `runtime.use` for installation use, not per-tool read-only authority. Advertising a scope does not enforce it.
 
-Discovery advertises only the authorization-code response, the authorization-code and refresh-token grants, PKCE `S256`, and public-client authentication `none`. Registration accepts one redirect URI. A later registration does not replace that client's redirect. Registration attempts and token attempts against one authority are capped. A loopback redirect on `127.0.0.1`, `localhost`, or `::1` may change port and keeps scheme, hostname, userinfo, path, query, and fragment. The code verifier is 43 to 128 characters. Registration rejects a client secret, `jwks`, `jwks_uri`, and a body larger than 4096 bytes. It does not fetch client metadata. Token, consent, rebind, and `POST /mcp` bodies share that cap. A body read that stops arriving is rejected. A denied resource request does not retain the body.
+Discovery advertises only the authorization-code response, the authorization-code and refresh-token grants, PKCE `S256`, and public-client authentication `none`. Registration accepts one redirect URI. A later registration does not replace that client's redirect. A loopback redirect on `127.0.0.1`, `localhost`, or `::1` may change port and keeps scheme, hostname, userinfo, path, query, and fragment. The code verifier is 43 to 128 characters. Registration rejects a client secret, `jwks`, `jwks_uri`, and a body larger than 4096 bytes. It does not fetch client metadata. The synthetic fixture shares that cap across token, consent, rebind and `POST /mcp` bodies, with a one-second idle body-read limit. Those fixture limits do not establish deployed transport capacity. Production grant limits and cleanup are owned by [Security](../../SECURITY.md#runtime-admission-and-lifecycle-target).
 
 The selected data plane is one request-scoped `POST /mcp` with a bearer and a JSON-RPC body. `GET /mcp`, a `GET` with `Accept: text/event-stream`, and `Mcp-Session-Id` do not authenticate or resume a session. The synthetic `initialize` result reports protocol version `2025-06-18`. That marker does not import session, resumption, or cancellation rules from any other MCP transport.
+
+The production transport target relays the supported JSON or SSE response
+without protocol conversion, body reconstruction or retries. Initialization is
+forwarded to the selected upstream; Agency Relay does not synthesize a newer
+protocol version. A profile requiring persistent upstream session/resumption is
+outside this request-scoped target and must not be enabled as if supported.
+
+The selected V1 transport envelope is a streamed request of at most 8 MiB, a
+sixty-second idle upload/response limit, and a ten-minute admission lease.
+There is no aggregate response-byte cap or JSON parse. The Worker cancels its
+relay at lease expiry or client disconnect and releases admission on EOF/error;
+it does not claim that the upstream tool action was undone. The OAuth authority
+owns at most four outstanding leases per member/installation and sixteen per
+installation, without holding response streams. Expired leases are removed
+before admission; recovery cannot reuse a lease or replay an upstream request.
+These are selected support limits to implement and verify, not current production
+capacity or an availability claim. Provider Responses limits remain unchanged.
+
+Local fixture diagnostics measured twenty DO storage operations for one
+registration/consent/code exchange and three for an authenticated resource read.
+They exclude production D1 entitlement, secret storage and stream leases. The
+production budget is one primary D1 authority read per admitted request, one
+OAuth admission transaction, one exact secret-owner read, and one terminal lease
+release. No per-event D1/DO write or retained stream is required. The admission
+transaction combines grant checks, expired-lease cleanup and capacity reservation;
+its concrete SQL/DO operation count remains to be measured after implementation.
+Deployed latency, cost and real Stitch behavior require release evidence, not
+extrapolation from these local numbers.
 
 Codex may still authenticate to the existing Provider surface with a static API key or access token. Those Provider plans stay unchanged.
 

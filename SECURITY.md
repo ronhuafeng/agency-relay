@@ -42,6 +42,68 @@ remain implementation obligations before rollout.
 
 Revocation advances the grant generation. The next use of an old bearer or refresh is denied. A response already returned stays returned. A later allow does not revive the old bearer. Rebinding to a different account advances the generation and the account together. Rebinding to the current account is rejected. Refresh of the same account issues new refresh and access material and leaves the account in place. A previously issued access token remains usable only until expiry, grant replay invalidation or a generation change.
 
+### Runtime admission and lifecycle target
+
+V1 selects one dedicated SQLite-backed OAuth Durable Object for the organization,
+separate from Provider TokenAuthority. It owns registered clients, pending
+transactions, Client Consent, authorization codes, token families and replay
+tombstones. The pinned library supplies protocol validation and credential
+generation through its model interface; application consent, exact resources and
+current entitlement remain Agency Relay policy. Production authorization-code
+issuance must use the library's authorize/model seam; the current synthetic
+consent handler is not a production OAuth server to copy.
+
+One short `blockConcurrencyWhile` gate serializes grant reads/mutations while a
+current D1 primary read is in flight. This is necessary because awaiting external
+D1 I/O alone does not prevent a consent revocation from interleaving. Inside that
+gate, validate the credential and current consent, then perform one joined D1
+authority read and compare the captured access and Authority Revisions. For a
+successful request, that D1 snapshot is the admission point. A grant revocation
+cannot commit in the DO during this gate; a D1 revocation that commits before the
+snapshot is observed and denies admission. A later revocation does not undo an
+already admitted request. Missing/failed reads deny access. The gate is bounded
+to five seconds and never contains upstream I/O or a response stream.
+
+Use a direct D1 binding read or the first query of a fresh
+`withSession("first-primary")` session, never a reused session/bookmark that can
+select an older replica. This follows the documented
+[D1 primary-read contract](https://developers.cloudflare.com/d1/best-practices/read-replication/#start-a-session-with-all-latest-data)
+and [DO concurrency gate](https://developers.cloudflare.com/durable-objects/api/state/#blockconcurrencywhile).
+D1 and DO still do not share a transaction: an OAuth result that overlaps a later
+D1 revocation can be returned, but cannot authorize the next request under the
+changed revisions. Short-lived consent captures authority when created and
+revalidates the same revisions on Allow and token exchange, not a later authority
+substituted after login.
+
+The production target uses ten-minute access tokens, two-minute authorization
+codes, and a thirty-day absolute token-family lifetime. Refresh never extends
+that family deadline. Pending login/consent transactions expire after ten
+minutes. Keep consumed-code and spent-refresh tombstones until the family ends;
+individual credential expiry is not a safe deletion boundary while descendants
+are valid. Revoke/replay blocks the whole affected family immediately. Alarm
+cleanup removes bounded batches only after the family deadline, with a
+ten-minute retention margin. Delay or failure of cleanup consumes storage but
+cannot restore authority. Resource reads always check expiry and revision;
+cleanup is not the expiry mechanism.
+
+An unused registration expires after twenty-four hours. A registration with live
+consent is retained through its last token-family deadline. Expired IDs are never
+reissued, and a new registration needs fresh consent. The selected V1 caps are
+100 registrations organization-wide and five live client consents per
+member/installation. At capacity, reject new work; do not evict active grants.
+Registration attempts use a durable organization limit of 100 per UTC hour;
+token attempts use 30 per registered client per UTC minute, with an organization
+limit of 300 per minute covering unknown clients too. Revocation cannot reset
+these counters. The selected limit definitions are implementation obligations,
+not measurements of the current fixture's lifetime attempt counters.
+
+No CIMD, JWKS fetch, third-party registration metadata fetch, automatic consent,
+or persistent MCP session is selected for V1. DCR allocates an independent public
+client ID for each registration; the synthetic fixture's one fixed client ID is
+not the production registration policy. Scope grants installation use, not
+per-tool read-only access. A consent screen must state the shared upstream
+authority consequence. All token material stays out of audit and diagnostics.
+
 ## Browser protection
 
 Guard every console-session state-changing request, including JSON POST/PUT/PATCH/DELETE and native UI POST forms, with exact canonical same-origin verification and cross-site Fetch Metadata rejection. Missing/invalid Origin is rejected on the browser-only write interface. Confirmation dialogs and SameSite assumptions do not replace the guard. The operator bearer API is a distinct non-cookie boundary.
