@@ -163,10 +163,13 @@ it("checks expiry without waiting for cleanup and retains replay tombstones whil
 it("cleans a large ended family in bounded batches and retains ownership until its records are gone",async()=>{
   const f=await oauthFixture();try {
     const ended=await authorizedTokens(f);
-    await f.expire("backlog",ended.clientId);
+    const seeded=await f.expire("backlog",ended.clientId);expect(seeded.status).toBe(200);
+    const {family}=await seeded.json() as {family:string};
     await f.expire("family",ended.clientId);
     const live=await authorizedTokens(f,OTHER_RESOURCE);
-    const inventory=async()=>await (await f.expire("inventory",ended.clientId)).json() as {families:number;codes:number;refresh:number;access:number};
+    // Stable child ownership survives removal of the parent row. Counting via
+    // an existing parent would falsely report orphaned records as cleaned.
+    const inventory=async()=>await (await f.expire("inventory",family)).json() as {families:number;codes:number;refresh:number;access:number};
     const before=await inventory();expect(before).toEqual({families:1,codes:514,refresh:514,access:514});
     expect((await f.expire("clean")).status).toBe(200);
     const first=await inventory();
@@ -181,7 +184,11 @@ it("cleans a large ended family in bounded batches and retains ownership until i
     expect((await tokenRequest(f,ended.body)).status).toBe(400);
     expect((await resourceRequest(f,live.tokens.access_token,OTHER_RESOURCE)).status).toBe(200);
     // Later bounded invocations converge; cleanup never becomes authorization.
-    for(let n=0;n<3;n++)expect((await f.expire("clean")).status).toBe(200);
+    for(let n=0;n<3;n++) {
+      expect((await f.expire("clean")).status).toBe(200);
+      const next=await inventory();
+      if(next.codes+next.refresh+next.access>0)expect(next.families).toBe(1);
+    }
     expect(await inventory()).toEqual({families:0,codes:0,refresh:0,access:0});
     expect((await resourceRequest(f,live.tokens.access_token,OTHER_RESOURCE)).status).toBe(200);
   } finally {await f.dispose();}

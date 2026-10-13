@@ -36,13 +36,14 @@ export async function oauthFixture(persist?:string) {
               this.ctx.storage.sql.exec('INSERT INTO access_tokens VALUES (?,?,0)','fixture-access-'+n,id);
             }
           });
+          return id;
         }
-        async cleanupInventory(client){
+        async cleanupInventory(family){
           return this.ctx.storage.sql.exec(
-            'SELECT (SELECT count(*) FROM consents WHERE client=?) AS families,'+
-            '(SELECT count(*) FROM codes WHERE consent IN (SELECT id FROM consents WHERE client=?)) AS codes,'+
-            '(SELECT count(*) FROM refresh_tokens WHERE consent IN (SELECT id FROM consents WHERE client=?)) AS refresh,'+
-            '(SELECT count(*) FROM access_tokens WHERE consent IN (SELECT id FROM consents WHERE client=?)) AS access',client,client,client,client).one();
+            'SELECT (SELECT count(*) FROM consents WHERE id=?) AS families,'+
+            '(SELECT count(*) FROM codes WHERE consent=?) AS codes,'+
+            '(SELECT count(*) FROM refresh_tokens WHERE consent=?) AS refresh,'+
+            '(SELECT count(*) FROM access_tokens WHERE consent=?) AS access',family,family,family,family).one();
         }
         async expire(kind,value){
           const hash=await hmacSha256Hex(this.env.API_KEY_HASH_PEPPER,'runtime-oauth\\0'+value);
@@ -64,8 +65,8 @@ export async function oauthFixture(persist?:string) {
           const {kind,value}=await request.json();
           const owner=env.RUNTIME_OAUTH.getByName('organization');
           if(kind==='inventory')return Response.json(await owner.cleanupInventory(value));
-          if(kind==='backlog')await owner.cleanupBacklog(value);
-          else if(kind==='clean')await owner.runCleanup();else await owner.expire(kind,value);
+          if(kind==='backlog')return Response.json({family:await owner.cleanupBacklog(value)});
+          if(kind==='clean')await owner.runCleanup();else await owner.expire(kind,value);
           return Response.json({done:true});
         }
         const admitted=await admitRuntimeRequest(request,env);
