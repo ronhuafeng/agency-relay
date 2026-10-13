@@ -2,6 +2,7 @@ import { handleRequest, handleScheduled } from "./router";
 
 export { TokenAuthority } from "./auth/token-authority";
 export { CredentialEvents } from "./admin/credential-events";
+export { RuntimeCredentials } from "./runtime/credentials";
 
 export default {
   fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
