@@ -10,7 +10,7 @@
         "source": "url",
         "url": "https://github.com/cloudflare/skills.git",
         "ref": "main",
-        "sha": "0871daceb347e3c51693fbe9c77555468df7e410"
+        "sha": "53395984c3ea1925d00fce03b266112302f050e6"
       },
       "policy": {
         "installation": "AVAILABLE",
