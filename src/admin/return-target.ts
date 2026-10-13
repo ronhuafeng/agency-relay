@@ -93,3 +93,12 @@ export function consoleLoginHref(target: string): string {
   const safe = consoleReturnTarget(target);
   return safe && safe !== '/' ? `/login?${new URLSearchParams({return: safe})}` : '/login';
 }
+
+/** Only a canonical login URL produced from an allowed read-only destination
+ * can terminate an enhanced form. Extra fields, foreign URLs and actions fail. */
+export function consoleLoginTarget(value: string): string | null {
+  try {
+    const url = new URL(value, 'https://console.invalid');
+    return url.pathname === '/login' && value === consoleLoginHref(url.searchParams.get('return') ?? '') ? value : null;
+  } catch { return null; }
+}

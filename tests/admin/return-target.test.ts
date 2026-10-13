@@ -1,5 +1,18 @@
 import {expect, it} from 'vitest';
-import {consoleLoginHref, consoleReturnTarget} from '../../src/admin/return-target';
+import {consoleLoginHref, consoleLoginTarget, consoleReturnTarget} from '../../src/admin/return-target';
+
+it.each([
+  '/login', '/login?return=%2Fadmin%3Farea%3Dme%26view%3Dintegrations',
+  '/login?return=%2Fadmin%3Fview%3Druntime%26installation%3Ddesign',
+  '/login?return=%2Fadmin%3Farea%3Dme%26view%3Dkeys'
+])('accepts an exact canonical read-only login recovery: %s', value => expect(consoleLoginTarget(value)).toBe(value));
+
+it.each([
+  'https://evil.invalid/login', '//evil.invalid/login', '/other/../login', '/login#content',
+  '/login?return=%2Fadmin&return=%2Fadmin', '/login?return=%2Fadmin&other=1',
+  '/login?return=%2Fadmin%2Fui%2Fruntime-installations%2Fdesign',
+  '/login?return=%2Flogin%2Fcallback%3Fcode%3Dsynthetic', '/login?return=https%3A%2F%2Fevil.invalid'
+])('rejects a non-canonical or unsafe login recovery: %s', value => expect(consoleLoginTarget(value)).toBeNull());
 
 it('normalizes the removed mixed-account category to the member category through login', () => {
   const original = '/admin?view=access&kind=all&q=example&page_size=10&page=2#people-list';

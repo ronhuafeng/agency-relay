@@ -23,6 +23,13 @@ for(const script of [true,false])test.describe(`Runtime personal native form, sc
     ]);
     await expect(page.getByRole("table",{name:"已记录的客户端授权"})).toContainText("Synthetic client");
     const revoke=page.getByRole("table",{name:"已记录的客户端授权"}).locator("form");
+    if(script){
+      await revoke.getByRole("button",{name:"撤销授权",exact:true}).click();
+      const dialog=page.getByRole("alertdialog");
+      await expect(dialog).toContainText("Synthetic client");
+      await expect(dialog).toContainText("https://design.example.test/mcp");
+      await dialog.getByRole("button",{name:"取消",exact:true}).click();
+    }
     await confirm(page,revoke,"撤销授权",script);
     await expect(page.getByRole("status").filter({hasText:"客户端授权已撤销"})).toBeVisible();
     const denied=await resourceRequest(f,auth.tokens.access_token);expect(denied.status).toBe(401);await denied.body?.cancel();
@@ -36,17 +43,18 @@ for(const script of [true,false])test.describe(`Runtime personal native form, sc
   });
 });
 
-for(const identity of ["admin","member"] as const)test.describe(`Expired native Runtime form, ${identity}`,()=>{
-  test.use({identity,script:false,viewport:{width:390,height:900}});
+for(const identity of ["admin","member"] as const)for(const script of [true,false])test.describe(`Expired Runtime form, ${identity}, script ${script}`,()=>{
+  test.use({identity,script,viewport:{width:390,height:900}});
   test("offers read-only login recovery and never replays the rejected operation",async({page,worker,context})=>{
     const f=worker.runtimeFixture!;
     const auth=identity==="member"?await authorizedTokens(f):null;
     const target=identity==="admin"?"/admin?view=runtime&installation=design":"/admin?area=me&view=integrations";
     await page.goto(target);
+    if(script)await expect(page.locator('[data-confirmation-fallback]:not([hidden])')).toHaveCount(0);
     const form=identity==="admin"?page.locator('form:has(input[name="action"][value="disable"])'):
       page.getByRole("table",{name:"已记录的客户端授权"}).locator("form");
     await f.db.prepare("UPDATE console_sessions SET expires_at='2000-01-01T00:00:00.000Z' WHERE user_id=?").bind(identity).run();
-    await confirm(page,form,identity==="admin"?"停用服务":"撤销授权",false);
+    await confirm(page,form,identity==="admin"?"停用服务":"撤销授权",script);
     await expect(page.getByRole("heading",{name:"操作未执行",exact:true})).toBeVisible();
     const login=page.getByRole("link",{name:"重新登录",exact:true});
     const destination=new URL((await login.getAttribute("href"))!,ORIGIN);
@@ -95,6 +103,14 @@ test("uncertain credential write clears input and recovers without repeating sup
   const f=worker.runtimeFixture!;
   const failure=await f.expire("fail-write","true");await failure.body?.cancel();
   await page.goto("/admin?view=runtime&installation=design");
+  const member=page.getByRole("table",{name:"成员工具权限"}).getByRole("row").filter({hasText:"other@example.test"});
+  await member.getByRole("button",{name:"授予（不设期限）",exact:true}).click();
+  const accessConfirmation=page.getByRole("alertdialog");
+  await expect(accessConfirmation).toContainText("other@example.test");
+  await expect(accessConfirmation).toContainText("Design");
+  await expect(accessConfirmation).toContainText("https://design.example.test/mcp");
+  await accessConfirmation.getByRole("button",{name:"取消",exact:true}).click();
+  expect(await f.db.prepare("SELECT state FROM runtime_installation_access WHERE installation_id='design' AND user_id='other'").first()).toBeNull();
   await page.getByText("更换同一账号的凭据",{exact:true}).click();
   const form=page.locator('form:has(input[name="authority"][value="same"])');
   await form.locator('input[name="material"]').fill("synthetic-replacement-not-for-production");
@@ -102,7 +118,11 @@ test("uncertain credential write clears input and recovers without repeating sup
   let nativePost=false;
   page.on("request",request=>{if(request.method()==="POST"&&new URL(request.url()).pathname==="/admin/ui/runtime-installations/design")nativePost=request.isNavigationRequest();});
   try {
-    await confirm(page,form,"更换同一账号凭据");
+    await form.getByRole("button",{name:"更换同一账号凭据",exact:true}).click();
+    const credentialConfirmation=page.getByRole("alertdialog");
+    await expect(credentialConfirmation).toContainText("Design");
+    await expect(credentialConfirmation).toContainText("https://design.example.test/mcp");
+    await credentialConfirmation.getByRole("button",{name:"更换同一账号凭据",exact:true}).click();
     await held.entered;
     expect(nativePost).toBe(false);
     expect(await page.evaluate(()=>document.querySelector<HTMLInputElement>('input[name="material"]')?.value==="")).toBe(true);

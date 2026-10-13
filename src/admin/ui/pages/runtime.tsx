@@ -18,7 +18,7 @@ function ClientConsents({model,installation}:{readonly model:RuntimeMemberModel;
   return <section className="workspace-section" aria-label="客户端授权"><h3>客户端授权</h3>{!clients.length?<p>尚无客户端授权。完成终端登录并在授权页确认客户端、服务和权限。</p>:<Table aria-label="已记录的客户端授权"><TableHeader><TableRow><TableHead>客户端 / 服务</TableHead><TableHead>授权状态</TableHead><TableHead>到期（UTC）</TableHead><TableHead>操作</TableHead></TableRow></TableHeader><TableBody>{clients.map(client=>{
     const currentInstallation=model.installations.find(row=>row.id===client.installation);
     const current=currentInstallation&&client.scope==="runtime.use"&&client.authority_revision===currentInstallation.authority_revision&&client.access_revision===currentInstallation.access_revision;
-    const message=`撤销 ${client.client_name} 的客户端授权？后续请求将被拒绝；不会退出浏览器、撤销其他客户端或撤回已执行的上游操作。`;
+    const message=`${client.client_name} · ${client.resource}。撤销此客户端授权？后续请求将被拒绝；不会退出浏览器、撤销其他客户端或撤回已执行的上游操作。`;
     return <TableRow key={client.id}><TableCell className="whitespace-normal">{client.client_name}<span className="record-subline">{currentInstallation?.label??"已无使用权限的服务"} · 名称由客户端自行提供</span></TableCell><TableCell className="whitespace-normal">{current?"已记录授权，不是 token 健康检查":currentInstallation?"服务权限已变更，需要重新授权":"已无组织权限，后续调用被拒绝"}</TableCell><TableCell><time dateTime={client.expires_at}>{utc(client.expires_at)}</time></TableCell><TableCell>
       <form method="post" action={`/me/ui/runtime-clients/${client.id}/revoke`} data-confirmation={message}><input type="hidden" name="installation" value={client.installation}/><input type="hidden" name="confirm" value="1"/><ConfirmationFallback message={message}/><Button type="submit" variant="outline">撤销授权</Button></form>
     </TableCell></TableRow>;
@@ -64,10 +64,11 @@ export function RuntimeMemberPage({model,selectedId}:{readonly model:RuntimeMemb
 export const runtimeAdminHref=(id?:string,search="",page=1)=>`/admin?view=runtime${id?`&installation=${encodeURIComponent(id)}`:""}${search?`&q=${encodeURIComponent(search)}`:""}${page>1?`&page=${page}`:""}`;
 type Installation=RuntimeAdminModel["installations"][number];
 function RuntimeAction({installation,action,label,message,children}:{readonly installation:Installation;readonly action:string;readonly label:string;readonly message:string;readonly children?:import("react").ReactNode}) {
-  return <form method="post" action={`/admin/ui/runtime-installations/${installation.id}`} data-confirmation={message}>
+  const confirmation=`${installation.label}（${installation.resource}）。${message}`;
+  return <form method="post" action={`/admin/ui/runtime-installations/${installation.id}`} data-confirmation={confirmation}>
     <input type="hidden" name="action" value={action}/><input type="hidden" name="confirm" value="1"/>
     {action!=="configure"?<><input type="hidden" name="expectedRevision" value={installation.revision}/><input type="hidden" name="operationId" value={action==="recover"?installation.operation_id??"":crypto.randomUUID()}/></>:null}
-    {children}<ConfirmationFallback message={message}/><Button type="submit" variant="outline">{label}</Button>
+    {children}<ConfirmationFallback message={confirmation}/><Button type="submit" variant="outline">{label}</Button>
   </form>;
 }
 export function RuntimeAdminPage({model}:{readonly model:RuntimeAdminModel}) {
@@ -87,9 +88,12 @@ export function RuntimeAdminPage({model}:{readonly model:RuntimeAdminModel}) {
       </section>
     </>}
     {selected.state!=="unconfigured"?<section className="workspace-section" aria-label="成员使用权限"><h3>成员使用权限</h3><form method="get" action="/admin" role="search" aria-label="搜索可授权成员" data-dashboard-search="true"><input type="hidden" name="view" value="runtime"/><input type="hidden" name="installation" value={selected.id}/><Field control={{label:"组织邮箱或成员 ID",name:"q",value:model.search,maxLength:256}}/><Button type="submit" variant="outline">搜索成员</Button></form>
-      <Table aria-label="成员工具权限"><TableHeader><TableRow><TableHead>成员</TableHead><TableHead>组织权限</TableHead><TableHead>操作</TableHead></TableRow></TableHeader><TableBody>{model.members.map(member=><TableRow key={member.id}><TableCell>{member.canonical_email??member.id}{member.status!=="active"?<span className="record-subline">成员已停用</span>:null}</TableCell><TableCell>{member.state==="granted"?`已授予${member.expires_at?`，${utc(member.expires_at)} 到期`:"，不设期限"}`:"未授予"}</TableCell><TableCell>{selected.state!=="retired"&&selected.phase==="ready"?<form method="post" action={`/admin/ui/runtime-installations/${selected.id}`} data-confirmation={member.state==="granted"?"撤回此成员的工具服务权限？后续调用被拒绝；保留记录，不影响其他成员和浏览器登录。":"授予此成员不设期限的使用权限？成员将可通过 OAuth 使用组织共享上游账号的工具，不保证资源隔离。"}>
-        <input type="hidden" name="action" value="access"/><input type="hidden" name="confirm" value="1"/><input type="hidden" name="subject" value={member.id}/><input type="hidden" name="expectedRevision" value={member.revision}/><input type="hidden" name="state" value={member.state==="granted"?"revoked":"granted"}/><input type="hidden" name="expiresAt" value=""/><ConfirmationFallback message={member.state==="granted"?"确认撤回此成员权限，后续调用被拒绝。":"确认授予不设期限的共享工具权限。"}/><Button type="submit" variant="outline">{member.state==="granted"?"撤回权限":"授予（不设期限）"}</Button>
-      </form>:"当前不可修改"}</TableCell></TableRow>)}</TableBody></Table>
+      <Table aria-label="成员工具权限"><TableHeader><TableRow><TableHead>成员</TableHead><TableHead>组织权限</TableHead><TableHead>操作</TableHead></TableRow></TableHeader><TableBody>{model.members.map(member=>{
+        const confirmation=`${member.canonical_email??member.id} · ${selected.label}（${selected.resource}）。${member.state==="granted"?"撤回此成员的工具服务权限？后续调用被拒绝；保留记录，不影响其他成员和浏览器登录。":"授予此成员不设期限的使用权限？成员将可通过 OAuth 使用组织共享上游账号的工具，不保证资源隔离。"}`;
+        return <TableRow key={member.id}><TableCell>{member.canonical_email??member.id}{member.status!=="active"?<span className="record-subline">成员已停用</span>:null}</TableCell><TableCell>{member.state==="granted"?`已授予${member.expires_at?`，${utc(member.expires_at)} 到期`:"，不设期限"}`:"未授予"}</TableCell><TableCell>{selected.state!=="retired"&&selected.phase==="ready"?<form method="post" action={`/admin/ui/runtime-installations/${selected.id}`} data-confirmation={confirmation}>
+        <input type="hidden" name="action" value="access"/><input type="hidden" name="confirm" value="1"/><input type="hidden" name="subject" value={member.id}/><input type="hidden" name="expectedRevision" value={member.revision}/><input type="hidden" name="state" value={member.state==="granted"?"revoked":"granted"}/><input type="hidden" name="expiresAt" value=""/><ConfirmationFallback message={confirmation}/><Button type="submit" variant="outline">{member.state==="granted"?"撤回权限":"授予（不设期限）"}</Button>
+      </form>:"当前不可修改"}</TableCell></TableRow>;
+      })}</TableBody></Table>
       {!model.members.length?<p className="empty">没有匹配的成员。</p>:null}<nav aria-label="成员分页">{model.page>1?<TaskLink href={runtimeAdminHref(selected.id,model.search,model.page-1)}>上一页</TaskLink>:null}{model.more?<TaskLink href={runtimeAdminHref(selected.id,model.search,model.page+1)}>下一页</TaskLink>:null}</nav>
       <p className="caption">只展示可授权的组织成员或仍需撤回的既有权限。成员权限、客户端授权和上游凭据分别管理。每页最多 20 位。</p>
     </section>:null}
