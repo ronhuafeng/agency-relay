@@ -22,6 +22,9 @@ const validDay = (value: string): boolean => /^\d{4}-\d{2}-\d{2}$/.test(value) &
 export function consoleReturnTarget(value: string): string | null {
   if (value.length > 4096 || !value.startsWith('/') || value.startsWith('//') || /[\u0000-\u0020\u007f\\]/.test(value) || /%(?![\da-f]{2})/i.test(value)) return null;
   const url = new URL(value, 'https://console.invalid');
+  // Only the opaque browser-bound Runtime transaction may cross organization login.
+  // OAuth parameters and client callback URLs never enter this return grammar.
+  if(/^\/runtime\/consent\/[a-f0-9-]{36}$/.test(value))return value;
   const service = /^\/me\/service-accounts\/([^/]+)$/.exec(url.pathname);
   if (url.origin !== 'https://console.invalid' || (!['/', '/admin', '/admin/'].includes(url.pathname) && !service)) return null;
   // Reject path normalization and encoded separators rather than reinterpreting an API path.

@@ -8,6 +8,12 @@ it('normalizes the removed mixed-account category to the member category through
   expect(consoleLoginHref(original)).toBe(`/login?${new URLSearchParams({return: current})}`);
 });
 
+it('retains only the opaque Runtime consent return, never OAuth parameters or callbacks',()=>{
+  const target='/runtime/consent/12345678-1234-1234-1234-123456789abc';
+  expect(consoleReturnTarget(target)).toBe(target);
+  for(const invalid of [target+'?code=synthetic',target+'#content','/runtime/authorize?client_id=synthetic','/runtime/consent/anything','/runtime/consent/../admin'])expect(consoleReturnTarget(invalid)).toBeNull();
+});
+
 it.each([
   '/', '/admin', '/admin/', '/admin?view=overview&range=7d', '/admin?view=overview&range=30d#usage-trends', '/admin?view=access&kind=service&q=build#people-list', '/admin?area=me&view=usage&range=7d', '/admin?area=me&view=usage&range=30d#content',
   '/?view=usage&range=30d', '/admin?view=access&person=member&q=example%40test&range=all#credits',

@@ -218,9 +218,32 @@ Local Setup produces a selected client's configuration from a key the user alrea
 | Grok Build | `grok-config.toml` | `~/.grok/config.toml` |
 | xAI API | `xai-api.env` | Client environment, with explicit base URL |
 
-All client surfaces use Agency Relay bearer keys. xAI clients must explicitly pass `https://xai.trustedtunnel.app/v1`; do not claim arbitrary SDKs automatically read a base-URL environment variable. Caller keys are never forwarded to providers.
+Provider client surfaces use Agency Relay bearer keys. xAI clients must explicitly pass `https://xai.trustedtunnel.app/v1`; do not claim arbitrary SDKs automatically read a base-URL environment variable. Caller keys are never forwarded to providers. Runtime MCP clients use the separate explicit-consent OAuth flow; a Provider configuration cannot grant Runtime access.
 
 A one-time setup package is part of the key creation response. Later local configuration sync requires a key the user already possesses and must not send it back for server storage. Local generation requires scripting; without scripting do not expose an inert secret input. Download, installation, authenticated use, and dated real work remain distinct outcomes.
+
+## Runtime client consent
+
+An eligible member reviews the registered client's self-asserted name, exact
+installation URI, `runtime.use` permission and shared-upstream consequence before
+Allow or Deny. This grants all tools of that installation, including supported
+changes to shared resources; it is not read-only or an attestation of the client.
+Show the thirty-day maximum and explain that browser logout does not revoke the
+client. Long untrusted names and resource addresses must remain readable on a
+narrow screen without pushing decision controls out of view.
+
+Login preserves only an opaque, browser-bound transaction. A changed identity or
+authority cannot silently adopt a replacement after login. Expired, invalid or
+unavailable consent shows a safe recovery: return to the client and start a new
+authorization. Do not automatically repeat a decision, restore permission or
+switch accounts. A successful protocol return is not a completed upstream task.
+
+Current-member consent metadata and exact revoke are separate from administrator
+Installation Access. Revocation stops subsequent admissions for that client,
+not other clients or an already admitted tool action. A recorded consent does
+not prove current entitlement or provider health. See
+[organization access](organization-access.md#runtime-installation-and-member-authority)
+and [Security](../../SECURITY.md#runtime-admission-and-lifecycle).
 
 ## Application quality and lifecycle
 

@@ -602,6 +602,7 @@ function makeTokenAuthorityFixture(options: {
     CONSOLE_EMAIL_DOMAIN: "example.com",
     RUNTIME_INSTALLATIONS: "[]",
     RUNTIME_CREDENTIALS: undefined as unknown as Env["RUNTIME_CREDENTIALS"],
+    RUNTIME_OAUTH: undefined as unknown as Env["RUNTIME_OAUTH"],
     FEISHU_APP_ID: "cli_test",
     FEISHU_APP_SECRET: "test-secret",
     REQUEST_AUDIT_RETENTION_DAYS: "30",

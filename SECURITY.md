@@ -36,13 +36,14 @@ resource and granted scope, and cannot add scope.
 KV read-modify-write is not the authority. The inspected
 `@cloudflare/workers-oauth-provider@1.2.3` uses `env.OAUTH_KV` and does not supply
 this transaction seam. No KV emulation or OAuth library fork is introduced.
-The synthetic fixture is not a production authorization service: production
-principal/installation admission, registration lifecycle and timed record cleanup
-remain implementation obligations before rollout.
+The production OAuth owner is `src/runtime/oauth.ts`, with HTTP roles in
+`src/runtime/authorization.ts`. Synthetic identity and MCP tasks establish the
+controlled contract, not deployed Feishu or Stitch capability. Empty Runtime
+declarations publish neither an installation nor its OAuth endpoints.
 
 Revocation advances the grant generation. The next use of an old bearer or refresh is denied. A response already returned stays returned. A later allow does not revive the old bearer. Rebinding to a different account advances the generation and the account together. Rebinding to the current account is rejected. Refresh of the same account issues new refresh and access material and leaves the account in place. A previously issued access token remains usable only until expiry, grant replay invalidation or a generation change.
 
-### Runtime admission and lifecycle target
+### Runtime admission and lifecycle
 
 V1 selects one dedicated SQLite-backed OAuth Durable Object for the organization,
 separate from Provider TokenAuthority. It owns registered clients, pending
@@ -50,8 +51,8 @@ transactions, Client Consent, authorization codes, token families and replay
 tombstones. The pinned library supplies protocol validation and credential
 generation through its model interface; application consent, exact resources and
 current entitlement remain Agency Relay policy. Production authorization-code
-issuance must use the library's authorize/model seam; the current synthetic
-consent handler is not a production OAuth server to copy.
+issuance uses the library's authorize/model seam. The earlier synthetic consent
+handler is not an alternate production authorization server.
 
 One short `blockConcurrencyWhile` gate serializes grant reads/mutations while a
 current D1 primary read is in flight. This is necessary because awaiting external
@@ -81,8 +82,9 @@ that family deadline. Pending login/consent transactions expire after ten
 minutes. Keep consumed-code and spent-refresh tombstones until the family ends;
 individual credential expiry is not a safe deletion boundary while descendants
 are valid. Revoke/replay blocks the whole affected family immediately. Alarm
-cleanup removes bounded batches only after the family deadline, with a
-ten-minute retention margin. Delay or failure of cleanup consumes storage but
+cleanup selects at most 128 ended families after the ten-minute retention
+margin and limits each child-record deletion to 256 rows. It retains each
+family until all its child records are removed. Delay or failure consumes storage but
 cannot restore authority. Resource reads always check expiry and revision;
 cleanup is not the expiry mechanism.
 
@@ -94,8 +96,11 @@ member/installation. At capacity, reject new work; do not evict active grants.
 Registration attempts use a durable organization limit of 100 per UTC hour;
 token attempts use 30 per registered client per UTC minute, with an organization
 limit of 300 per minute covering unknown clients too. Revocation cannot reset
-these counters. The selected limit definitions are implementation obligations,
-not measurements of the current fixture's lifetime attempt counters.
+these counters. Public request limits include malformed registration/token
+traffic; an unambiguous registered client ID also consumes its per-client token
+limit before the remaining form is validated. Authorization starts are limited
+to 300 per organization and 30 per client per UTC minute, with at most 300 pending
+transactions. Protocol bodies are limited to 8 KiB and a five-second read budget.
 
 No CIMD, JWKS fetch, third-party registration metadata fetch, automatic consent,
 or persistent MCP session is selected for V1. DCR allocates an independent public
@@ -103,6 +108,41 @@ client ID for each registration; the synthetic fixture's one fixed client ID is
 not the production registration policy. Scope grants installation use, not
 per-tool read-only access. A consent screen must state the shared upstream
 authority consequence. All token material stays out of audit and diagnostics.
+
+The canonical console origin owns `/.well-known/oauth-authorization-server`,
+`/runtime/register`, `/runtime/authorize`, `/runtime/token`, the exact opaque
+`/runtime/consent/:id` return, and current-member `/runtime/clients` list/revoke.
+Each deployment-declared resource origin owns
+`/.well-known/oauth-protected-resource/mcp`; the resource itself is the exact
+HTTPS `/mcp` URI. A resource origin cannot also be a Provider or console origin.
+Registration and token exchange require no browser cookie/Origin; their explicit
+uncredentialed CORS never advertises credentialed wildcard access. Consent and
+client revocation use the existing console principal and exact-Origin write guard.
+Only an opaque browser-bound, ten-minute transaction can survive Feishu return.
+An authenticated pending transaction captures both authority revisions; an
+anonymous start captures installation authority before login, then member access
+when that verified identity first enters consent. Neither can adopt a newer
+installation authority after rebind.
+
+Tokens are opaque: the dedicated OAuth authority looks up their domain-separated
+HMAC, expiry, exact resource and actual granted `runtime.use` scope. Provider
+keys, upstream tokens, operator secrets and console cookies are not Runtime
+bearers. Missing/invalid tokens receive a resource-metadata challenge; current
+permission loss receives 403 and unavailable authority receives 503. Own consent
+metadata is not a cached entitlement. DCR allocates a new public client ID and
+does not update an older registration. Unsupported self-asserted metadata is
+ignored without fetching it, as required by [RFC 7591 §2](https://www.rfc-editor.org/rfc/rfc7591.html#section-2);
+client-secret and JWK-based registration are rejected.
+
+Keep automatic invocation logs and traces off for this Worker. Cloudflare's
+[invocation logs](https://developers.cloudflare.com/workers/observability/logs/workers-logs/#invocation-logs)
+include URLs, and [trace attributes](https://developers.cloudflare.com/workers/observability/traces/spans-and-attributes/)
+include full URLs/query strings and Durable Object SQL bindings. Application
+logs remain enabled for allowlisted event categories, never callback queries,
+credentials or raw client metadata. No-store and no-referrer apply to OAuth
+responses. Consent HTML blocks framing and permits form return only to the
+validated callback origin. Do not collect raw OAuth traffic with live tail,
+browser tracing or diagnostics.
 
 ## Browser protection
 

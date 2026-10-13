@@ -22,6 +22,7 @@ import {
 } from "./proxy/protocol";
 import { isAdminSurface, routeAdmin } from "./admin/http";
 import type { AppDependencies, ExecutionDependencies, RequestContext } from "./types";
+import { runtimeAuthorizationResponse } from "./runtime/authorization";
 
 
 export async function handleRequest(
@@ -46,6 +47,9 @@ export async function handleRequest(
     if (url.pathname === "/healthz" && request.method === "GET") {
       return jsonResponse({ ok: true, service: "mini-proxy-core", kind: "liveness" });
     }
+
+    const runtimeResponse=await runtimeAuthorizationResponse(request,env);
+    if(runtimeResponse)return runtimeResponse;
 
     if (isAdminSurface(request, url, env)) {
       return await routeAdmin(request, env, url, deps, requestContext);
