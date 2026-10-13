@@ -330,7 +330,9 @@ it("requires explicit member consent before the library issues a resource-bound 
     const html=await shown.text();
     expect(shown.status).toBe(200);
     expect(shown.headers.get("Content-Security-Policy")?.includes("frame-ancestors 'none'")).toBe(true);
-    expect(shown.headers.get("Referrer-Policy")).toBe("no-referrer");
+    // Preserve native same-origin POST Origin without leaking a referrer to the
+    // loopback client callback; the actual browser journey proves the latter.
+    expect(shown.headers.get("Referrer-Policy")).toBe("same-origin");
     expect(html.includes("Synthetic &lt;client&gt;")&&!html.includes("<client>")).toBe(true);
     expect(html.includes(RESOURCE)&&html.includes("runtime.use")&&html.includes("Allow")&&html.includes("Deny")).toBe(true);
     const decide=(cookies:string)=>f.runtime.dispatchFetch(target.href,{method:"POST",headers:{Cookie:cookies,Origin:ISSUER,"Content-Type":"application/x-www-form-urlencoded"},body:"decision=allow",redirect:"manual"});

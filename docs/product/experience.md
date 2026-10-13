@@ -245,6 +245,44 @@ not prove current entitlement or provider health. See
 [organization access](organization-access.md#runtime-installation-and-member-authority)
 and [Security](../../SECURITY.md#runtime-admission-and-lifecycle).
 
+My tool services lists only the member's current Installation Access, including
+disabled, retired and cleanup-pending states. An administrator in My space has
+the same personal scope. A removed entitlement hides that installation and its
+transport facts; its own unexpired recorded client authorization remains available
+to revoke. Direct links never select a substitute. Browser login, access, recorded
+consent, credential metadata readiness and last transport are separate facts.
+
+The exact installation task provides a URL-only `[mcp_servers.<id>]` configuration
+and `codex mcp login <id>`. Merge the snippet into an existing configuration; trusted
+project configuration and local OAuth token storage follow the
+[official Codex MCP guide](https://learn.chatgpt.com/docs/extend/mcp?surface=cli).
+The UI names the CLI version established by the native Runtime test, not universal
+client compatibility. The URL contains no upstream secret, but client-managed
+OAuth tokens remain sensitive. Expired, revoked or lost client tokens need a new
+login when access still exists. Upstream credential failure, disabled service or
+pending cleanup needs administrator recovery, not repeated member OAuth login.
+
+Tool services in organization management operates the finite reviewed deployment
+declarations. Current revision guards own configure, rename, enable, disable,
+retire and credential changes. Same-authority material rotation and authority
+rebind are distinct confirmed actions. The latter invalidates old consent without
+migrating upstream resources. Native forms and enhanced forms use the same lifecycle;
+credential fields are write-only and enhanced submission clears them immediately.
+They are never saved as drafts or exported to members.
+
+Member access search and pagination run in SQL, not on an all-organization client
+payload. Grant creates non-expiring access; revoke preserves its revision. Only
+eligible active organization humans can receive a grant; existing access for an
+ineligible human remains visible for revocation. A retired installation is final.
+An uncertain write leaves a public read-only recovery page and never resubmits.
+`writing` recovery explicitly aborts and disables; `cleaning` recovery completes
+the exact pending operation. The UI uses its stored operation ID and fresh revision.
+
+Last Runtime transport is the latest member/installation fact, not a request log
+or a tool-task success assertion. Status, observed bytes, terminal state and duration
+stay separate from Provider Credit, tokens and money. Runtime pages use existing
+scoped reads and refresh deferral, without a member CredentialEvents subscription.
+
 ## Application quality and lifecycle
 
 The same functionality, permissions and meanings apply across responsive layouts. Reflow, rotation and split-screen preserve exact selection and safe in-progress work. Presentation and accessibility rules are maintained in [Console design](../../design.md).

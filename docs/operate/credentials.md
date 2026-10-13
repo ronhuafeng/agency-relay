@@ -39,6 +39,23 @@ access. Use the Runtime release issue for those distinct rollout steps.
 
 The protected operator API and same-origin administrator console share:
 
+Open **Tool services** in organization management to select a deployment-declared
+installation. Its native HTML forms reuse the lifecycle below. Credentials remain
+write-only; member access is searched and paged on the server. UI access grants
+have no expiration; use the API for an explicit future `expiresAt`. Material
+rotation requires a same-authority declaration; binding a different account uses
+rebind. The confirmation describes shared tool authority and consent invalidation.
+No control edits the fixed upstream URL or credential header.
+Native form bodies are limited to 16 KiB to allow percent encoding of a valid
+4096-byte credential. The decoded material limit and field validation stay the same.
+
+After an uncertain HTML operation, use its read-only recovery link. The `writing`
+state offers explicit abort-and-disable; `cleaning` offers exact cleanup recovery.
+Both require the current revision and original pending operation ID. A known write
+stays known when a subsequent page read fails. Do not reload a native POST to seek
+another result. Production activation still requires the Runtime release issue's
+separate domain, fresh credential and operator authority.
+
 | Operation | JSON endpoint |
 | --- | --- |
 | Declared inventory / one installation | `GET /admin/runtime-installations` / `GET /admin/runtime-installations/:id` |

@@ -1,7 +1,7 @@
 import {plansForHostname} from "../plans/execution-plans";
 import {runtimeInstallations,RUNTIME_SCOPE} from "./profiles";
 import {base64UrlEncode,hmacSha256Hex} from "../crypto";
-import {consoleCookieToken} from "../auth/console-session";
+import {runtimeBrowserSessionHash as browserSessionHash} from "./member";
 import {assertConsoleBrowserWrite} from "../admin/browser-write";
 import {consoleDocument} from "../admin/console-shell";
 import {RuntimeConsent,RuntimeConsentFailure} from "../admin/ui/pages/runtime-consent";
@@ -20,6 +20,10 @@ export async function runtimeAuthorizationResponse(request:Request,env:Env):Prom
   if(plansForHostname(url.hostname))return null;
   try {
     const installations=runtimeInstallations(env);
+    if(url.origin===issuer&&url.pathname==="/runtime/integrations"&&request.method==="GET"&&!url.search) {
+      const reply=await env.RUNTIME_OAUTH.getByName("organization").memberData(await browserSessionHash(env,request));
+      return Response.json(reply.body,{status:reply.status,headers:{"Cache-Control":"no-store","Referrer-Policy":"no-referrer"}});
+    }
     if(!installations.length)return null;
     const resource=installations.find(item=>new URL(item.resource).origin===url.origin);
     if(request.method==="GET"&&resource&&url.pathname==="/.well-known/oauth-protected-resource/mcp"&& !url.search)
@@ -66,7 +70,9 @@ export async function runtimeAuthorizationResponse(request:Request,env:Env):Prom
       const data=reply.body as {id:string;client_name:string;resource:string;scope:string;email:string;redirect_uri:string};
       return new Response(consoleDocument({title:"授权客户端 · Agency Relay",email:data.email,
         main:createElement(RuntimeConsent,{...data,action:url.pathname})}),{headers:{
-        "Content-Type":"text/html; charset=utf-8","Cache-Control":"no-store","Referrer-Policy":"no-referrer",
+        // Native same-origin form POST needs a non-null Origin. No referrer is
+        // sent to the external client callback under this same-origin policy.
+        "Content-Type":"text/html; charset=utf-8","Cache-Control":"no-store","Referrer-Policy":"same-origin",
         // Only the validated callback origin may receive the form's 303 return.
         "Content-Security-Policy":`default-src 'none'; style-src 'self'; base-uri 'none'; form-action 'self' ${new URL(data.redirect_uri).origin}; frame-ancestors 'none'`,
         "X-Frame-Options":"DENY","X-Content-Type-Options":"nosniff","X-Robots-Tag":"noindex, nofollow"
@@ -155,6 +161,3 @@ function cookie(request:Request,name:string):string|null {
   return values.length===1?values[0]!.slice(name.length+1):null;
 }
 function oauthHash(env:Env,value:string):Promise<string> {return hmacSha256Hex(env.API_KEY_HASH_PEPPER,`runtime-oauth\0${value}`);}
-async function browserSessionHash(env:Env,request:Request):Promise<string|null> {
-  const token=consoleCookieToken(request);return token?hmacSha256Hex(env.API_KEY_HASH_PEPPER,token):null;
-}

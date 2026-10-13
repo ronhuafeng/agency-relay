@@ -1,5 +1,7 @@
 import { parseUsageQuery, MAX_USAGE_RANGE_DAYS } from "./usage-query";
 import { isRuntimeControlPath, runtimeControlResponse } from "../runtime/control";
+import {revokeRuntimeClient,readRuntimeForm,mutateRuntimeInstallation} from "../runtime/console";
+import {runtimeMemberHref} from "./ui/pages/runtime";
 
 import { delegatedService, listDelegatedServices, readServiceOwner, type ServiceContext } from "../auth/service-delegation";
 import { assertKeyActorAuthority } from "../auth/key-authority";
@@ -571,6 +573,7 @@ export function isAdminSurface(request: Request, url: URL, env: Env): boolean {
 }
 
 function isOwnConsolePath(pathname: string, method: string): boolean {
+  if(/^\/me\/ui\/runtime-clients\/[a-f0-9-]{36}\/revoke$/.test(pathname))return method==="POST";
   if (pathname === "/me/service-accounts") return method === "GET";
   const service = /^\/me\/service-accounts\/[^/]+(.*)$/.exec(pathname);
   if (service) {
@@ -874,7 +877,7 @@ async function authorizeConsole(
     let response: Response;
     if ((suffix === "" || suffix === "/setup") && request.method === "GET") {
       if (suffix === "/setup") scopedUrl.searchParams.set("view", "setup");
-      response = wantsHtml(request) || suffix === "/setup" ? await memberConsoleResponse({env,url:scopedUrl,principal,service,now,requestId:requestContext.requestId,unchangedRevision:request.headers.get("X-Console-Revision")})
+      response = wantsHtml(request) || suffix === "/setup" ? await memberConsoleResponse({request,env,url:scopedUrl,principal,service,now,requestId:requestContext.requestId,unchangedRevision:request.headers.get("X-Console-Revision")})
         : jsonResponse({service}, {headers:{"Cache-Control":"no-store"}});
     } else if (suffix === "/credits" && request.method === "GET") response = meCreditResponse(await listSurfaceCreditStates(env,now,service.id));
     else if (suffix === "/usage" && request.method === "GET") response = await memberUsageResponse({env,url:scopedUrl,principal,service,now});
@@ -901,6 +904,17 @@ async function authorizeConsole(
     });
   }
   if (isOwnConsolePath(url.pathname, request.method)) {
+    const client=/^\/me\/ui\/runtime-clients\/([a-f0-9-]{36})\/revoke$/.exec(url.pathname);
+    if(client) {
+      if(url.search)throw new HttpError(400,"Invalid Runtime operation.","invalid_request_error","runtime_invalid_operation");
+      let installation:string|undefined;
+      try {installation=await revokeRuntimeClient(request,env,client[1]!);}
+      catch(error) {
+        if(error instanceof HttpError&&[400,401,403,404].includes(error.status))throw error;
+        return consoleUnknownOutcome(runtimeMemberHref());
+      }
+      return memberConsoleResponse({request,env,url:new URL(runtimeMemberHref(installation),url),principal,now:currentTime(),requestId:requestContext.requestId,runtimeRevoked:true});
+    }
     return ownKeyResponse(request, env, url, principal, {
       subject: null,
       requestId: requestContext.requestId
@@ -913,13 +927,14 @@ async function authorizeConsole(
     if (url.searchParams.getAll("area").length !== 1 || url.searchParams.get("area") !== "me") {
       throw new HttpError(404, "Console area not found", "invalid_request_error", "not_found");
     }
-    const response = await memberConsoleResponse({ env, url, principal, now: new Date(requestContext.startedAt), requestId: requestContext.requestId, unchangedRevision: request.headers.get("X-Console-Revision") });
+    const response = await memberConsoleResponse({ request,env, url, principal, now: new Date(requestContext.startedAt), requestId: requestContext.requestId, unchangedRevision: request.headers.get("X-Console-Revision") });
     if (response.status === 204) await assertUnchangedReadAuthority(request,env,principal.id,principal.email,principal.role,principal.sessionEpoch,currentTime());
     return response;
   }
   if (principal.role !== "admin") {
     if (request.method === "GET" && isAdminDashboardPage(url, env)) {
       const response = await memberConsoleResponse({
+        request,
         unchangedRevision: request.headers.get("X-Console-Revision"),
         env,
         url,
@@ -1044,6 +1059,24 @@ async function routeDashboardUiMutation(
   }
 
   const operator = operatorMutationContext(env, deps, admin, requestContext);
+  const runtime=/^\/admin\/ui\/runtime-installations\/([a-z][a-z0-9-]{0,63})$/.exec(url.pathname);
+  if(runtime) {
+    if(url.search)throw new HttpError(400,"Invalid Runtime operation.","invalid_request_error","runtime_invalid_operation");
+    const body=await readRuntimeForm(request);
+    let flash:DashboardMutationFlash;
+    let status=200;
+    try {
+      await mutateRuntimeInstallation(env,credentialActor(operator),runtime[1]!,body,operator.now);
+      flash={kind:"runtime_changed",installation_id:runtime[1]!,message:"工具服务操作已完成。请核对当前状态；已执行的上游操作和资源不会因此撤回或迁移。"};
+    } catch(error) {
+      // Actor/revision rejection can occur after staging across D1 and the DO.
+      // Only input validation is known not to have written; all other uncertain
+      // outcomes require a GET, never an automatic repeat of this POST.
+      if(!(error instanceof HttpError)||error.status!==400)return consoleUnknownOutcome(`/admin?view=runtime&installation=${runtime[1]}`,"工具服务操作结果尚未确认。请重新打开页面读取当前状态；不会自动重复提交。");
+      status=error.status;flash={kind:"runtime_error",installation_id:runtime[1]!,message:"这次操作未完成。页面权限、配置版本或输入已改变；请查看当前状态后重新打开表单。"};
+    }
+    return dashboardAfterMutation(env,url,admin,deps,requestContext,flash,status);
+  }
   const body = await readDashboardBody(request);
 
   const credentialDefault = /^\/admin\/ui\/credential-defaults\/(codex|grok|xai)$/.exec(url.pathname);
@@ -1548,7 +1581,7 @@ async function dashboardAfterMutation(
   accountSearch?: string,
   accountPage?: string
 ): Promise<Response> {
-  const view = flash.kind.startsWith("grok") || flash.kind.startsWith("codex") || flash.kind.startsWith("credential_") && flash.kind !== "credential_binding"
+  const view = flash.kind.startsWith("runtime_")?"runtime":flash.kind.startsWith("grok") || flash.kind.startsWith("codex") || flash.kind.startsWith("credential_") && flash.kind !== "credential_binding"
     ? "credentials"
     : flash.kind === "key_created" || flash.kind === "key_replacement_created"
       ? "setup"
@@ -1556,6 +1589,7 @@ async function dashboardAfterMutation(
   const pageUrl = new URL(url.origin);
   pageUrl.pathname = "/admin";
   pageUrl.searchParams.set("view", view);
+  if("installation_id" in flash)pageUrl.searchParams.set("installation",flash.installation_id);
   if (view === "credentials") {
     const account = dashboardAccountForMutation(flash);
     if (account) pageUrl.searchParams.set("account", account);

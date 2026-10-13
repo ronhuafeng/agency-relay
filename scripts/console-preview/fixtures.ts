@@ -1,13 +1,23 @@
 import { readSnapshot, importSnapshot } from "./snapshot";
 import { createTestD1 } from "../../tests/support/sqlite-d1";
 import { createConsoleSession, CONSOLE_COOKIE } from "../../src/auth/console-session";
+import {oauthFixture,authorizedTokens,resourceRequest} from "../../tests/runtime/oauth-fixture";
 
 export const PREVIEW_ORIGIN = "https://console.preview.test";
-export const scenarios = ["populated", "empty", "long", "snapshot"] as const;
+export const scenarios = ["populated", "empty", "long", "runtime", "snapshot"] as const;
 export type Scenario = typeof scenarios[number];
+interface PreviewFixture {env:Env;cookies:Map<string,string>;dispatchRequest?:(request:Request)=>Promise<Response>;close:()=>void|Promise<void>}
 
 /** Synthetic SQL rows, real migrations and production routes. No remote credentials. */
-export async function createPreviewFixture(scenario: Scenario, preferredEmail?: string) {
+export async function createPreviewFixture(scenario: Scenario, preferredEmail?: string):Promise<PreviewFixture> {
+  if(scenario==="runtime") {
+    const f=await oauthFixture(undefined,{issuer:PREVIEW_ORIGIN});
+    try {
+      const client=await authorizedTokens(f);
+      const response=await resourceRequest(f,client.tokens.access_token);await response.body?.cancel();
+      return {env:f.env,cookies:f.cookies,dispatchRequest:async request=>f.runtime.dispatchFetch(request.url,{method:request.method,headers:Object.fromEntries(request.headers),...(request.body?{body:await request.arrayBuffer()}:{}),redirect:"manual"}),close:f.dispose};
+    } catch(error){await f.dispose();throw error;}
+  }
   const db = createTestD1();
   const now = new Date();
   const stamp = now.toISOString();

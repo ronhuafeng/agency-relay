@@ -22,6 +22,10 @@
 .request-collection>.actions { display:flex; flex-wrap:wrap; gap:8px; }
 .setup-detail>.section-links { margin:0; }
 .configuration-local-task>[data-slot=card] { margin-top:16px; }
+.runtime-collection,.runtime-detail { display:grid; gap:var(--space-4); min-width:0; overflow-wrap:anywhere; }
+.runtime-detail>.workspace-section,.runtime-collection>.workspace-section,.runtime-detail form { display:grid; gap:var(--space-3); min-width:0; }
+.runtime-detail pre { max-width:100%; margin:0; padding:var(--space-3); border:1px solid var(--border); background:var(--card); white-space:pre-wrap; overflow-wrap:anywhere; font:var(--typography-technical); }
+.runtime-detail form>[data-slot=button] { justify-self:start; }
 @container object-workspace (min-width:1000px) {
   .object-workspace-layout[data-task-open=true] { grid-template-columns:minmax(300px,.8fr) minmax(0,1.6fr); }
   .request-object-workspace>.object-workspace-layout[data-task-open=true] { grid-template-columns:minmax(0,1.5fr) minmax(340px,1fr); }

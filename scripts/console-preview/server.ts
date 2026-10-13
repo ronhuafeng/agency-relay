@@ -24,6 +24,7 @@ async function rebuild() {
   await build({ entryPoints: ["src/router.ts"], outfile, bundle: true, platform: "node", format: "esm", packages: "external", define: { "process.env.NODE_ENV": '"production"' }, logLevel: "silent" });
   const module = await import(`${pathToFileURL(outfile).href}?v=${++revision}`) as typeof import("../../src/router");
   handleRequest = module.handleRequest;
+  if(scene==="runtime") {const next=await createPreviewFixture(scene);const previous=fixture;fixture=next;await previous.close();}
 }
 await rebuild();
 let timer: ReturnType<typeof setTimeout> | undefined;
@@ -63,7 +64,7 @@ const server = createServer(async (incoming, outgoing) => {
     if (url.pathname === "/__preview/config" && method === "POST") {
       const input = JSON.parse(body.toString()) as { scene?: Scenario; role?: string; theme?: string; reset?: boolean };
       if (!scenarios.includes(input.scene!) || !["admin", "member"].includes(input.role!) || !["light", "dark", "system"].includes(input.theme!)) { outgoing.writeHead(400).end(); return; }
-      if (scene !== input.scene || input.reset) { const next = await createPreviewFixture(input.scene!, preferredEmail); const previous = fixture; fixture = next; scene = input.scene!; previous.close(); }
+      if (scene !== input.scene || input.reset) { const next = await createPreviewFixture(input.scene!, preferredEmail); const previous = fixture; fixture = next; scene = input.scene!; await previous.close(); }
       role = input.role!; theme = input.theme!; outgoing.end("ok"); return;
     }
     // Service worker caching/registration is outside this preview's transport contract.
@@ -74,7 +75,8 @@ const server = createServer(async (incoming, outgoing) => {
     headers.set("Host", new URL(PREVIEW_ORIGIN).host);
     headers.set("Cookie", fixture.cookies.get(role)!);
     if (headers.get("Origin") === localOrigin) headers.set("Origin", PREVIEW_ORIGIN);
-    const response = await handleRequest(new Request(canonical, { method, headers, ...(body.length ? { body } : {}) }), fixture.env, { waitUntil: promise => { void promise.catch(() => console.error("Preview background operation failed.")); } }, { now: () => new Date(), fetch: async () => { throw new Error("Provider network is unavailable in local scenarios"); } });
+    const request=new Request(canonical, { method, headers, ...(body.length ? { body } : {}) });
+    const response = fixture.dispatchRequest?await fixture.dispatchRequest(request):await handleRequest(request, fixture.env, { waitUntil: promise => { void promise.catch(() => console.error("Preview background operation failed.")); } }, { now: () => new Date(), fetch: async () => { throw new Error("Provider network is unavailable in local scenarios"); } });
     const responseHeaders = new Headers(response.headers);
     responseHeaders.delete("Set-Cookie");
     const location = responseHeaders.get("Location");
@@ -101,4 +103,4 @@ const server = createServer(async (incoming, outgoing) => {
 });
 await new Promise<void>((done, reject) => { server.once("error", reject); server.listen(port, "127.0.0.1", done); });
 console.info(`Agency Relay preview: ${localOrigin}/__preview`);
-for (const signal of ["SIGINT", "SIGTERM"] as const) process.once(signal, () => { watcher.close(); tokenWatcher.close(); clearTimeout(timer); server.closeAllConnections(); server.close(); fixture.close(); process.exit(0); });
+for (const signal of ["SIGINT", "SIGTERM"] as const) process.once(signal, async () => { watcher.close(); tokenWatcher.close(); clearTimeout(timer); server.closeAllConnections(); server.close(); await fixture.close(); process.exit(0); });

@@ -11,6 +11,7 @@ import { commitServiceOwner } from "../../src/auth/service-delegation";
 import { createConsoleSession } from "../../src/auth/console-session";
 import { commitUserEmail, resolveConsolePrincipal } from "../../src/auth/principal";
 import { createTestD1 } from "../support/sqlite-d1";
+import {oauthFixture} from "../runtime/oauth-fixture";
 
 export const ORIGIN = "https://console.mini.test";
 export const ATTACKER_ORIGIN = "https://attacker.mini.test";
@@ -44,7 +45,7 @@ function loadConsoleHandler(): Promise<ConsoleHandler> {
 
 /** Real Mini routes, SSR, generated assets and SQL. Only external authority is replaced.
  * This is a Node request adapter, not evidence of deployed D1/Feishu/Workers behavior. */
-export async function startConsoleWorker(options: { measure?: boolean } = {}) {
+export async function startConsoleWorker(options: { measure?: boolean; runtime?: boolean } = {}) {
   const timings: Array<{ kind: "html" | "script" | "other"; handlerMs: number }> = [];
   mkdirSync("tmp", { recursive: true });
   const handleRequest = await loadConsoleHandler();
@@ -65,6 +66,7 @@ export async function startConsoleWorker(options: { measure?: boolean } = {}) {
   const requests: Array<{ method: string; path: string; view: string | null; cookiePresent: boolean; authorizationPresent: boolean; origin: string | null; fetchSite: string | null }> = [];
   const gates: Array<{ match: RequestMatch; entered: Deferred; release: Deferred; status?: number; used: boolean; disconnect?: boolean }> = [];
   const sockets = new Set<Socket>();
+  let runtimeCallback:((url:URL,hasReferrer:boolean)=>Promise<void>)|null=null;
   let clock = new Date(NOW);
   let codexRefreshFailure: "reauth_required" | "codex_token_refresh_failed" | "missing_access_token" | null = null;
   let loginIdentity: Identity | null = null;
@@ -103,6 +105,9 @@ export async function startConsoleWorker(options: { measure?: boolean } = {}) {
       })
     } as unknown as Env["TOKEN_AUTHORITY"]
   };
+  // Opt-in Runtime journeys use the actual Worker, D1 and both DO owners.
+  // The existing Node fixture remains unchanged for all Provider console tests.
+  const runtimeFixture=options.runtime?await oauthFixture(undefined,{issuer:ORIGIN}):null;
   for (const identity of ["member", "admin", "other", "backup"] as const) {
     db.sqlite.prepare(`INSERT INTO users (id, email, canonical_email, login_capable, account_kind, role, status, created_at, updated_at)
       VALUES (?, ?, ?, 1, 'human', ?, 'active', ?, ?)`).run(identity, `${identity}@example.test`, `${identity}@example.test`, ["admin", "backup"].includes(identity) ? "admin" : "user", NOW, NOW);
@@ -152,7 +157,7 @@ export async function startConsoleWorker(options: { measure?: boolean } = {}) {
       const body = Buffer.concat(chunks);
       const request = new Request(url, { method, headers, ...(body.length ? { body } : {}) });
       const handlerStart = performance.now();
-      const response = await handleRequest(request, env, { waitUntil: (promise) => { void promise.catch(() => unexpected.push("background failure")); } }, {
+      const response = runtimeFixture?await runtimeFixture.runtime.dispatchFetch(request.url,{method,headers:Object.fromEntries(headers),...(body.length?{body}:{}),redirect:"manual"}):await handleRequest(request, env, { waitUntil: (promise) => { void promise.catch(() => unexpected.push("background failure")); } }, {
         now: () => new Date(clock),
         fetch: async (input) => {
           // Explicit synthetic IdP responses for the Mini callback boundary only.
@@ -169,6 +174,7 @@ export async function startConsoleWorker(options: { measure?: boolean } = {}) {
         const contentType = response.headers.get("Content-Type") ?? "";
         timings.push({ kind: contentType.includes("text/html") ? "html" : contentType.includes("javascript") ? "script" : "other", handlerMs: performance.now() - handlerStart });
       }
+      const responseBody = Buffer.from(await response.arrayBuffer());
       const gate = gates.find((candidate) => !candidate.used
         && (!candidate.match.method || candidate.match.method === method)
         && (!candidate.match.path || candidate.match.path === url.pathname)
@@ -183,7 +189,6 @@ export async function startConsoleWorker(options: { measure?: boolean } = {}) {
         const state = new URL(authorization).searchParams.get("state")!;
         responseHeaders.set("Location", `${ORIGIN}/login/callback?${new URLSearchParams({state, code: "synthetic-login-code"})}`);
       }
-      const responseBody = Buffer.from(await response.arrayBuffer());
       const forwarded: OutgoingHttpHeaders = Object.fromEntries(responseHeaders);
       delete forwarded["set-cookie"];
       const cookies = responseHeaders.getSetCookie();
@@ -201,7 +206,21 @@ export async function startConsoleWorker(options: { measure?: boolean } = {}) {
   if (!address || typeof address === "string") throw new Error("Fixture listen failed");
   // The transparent tunnel keeps the real canonical HTTPS origin (including cookies,
   // form Origin and redirects), while avoiding privileged port 443 and all DNS/egress.
-  const proxy = createHttpServer((_req, res) => { unexpected.push("non-TLS browser request"); res.writeHead(403).end(); });
+  const proxy = createHttpServer(async(req, res) => {
+    // One opt-in synthetic native client's registered loopback callback. Browser
+    // route interception does not own every native form redirect hop. No traffic
+    // leaves loopback, and code/state values are never recorded in requests.
+    if(runtimeFixture&&runtimeCallback&&req.method==="GET") {
+      try {
+        const url=new URL(req.url??"");
+        if(url.origin==="http://127.0.0.1:1234"&&url.pathname==="/callback") {
+          await runtimeCallback(url,Boolean(req.headers.referer));
+          res.writeHead(303,{Location:`${ORIGIN}/admin?area=me&view=integrations&installation=design`,"Cache-Control":"no-store","Referrer-Policy":"no-referrer"}).end();return;
+        }
+      } catch {unexpected.push("synthetic Runtime callback failure");res.writeHead(500).end();return;}
+    }
+    unexpected.push("non-TLS browser request"); res.writeHead(403).end();
+  });
   proxy.on("connection", (socket) => { sockets.add(socket); socket.on("close", () => sockets.delete(socket)); });
   proxy.on("connect", (req, client, head) => {
     if (![ORIGIN, ATTACKER_ORIGIN].some(origin => req.url === `${new URL(origin).host}:443`)) {
@@ -235,7 +254,14 @@ export async function startConsoleWorker(options: { measure?: boolean } = {}) {
     unexpected,
     requests,
     timings,
+    runtimeFixture,
+    acceptRuntimeCallback(handler:(url:URL,hasReferrer:boolean)=>Promise<void>){runtimeCallback=handler;return ()=>{runtimeCallback=null;};},
     async session(identity: Identity) {
+      if(runtimeFixture) {
+        const cookie=runtimeFixture.cookies.get(identity);
+        if(!cookie)throw new Error("Runtime fixture identity unavailable");
+        return cookie.slice(cookie.indexOf("=")+1);
+      }
       const principal = await resolveConsolePrincipal(env, `${identity}@example.test`, clock);
       return createConsoleSession(env, principal, clock);
     },
@@ -375,6 +401,7 @@ export async function startConsoleWorker(options: { measure?: boolean } = {}) {
       gates.forEach((gate) => gate.release.resolve());
       for (const socket of sockets) socket.destroy();
       await Promise.all([new Promise<void>((resolve) => server.close(() => resolve())), new Promise<void>((resolve) => proxy.close(() => resolve()))]);
+      await runtimeFixture?.dispose();
       db.close(); rmSync(directory, { recursive: true, force: true });
     }
   };

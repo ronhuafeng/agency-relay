@@ -70,7 +70,7 @@ export async function adminDashboardResponse(input: AdminDashboardInput): Promis
   }
   const base = {
     appEnabled: input.url.hostname === input.env.ADMIN_DASHBOARD_HOST,
-    canonicalUrl: `${input.url.pathname}?view=${view}&range=${range.key}${requestedPerson === null ? "" : `&person=${encodeURIComponent(requestedPerson)}`}${task ? `&task=${task}` : ""}${requestedKey === null ? "" : `&key=${encodeURIComponent(requestedKey)}`}${requestedAccount === null ? "" : `&account=${encodeURIComponent(requestedAccount)}`}${inventoryQuery.size ? `&${inventoryQuery}` : ""}`,
+    canonicalUrl: `${input.url.pathname}?view=${view}&range=${range.key}${view==="runtime"&&input.url.searchParams.has("installation")?`&installation=${encodeURIComponent(input.url.searchParams.get("installation")!)}`:""}${requestedPerson === null ? "" : `&person=${encodeURIComponent(requestedPerson)}`}${task ? `&task=${task}` : ""}${requestedKey === null ? "" : `&key=${encodeURIComponent(requestedKey)}`}${requestedAccount === null ? "" : `&account=${encodeURIComponent(requestedAccount)}`}${inventoryQuery.size ? `&${inventoryQuery}` : ""}`,
     documentTitle: `${requestedAccount !== null ? "连接详情" : task === "add-account" ? "连接上游账号" : task === "sync-configuration" ? "生成配置文件" : requestedKey !== null ? view === "setup" ? "客户端配置" : "密钥详情" : task === "give-access" ? "创建密钥" : task === "add-person" ? "添加成员" : dashboardViewTitle(view)} · Agency Relay 控制台`,
     operatorId: input.identity.userId ?? null,
     operatorLabel: input.identity.email ?? "已登录的管理员",
@@ -107,9 +107,11 @@ export async function adminDashboardResponse(input: AdminDashboardInput): Promis
 function parseDashboardRange(url: URL, now: Date): DashboardRange {
   try { parseRequestHistoryQuery(url); } catch { throw new DashboardInputError("invalid request history query"); }
   const entries = [...url.searchParams.entries()];
-  const allowed = new Set(["range", "view", "plan", "status", "limit", "model", "person", "task", "key", "account", "kind", "q", "page", "page_size", "key_q", "key_page", ...REQUEST_HISTORY_FIELDS]);
+  const allowed = new Set(["range", "view", "plan", "status", "limit", "model", "person", "task", "key", "account", "kind", "q", "page", "page_size", "key_q", "key_page", "installation", ...REQUEST_HISTORY_FIELDS]);
   if (
     entries.some(([key]) => !allowed.has(key))
+    || (url.searchParams.has("installation")&&(url.searchParams.get("view")!=="runtime"||url.searchParams.getAll("installation").length!==1||!/^[a-z][a-z0-9-]{0,63}$/.test(url.searchParams.get("installation")!)))
+    || (url.searchParams.get("view")==="runtime"&&entries.some(([key])=>!["view","range","installation","q","page"].includes(key)))
     || url.searchParams.getAll("range").length > 1
     || url.searchParams.getAll("view").length > 1
     || url.searchParams.getAll("person").length > 1
@@ -129,7 +131,7 @@ function parseDashboardRange(url: URL, now: Date): DashboardRange {
   for (const field of ["q", "page", "key_q", "key_page"]) {
     if (!url.searchParams.has(field)) continue;
     if (url.searchParams.getAll(field).length !== 1
-      || (!["access", "setup"].includes(url.searchParams.get("view") ?? "") && !(url.searchParams.get("view") === "usage" && field === "q") && !(url.searchParams.get("view") === "credentials" && (field === "q" || field === "page" && url.searchParams.has("account"))))
+      || (!["access", "setup"].includes(url.searchParams.get("view") ?? "") && !(url.searchParams.get("view") === "runtime" && url.searchParams.has("installation") && ["q","page"].includes(field)) && !(url.searchParams.get("view") === "usage" && field === "q") && !(url.searchParams.get("view") === "credentials" && (field === "q" || field === "page" && url.searchParams.has("account"))))
       || field.startsWith("key_") && (url.searchParams.get("view") !== "access" || !url.searchParams.get("person")?.trim())) throw new DashboardInputError("invalid inventory query");
     const value = url.searchParams.get(field)!;
     if (field.endsWith("page")) {
@@ -253,9 +255,9 @@ export function dashboardPersonReturnUrl(raw: string | undefined, action: URL, u
 }
 
 /** A committed self-change must not reread a page the actor can no longer access. */
-export function consoleLifecycleOutcome(input: { message: string; href: "/login" | "/admin?view=keys"; returnTarget?: string; label: string; cookie?: string; rejected?: boolean }): Response {
+export function consoleLifecycleOutcome(input: { message: string; href: "/login" | "/admin?view=keys"; returnTarget?: string; label: string; cookie?: string; rejected?: boolean; title?:string }): Response {
   const nonce = randomNonce();
-  const title = input.rejected ? "操作未执行" : "人员已更新";
+  const title = input.rejected ? "操作未执行" : input.title??"人员已更新";
   const href = input.href === "/login" && input.returnTarget ? consoleLoginHref(input.returnTarget) : input.href;
   const response = htmlResponse(consoleDocument({ title: `${title} · Agency Relay`, nonce,
     main: createElement("section", { "data-console-terminal-result": "", "data-console-next": href, role: "status" },
@@ -268,13 +270,13 @@ export function consoleLifecycleOutcome(input: { message: string; href: "/login"
 }
 
 /** Loss of authority after a staged write does not establish that it rolled back. */
-export function consoleUnknownOutcome(href: string): Response {
+export function consoleUnknownOutcome(href: string,description="当前访问条件已改变。请重新打开页面，检查当前权限和操作状态。"): Response {
   const target = consoleReturnTarget(href);
   const next = target ?? "/";
   const nonce = randomNonce();
   return htmlResponse(consoleDocument({title:"请重新打开页面 · Agency Relay",nonce,
     main:createElement("section",{"data-console-terminal-result":"unknown","data-console-next":next},
-      createElement(RecoveryPage,{state:"reopen",description:"当前访问条件已改变。请重新打开页面，检查当前权限和操作状态。",href:next,outcome:"unknown",brand:false}))
+      createElement(RecoveryPage,{state:"reopen",description,href:next,outcome:"unknown",brand:false}))
   }),403,nonce);
 }
 
