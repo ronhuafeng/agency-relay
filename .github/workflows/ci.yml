@@ -98,8 +98,13 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Prepare pinned Codex client for the synthetic OAuth contract
+        run: npm install --prefix "$RUNNER_TEMP/runtime-codex" --no-audit --no-fund @openai/codex@0.156.1
+
       - name: Worker unit and contract tests
         run: pnpm exec vitest run
+        env:
+          CODEX_TEST_BIN: ${{ runner.temp }}/runtime-codex/node_modules/.bin/codex
 
       - name: Egress shim contracts
         run: pnpm run egress:test

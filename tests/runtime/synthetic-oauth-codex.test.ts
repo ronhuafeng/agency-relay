@@ -6,27 +6,15 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { existsSync } from "node:fs";
 import { build } from "esbuild";
 import { expect, it } from "vitest";
 
 const { Miniflare, convertV4MiniflareOptions } = createRequire(import.meta.resolve("wrangler/package.json"))("miniflare");
-const CODEX_PACKAGE = "/tmp/codex-cli";
-
 async function codexBin(): Promise<string> {
-  const bin = join(CODEX_PACKAGE, "node_modules/.bin/codex");
-  if (!existsSync(bin)) await run("npm", ["install", "--prefix", CODEX_PACKAGE, "@openai/codex@0.156.1"]);
+  const bin = process.env.CODEX_TEST_BIN ?? "/tmp/codex-cli/node_modules/.bin/codex";
   const { stdout } = await promisify(execFile)(bin, ["--version"], { timeout: 10_000, maxBuffer: 1024 });
   if (stdout.trim() !== "codex-cli 0.156.1") throw new Error("synthetic OAuth proof requires Codex CLI 0.156.1");
   return bin;
-}
-
-function run(command: string, args: string[]): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const child = spawn(command, args, { stdio: "ignore" });
-    child.once("error", reject);
-    child.on("exit", (code) => code === 0 ? resolve() : reject(new Error(`${command} exited ${code}`)));
-  });
 }
 
 function listen(handler: (request: IncomingMessage, response: ServerResponse) => void): Promise<{ port: number; close: () => Promise<void> }> {
@@ -42,6 +30,7 @@ function listen(handler: (request: IncomingMessage, response: ServerResponse) =>
 
 it("lets Codex 0.156.1 log in and consume the protected MCP tool catalogue", async () => {
   const bin = await codexBin();
+  console.info("runtime_codex_fixture", { stage: "binary_verified" });
   let resourceOrigin = "";
   let issuerOrigin = "";
   const resourceServer = await listen((request, response) => void forward(resourceOrigin, request, response));
@@ -113,9 +102,11 @@ it("lets Codex 0.156.1 log in and consume the protected MCP tool catalogue", asy
         else reject(new Error("codex login failed"));
       });
     });
+    console.info("runtime_codex_fixture", { stage: "login_completed" });
     const status = await appServerStatus(bin, home);
     expect(status).toContain("authStatus=oAuth");
     expect(status).toContain("name=runtime_probe");
+    console.info("runtime_codex_fixture", { stage: "catalogue_verified" });
     const revoked = await runtime.dispatchFetch(`${issuerOrigin}/revoke`, {
       method: "POST", headers: { Origin: "https://127.0.0.1", "Sec-Fetch-Site": "same-origin" }, body: "{}"
     });
@@ -123,11 +114,14 @@ it("lets Codex 0.156.1 log in and consume the protected MCP tool catalogue", asy
     const revokedStatus = await appServerStatus(bin, home);
     expect(revokedStatus).toContain("name=probe");
     expect(revokedStatus).not.toContain("name=runtime_probe");
+    console.info("runtime_codex_fixture", { stage: "revocation_verified" });
   } finally {
+    console.info("runtime_codex_fixture", { stage: "cleanup_started" });
     await rm(home, { recursive: true, force: true });
     await resourceServer.close();
     await issuerServer.close();
     await runtime.dispose();
+    console.info("runtime_codex_fixture", { stage: "cleanup_completed" });
   }
 }, 60_000);
 
