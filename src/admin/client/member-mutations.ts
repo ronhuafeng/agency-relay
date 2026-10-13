@@ -1,6 +1,6 @@
 import { retainConsoleActor, endConsoleRuntime, recordConsoleOutcome, hasUnknownConsoleOutcome } from "./authority";
 import { memberHref as personalHref } from "../member-href";
-import { consoleLoginHref } from "../return-target";
+import { consoleLoginTarget } from "../return-target";
 import { buttonVariants } from "../ui/components/button";
 import { readConsoleRejection } from "../ui/messages";
 
@@ -91,9 +91,7 @@ export function initializeMemberMutations(): () => void {
         if (disposed) return;
         const terminal = result?.main.querySelector<HTMLElement>("[data-console-terminal-result]");
         const next = terminal?.dataset.consoleNext;
-        const login = next ? new URL(next, location.href) : null;
-        const loginHref = login?.origin === location.origin && login.pathname === "/login"
-          && next === consoleLoginHref(login.searchParams.get("return") ?? "") ? next : null;
+        const loginHref = consoleLoginTarget(next ?? "");
         if (response.status === 403 && loginHref && result) {
           // A known authentication rejection is not an uncertain mutation.
           endConsoleRuntime(); show(result, loginHref);

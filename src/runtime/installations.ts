@@ -2,7 +2,7 @@ import { generateId } from "../crypto";
 import { HttpError } from "../errors";
 import { isOrganizationLoginUser, organizationDomain, type LifecycleActor } from "../auth/principal";
 import { serviceAdminAuthorityBindings, serviceAdminAuthoritySql } from "../auth/service-accounts";
-import { requireRuntimeInstallation, RUNTIME_PROFILES } from "./profiles";
+import { requireRuntimeInstallation, runtimeInstallations, RUNTIME_PROFILES } from "./profiles";
 
 interface InstallationRow {
   id:string; resource:string; profile:string; profile_revision:number; label:string;
@@ -42,7 +42,7 @@ export async function readRuntimeInstallation(env:Env,actor:LifecycleActor,id:st
   const declared=requireRuntimeInstallation(env,id); const row=await rowFor(env,id);
   await assertAdmin(env,actor);
   return {id,resource:declared.resource,profile:declared.profile,label:row?.label??declared.label,
-    state:row?.state??"unconfigured",revision:row?.revision??0,authority_revision:row?.authority_revision??0,
+    state:row?.state??("unconfigured" as const),revision:row?.revision??0,authority_revision:row?.authority_revision??0,
     credential_ready:Boolean(row?.credential_ref && row.phase==="ready"),phase:row?.phase??"ready",operation_id:row?.operation_id??null};
 }
 
@@ -208,3 +208,36 @@ export async function readRuntimeAuthorityRevision(env:Env,id:string):Promise<nu
 }
 
 export type RuntimeAuthority=NonNullable<Awaited<ReturnType<typeof readRuntimeAuthority>>>;
+
+export interface RuntimeMemberInstallation {
+  id:string;label:string;resource:string;state:"enabled"|"disabled"|"retired";
+  phase:"ready"|"writing"|"cleaning";credential_ready:boolean;
+  authority_revision:number;access_revision:number;access_expires_at:string|null;
+}
+
+/** One primary, own-subject permission read. Stored material and references never
+ * enter this projection. Credential metadata is not an upstream health probe. */
+export async function readRuntimeMemberInstallations(env:Env,subject:string,now=new Date()):Promise<RuntimeMemberInstallation[]> {
+  const declared=runtimeInstallations(env);
+  if(!declared.length)return [];
+  const rows=await env.DB.prepare(`SELECT i.id,i.label,i.resource,i.profile,i.profile_revision,i.state,i.phase,i.authority_revision,
+      (i.credential_ref IS NOT NULL AND i.phase='ready') AS credential_ready,
+      a.revision AS access_revision,a.expires_at AS access_expires_at
+    FROM runtime_installations i JOIN runtime_installation_access a ON a.installation_id=i.id
+      JOIN users u ON u.id=a.user_id
+    WHERE i.id IN (${declared.map(()=>"?").join(",")}) AND u.id=?
+      AND u.account_kind='human' AND u.status='active' AND u.login_capable=1
+      AND u.role IN ('admin','user') AND substr(u.canonical_email,instr(u.canonical_email,'@')+1)=?
+      AND a.state='granted' AND (a.expires_at IS NULL OR a.expires_at>?) ORDER BY i.id LIMIT 17`)
+    .bind(...declared.map(row=>row.id),subject,organizationDomain(env)??"",now.toISOString())
+    .all<Omit<RuntimeMemberInstallation,"credential_ready">&{profile:string;profile_revision:number;credential_ready:number}>();
+  if(rows.results.length>16)throw new HttpError(503,"Runtime state is unavailable.","server_error","runtime_state_unavailable");
+  return rows.results.map(row=>{
+    const declaration=declared.find(candidate=>candidate.id===row.id)!;
+    if(row.resource!==declaration.resource||row.profile!==declaration.profile||row.profile_revision!==RUNTIME_PROFILES[declaration.profile].revision)
+      throw new HttpError(503,"Runtime declaration does not match stored authority.","server_error","runtime_declaration_changed");
+    return {id:row.id,label:row.label,resource:row.resource,state:row.state,phase:row.phase,
+      credential_ready:Boolean(row.credential_ready),authority_revision:row.authority_revision,
+      access_revision:row.access_revision,access_expires_at:row.access_expires_at};
+  });
+}

@@ -12,7 +12,8 @@ export const OTHER_RESOURCE="https://other.example.test/mcp";
 
 /** Actual Worker/D1 and production DO owner with test-only clock/expiry controls.
  * The external MCP service is synthetic; production owns every auth/path check. */
-export async function oauthFixture(persist?:string,options:{upstream?:(request:Request)=>Promise<Response>;controlledTimers?:boolean}={}) {
+export async function oauthFixture(persist?:string,options:{upstream?:(request:Request)=>Promise<Response>;controlledTimers?:boolean;issuer?:string}={}) {
+  const issuer=options.issuer??ISSUER;
   const compiled=await build({
     stdin:{resolveDir:process.cwd(),sourcefile:"runtime-oauth-fixture.ts",contents:`
       // Pin the external UTC clock so policy tests cannot cross a time window.
@@ -77,6 +78,11 @@ export async function oauthFixture(persist?:string,options:{upstream?:(request:R
       }
       import {RuntimeCredentials} from './src/runtime/credentials';
       export class RuntimeCredentialsFixture extends RuntimeCredentials {
+        putFails=false;cleanFails=false;
+        failWrite(value){this.putFails=value;return true;}
+        failClean(value){this.cleanFails=value;return true;}
+        async put(...args){if(this.putFails)throw new Error('Synthetic credential write unavailable');return super.put(...args);}
+        async clean(...args){if(this.cleanFails)throw new Error('Synthetic credential cleanup unavailable');return super.clean(...args);}
         hold;release;entered=false;
         holdRead(){this.hold=new Promise(resolve=>{this.release=resolve;});this.entered=false;return true;}
         releaseRead(){this.release?.();this.hold=undefined;return true;}
@@ -88,10 +94,14 @@ export async function oauthFixture(persist?:string,options:{upstream?:(request:R
       // Test-only reviewed profile. No arbitrary profile/URL input is exported
       // by the production Worker. Both profiles use the unchanged relay core.
       RUNTIME_PROFILES['synthetic.catalog']={revision:1,upstream:'https://catalog.example.test/rpc',credentialHeader:'X-Synthetic-Credential',transport:'request-scoped'};
+      let installationReadFails=false;
       export default {async fetch(request,env,ctx){
         if(new URL(request.url).hostname==='fixture.internal') {
           const {kind,value}=await request.json();
+          if(kind==='fail-installation-read'){installationReadFails=value==='true';return Response.json({done:true});}
           const secrets=env.RUNTIME_CREDENTIALS.getByName('design');
+          if(kind==='fail-write')return Response.json({done:await secrets.failWrite(value==='true')});
+          if(kind==='fail-clean')return Response.json({done:await secrets.failClean(value==='true')});
           if(kind==='hold-read')return Response.json({done:await secrets.holdRead()});
           if(kind==='release-read')return Response.json({done:await secrets.releaseRead()});
           if(kind==='read-state')return Response.json(await secrets.readState());
@@ -104,14 +114,20 @@ export async function oauthFixture(persist?:string,options:{upstream?:(request:R
           if(kind==='clean')await owner.runCleanup();else await owner.expire(kind,value);
           return Response.json({done:true});
         }
-        return handleRequest(request,env,ctx,{fetch:(input,init)=>env.SYNTHETIC_UPSTREAM.fetch(new Request(input,init)),now:()=>new Date()});
+        // Fail only the installation-page read. Access writes and their readback
+        // still execute against real D1, as does the member's consumer endpoint.
+        const requestEnv=installationReadFails?{...env,DB:new Proxy(env.DB,{get(db,key){
+          if(key==='prepare')return sql=>{if(sql==='SELECT * FROM runtime_installations WHERE id = ?')throw new Error('Synthetic installation view unavailable');return db.prepare(sql);};
+          const value=Reflect.get(db,key);return typeof value==='function'?value.bind(db):value;
+        }})}:env;
+        return handleRequest(request,requestEnv,ctx,{fetch:(input,init)=>env.SYNTHETIC_UPSTREAM.fetch(new Request(input,init)),now:()=>new Date()});
       }};`},
     bundle:true,write:false,format:"esm",platform:"node",external:["cloudflare:workers"],
     banner:{js:'import {createRequire} from "node:module";const require=createRequire("/");'},
     define:{"process.env.NODE_ENV":'"production"'},logLevel:"silent"
   });
   const bindings={
-    ADMIN_DASHBOARD_HOST:"console.example.test",CONSOLE_EMAIL_DOMAIN:"example.test",
+    ADMIN_DASHBOARD_HOST:new URL(issuer).hostname,CONSOLE_EMAIL_DOMAIN:"example.test",
     ADMIN_SECRET:"synthetic-operator",API_KEY_HASH_PEPPER:"synthetic-pepper",TOKEN_ENCRYPTION_KEY_V1:"synthetic-root",
     RUNTIME_INSTALLATIONS:JSON.stringify([
       {id:"design",resource:RESOURCE,profile:"google.stitch",label:"Design"},
@@ -140,13 +156,13 @@ export async function oauthFixture(persist?:string,options:{upstream?:(request:R
     const admin=async(id:string,body:unknown)=>runtime.dispatchFetch(`https://api.trustedtunnel.app/admin/runtime-installations/${id}`,{method:"POST",headers:{Authorization:"Bearer synthetic-operator","Content-Type":"application/json"},body:JSON.stringify(body)}) as Promise<Response>;
     if(!restored)for(const id of ["design","other"]) {
       for(const body of [{action:"configure"},{action:"supply",expectedRevision:1,operationId:"initial",authority:"rebind",material:id==="design"?"synthetic-stitch-key":"synthetic-catalog-key"},{action:"enable",expectedRevision:2,operationId:"enable"}]) {
-        const response=await admin(id,body);if(!response.ok)throw new Error("Synthetic Runtime setup failed");
+        const response=await admin(id,body);const ok=response.ok;await response.body?.cancel();if(!ok)throw new Error("Synthetic Runtime setup failed");
       }
       const granted=await runtime.dispatchFetch(`https://api.trustedtunnel.app/admin/runtime-installations/${id}/access/member`,{method:"PUT",headers:{Authorization:"Bearer synthetic-operator","Content-Type":"application/json"},body:JSON.stringify({state:"granted",expectedRevision:0,expiresAt:null})});
-      if(!granted.ok)throw new Error("Synthetic Runtime grant failed");
+      const ok=granted.ok;await granted.body?.cancel();if(!ok)throw new Error("Synthetic Runtime grant failed");
     }
     const expire=(kind:string,value="")=>runtime.dispatchFetch("https://fixture.internal/expire",{method:"POST",body:JSON.stringify({kind,value})}) as Promise<Response>;
-    return {runtime,db,env,cookies,admin,expire,dispose:()=>runtime.dispose() as Promise<void>};
+    return {issuer,runtime,db,env,cookies,admin,expire,dispose:()=>runtime.dispose() as Promise<void>};
   } catch(error){await runtime.dispose();throw error;}
 }
 
@@ -163,21 +179,23 @@ async function syntheticMcp(request:Request):Promise<Response> {
 export type OAuthFixture=Awaited<ReturnType<typeof oauthFixture>>;
 export async function pendingConsent(f:OAuthFixture,resource=RESOURCE,clientId?:string,member:string|null="member") {
   if(!clientId) {
-    const registered=await f.runtime.dispatchFetch(`${ISSUER}/runtime/register`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({client_name:"Synthetic client",redirect_uris:["http://127.0.0.1:9/callback"],token_endpoint_auth_method:"none"})});
+    const registered=await f.runtime.dispatchFetch(`${f.issuer}/runtime/register`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({client_name:"Synthetic client",redirect_uris:["http://127.0.0.1:9/callback"],token_endpoint_auth_method:"none"})});
     const data=await registered.json() as {client_id:string};clientId=data.client_id;
   }
   const verifier="v".repeat(43);
   const query=new URLSearchParams({response_type:"code",client_id:clientId,redirect_uri:"http://127.0.0.1:1234/callback",resource,scope:"runtime.use",state:"synthetic-state",code_challenge:createHash("sha256").update(verifier).digest("base64url"),code_challenge_method:"S256"});
-  const begun=await f.runtime.dispatchFetch(`${ISSUER}/runtime/authorize?${query}`,{headers:member?{Cookie:f.cookies.get(member)!}:{},redirect:"manual"});
+  const begun=await f.runtime.dispatchFetch(`${f.issuer}/runtime/authorize?${query}`,{headers:member?{Cookie:f.cookies.get(member)!}:{},redirect:"manual"});
+  await begun.body?.cancel();
   if(begun.status!==303||!begun.headers.has("Set-Cookie"))throw new Error("Synthetic consent setup failed");
-  const target=new URL(begun.headers.get("Location")!,ISSUER);
+  const target=new URL(begun.headers.get("Location")!,f.issuer);
   const cookie=`${member?`${f.cookies.get(member)}; `:""}${begun.headers.get("Set-Cookie")!.split(";",1)[0]}`;
-  const decide=(decision="allow",origin=ISSUER)=>f.runtime.dispatchFetch(target.href,{method:"POST",headers:{Cookie:cookie,Origin:origin,"Content-Type":"application/x-www-form-urlencoded"},body:new URLSearchParams({decision}).toString(),redirect:"manual"});
+  const decide=(decision="allow",origin=f.issuer)=>f.runtime.dispatchFetch(target.href,{method:"POST",headers:{Cookie:cookie,Origin:origin,"Content-Type":"application/x-www-form-urlencoded"},body:new URLSearchParams({decision}).toString(),redirect:"manual"});
   return {clientId,query,cookie,target,verifier,decide};
 }
 export async function authorizedTokens(f:OAuthFixture,resource=RESOURCE,member="member") {
   const pending=await pendingConsent(f,resource,undefined,member);
   const response=await pending.decide();
+  await response.body?.cancel();
   if(response.status!==303||!response.headers.has("Location"))throw new Error("Synthetic consent decision failed");
   const callback=new URL(response.headers.get("Location")!);
   const body={grant_type:"authorization_code",client_id:pending.clientId,code:callback.searchParams.get("code")!,redirect_uri:pending.query.get("redirect_uri")!,resource,code_verifier:pending.verifier};
@@ -187,7 +205,7 @@ export async function authorizedTokens(f:OAuthFixture,resource=RESOURCE,member="
   return {...pending,body,tokens};
 }
 export function tokenRequest(f:OAuthFixture,body:Record<string,string>) {
-  return f.runtime.dispatchFetch(`${ISSUER}/runtime/token`,{method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded"},body:new URLSearchParams(body).toString()}) as Promise<Response>;
+  return f.runtime.dispatchFetch(`${f.issuer}/runtime/token`,{method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded"},body:new URLSearchParams(body).toString()}) as Promise<Response>;
 }
 export function resourceRequest(f:OAuthFixture,token:string,resource=RESOURCE) {
   return f.runtime.dispatchFetch(resource,{method:"POST",headers:{Authorization:`Bearer ${token}`,"Content-Type":"application/json"},body:JSON.stringify({jsonrpc:"2.0",id:1,method:"tools/list"})}) as Promise<Response>;

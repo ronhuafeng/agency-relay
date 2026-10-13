@@ -160,8 +160,10 @@ Keep automatic invocation logs and traces off for this Worker. Cloudflare's
 include URLs, and [trace attributes](https://developers.cloudflare.com/workers/observability/traces/spans-and-attributes/)
 include full URLs/query strings and Durable Object SQL bindings. Application
 logs remain enabled for allowlisted event categories, never callback queries,
-credentials or raw client metadata. No-store and no-referrer apply to OAuth
-responses. Consent HTML blocks framing and permits form return only to the
+credentials or raw client metadata. No-store applies to OAuth responses. Protocol,
+token and redirect responses use no-referrer. The consent form HTML uses same-origin
+to retain a native POST Origin; no referrer is sent to the external client callback.
+Consent HTML blocks framing and permits form return only to the
 validated callback origin. Do not collect raw OAuth traffic with live tail,
 browser tracing or diagnostics.
 

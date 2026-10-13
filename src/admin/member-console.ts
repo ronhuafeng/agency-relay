@@ -17,6 +17,10 @@ import { Icon, type IconName } from "./ui/icon";
 import { SidebarGroup, SidebarGroupLabel, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "./ui/components/sidebar";
 import { Badge } from "./ui/components/badge";
 import { consoleDataRevision, unchangedConsoleRead } from "./console-revision";
+import {readRuntimeMember} from "../runtime/member";
+import {RuntimeMemberPage,runtimeMemberHref} from "./ui/pages/runtime";
+import {verifyConsoleAccess} from "../auth/authenticate";
+import {consoleLifecycleOutcome} from "./dashboard";
 import {
   isMemberView,
   MEMBER_VIEWS,
@@ -33,6 +37,7 @@ import {
 } from "./ui/pages/member";
 
 export async function memberConsoleResponse(input: {
+  request: Request;
   unchangedRevision?: string | null;
   env: Env;
   url: URL;
@@ -40,12 +45,17 @@ export async function memberConsoleResponse(input: {
   service?: ServiceContext;
   now: Date;
   requestId: string;
+  runtimeRevoked?: boolean;
 }): Promise<Response> {
   const requested = input.url.searchParams.get("view") ?? "home";
   if (!isMemberView(requested)) {
     return html(404, input.requestId, createElement(MemberMissingPage), input.principal, "home", input.service);
   }
   const view = requested;
+  if(view==="integrations"&&(input.service||[...input.url.searchParams].some(([field,value])=>
+    !["area","view","installation"].includes(field)||input.url.searchParams.getAll(field).length!==1
+      ||field==="installation"&&!/^[a-z][a-z0-9-]{0,63}$/.test(value))))
+    return html(404,input.requestId,createElement(MemberMissingPage),input.principal,"home",input.service);
   let trend: UsageTrendRange | undefined;
   if (view === "usage") {
     try {
@@ -56,18 +66,34 @@ export async function memberConsoleResponse(input: {
     catch { return html(400, input.requestId, createElement(ReadError, {title: "时间范围不正确", message: "请选择最近 7 天或 30 天。显式日期查询请使用此账号的用量 API。", retryUrl: memberHref("usage", undefined, input.service?.id), retryLabel: "打开最近 7 天", requestId: input.requestId}), input.principal, view, input.service); }
   }
   const search = trend ? parseUsageSearch(input.url) : "";
-  const readUrl = trend ? `${memberHref("usage", undefined, input.service?.id)}&range=${trend.key}${search ? `&q=${encodeURIComponent(search)}` : ""}` : memberHref(view, view === "keys" ? input.url.searchParams.get("key") ?? undefined : undefined, input.service?.id);
+  const readUrl = view==="integrations"?runtimeMemberHref(input.url.searchParams.get("installation")??undefined):trend ? `${memberHref("usage", undefined, input.service?.id)}&range=${trend.key}${search ? `&q=${encodeURIComponent(search)}` : ""}` : memberHref(view, view === "keys" ? input.url.searchParams.get("key") ?? undefined : undefined, input.service?.id);
   try {
     const {body, data} = await renderView(input, view, trend);
+    if(view==="integrations")await assertRuntimePageActor(input);
+    const notice=input.runtimeRevoked?createElement("p",{role:"status"},"客户端授权已撤销。后续调用会被拒绝；浏览器登录、其他客户端和已经执行的上游操作不变。"):null;
     if (input.service) await delegatedService(input.env, input.principal, input.service.id);
     const revision = await consoleDataRevision({readUrl, data, service: input.service, actor: {id: input.principal.id, email: input.principal.email, role: input.principal.role}});
     const unchanged = unchangedConsoleRead(input.unchangedRevision, revision, input.principal.id);
     if (unchanged) return unchanged;
-    return html(200, input.requestId, body, input.principal, view, input.service, trend ? readUrl : undefined, {url: readUrl, revision});
+    const missing=view==="integrations"&&input.url.searchParams.has("installation")&&!(data as Awaited<ReturnType<typeof readRuntimeMember>>).installations.some(row=>row.id===input.url.searchParams.get("installation"));
+    return html(missing?404:200, input.requestId, createElement("div",null,notice,body), input.principal, view, input.service, trend||view==="integrations" ? readUrl : undefined, {url: readUrl, revision},input.runtimeRevoked?"runtime_revoked":undefined);
   } catch (error) {
+    if(view==="integrations") {
+      try {await assertRuntimePageActor(input);}
+      catch {
+        if(input.runtimeRevoked)return consoleLifecycleOutcome({title:"客户端授权已撤销",href:"/login",returnTarget:readUrl,label:"重新登录",message:"撤销已经完成，但当前登录无法确认。请重新登录后只读查看；不要重复提交。"});
+        throw new HttpError(403,"Console authority changed.","authentication_error","console_identity_changed");
+      }
+    }
     if (error instanceof HttpError && error.status === 404) throw error;
-    return html(503, input.requestId, createElement(MemberUnavailablePage, {retryUrl: consoleReturnTarget(readUrl) ?? "/"}), input.principal, view, input.service);
+    return html(503, input.requestId, createElement("div",null,input.runtimeRevoked?createElement("p",{role:"status"},"客户端授权已撤销，但当前页面读取失败。不要重复提交；请查看当前状态。"):null,createElement(MemberUnavailablePage, {retryUrl: consoleReturnTarget(readUrl) ?? "/"})), input.principal, view, input.service,view==="integrations"?readUrl:undefined,undefined,input.runtimeRevoked?"runtime_revoked":undefined);
   }
+}
+
+async function assertRuntimePageActor(input:{request:Request;env:Env;principal:ConsolePrincipal;now:Date}) {
+  const current=await verifyConsoleAccess(input.request,input.env,input.now);
+  if(!current||current.id!==input.principal.id||current.email!==input.principal.email||current.role!==input.principal.role||current.sessionEpoch!==input.principal.sessionEpoch)
+    throw new HttpError(403,"Console authority changed.","authentication_error","console_identity_changed");
 }
 
 export async function memberUsageResponse(input: {
@@ -122,12 +148,17 @@ export function memberSecretPage(input: {
 }
 
 async function renderView(input: {
+  request: Request;
   env: Env;
   url: URL;
   principal: ConsolePrincipal;
   service?: ServiceContext;
   now: Date;
 }, view: MemberView, trend?: UsageTrendRange): Promise<{body: ReactNode; data: unknown}> {
+  if(view==="integrations") {
+    const model=await readRuntimeMember(input.env,input.request);
+    return {body:createElement(RuntimeMemberPage,{model,selectedId:input.url.searchParams.get("installation")}),data:model};
+  }
   if (view === "quota") {
     let states: ReadFact<Awaited<ReturnType<typeof listSurfaceCreditStates>>>;
     try { states = { known: true, value: await listSurfaceCreditStates(input.env, input.now, input.service?.id ?? input.principal.id) }; }
@@ -168,13 +199,13 @@ async function renderView(input: {
   return {body: createElement(MemberMissingPage), data: null};
 }
 
-function html(status: number, requestId: string, body: ReactNode, principal: ConsolePrincipal, view: MemberView, service?: ServiceContext, navigationUrl?: string, read?: {url: string; revision: string}): Response {
-  const nav = createElement(SidebarMenu, null, ...MEMBER_VIEWS.map(item =>
+function html(status: number, requestId: string, body: ReactNode, principal: ConsolePrincipal, view: MemberView, service?: ServiceContext, navigationUrl?: string, read?: {url: string; revision: string},mutation?:string): Response {
+  const nav = createElement(SidebarMenu, null, ...MEMBER_VIEWS.filter(item=>!service||item!=="integrations").map(item =>
     createElement(SidebarMenuItem, {key:item},
       createElement(SidebarMenuButton, {asChild:true,isActive:item===view},
         createElement("a", {href:memberHref(item, undefined, service?.id), "aria-label":service ? label(item).replace("我的", "服务") : label(item), "aria-current":item===view ? "page" : undefined},
           createElement(Icon, {name:memberIcon(item)}),
-          createElement("span", null, {home:"工作台",keys:"密钥",setup:"配置",usage:"用量",quota:"额度"}[item])
+          createElement("span", null, {home:"工作台",keys:"密钥",setup:"配置",usage:"用量",quota:"额度",integrations:"工具"}[item])
         )
       )
     )
@@ -184,6 +215,7 @@ function html(status: number, requestId: string, body: ReactNode, principal: Con
     navigationUrl,
     readUrl: read?.url,
     dataRevision: read?.revision,
+    mutation,
     view,
     email: principal.email,
     actorId: principal.id,
@@ -213,6 +245,7 @@ function memberIcon(view: MemberView): IconName {
     case "usage": return "usage";
     case "quota": return "quotas";
     case "setup": return "setup";
+    case "integrations": return "surfaces";
   }
 }
 
@@ -223,6 +256,7 @@ function label(view: MemberView): string {
     case "usage": return "我的用量";
     case "quota": return "我的额度";
     case "setup": return "客户端配置";
+    case "integrations": return "我的工具服务";
   }
 }
 

@@ -1,11 +1,12 @@
 import { test as base, expect, type BrowserContext, type Locator, type Page } from "@playwright/test";
 import { NOW, ORIGIN, startConsoleWorker, type ConsoleWorker, type Identity } from "./worker";
 
-export const test = base.extend<{ worker: ConsoleWorker; identity: Identity; script: boolean }>({
+export const test = base.extend<{ worker: ConsoleWorker; identity: Identity; script: boolean; runtime: boolean }>({
   identity: ["admin", { option: true }],
   script: [true, { option: true }],
-  worker: async ({}, use) => {
-    const worker = await startConsoleWorker();
+  runtime: [false,{option:true}],
+  worker: async ({runtime}, use) => {
+    const worker = await startConsoleWorker({runtime});
     try { await use(worker); expect(worker.unexpected, "No fixture errors or business-network access").toEqual([]); }
     finally { await worker.close(); }
   },

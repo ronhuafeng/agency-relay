@@ -10,6 +10,7 @@ interface ConsoleDocumentInput {
   readonly navigationUrl?: string;
   readonly readUrl?: string;
   readonly dataRevision?: string;
+  readonly mutation?: string;
   readonly view?: string;
   readonly main: ReactNode;
   readonly email?: string;
@@ -42,7 +43,7 @@ export function consoleDocument(input: ConsoleDocumentInput): string {
         <ConsoleHeader email={input.email} role={input.role} actorId={input.actorId} />
         <SidebarProvider className="shell" data-dashboard-nav={input.navigationUrl ? "vertical" : undefined}>
           {input.nav ? <ConsoleNavigation member current={input.current ?? input.title} email={input.email} role={input.role} actorId={input.actorId} switches={input.switches}><div className="primary-nav">{input.nav}</div></ConsoleNavigation> : null}
-          <main id="content" tabIndex={-1} data-dashboard-view={input.view ?? (input.navigationUrl ? "usage" : undefined)} data-dashboard-url={input.navigationUrl} data-console-read-url={input.readUrl} data-console-revision={input.dataRevision}>
+          <main id="content" tabIndex={-1} data-dashboard-view={input.view ?? (input.navigationUrl ? "usage" : undefined)} data-dashboard-url={input.navigationUrl} data-dashboard-mutation={input.mutation} data-console-read-url={input.readUrl} data-console-revision={input.dataRevision}>
             {input.navigationUrl ? <div className="dashboard-notice" data-dashboard-notice="" role="status" aria-live="polite" aria-atomic="true" hidden><span data-notice-message=""/><a hidden>打开页面</a></div> : null}
             {input.main}</main>
         </SidebarProvider>

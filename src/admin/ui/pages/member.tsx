@@ -19,8 +19,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "../components/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/table";
 import { Icon } from "../icon";
 
-export type MemberView = "home" | "keys" | "usage" | "quota" | "setup";
-export const MEMBER_VIEWS: readonly MemberView[] = ["home", "keys", "usage", "quota", "setup"];
+export type MemberView = "home" | "keys" | "usage" | "quota" | "setup" | "integrations";
+export const MEMBER_VIEWS: readonly MemberView[] = ["home", "keys", "usage", "quota", "setup", "integrations"];
 export function isMemberView(value: string): value is MemberView { return MEMBER_VIEWS.includes(value as MemberView); }
 const label = (surface: string) => ({codex:"Codex",grok:"Grok",xai:"xAI API"}[surface] ?? surface);
 const scopeNames = (scopes: readonly string[]) => scopes.map(scope => scope.split(":")[1] ?? scope);

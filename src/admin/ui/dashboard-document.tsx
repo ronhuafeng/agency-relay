@@ -12,6 +12,7 @@ import { RoutesPage } from "./pages/routes";
 import { QuotasPage, ControlAuditPage } from "./pages/organization";
 import { SetupPage } from "./pages/setup";
 import { PeoplePage } from "./pages/people";
+import {RuntimeAdminPage} from "./pages/runtime";
 import { MutationNotice } from "./mutation-notice";
 import { Button } from "./components/button";
 import { Icon } from "./icon";
@@ -21,6 +22,7 @@ import { memberHref } from "../member-href";
 import { SidebarGroup, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider } from "./components/sidebar";
 function DashboardPage({model}: {readonly model: AdminDashboardPageModel}) {
   switch (model.view) {
+    case "runtime": return <RuntimeAdminPage model={model}/>;
     case "overview": return <HomePage model={model} />;
     case "credentials": return <AccountsPage model={model} />;
     case "access": return <PeoplePage model={model} />;
@@ -42,7 +44,7 @@ function Navigation({model}: {readonly model: AdminDashboardPageModelBase}) {
   </SidebarGroup>)}</ConsoleNavigation>;
 }
 function PageHeader({model}: {readonly model: AdminDashboardPageModelBase}) {
-  const titles = {overview:"组织概览",credentials:"上游连接",access:"成员与服务",setup:"客户端配置",audit:"请求记录",usage:"用量报告",surfaces:"服务路由",quotas:"额度政策","control-audit":"管理记录"};
+  const titles = {overview:"组织概览",credentials:"上游连接",runtime:"工具服务",access:"成员与服务",setup:"客户端配置",audit:"请求记录",usage:"用量报告",surfaces:"服务路由",quotas:"额度政策","control-audit":"管理记录"};
   return <h1 className="sr-only">{titles[model.view]}</h1>;
 }
 function DashboardDocument({model, nonce, children, revision}: {readonly model: AdminDashboardPageModelBase; readonly nonce: string; readonly children: ReactNode; readonly revision?: string}) {

@@ -262,7 +262,7 @@ current role appear in the sidebar footer trigger; the menu contains full identi
 and keyboard reachable. Organization and personal areas retain visible context. An administrator switches between them from the account menu, not from a separate navigation row.
 The desktop shell uses a compact fixed rail, with its brand at the top and account
 menu at the bottom. Its accepted exact width belongs to the canonical component
-token, not a second number in this prose. There is no separate reserved header. Narrow organization screens keep the same links in a capsule centered on the navigation line. When that line cannot also show the brand name, only the mark remains. The capsule opens downward into one set of fixed icon tiles. Each tile keeps its short page name, the gaps stay constant, and the tiles wrap to the width. Domain names are not shown. The wide rail is one vertical list, without domain headings. The tile keeps the console pixel shape. Personal screens show five short task links
+token, not a second number in this prose. There is no separate reserved header. Narrow organization screens keep the same links in a capsule centered on the navigation line. When that line cannot also show the brand name, only the mark remains. The capsule opens downward into one set of fixed icon tiles. Each tile keeps its short page name, the gaps stay constant, and the tiles wrap to the width. Domain names are not shown. The wide rail is one vertical list, without domain headings. The tile keeps the console pixel shape. Personal screens show their short task links
 in one horizontal row, with the complete accessible names retained.
 
 Narrow screens place the brand and account menu in one compact navigation line. There is no global refresh
@@ -283,8 +283,8 @@ read-only while authorization is pending, and cancel/close requires a fresh star
 Callbacks and pending sessions never enter the draft mechanism.
 
 Organization navigation keeps this order, without domain headings: Organization
-overview, Members and services, and Client configuration; then Upstream connections
-and Allowance policies; then Request records and Usage reports; then Service routes
+overview, Members and services, and Client configuration; then Upstream connections,
+Runtime tool services and Allowance policies; then Request records and Usage reports; then Service routes
 and Management records. My
 space remains a separate personal context. Navigation labels do not change stable
 URLs or API contracts. There is no organization switcher or global search unless

@@ -1,11 +1,12 @@
 import { retainConsoleActor, endConsoleRuntime, recordConsoleOutcome, hasUnknownConsoleOutcome } from "./authority";
 import type { TaskController } from "./navigation";
 import { readConsoleRejection } from "../ui/messages";
-import { consoleReturnTarget } from "../return-target";
+import { consoleLoginTarget, consoleReturnTarget } from "../return-target";
 function writable(target: EventTarget | null): HTMLFormElement | null {
   if (!(target instanceof HTMLFormElement) || target.method !== "post" || target.matches("[data-local-config-sync]")) return null;
-  const url = new URL(target.action, location.href);
-  return url.origin === location.origin && url.pathname.startsWith("/admin/ui/") ? target : null;
+  // A protocol field named "action" can shadow HTMLFormElement.action.
+  const url = new URL(target.getAttribute("action") ?? "", location.href);
+  return url.origin === location.origin && (url.pathname.startsWith("/admin/ui/") || /^\/me\/ui\/runtime-clients\/[a-f0-9-]{36}\/revoke$/.test(url.pathname)) ? target : null;
 }
 type Control = HTMLButtonElement | HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement;
 function isControl(value: Element): value is Control {
@@ -46,7 +47,7 @@ export function initializeMutations(navigation: TaskController): () => void {
     const timer = setTimeout(() => { if (pending === controller) navigation.notice(`仍在等待“${action}”的结果。停止等待不会撤销服务器上的操作。`, "pending"); }, 20000);
     let unknown = false;
     try {
-      const response = await fetch(form.action, { method: "POST", body, headers: { Accept: "text/html" }, credentials: "same-origin", cache: "no-store", redirect: "error", signal: controller.signal });
+      const response = await fetch(form.getAttribute("action") ?? "", { method: "POST", body, headers: { Accept: "text/html" }, credentials: "same-origin", cache: "no-store", redirect: "error", signal: controller.signal });
       if (disposed) return;
       const type = response.headers.get("Content-Type") ?? "";
       if (type.includes("text/html")) {
@@ -57,15 +58,16 @@ export function initializeMutations(navigation: TaskController): () => void {
         const shells = Array.from(doc.querySelectorAll(".shell"));
         const publicLayout = shells.length <= 1 && shells.every(shell => shell.childElementCount === 1 && shell.firstElementChild === incomingMain && shell.contains(terminal));
         const unknownTarget = terminal?.dataset.consoleTerminalResult === "unknown" ? consoleReturnTarget(terminal.dataset.consoleNext ?? "") : null;
+        const knownTarget = terminal?.dataset.consoleNext === "/admin?view=keys" ? terminal.dataset.consoleNext : consoleLoginTarget(terminal?.dataset.consoleNext ?? "");
         const unknownLink = doc.querySelector<HTMLAnchorElement>('[data-console-recovery] a');
         const publicUnknown = Boolean(publicLayout && unknownTarget && unknownLink && consoleReturnTarget(unknownLink.getAttribute("href") ?? "") === unknownTarget
           && doc.querySelector('[data-console-recovery] [data-console-outcome="unknown"]')
           && !doc.querySelector('[data-console-actor-id],[data-console-email],[data-dashboard-nav],[data-member-nav],[data-dashboard-view],[data-member-view],.identity,form,[data-ui-props],script[type="application/json"],[data-one-time-key]'));
         if (terminal && incomingMain && (publicUnknown
-          || terminal.dataset.consoleTerminalResult !== "unknown" && (response.ok || response.status === 403) && ["/login", "/admin?view=keys"].includes(terminal.dataset.consoleNext ?? ""))) {
+          || terminal.dataset.consoleTerminalResult !== "unknown" && (response.ok || response.status === 403) && knownTarget)) {
           navigation.discardDraft(form); navigation.dispose(); endConsoleRuntime();
           document.body.replaceChildren(...doc.body.childNodes); document.body.className = doc.body.className; document.title = doc.title;
-          history.replaceState(null, "", publicUnknown ? unknownTarget! : terminal.dataset.consoleNext!);
+          history.replaceState(null, "", publicUnknown ? unknownTarget! : knownTarget!);
           const heading = document.querySelector<HTMLElement>("h1"); if (heading) {heading.tabIndex = -1; heading.focus();} return;
         }
         const result = doc.querySelector<HTMLElement>("main[data-dashboard-mutation]");
@@ -116,6 +118,9 @@ export function initializeMutations(navigation: TaskController): () => void {
     if ((submitter instanceof HTMLButtonElement || submitter instanceof HTMLInputElement) && submitter.name) data.append(submitter.name, submitter.value);
     const body = new URLSearchParams(); for (const [name, value] of data) { if (typeof value !== "string") return; body.append(name, value); }
     event.preventDefault(); void submit(form, submitter, body);
+    // Capture once, then clear sensitive values even when the response is lost.
+    // Draft restoration already excludes password controls.
+    form.querySelectorAll<HTMLInputElement>('input[type="password"]').forEach(input=>{input.value="";});
   }, { signal });
   document.addEventListener("click", (event) => { if (event.target instanceof Element && event.target.closest("[data-stop-waiting]")) pending?.abort(); }, { signal });
   window.addEventListener("beforeunload", (event) => { if (pending || hasUnknownConsoleOutcome()) { event.preventDefault(); event.returnValue = ""; } }, { signal });

@@ -3,10 +3,16 @@ import OAuth2Server from "@node-oauth/oauth2-server";
 import {hmacSha256Hex,timingSafeEqualHex} from "../crypto";
 import {readConsoleSessionPrincipalByHash} from "../auth/console-session";
 import type {ConsolePrincipal} from "../auth/principal";
-import {readRuntimeAuthority,readRuntimeAuthorityRevision,type RuntimeAuthority} from "./installations";
+import {readRuntimeAuthority,readRuntimeAuthorityRevision,readRuntimeMemberInstallations,type RuntimeAuthority,type RuntimeMemberInstallation} from "./installations";
 import {runtimeInstallations,RUNTIME_SCOPE,RUNTIME_PROFILES} from "./profiles";
 
 type ClientConsentView={id:string;client_id:string;client_name:string;resource:string;scope:string;created_at:string;expires_at:string};
+export interface RuntimeMemberModel {
+  installations:RuntimeMemberInstallation[];
+  consents:Array<ClientConsentView&{installation:string;authority_revision:number;access_revision:number}>;
+  activity:Array<RuntimeTransportFacts&{installation:string;authority_revision:number;client_authorization_id:string;started_at:string;finished_at:string}>;
+}
+type RuntimeMemberReply={status:number;body:RuntimeMemberModel|{error:string}};
 export interface OAuthReply {status:number;body:Record<string,string|number|string[]|ClientConsentView[]>;location?:string}
 export type RuntimeAdmission=RuntimeAuthority&{client_authorization_id:string;lease_id:string;lease_expires_at:number};
 export type RuntimeTransportError="runtime_profile_unavailable"|"upstream_credential_unavailable"|"upstream_redirect_rejected"|"upstream_transport_failed"|"client_request_aborted"|"runtime_transport_unsupported"|"request_too_large"|"stream_idle_timeout"|"lease_expired";
@@ -262,6 +268,33 @@ export class RuntimeOAuth extends DurableObject<Env> {
       if(rows.length>80)return unavailable();
       return {status:200,body:{consents:rows.map(({created,deadline,...row})=>({...row,created_at:new Date(created).toISOString(),expires_at:new Date(deadline).toISOString()}))}};
     },unavailable());
+  }
+
+  async memberData(session:string|null):Promise<RuntimeMemberReply> {
+    return this.gate<RuntimeMemberReply>(async(deadline)=>{
+      const principal=session?await this.bounded(readConsoleSessionPrincipalByHash(this.env,session),deadline):null;
+      if(!principal)return {status:401,body:{error:"access_denied"}};
+      const installations=await this.bounded(readRuntimeMemberInstallations(this.env,principal.id),deadline);
+      const rows=this.ctx.storage.sql.exec<{id:string;client_id:string;client_name:string;installation:string;resource:string;scope:string;authority_revision:number;access_revision:number;created:number;deadline:number}>(`
+        SELECT c.id,c.client AS client_id,r.name AS client_name,c.installation,c.resource,c.scope,c.authority_revision,c.access_revision,c.created,c.deadline
+        FROM consents c JOIN clients r ON r.id=c.client
+        WHERE c.subject=? AND c.revoked=0 AND c.deadline>? ORDER BY c.created,c.id LIMIT 81`,principal.id,Date.now()).toArray();
+      if(rows.length>80)return {status:503,body:{error:"temporarily_unavailable"}};
+      const activity:RuntimeMemberModel["activity"]=[];
+      if(installations.length)for(const row of this.ctx.storage.sql.exec<{installation:string;facts:string}>(`
+        SELECT installation,facts FROM relay_activity WHERE subject=? AND installation IN (${installations.map(()=>"?").join(",")})
+        ORDER BY installation LIMIT 17`,principal.id,...installations.map(item=>item.id)).toArray()) {
+        const fact=JSON.parse(row.facts) as RuntimeTransportFacts&{authority_revision:number;client_authorization_id:string;started_at:string;finished_at:string};
+        activity.push({installation:row.installation,authority_revision:fact.authority_revision,client_authorization_id:fact.client_authorization_id,
+          started_at:fact.started_at,finished_at:fact.finished_at,attempted:fact.attempted,upstream_status:fact.upstream_status,
+          terminal:fact.terminal,error:fact.error,duration_ms:fact.duration_ms,headers_ms:fact.headers_ms,
+          request_bytes_observed:fact.request_bytes_observed,response_bytes_observed:fact.response_bytes_observed});
+      }
+      const current=await this.bounded(readConsoleSessionPrincipalByHash(this.env,session!),deadline);
+      if(!current||current.id!==principal.id||current.email!==principal.email||current.role!==principal.role||current.sessionEpoch!==principal.sessionEpoch)
+        return {status:401,body:{error:"access_denied"}};
+      return {status:200,body:{installations,consents:rows.map(({created,deadline,...row})=>({...row,created_at:new Date(created).toISOString(),expires_at:new Date(deadline).toISOString()})),activity}};
+    },{status:503,body:{error:"temporarily_unavailable"}});
   }
 
   private model(client:RegisteredClient,consent:Consent,deadline:number,hash?:string,row?:Code|Refresh):OAuth2Server.AuthorizationCodeModel&OAuth2Server.RefreshTokenModel {
