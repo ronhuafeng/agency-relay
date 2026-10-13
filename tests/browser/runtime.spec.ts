@@ -2,6 +2,7 @@ import type {Locator,Page} from "@playwright/test";
 import {test,expect,openNativeConfirmation,authenticate} from "./fixtures";
 import {authorizedTokens,pendingConsent,resourceRequest,tokenRequest} from "../runtime/oauth-fixture";
 import {ORIGIN} from "./worker";
+import {createConsoleSession} from "../../src/auth/console-session";
 
 test.use({runtime:true});
 async function confirm(page:Page,form:Locator,label:string,script=true) {
@@ -32,6 +33,36 @@ for(const script of [true,false])test.describe(`Runtime personal native form, sc
     const foreign=await page.goto("/admin?area=me&view=integrations&installation=design");expect(foreign?.status()).toBe(404);
     await expect(page.getByRole("heading",{name:"没有这个工具服务",exact:true})).toBeVisible();
     expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
+  });
+});
+
+for(const identity of ["admin","member"] as const)test.describe(`Expired native Runtime form, ${identity}`,()=>{
+  test.use({identity,script:false,viewport:{width:390,height:900}});
+  test("offers read-only login recovery and never replays the rejected operation",async({page,worker,context})=>{
+    const f=worker.runtimeFixture!;
+    const auth=identity==="member"?await authorizedTokens(f):null;
+    const target=identity==="admin"?"/admin?view=runtime&installation=design":"/admin?area=me&view=integrations";
+    await page.goto(target);
+    const form=identity==="admin"?page.locator('form:has(input[name="action"][value="disable"])'):
+      page.getByRole("table",{name:"已记录的客户端授权"}).locator("form");
+    await f.db.prepare("UPDATE console_sessions SET expires_at='2000-01-01T00:00:00.000Z' WHERE user_id=?").bind(identity).run();
+    await confirm(page,form,identity==="admin"?"停用服务":"撤销授权",false);
+    await expect(page.getByRole("heading",{name:"操作未执行",exact:true})).toBeVisible();
+    const login=page.getByRole("link",{name:"重新登录",exact:true});
+    const destination=new URL((await login.getAttribute("href"))!,ORIGIN);
+    expect(destination.pathname).toBe("/login");
+    expect(destination.searchParams.get("return")).toBe(target);
+    expect((await f.db.prepare("SELECT state FROM runtime_installations WHERE id='design'").first())?.state).toBe("enabled");
+    if(auth){const retained=await resourceRequest(f,auth.tokens.access_token);expect(retained.status).toBe(200);await retained.body?.cancel();}
+    // The IdP itself is not under test. Restore a fresh native session, then use
+    // the exact allowed GET destination encoded by the rejected form's recovery.
+    const session=await createConsoleSession(f.env,{id:identity,email:`${identity}@example.test`,sessionEpoch:0});
+    f.cookies.set(identity,`__Host-mini-console=${session}`);
+    await authenticate(context,worker,identity);
+    await page.goto(destination.searchParams.get("return")!);
+    await expect(page.getByRole("heading",{name:identity==="admin"?"Design":"我的工具服务",exact:true})).toBeVisible();
+    if(auth)await expect(page.getByRole("table",{name:"已记录的客户端授权"})).toContainText("Synthetic client");
+    expect(worker.requests.filter(r=>r.method==="POST"&&(r.path.startsWith("/me/ui/runtime-clients/")||r.path==="/admin/ui/runtime-installations/design")).length).toBe(1);
   });
 });
 

@@ -94,9 +94,11 @@ export async function oauthFixture(persist?:string,options:{upstream?:(request:R
       // Test-only reviewed profile. No arbitrary profile/URL input is exported
       // by the production Worker. Both profiles use the unchanged relay core.
       RUNTIME_PROFILES['synthetic.catalog']={revision:1,upstream:'https://catalog.example.test/rpc',credentialHeader:'X-Synthetic-Credential',transport:'request-scoped'};
+      let installationReadFails=false;
       export default {async fetch(request,env,ctx){
         if(new URL(request.url).hostname==='fixture.internal') {
           const {kind,value}=await request.json();
+          if(kind==='fail-installation-read'){installationReadFails=value==='true';return Response.json({done:true});}
           const secrets=env.RUNTIME_CREDENTIALS.getByName('design');
           if(kind==='fail-write')return Response.json({done:await secrets.failWrite(value==='true')});
           if(kind==='fail-clean')return Response.json({done:await secrets.failClean(value==='true')});
@@ -112,7 +114,13 @@ export async function oauthFixture(persist?:string,options:{upstream?:(request:R
           if(kind==='clean')await owner.runCleanup();else await owner.expire(kind,value);
           return Response.json({done:true});
         }
-        return handleRequest(request,env,ctx,{fetch:(input,init)=>env.SYNTHETIC_UPSTREAM.fetch(new Request(input,init)),now:()=>new Date()});
+        // Fail only the installation-page read. Access writes and their readback
+        // still execute against real D1, as does the member's consumer endpoint.
+        const requestEnv=installationReadFails?{...env,DB:new Proxy(env.DB,{get(db,key){
+          if(key==='prepare')return sql=>{if(sql==='SELECT * FROM runtime_installations WHERE id = ?')throw new Error('Synthetic installation view unavailable');return db.prepare(sql);};
+          const value=Reflect.get(db,key);return typeof value==='function'?value.bind(db):value;
+        }})}:env;
+        return handleRequest(request,requestEnv,ctx,{fetch:(input,init)=>env.SYNTHETIC_UPSTREAM.fetch(new Request(input,init)),now:()=>new Date()});
       }};`},
     bundle:true,write:false,format:"esm",platform:"node",external:["cloudflare:workers"],
     banner:{js:'import {createRequire} from "node:module";const require=createRequire("/");'},
@@ -177,6 +185,7 @@ export async function pendingConsent(f:OAuthFixture,resource=RESOURCE,clientId?:
   const verifier="v".repeat(43);
   const query=new URLSearchParams({response_type:"code",client_id:clientId,redirect_uri:"http://127.0.0.1:1234/callback",resource,scope:"runtime.use",state:"synthetic-state",code_challenge:createHash("sha256").update(verifier).digest("base64url"),code_challenge_method:"S256"});
   const begun=await f.runtime.dispatchFetch(`${f.issuer}/runtime/authorize?${query}`,{headers:member?{Cookie:f.cookies.get(member)!}:{},redirect:"manual"});
+  await begun.body?.cancel();
   if(begun.status!==303||!begun.headers.has("Set-Cookie"))throw new Error("Synthetic consent setup failed");
   const target=new URL(begun.headers.get("Location")!,f.issuer);
   const cookie=`${member?`${f.cookies.get(member)}; `:""}${begun.headers.get("Set-Cookie")!.split(";",1)[0]}`;
@@ -186,6 +195,7 @@ export async function pendingConsent(f:OAuthFixture,resource=RESOURCE,clientId?:
 export async function authorizedTokens(f:OAuthFixture,resource=RESOURCE,member="member") {
   const pending=await pendingConsent(f,resource,undefined,member);
   const response=await pending.decide();
+  await response.body?.cancel();
   if(response.status!==303||!response.headers.has("Location"))throw new Error("Synthetic consent decision failed");
   const callback=new URL(response.headers.get("Location")!);
   const body={grant_type:"authorization_code",client_id:pending.clientId,code:callback.searchParams.get("code")!,redirect_uri:pending.query.get("redirect_uri")!,resource,code_verifier:pending.verifier};

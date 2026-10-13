@@ -55,6 +55,9 @@ Both require the current revision and original pending operation ID. A known wri
 stays known when a subsequent page read fails. Do not reload a native POST to seek
 another result. Production activation still requires the Runtime release issue's
 separate domain, fresh credential and operator authority.
+An expired console session rejects the native form before reading its body or
+performing the operation. Its login link retains only the owning read-only page;
+sign-in does not replay the rejected POST.
 
 | Operation | JSON endpoint |
 | --- | --- |

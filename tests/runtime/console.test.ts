@@ -121,6 +121,25 @@ it("revokes only the member's own client with a native form and keeps other auth
   } finally {await f.dispose();}
 },20000);
 
+it("keeps a confirmed access write known when the installation page cannot be read",async()=>{
+  const f=await oauthFixture();
+  try {
+    const failure=await f.expire("fail-installation-read","true");await failure.body?.cancel();
+    const response=await f.runtime.dispatchFetch(`${ISSUER}/admin/ui/runtime-installations/design`,{
+      method:"POST",headers:{Cookie:f.cookies.get("admin")!,Origin:ISSUER,Accept:"text/html","Content-Type":"application/x-www-form-urlencoded"},
+      body:new URLSearchParams({action:"access",confirm:"1",expectedRevision:"0",subject:"other",state:"granted",expiresAt:""}).toString()
+    });
+    const html=await response.text();
+    expect(response.status).toBe(503);
+    expect(html.includes('data-dashboard-mutation="runtime_changed"')).toBe(true);
+    expect(html.includes('data-console-outcome="unknown"')).toBe(false);
+    const consumer=await f.runtime.dispatchFetch(`${ISSUER}/runtime/integrations`,{headers:{Cookie:f.cookies.get("other")!}});
+    expect(consumer.status).toBe(200);
+    expect((await consumer.json() as {installations:Array<{id:string}>}).installations.map(i=>i.id)).toEqual(["design"]);
+    expect(await f.db.prepare("SELECT revision,state FROM runtime_installation_access WHERE installation_id='design' AND user_id='other'").first()).toEqual({revision:1,state:"granted"});
+  } finally {await f.dispose();}
+},20000);
+
 it("offers URL-only setup and distinct authorization facts in the actual personal page",async()=>{
   const fixture=await oauthFixture();
   try {

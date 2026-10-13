@@ -865,6 +865,11 @@ async function authorizeConsole(
     if (wantsHtml(request) && request.method === "POST" && (url.pathname.startsWith("/admin/ui/users") || url.pathname.startsWith("/admin/ui/services"))) {
       return consoleLifecycleOutcome({ rejected: true, href: "/login", label: "重新登录", cookie: clearConsoleSessionCookie(), message: "登录已失效，这次管理操作没有执行。重新登录后查看当前状态。" });
     }
+    if (wantsHtml(request) && request.method === "POST") {
+      const installation=/^\/admin\/ui\/runtime-installations\/([a-z][a-z0-9-]{0,63})$/.exec(url.pathname);
+      const client=/^\/me\/ui\/runtime-clients\/[a-f0-9-]{36}\/revoke$/.test(url.pathname);
+      if(installation||client)return consoleLifecycleOutcome({rejected:true,href:"/login",returnTarget:installation?`/admin?view=runtime&installation=${installation[1]}`:runtimeMemberHref(),label:"重新登录",cookie:clearConsoleSessionCookie(),message:"登录已失效，这次工具服务操作没有执行。重新登录后查看当前状态。"});
+    }
     throw new HttpError(403, "Admin authentication required", "authentication_error", "admin_auth_required");
   }
   if (url.pathname === "/me/service-accounts" && request.method === "GET") return jsonResponse({services:await listDelegatedServices(env,principal)}, {headers:{"Cache-Control":"no-store"}});

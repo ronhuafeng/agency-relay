@@ -80,8 +80,7 @@ export async function mutateRuntimeInstallation(env:Env,actor:LifecycleActor,id:
   if(body.action==="access") {
     fields(body,["action","confirm","expectedRevision","subject","state","expiresAt"]);
     if(!body.subject||!["granted","revoked"].includes(body.state??""))throw invalid();
-    await setRuntimeAccess(env,actor,id,body.subject,{state:body.state as "granted"|"revoked",expectedRevision:revision,expiresAt:body.expiresAt||null},now);
-    return readRuntimeInstallation(env,actor,id);
+    return setRuntimeAccess(env,actor,id,body.subject,{state:body.state as "granted"|"revoked",expectedRevision:revision,expiresAt:body.expiresAt||null},now);
   }
   const common={expectedRevision:revision,operationId:body.operationId??""};
   const allowed=["action","confirm","expectedRevision","operationId"];
