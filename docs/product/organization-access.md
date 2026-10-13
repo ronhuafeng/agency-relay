@@ -282,6 +282,12 @@ separate from Provider TokenAuthority. No Provider identity or ciphertext is
 migrated. A request already admitted may finish; revocation cannot undo an
 upstream tool action.
 
+The admission result carries the immutable credential binding/operation revision
+and Authority Revision from that same D1 snapshot. Transport reads only that
+exact secret version, never an installation's latest/current replacement. If the
+admitted version has already been cleaned, fail closed without retry or fallback.
+Thus an admission for upstream authority A cannot use B after a concurrent rebind.
+
 ## 7. Browser and transport safety
 
 Apply one browser-mutation guard before all console-session writes, including JSON POST/PUT/PATCH/DELETE and native `/me/ui/*` and `/admin/ui/*` POST forms. Require an exact canonical Origin match and reject cross-site Fetch Metadata. Reject missing/invalid origin for this browser-only write surface. Console session verification and server-side authorization are still required. Checking only a subset of forms is insufficient; readable confirmation text is not CSRF protection.
