@@ -19,7 +19,7 @@ for(const script of [true,false])test.describe(`Runtime personal native form, sc
     await page.getByRole("link",{name:"Design",exact:true}).click();
     await expect(page.getByRole("heading",{name:"Design",exact:true})).toBeVisible();
     expect(await page.locator('#runtime-detail pre').allTextContents()).toEqual([
-      '[mcp_servers.design]\nurl = "https://design.example.test/mcp"\n',"codex mcp login design"
+      '[mcp_servers.design]\nurl = "https://design.example.test/google-stitch"\n',"codex mcp login design"
     ]);
     await expect(page.getByRole("table",{name:"已记录的客户端授权"})).toContainText("Synthetic client");
     const revoke=page.getByRole("table",{name:"已记录的客户端授权"}).locator("form");
@@ -27,7 +27,7 @@ for(const script of [true,false])test.describe(`Runtime personal native form, sc
       await revoke.getByRole("button",{name:"撤销授权",exact:true}).click();
       const dialog=page.getByRole("alertdialog");
       await expect(dialog).toContainText("Synthetic client");
-      await expect(dialog).toContainText("https://design.example.test/mcp");
+      await expect(dialog).toContainText("https://design.example.test/google-stitch");
       await dialog.getByRole("button",{name:"取消",exact:true}).click();
     }
     await confirm(page,revoke,"撤销授权",script);
@@ -108,7 +108,7 @@ test("uncertain credential write clears input and recovers without repeating sup
   const accessConfirmation=page.getByRole("alertdialog");
   await expect(accessConfirmation).toContainText("other@example.test");
   await expect(accessConfirmation).toContainText("Design");
-  await expect(accessConfirmation).toContainText("https://design.example.test/mcp");
+  await expect(accessConfirmation).toContainText("https://design.example.test/google-stitch");
   await accessConfirmation.getByRole("button",{name:"取消",exact:true}).click();
   expect(await f.db.prepare("SELECT state FROM runtime_installation_access WHERE installation_id='design' AND user_id='other'").first()).toBeNull();
   await page.getByText("更换同一账号的凭据",{exact:true}).click();
@@ -121,7 +121,7 @@ test("uncertain credential write clears input and recovers without repeating sup
     await form.getByRole("button",{name:"更换同一账号凭据",exact:true}).click();
     const credentialConfirmation=page.getByRole("alertdialog");
     await expect(credentialConfirmation).toContainText("Design");
-    await expect(credentialConfirmation).toContainText("https://design.example.test/mcp");
+    await expect(credentialConfirmation).toContainText("https://design.example.test/google-stitch");
     await credentialConfirmation.getByRole("button",{name:"更换同一账号凭据",exact:true}).click();
     await held.entered;
     expect(nativePost).toBe(false);

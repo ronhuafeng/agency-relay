@@ -26,6 +26,10 @@
       "zone_name": "trustedtunnel.app"
     },
     {
+      "pattern": "mcp.trustedtunnel.app",
+      "custom_domain": true
+    },
+    {
       "pattern": "mini-proxy.uniweaver.com",
       "custom_domain": true
     }
@@ -51,7 +55,7 @@
     "CODEX_CLIENT_ID": "app_EMoamEEZ73f0CkXaXp7hrann",
     "ADMIN_DASHBOARD_HOST": "mini-proxy.uniweaver.com",
     "CONSOLE_EMAIL_DOMAIN": "uniweaver.com",
-    "RUNTIME_INSTALLATIONS": "[]",
+    "RUNTIME_INSTALLATIONS": "[{\"id\":\"google-stitch\",\"resource\":\"https://mcp.trustedtunnel.app/google-stitch\",\"profile\":\"google.stitch\",\"label\":\"Google Stitch\"}]",
     "REQUEST_AUDIT_RETENTION_DAYS": "30"
   },
   "secrets": {

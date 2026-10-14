@@ -30,7 +30,7 @@ export function runtimeInstallations(env: Env): RuntimeInstallationDeclaration[]
         || !row.label.trim() || row.label.length > 64 || /[\u0000-\u001f\u007f]/.test(row.label)) throw new Error();
       const uri = new URL(row.resource);
       if (uri.protocol !== "https:" || uri.username || uri.password || uri.port || uri.search || uri.hash
-        || uri.pathname !== "/mcp" || uri.href !== row.resource
+        || !/^\/[a-z][a-z0-9-]{0,63}$/.test(uri.pathname) || uri.href !== row.resource
         || uri.hostname===env.ADMIN_DASHBOARD_HOST || plansForHostname(uri.hostname)
         || ids.has(row.id) || resources.has(row.resource)) throw new Error();
       ids.add(row.id); resources.add(row.resource);

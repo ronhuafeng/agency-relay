@@ -20,6 +20,21 @@ function setup(options:Parameters<typeof createTestD1>[0]={}) {
   return {db,env};
 }
 
+it("accepts distinct declared resource paths on one origin, not ambiguous or encoded paths",()=>{
+  const declared=[
+    {id:"stitch",profile:"google.stitch",resource:"https://mcp.example.test/google-stitch",label:"Stitch"},
+    {id:"other",profile:"google.stitch",resource:"https://mcp.example.test/other",label:"Other"}
+  ];
+  const env={ADMIN_DASHBOARD_HOST:"console.example.test",RUNTIME_INSTALLATIONS:JSON.stringify(declared)} as Env;
+  expect(runtimeInstallations(env)).toEqual(declared);
+  for(const path of ["/","/google-stitch/","/google-stitch/mcp","/.well-known","/%67oogle-stitch","/Google-stitch"]) {
+    env.RUNTIME_INSTALLATIONS=JSON.stringify([{...declared[0],resource:`https://mcp.example.test${path}`}]);
+    expect(()=>runtimeInstallations(env)).toThrowError(expect.objectContaining({code:"runtime_declaration_invalid"}));
+  }
+  env.RUNTIME_INSTALLATIONS=JSON.stringify([declared[0],{...declared[1],resource:declared[0]!.resource}]);
+  expect(()=>runtimeInstallations(env)).toThrowError(expect.objectContaining({code:"runtime_declaration_invalid"}));
+});
+
 // Accept an explicit disabled installation; reject unknown topology and all
 // implicit access. Equivalent storage layouts must keep these public results.
 it("starts unconfigured and denies implicit access even to an administrator", async () => {

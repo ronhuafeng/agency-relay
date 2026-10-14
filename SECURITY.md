@@ -113,9 +113,16 @@ authority consequence. All token material stays out of audit and diagnostics.
 The canonical console origin owns `/.well-known/oauth-authorization-server`,
 `/runtime/register`, `/runtime/authorize`, `/runtime/token`, the exact opaque
 `/runtime/consent/:id` return, and current-member `/runtime/clients` list/revoke.
-Each deployment-declared resource origin owns
-`/.well-known/oauth-protected-resource/mcp`; the resource itself is the exact
-HTTPS `/mcp` URI. A resource origin cannot also be a Provider or console origin.
+Each deployment-declared resource owns its path-specific metadata at
+`/.well-known/oauth-protected-resource/<resource-path>`, as specified by
+[RFC 9728 section 3.1](https://www.rfc-editor.org/rfc/rfc9728.html#section-3.1).
+Resources use exact HTTPS URLs with one lowercase letter-led path segment
+(letters, digits and hyphens, at most 64 characters), without a query or fragment.
+Selection and token admission use the full URL, never the first matching origin.
+Distinct installations may share an origin, but not a resource URL. A resource
+origin cannot also be a Provider or console origin. The canonical Stitch resource
+is `https://mcp.trustedtunnel.app/google-stitch`; `/stitch`, `/mcp`, descendant paths
+and trailing-slash variants are not aliases.
 Registration and token exchange require no browser cookie/Origin; their explicit
 uncredentialed CORS never advertises credentialed wildcard access. Consent and
 client revocation use the existing console principal and exact-Origin write guard.

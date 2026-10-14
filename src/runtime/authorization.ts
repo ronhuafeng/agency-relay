@@ -25,8 +25,8 @@ export async function runtimeAuthorizationResponse(request:Request,env:Env):Prom
       return Response.json(reply.body,{status:reply.status,headers:{"Cache-Control":"no-store","Referrer-Policy":"no-referrer"}});
     }
     if(!installations.length)return null;
-    const resource=installations.find(item=>new URL(item.resource).origin===url.origin);
-    if(request.method==="GET"&&resource&&url.pathname==="/.well-known/oauth-protected-resource/mcp"&& !url.search)
+    const resource=installations.find(item=>resourceMetadataUrl(item.resource)===url.href);
+    if(request.method==="GET"&&resource)
       return protocolResponse({resource:resource.resource,authorization_servers:[issuer],bearer_methods_supported:["header"],scopes_supported:[RUNTIME_SCOPE]});
     if(url.origin!==issuer)return null;
     if(request.method==="OPTIONS"&&!url.search&&["/runtime/register","/runtime/token"].includes(url.pathname)) {
@@ -111,9 +111,14 @@ export async function admitRuntimeRequest(request:Request,env:Env):Promise<Runti
   const url=new URL(request.url);
   if(plansForHostname(url.hostname)||url.origin===`https://${env.ADMIN_DASHBOARD_HOST}`)return null;
   try {
-    const installation=runtimeInstallations(env).find(item=>new URL(item.resource).origin===url.origin);
-    if(!installation||url.pathname==="/.well-known/oauth-protected-resource/mcp")return null;
-    if(url.href!==installation.resource||request.method!=="POST")return protocolResponse({error:"invalid_request"},request.method!=="POST"?405:404);
+    const installations=runtimeInstallations(env);
+    const installation=installations.find(item=>item.resource===url.href);
+    if(!installation) {
+      if(!installations.some(item=>new URL(item.resource).origin===url.origin)
+        || installations.some(item=>resourceMetadataUrl(item.resource)===url.href))return null;
+      return protocolResponse({error:"invalid_request"},404);
+    }
+    if(request.method!=="POST")return protocolResponse({error:"invalid_request"},405);
     if(request.headers.has("Upgrade")||request.headers.has("Mcp-Session-Id")||request.headers.has("Last-Event-ID"))return protocolResponse({error:"runtime_transport_unsupported"},400);
     const version=request.headers.get("Mcp-Protocol-Version");
     // Absent during legacy initialize is forwarded, not invented by the relay.
@@ -124,10 +129,16 @@ export async function admitRuntimeRequest(request:Request,env:Env):Promise<Runti
     const admitted=token?await env.RUNTIME_OAUTH.getByName("organization").admit(token,installation.resource):null;
     if(admitted&&"installation_id" in admitted)return admitted;
     const response=protocolResponse(admitted?.body??{error:"invalid_token"},admitted?.status??401);
-    if(response.status===401)response.headers.set("WWW-Authenticate",`Bearer resource_metadata="${url.origin}/.well-known/oauth-protected-resource/mcp", error="invalid_token"`);
+    if(response.status===401)response.headers.set("WWW-Authenticate",`Bearer resource_metadata="${resourceMetadataUrl(installation.resource)}", error="invalid_token"`);
     if(admitted?.body.error==="insufficient_scope")response.headers.set("WWW-Authenticate",`Bearer error="insufficient_scope", scope="${RUNTIME_SCOPE}"`);
     return response;
   } catch {return protocolResponse({error:"temporarily_unavailable"},503);}
+}
+
+/** RFC 9728 inserts the well-known suffix before the exact resource path. */
+function resourceMetadataUrl(resource:string):string {
+  const url=new URL(resource);
+  return `${url.origin}/.well-known/oauth-protected-resource${url.pathname}`;
 }
 
 function protocolResponse(body:unknown,status=200):Response {

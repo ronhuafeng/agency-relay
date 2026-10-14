@@ -30,12 +30,23 @@ The plan owns the slot type; the stored binding selects one physical account. Cl
 
 Runtime lifecycle is separate from Provider bindings. `RUNTIME_INSTALLATIONS` is
 a finite deployment declaration of `{id, resource, profile, label}` entries;
-the safe default is `[]`. The reviewed `google.stitch` profile fixes the upstream
-and credential header in code. An entry cannot supply an arbitrary upstream URL
-or header. Declare a canonical HTTPS resource ending exactly in `/mcp`. Changing a
-stored resource/profile identity fails closed; retirement retains that identity.
-Declaring an entry does not publish its host, configure OAuth or grant any member
-access. Use the Runtime release issue for those distinct rollout steps.
+an empty declaration closes Runtime. The reviewed `google.stitch` profile fixes
+the upstream and credential header in code. An entry cannot supply an arbitrary upstream URL
+or header. Declare an exact canonical HTTPS resource with one lowercase
+letter-led path segment (letters, digits and hyphens, at most 64 characters),
+without a query or fragment. The Stitch resource is
+`https://mcp.trustedtunnel.app/google-stitch`. Its path-specific OAuth metadata is
+`https://mcp.trustedtunnel.app/.well-known/oauth-protected-resource/google-stitch`.
+The full URL identifies the installation; sharing a host does not share consent.
+Changing a stored resource/profile identity fails closed; retirement retains it.
+
+A declaration advertises the resource and OAuth issuer but does not publish its
+host, create D1 installation state, store a credential, enable forwarding or grant
+member access. The MCP host uses a Worker Custom Domain; Cloudflare manages its
+DNS and certificate. Keep its declaration in `wrangler.jsonc` and confirm the
+actual host binding after deployment. Use the Runtime release issue for these
+distinct rollout steps. Do not add short-path aliases or redirect another URL
+onto the resource.
 
 The protected operator API and same-origin administrator console share:
 

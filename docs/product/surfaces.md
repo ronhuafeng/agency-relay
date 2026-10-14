@@ -131,8 +131,9 @@ Details: [usage](../operate/usage.md), [Responses development](../develop/respon
 
 Provider profiles above do not admit an MCP client. A Runtime client presents a resource-bound OAuth bearer to one exact resource. That grant is separate from an Agency Relay API key, a console session, and a Provider credential.
 
-The authorization implementation uses the canonical console origin and separate
-deployment-declared resource origins in the same Worker. Exact discovery and
+The canonical console origin owns the OAuth issuer role. Deployment-declared MCP
+resources use origins separate from the console and Providers, in the same Worker.
+Exact discovery and
 OAuth paths are listed in [Security](../../SECURITY.md#runtime-admission-and-lifecycle).
 Public registration and token routes stay outside the console browser-write
 guard. Consent and own-client revocation stay inside it; administrator Authority
@@ -158,8 +159,18 @@ bounds and cleanup are owned by [Security](../../SECURITY.md#runtime-admission-a
 Synthetic identity, task output and controlled clocks are test inputs, not live
 Feishu, upstream capability or transport-capacity evidence.
 
-The relay implements request-scoped `POST /mcp`. The reviewed `google.stitch`
-profile fixes the complete upstream URL to `https://stitch.googleapis.com/mcp`
+The canonical Stitch resource is `https://mcp.trustedtunnel.app/google-stitch`.
+Runtime resources use one explicitly declared lowercase letter-led path segment
+(letters, digits and hyphens, at most 64 characters). Distinct installations can
+share an origin; exact full-URL matching selects the installation, not the first
+declaration on that host. No prefix matching, alias or trailing-slash redirect
+expands the resource. Its OAuth metadata is published at
+`https://mcp.trustedtunnel.app/.well-known/oauth-protected-resource/google-stitch`,
+and an unauthenticated request receives a challenge for that exact document.
+The resource URL is a stable authorization identity, not a mutable display name.
+
+The relay implements request-scoped POST to the exact resource. The reviewed
+`google.stitch` profile fixes the complete upstream URL to `https://stitch.googleapis.com/mcp`
 and injects the exact admitted secret version as `X-Goog-Api-Key`. No incoming
 path, query, body, header or client version selects that URL or credential.
 No query is allowed. A present Origin must equal the resource origin.
