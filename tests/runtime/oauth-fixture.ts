@@ -7,8 +7,8 @@ import {createHash} from "node:crypto";
 
 const {Miniflare,convertV4MiniflareOptions}=createRequire(import.meta.resolve("wrangler/package.json"))("miniflare");
 export const ISSUER="https://console.example.test";
-export const RESOURCE="https://design.example.test/mcp";
-export const OTHER_RESOURCE="https://other.example.test/mcp";
+export const RESOURCE="https://design.example.test/google-stitch";
+export const OTHER_RESOURCE="https://design.example.test/catalog";
 
 /** Actual Worker/D1 and production DO owner with test-only clock/expiry controls.
  * The external MCP service is synthetic; production owns every auth/path check. */

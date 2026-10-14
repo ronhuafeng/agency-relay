@@ -13,9 +13,18 @@ it("publishes exact resource metadata and registers independent bounded public c
     const metadata=await f.runtime.dispatchFetch(`${ISSUER}/.well-known/oauth-authorization-server`);
     expect(metadata.status).toBe(200);
     expect(await metadata.json()).toMatchObject({issuer:ISSUER,authorization_endpoint:`${ISSUER}/runtime/authorize`,token_endpoint:`${ISSUER}/runtime/token`,registration_endpoint:`${ISSUER}/runtime/register`,code_challenge_methods_supported:["S256"],token_endpoint_auth_methods_supported:["none"]});
-    for(const uri of [RESOURCE,OTHER_RESOURCE]) {
-      const result=await f.runtime.dispatchFetch(`${new URL(uri).origin}/.well-known/oauth-protected-resource/mcp`);
+    for(const [uri,metadataUrl] of [
+      [RESOURCE,"https://design.example.test/.well-known/oauth-protected-resource/google-stitch"],
+      [OTHER_RESOURCE,"https://design.example.test/.well-known/oauth-protected-resource/catalog"]
+    ]) {
+      const result=await f.runtime.dispatchFetch(metadataUrl!);
+      expect(result.status).toBe(200);
       expect(await result.json()).toMatchObject({resource:uri,authorization_servers:[ISSUER],scopes_supported:["runtime.use"]});
+    }
+    for(const path of ["/.well-known/oauth-protected-resource","/.well-known/oauth-protected-resource/mcp",
+      "/.well-known/oauth-protected-resource/google-stitch/child","/.well-known/oauth-protected-resource/google-stitch?extra=1"]) {
+      const result=await f.runtime.dispatchFetch(`https://design.example.test${path}`);
+      expect(result.status).toBe(404);await result.body?.cancel();
     }
     expect((await f.runtime.dispatchFetch("https://alternate.example.test/.well-known/oauth-authorization-server")).status).toBe(404);
     const register=(body:unknown)=>f.runtime.dispatchFetch(`${ISSUER}/runtime/register`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});

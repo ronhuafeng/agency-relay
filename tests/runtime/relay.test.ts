@@ -47,6 +47,10 @@ it("does not replace newer transport activity with a delayed older completion",a
 
 it("caps one installation at sixteen leases across members and keeps another installation independent",async()=>{
   const responses:Response[]=[];
+  const readings:Promise<PromiseSettledResult<ArrayBuffer>[]>[]=[];
+  // Read as each response arrives, before later fixture requests can discard an
+  // idle HTTP body. The upstream stays open, so its lease must stay occupied.
+  const retain=(response:Response)=>{responses.push(response);readings.push(Promise.allSettled([response.arrayBuffer()]));};
   const sources:ReadableStreamDefaultController<Uint8Array>[]=[];
   let attempts=0;
   const f=await oauthFixture(undefined,{upstream:async request=>{attempts++;await request.body?.cancel();return new Response(new ReadableStream<Uint8Array>({start(controller){sources.push(controller);controller.enqueue(new Uint8Array([32]));}}),{headers:{"Content-Type":"text/event-stream"}});}});
@@ -59,20 +63,21 @@ it("caps one installation at sixteen leases across members and keeps another ins
     }
     for(const member of ["member","second","third","fourth"]){
       const a=await authorizedTokens(f,RESOURCE,member);
-      responses.push(...await Promise.all(Array.from({length:4},()=>f.runtime.dispatchFetch(RESOURCE,{method:"POST",headers:{Authorization:`Bearer ${a.tokens.access_token}`},body:"{}"}))));
+      await Promise.all(Array.from({length:4},()=>f.runtime.dispatchFetch(RESOURCE,{method:"POST",headers:{Authorization:`Bearer ${a.tokens.access_token}`},body:"{}"}).then(retain)));
     }
     expect(responses.every(response=>response.status===200)).toBe(true);
+    expect((await inventory(f)).leases).toBe(16);
     const extra=await authorizedTokens(f,RESOURCE,"fifth");
     expect((await f.runtime.dispatchFetch(RESOURCE,{method:"POST",headers:{Authorization:`Bearer ${extra.tokens.access_token}`},body:"{}"})).status).toBe(429);
     const other=await authorizedTokens(f,OTHER_RESOURCE);
-    responses.push(await f.runtime.dispatchFetch(OTHER_RESOURCE,{method:"POST",headers:{Authorization:`Bearer ${other.tokens.access_token}`},body:"{}"}));
+    retain(await f.runtime.dispatchFetch(OTHER_RESOURCE,{method:"POST",headers:{Authorization:`Bearer ${other.tokens.access_token}`},body:"{}"}));
     expect(responses.at(-1)!.status).toBe(200);
     expect(attempts).toBe(17);
-    const reading=Promise.all(responses.map(response=>response.arrayBuffer()));
+    expect((await inventory(f)).leases).toBe(17);
     for(const source of sources)source.close();
-    await reading;
+    expect((await Promise.all(readings)).flat().every(result=>result.status==="fulfilled")).toBe(true);
     await vi.waitFor(async()=>expect((await inventory(f)).leases).toBe(0));
-  }finally{for(const source of sources)try{source.close();}catch{/* already closed */}await f.dispose();}
+  }finally{for(const source of sources)try{source.close();}catch{/* already closed */}await Promise.all(readings);await f.dispose();}
 },20000);
 
 it("rejects a known oversize request before dispatch and stops an unknown-length upload at eight MiB",async()=>{
@@ -217,7 +222,7 @@ it("bounds upstream-header idle time and does not replay an uncertain POST",asyn
   }finally{if(timeout!==undefined)clearTimeout(timeout);release();await pending;await f.dispose();}
 },20000);
 
-it("uses a second fixed profile through the same core without sharing resource authority",async()=>{
+it("selects each fixed profile by exact path on a shared origin without sharing resource authority",async()=>{
   const seen:{url:string;stitch:boolean;catalog:boolean}[]=[];
   const f=await oauthFixture(undefined,{upstream:async request=>{
     await request.body?.cancel();
@@ -227,8 +232,14 @@ it("uses a second fixed profile through the same core without sharing resource a
   try{
     const a=await authorizedTokens(f),b=await authorizedTokens(f,OTHER_RESOURCE);
     const send=(token:string,resource:string,headers:HeadersInit={})=>f.runtime.dispatchFetch(resource,{method:"POST",headers:{Authorization:`Bearer ${token}`,...headers},body:"{}"});
-    expect((await send(a.tokens.access_token,OTHER_RESOURCE)).status).toBe(401);
-    expect((await send(b.tokens.access_token,RESOURCE)).status).toBe(401);
+    const wrongCatalog=await send(a.tokens.access_token,OTHER_RESOURCE);
+    expect(wrongCatalog.status).toBe(401);
+    expect(wrongCatalog.headers.get("WWW-Authenticate")).toBe('Bearer resource_metadata="https://design.example.test/.well-known/oauth-protected-resource/catalog", error="invalid_token"');
+    await wrongCatalog.body?.cancel();
+    const wrongStitch=await send(b.tokens.access_token,RESOURCE);
+    expect(wrongStitch.status).toBe(401);
+    expect(wrongStitch.headers.get("WWW-Authenticate")).toBe('Bearer resource_metadata="https://design.example.test/.well-known/oauth-protected-resource/google-stitch", error="invalid_token"');
+    await wrongStitch.body?.cancel();
     expect((await send(b.tokens.access_token,OTHER_RESOURCE,{"X-Synthetic-Credential":"caller-key"})).status).toBe(202);
     expect(seen).toEqual([{url:"https://catalog.example.test/rpc",stitch:false,catalog:true}]);
   }finally{await f.dispose();}
@@ -242,7 +253,10 @@ it("rejects unsupported session/resumption, version, origin, path and query befo
     const send=(url=RESOURCE,headers:HeadersInit={},method="POST")=>f.runtime.dispatchFetch(url,{method,headers:{Authorization:`Bearer ${a.tokens.access_token}`,...headers},...(method==="POST"?{body:"{}"}:{})});
     for(const headers of [new Headers({"Mcp-Session-Id":"old-session"}),new Headers({"Last-Event-ID":"old-cursor"}),new Headers({"Mcp-Protocol-Version":"2024-11-05"})])expect((await send(RESOURCE,Object.fromEntries(headers))).status).toBe(400);
     expect((await send(RESOURCE,{Origin:"https://foreign.example.test"})).status).toBe(403);
-    for(const url of [RESOURCE+"?key=synthetic",RESOURCE+"?safe=1",RESOURCE+"/child"])expect((await send(url)).status).toBe(404);
+    for(const url of [RESOURCE+"?key=synthetic",RESOURCE+"?safe=1",RESOURCE+"/child",RESOURCE+"/",RESOURCE+"/mcp",
+      "https://design.example.test/mcp","https://design.example.test/stitch","https://design.example.test/%67oogle-stitch"]) {
+      const response=await send(url);expect(response.status).toBe(404);await response.body?.cancel();
+    }
     expect((await send(RESOURCE,{},"GET")).status).toBe(405);
     expect((await send(RESOURCE,{},"DELETE")).status).toBe(405);
     expect(attempts).toBe(0);
