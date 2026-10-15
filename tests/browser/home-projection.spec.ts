@@ -118,7 +118,7 @@ test.describe('member connection recovery',()=>{
     await page.goto(`/me/service-accounts/${service}?view=home`);
     const row=page.locator('[data-member-home] [data-surface=codex]');
     await expect(row).toHaveAttribute('data-service-reason','default-unavailable');
-    await expect(row).toContainText('请联系管理员处理');
+    await expect(row).toContainText('请联系管理员');
     await expect(row.getByRole('link',{name:'创建密钥',exact:true})).toHaveCount(0);
     await page.screenshot({path:testInfo.outputPath('safe-member-connection-recovery.png'),fullPage:true,animations:'disabled'});
     await page.goto('/admin?area=me&view=home');

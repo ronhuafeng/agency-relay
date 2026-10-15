@@ -189,7 +189,8 @@ for(const [width,zoom] of [[320,1],[390,1],[1200,1],[1440,1],[1440,2]] as const)
       const box=panel.getBoundingClientRect();const neighbor=panel.querySelector('header a')!.getBoundingClientRect();
       const range=document.createRange();range.selectNodeContents(panel.querySelector('h2')!);
       const rects=[...range.getClientRects()].map(rect=>({left:rect.left,right:rect.right,top:rect.top,bottom:rect.bottom}));
-      const descendants=[...panel.querySelectorAll('h2,code,p,a')].map(element=>{const rect=element.getBoundingClientRect();return {tag:element.tagName,left:rect.left,right:rect.right};});
+      // Closed native popovers have no painted descendants to contain.
+      const descendants=[...panel.querySelectorAll('h2,code,p,a')].filter(element=>element.checkVisibility()).map(element=>{const rect=element.getBoundingClientRect();return {tag:element.tagName,left:rect.left,right:rect.right};});
       return {column:{left:box.left,right:box.right,width:box.width},neighbor:{left:neighbor.left,right:neighbor.right,top:neighbor.top,bottom:neighbor.bottom},rects,descendants};
     });
     expect(geometry.rects.every(rect=>rect.left>=geometry.column.left-1&&rect.right<=geometry.column.right+1)).toBe(true);

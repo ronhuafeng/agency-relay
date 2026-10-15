@@ -81,7 +81,7 @@ for (const script of [true, false]) test.describe(`credential tasks script ${scr
     const moved = worker.credentialBindings();
     worker.failCredentialCleanup(true);
     const disconnect = page.locator('[data-action="logout-grok"]');
-    await submit(page, disconnect, disconnect.getByRole('button'), script, '断开');
+    await submit(page, disconnect, disconnect.getByRole('button',{name:'断开',exact:true}), script, '断开');
     await expect(page.locator('[data-mutation-flash="credential_disconnected"]')).toContainText('连接已断开，令牌清理未确认');
     expect(worker.credentialStatus('task-old')).toBe('revoked');
     expect(worker.credentialCleanupCalls).toEqual(['subscription:task-old']);
