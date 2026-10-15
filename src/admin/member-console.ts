@@ -66,7 +66,7 @@ export async function memberConsoleResponse(input: {
     catch { return html(400, input.requestId, createElement(ReadError, {title: "时间范围不正确", message: "请选择最近 7 天或 30 天。显式日期查询请使用此账号的用量 API。", retryUrl: memberHref("usage", undefined, input.service?.id), retryLabel: "打开最近 7 天", requestId: input.requestId}), input.principal, view, input.service); }
   }
   const search = trend ? parseUsageSearch(input.url) : "";
-  const readUrl = view==="integrations"?runtimeMemberHref(input.url.searchParams.get("installation")??undefined):trend ? `${memberHref("usage", undefined, input.service?.id)}&range=${trend.key}${search ? `&q=${encodeURIComponent(search)}` : ""}` : memberHref(view, view === "keys" ? input.url.searchParams.get("key") ?? undefined : undefined, input.service?.id);
+  const readUrl = view==="setup" && input.url.searchParams.has("client") ? `${memberHref("setup",undefined,input.service?.id)}&client=${encodeURIComponent(input.url.searchParams.get("client")!)}` : view==="integrations"?runtimeMemberHref(input.url.searchParams.get("installation")??undefined):trend ? `${memberHref("usage", undefined, input.service?.id)}&range=${trend.key}${search ? `&q=${encodeURIComponent(search)}` : ""}` : memberHref(view, view === "keys" ? input.url.searchParams.get("key") ?? undefined : undefined, input.service?.id);
   try {
     const {body, data} = await renderView(input, view, trend);
     if(view==="integrations")await assertRuntimePageActor(input);
@@ -85,7 +85,7 @@ export async function memberConsoleResponse(input: {
         throw new HttpError(403,"Console authority changed.","authentication_error","console_identity_changed");
       }
     }
-    if (error instanceof HttpError && error.status === 404) throw error;
+    if (error instanceof HttpError && (error.status === 400 || error.status === 404)) throw error;
     return html(503, input.requestId, createElement("div",null,input.runtimeRevoked?createElement("p",{role:"status"},"客户端授权已撤销，但当前页面读取失败。不要重复提交；请查看当前状态。"):null,createElement(MemberUnavailablePage, {retryUrl: consoleReturnTarget(readUrl) ?? "/"})), input.principal, view, input.service,view==="integrations"?readUrl:undefined,undefined,input.runtimeRevoked?"runtime_revoked":undefined);
   }
 }
@@ -121,7 +121,7 @@ export async function memberUsageResponse(input: {
       media
     }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
-    if (error instanceof HttpError && error.status === 404) throw error;
+    if (error instanceof HttpError && (error.status === 400 || error.status === 404)) throw error;
     throw new HttpError(503, "Usage is unavailable.", "server_error", "usage_unavailable");
   }
 }
@@ -165,7 +165,11 @@ async function renderView(input: {
     catch { states = { known: false }; }
     return {body: createElement(MemberQuotaPage, { states }), data: states};
   }
-  if (view === "setup") return {body: createElement(MemberSetupPage), data: null};
+  if (view === "setup") {
+    const client=input.url.searchParams.get("client") ?? undefined;
+    if(input.url.searchParams.getAll("client").length>1 || client!==undefined && !["codex","grok","xai"].includes(client)) throw new HttpError(400,"Unknown client.");
+    return {body:createElement(MemberSetupPage,{client:client as "codex"|"grok"|"xai"|undefined}),data:{client}};
+  }
   if (view === "home" || view === "keys") {
     const model = await readMemberAccess(input.env, input.service?.id ?? input.principal.id, input.now);
     const selectedId = input.url.searchParams.get("key");

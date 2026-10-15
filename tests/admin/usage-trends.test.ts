@@ -5,6 +5,7 @@ import { createElement } from "react";
 import { parseUsageQuery, parseUsageTrendRange, MAX_USAGE_RANGE_DAYS } from "../../src/admin/usage-query";
 import { queryUsageDaily, queryUsageSummary } from "../../src/db";
 import { readUsageReport } from "../../src/admin/ui/models";
+import { UsagePage } from "../../src/admin/ui/pages/usage";
 import { UsageTrends } from "../../src/admin/ui/usage-trends";
 import { handleRequest } from "../../src/router";
 import { admin, consoleCookie, createUser, makeFixture } from "../router/fixture";
@@ -200,4 +201,15 @@ describe("usage router scope and failure boundaries", () => {
     expect(doc(html).querySelectorAll('[data-trend-plan]')).toHaveLength(0);
     expect(html).not.toContain("查看 30 天");
   });
+});
+
+it('keeps video seconds and independent coverage in one record detail',()=>{
+ const media:MediaUsageSummaryRow={user_id:'mine',email:null,first_day:'2026-06-24',last_day:'2026-06-24',route_profile_id:'xai.production.videos_generations',capability:'video_generation',started_jobs:3,completed_jobs:2,failed_jobs:1,expired_jobs:0,outputs:2,video_seconds:1.5,output_measurements:3,duration_measurements:1,provider_cost_usd_ticks:0,cost_measurements:0,last_seen_at:'2026-06-24T12:00:00Z'};
+ const document=doc(renderToStaticMarkup(createElement(UsagePage,{model:{rows:[],mediaRows:[media],rowsTruncated:false,mediaRowsTruncated:false,range:{emptyLabel:'empty',rawUsageUrl:'/admin/usage'}}})));
+ const detail=document.querySelector('.usage-record [popover]')!;
+ expect(textFor(detail,'已记录时长')).toBe('1.5 秒');
+ expect(textFor(detail,'时长记录覆盖')).toBe('1 / 3 次终态');
+ expect(textFor(detail,'输出记录覆盖')).toBe('3 / 3 次终态');
+ expect(detail.querySelector('[data-cost-basis="provider_reported"]')?.textContent).toContain('未提供');
+ expect(document.querySelector('[data-usage-partial]')?.textContent).toBe('部分计量');
 });

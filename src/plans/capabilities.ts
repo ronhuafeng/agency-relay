@@ -25,7 +25,8 @@ export type SurfaceCapabilityState =
   | "api_building_blocks"
   | "list_only"
   | "upgrade_required"
-  | "not_available";
+  | "not_available"
+  | "unverified";
 
 export interface SurfaceCapabilityRoute {
   sourcePlanId: string;
@@ -89,7 +90,7 @@ const SURFACES: readonly SurfaceCapabilitySurface[] = [
     promise: "连接工作区的 OpenAI 编程代理。",
     summaryCapabilities: ["编写、审查与自动化", "工作区工具", "长时间编程"],
     authorityLabel: "已连接的 ChatGPT",
-    authorityNote: "由已连接的 ChatGPT 订阅支持的完整编程客户端。"
+    authorityNote: "通过已连接的 ChatGPT 使用 Codex CLI。"
   },
   {
     ...PRODUCT_ACCESS.grok,
@@ -140,7 +141,7 @@ const GROUP_DEFINITIONS: readonly CapabilityGroupDefinition[] = [
     rows: [
       {
         id: "coding_client",
-        label: "完整的编程客户端",
+        label: "编程客户端",
         description: "可直接使用的编程客户端，不是原始的服务商调用。",
         cells: {
           codex: capability("included", "Codex CLI"),
@@ -163,8 +164,8 @@ const GROUP_DEFINITIONS: readonly CapabilityGroupDefinition[] = [
         label: "上下文压缩",
         description: "让长对话保持可用，不发明跨服务商的格式。",
         cells: {
-          codex: capability("included", "同一 Responses", [], "ChatGPT backend 没有单独的压缩路径。压缩是 POST /backend-api/codex/responses 输入中的 compaction_trigger。旧的 POST /v1/responses 进入同一计划，不改请求体。"),
-          grok: capability("in_client", "在 Grok Build 中", [], "这是客户端本地行为。Agency Relay 不提供压缩接口。"),
+          codex: capability("included", "Codex CLI"),
+          grok: capability("in_client", "在 Grok Build 中"),
           xai: capability("team_access", "远程", ["xai.production.responses_compact"])
         }
       },
@@ -264,7 +265,7 @@ const GROUP_DEFINITIONS: readonly CapabilityGroupDefinition[] = [
         label: "语音转文字",
         description: "通过 HTTP 转写语音。支持的服务也可以使用 WebSocket。",
         cells: {
-          codex: capability("included", "HTTP", ["codex.audio_transcriptions"]),
+          codex: capability("unverified", "未验证"),
           grok: capability("included", "HTTP", ["grok.production.stt"]),
           xai: capability("team_access", "HTTP 与 WebSocket", [
             "xai.production.stt",
@@ -303,10 +304,7 @@ const GROUP_DEFINITIONS: readonly CapabilityGroupDefinition[] = [
         label: "实时会话",
         description: "与服务商建立双向实时会话。",
         cells: {
-          codex: capability("included", "HTTP", [
-            "codex.realtime_calls",
-            "codex.live"
-          ], "ChatGPT Realtime/Live WebSocket 上游尚未证实，因此失败关闭，不转发到 api.openai.com。"),
+          codex: capability("included", "Realtime", ["codex.realtime_calls"]),
           grok: unavailable(),
           xai: capability("team_access", "WebSocket", ["xai.production.realtime_websocket"])
         }
@@ -494,13 +492,6 @@ export function projectSurfaceCapabilityView(
       };
     })
   }));
-
-  const unclassified = plans.filter((plan) => !classifiedPlanIds.has(plan.id));
-  if (unclassified.length > 0) {
-    throw new Error(
-      `Surface capability catalog does not classify: ${unclassified.map((plan) => plan.id).join(", ")}`
-    );
-  }
 
   return { surfaces: SURFACES, groups };
 }

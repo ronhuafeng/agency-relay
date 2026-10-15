@@ -109,7 +109,7 @@ describe('task-oriented console layouts',()=>{
     expect(doc.querySelectorAll('.member-setup-config [popover]')).toHaveLength(1);
     const keys=await f.open('/admin?area=me&view=keys&key=second','member');
     const detail=keys.querySelector('[data-key-detail="second"]')!;
-    expect(detail.querySelector('.key-task-evidence')?.textContent).toContain('未记录成功任务');
+    expect(detail.querySelector('.key-task-evidence')?.textContent).toContain('未记录成功请求');
     expect(detail.textContent).not.toContain('Workstation first');
     expect(detail.querySelector('[data-member-key-close]')?.getAttribute('href')).toBe('/admin?area=me&view=keys');
   });
@@ -130,8 +130,8 @@ describe('task-oriented console layouts',()=>{
       expect(value('codex')).toBe('已用 / 上限：7 / 0');
       expect(value('grok')).toBe('已用 / 上限：0 / 不限');
       expect(value('xai')).toBe('已用 / 上限：0 / 已停用');
-      expect(table.querySelector('[data-surface="codex"] td:first-child')?.textContent).toBe('Codex');
-      expect(table.querySelector('[data-surface="xai"] td:first-child')?.textContent).toBe('xAI API');
+      expect(table.querySelector('[data-surface="codex"] td:first-child')?.querySelector('strong')?.textContent).toBe('Codex');
+      expect(table.querySelector('[data-surface="xai"] td:first-child')?.querySelector('strong')?.textContent).toBe('xAI API');
       if(view==='quota') {
         const help=table.querySelector('thead [popover]')!;
         expect(help.textContent).toContain('Codex：自定义额度');

@@ -89,3 +89,14 @@ it.each([
   expect(consoleReturnTarget(target)).toBeNull();
   expect(consoleLoginHref(target)).toBe('/login');
 });
+
+it.each(['codex','grok','xai'])('keeps a selected setup client through login: %s', client=>{
+ for(const base of ['/admin?area=me&view=setup','/me/service-accounts/svc_one?view=setup']){
+  const target=`${base}&client=${client}`;
+  expect(consoleReturnTarget(target)).toBe(target);
+ }
+ expect(consoleReturnTarget(`/admin?area=me&view=usage&client=${client}`)).toBeNull();
+});
+it('rejects an unknown or competing setup client',()=>{
+ for(const suffix of ['client=unknown','client=grok&client=codex']) expect(consoleReturnTarget(`/admin?area=me&view=setup&${suffix}`)).toBeNull();
+});

@@ -5,7 +5,7 @@ import { keyIsExpired, keyStateLabel } from "../../key-label";
 import { formatOperatorInstant, personLabel, presentText } from "../../format";
 import { PRODUCT_ACCESS, productAccessLabels } from "../../client-setup";
 import type { DashboardKey, DashboardPage } from "../../inventory";
-import { executionPlanPresentation } from "../../../plans/execution-plans";
+import { executionPlanEvidence, executionPlanPresentation } from "../../../plans/execution-plans";
 import type { KeyClientVerificationRow } from "../../../db";
 import { DashLink } from "../chrome";
 import { inventoryUrl } from "../href";
@@ -43,8 +43,8 @@ function verificationText(client: string, verifications: readonly KeyClientVerif
   const rows = verifications.filter(row=>row.user_id===userId && row.key_id===keyId && executionPlanPresentation(row.route_profile_id).clientLabel===client);
   const latestSuccess = rows.map(row=>row.last_success_at).filter((value): value is string=>Boolean(value)).sort().at(-1) ?? null;
   const latestFailure = rows.map(row=>row.last_failure_at).filter((value): value is string=>Boolean(value)).sort().at(-1) ?? null;
-  if (latestFailure && (!latestSuccess || latestFailure>latestSuccess)) return {result:"failed" as const,text:"最近任务失败 "+formatOperatorInstant(latestFailure)};
-  if (latestSuccess) return {result:"works" as const,text:"最近任务成功 "+formatOperatorInstant(latestSuccess)};
+  if (latestFailure && (!latestSuccess || latestFailure>latestSuccess)) return {result:"failed" as const,text:"请求记录失败 "+formatOperatorInstant(latestFailure)};
+  if (latestSuccess) return {result:rows.some(row=>row.last_success_at===latestSuccess && executionPlanEvidence(row.route_profile_id)==="http_acceptance") ? "not-verified" as const : "works" as const,text:(rows.some(row=>row.last_success_at===latestSuccess && executionPlanEvidence(row.route_profile_id)==="http_acceptance") ? "请求已接受 " : "请求记录成功 ")+formatOperatorInstant(latestSuccess)};
   return {result:"not-verified" as const,text:"尚无任务请求记录"};
 }
 function localFiles() {
@@ -68,8 +68,8 @@ function SetupDetail({model,closeHref,held}: {readonly model: SetupPageModel; re
     replacement:replace ? {action:"/admin/ui/keys/"+encodeURIComponent(key.id)+"/replace",returnHref:model.canonicalUrl,confirmation:"为 "+key.key_prefix+" 换发密钥并下载配置包？这会创建一个新密钥。换发不会自动撤销原密钥。请先保存文件，再验证客户端。"} : undefined
   }}}/>;
 }
-export function SyncTask({recoveryHref}: ConfigurationHelpProps) {
-  return <SetupWorkbenchIsland control={{id:"setup-workbench",localFiles:localFiles(),recovery:recoveryHref?{keys:recoveryHref("keys"),quota:recoveryHref("quota")}:undefined}}/>;
+export function SyncTask({recoveryHref,client}: ConfigurationHelpProps & {client?:"codex"|"grok"|"xai"}) {
+  return <SetupWorkbenchIsland control={{id:"setup-workbench",initialClient:client,localFiles:localFiles(),recovery:recoveryHref?{keys:recoveryHref("keys"),quota:recoveryHref("quota")}:undefined}}/>;
 }
 export function SetupPage({model}: {readonly model: SetupPageModel}) {
   const query = new URL(model.canonicalUrl,"https://dashboard.invalid").searchParams;

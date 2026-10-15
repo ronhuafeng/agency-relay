@@ -942,3 +942,5 @@ summary[data-slot=button]::-webkit-details-marker { display:none; }
 .route-catalog:has(.route-native-fallback) [data-slot=tabs-content] { display:block; }
 .route-catalog:not([data-route-ready]):has(.surface-host :target) [data-slot=tabs-content] { display:none; }
 .route-catalog:not([data-route-ready]):has(.surface-host :target) [data-slot=tabs-content]:has(:target) { display:block; }
+
+.usage-record-inspect { justify-content:flex-start; padding:0; min-height:var(--control-target); height:auto; max-width:100%; white-space:normal; text-align:left; }

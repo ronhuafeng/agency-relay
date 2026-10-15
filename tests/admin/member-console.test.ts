@@ -57,8 +57,8 @@ describe("role-aware console", () => {
     const doc = new JSDOM(await response.text()).window.document;
     const evidence = doc.querySelector('[data-key-detail="selected-key"] .key-task-evidence')!;
     expect(evidence).not.toBeNull();
-    expect(evidence.querySelector('[data-key-task="codex"]')?.textContent).toContain('最近失败');
-    expect(evidence.querySelector('[data-key-task="codex"]')?.textContent).toContain('未记录成功任务');
+    expect(evidence.querySelector('[data-key-task="codex"]')?.textContent).toContain('请求记录失败');
+    expect(evidence.querySelector('[data-key-task="codex"]')?.textContent).toContain('未记录成功请求');
     expect(evidence.querySelector('[data-key-task="codex"]')?.textContent).not.toContain('最近成功');
     const home = await handleRequest(new Request('https://admin.example.test/admin?area=me&view=home', {
       headers:{Cookie:`__Host-mini-console=${cookie}`}
@@ -69,7 +69,7 @@ describe("role-aware console", () => {
     const result=homeDoc.querySelector('[data-surface="codex"] td:last-child')!;
     expect(result.querySelector('time')?.getAttribute('data-tone')).toBe('bad');
     expect(result.querySelector('time')?.getAttribute('datetime')).toBe(at);
-    expect(result.querySelector('time .sr-only')?.textContent).toBe('最近任务失败：');
+    expect(result.querySelector('time .sr-only')?.textContent).toBe('请求记录失败：');
     expect(result.querySelector('strong')).toBeNull();
     expect(homeDoc.querySelector('[data-surface="grok"] td:last-child')?.textContent).toBe('');
     db.sqlite.exec('DROP TABLE request_audit');
@@ -229,7 +229,7 @@ describe("role-aware console", () => {
     expect(reportDoc.querySelector('.usage-metrics')?.textContent).toContain('Token10');
     expect(reportDoc.querySelector('.usage-record')?.textContent).toContain('gpt-5');
     expect(reportDoc.querySelector('.usage-record')?.textContent).not.toContain('未记录令牌用量');
-    expect(reportDoc.querySelector('.usage-record [popover]')).toBeNull();
+    expect(reportDoc.querySelector('.usage-record [data-cost-basis="api_equivalent"]')).not.toBeNull();
     expect(reportDoc.querySelector('a[download]')?.getAttribute('href')).toBe('/me/usage?from=2026-06-18&to=2026-06-24');
     expect(reportDoc.querySelector('input[type="search"]')?.getAttribute('placeholder')).toBe('搜索模型');
     expect(reportHtml).not.toContain(other.user.id);

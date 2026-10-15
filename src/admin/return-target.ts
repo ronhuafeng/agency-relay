@@ -42,7 +42,8 @@ export function consoleReturnTarget(value: string): string | null {
   // setup/usage addresses use the union of their actual owning HTML grammars.
   const personal = (): boolean => memberViews.has(view)
     && !(service&&view==='integrations')
-    && [...query.keys()].every(field => ['view', ...(service ? [] : ['area']), ...(['keys', 'setup'].includes(view) ? ['key'] : []), ...(view === 'usage' ? ['range', 'q'] : []),...(view==='integrations'?['installation']:[])].includes(field))
+    && [...query.keys()].every(field => ['view', ...(service ? [] : ['area']), ...(['keys', 'setup'].includes(view) ? ['key'] : []), ...(view==='setup'?['client']:[]), ...(view === 'usage' ? ['range', 'q'] : []),...(view==='integrations'?['installation']:[])].includes(field))
+    && (!query.has('client') || ['codex','grok','xai'].includes(query.get('client')!))
     && (!query.has('installation')||/^[a-z][a-z0-9-]{0,63}$/.test(query.get('installation')!))
     && (!query.has('key') || Boolean(query.get('key')?.trim()))
     && (!query.has('range') || ['7d', '30d'].includes(query.get('range')!));

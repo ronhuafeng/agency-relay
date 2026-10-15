@@ -370,7 +370,7 @@ describe("Dashboard", () => {
     const setup = await render("setup&person=Morgan&key=morgan-valid");
     const keyRow = setup.match(/<li[^>]*data-setup-key-id="morgan-valid"[\s\S]*?<\/li>/)?.[0];
     expect(keyRow).toContain("已暂停 — 人员已停用");
-    expect(setup).toContain("最近任务成功 2026-07-28 10:00 UTC");
+    expect(setup).toContain("请求已接受 2026-07-28 10:00 UTC");
     expect(setup).not.toContain('data-setup-key-id="morgan-revoked"');
   });
 
@@ -564,7 +564,7 @@ describe("Dashboard", () => {
       now: new Date("2026-07-28T12:00:00.000Z"), requestId: "req_setup_key",
       loadCodexAccount: async () => softFailAccount
     })).text();
-    expect(await render("old-key")).toContain('data-client-verification="codex" data-result="works"');
+    expect(await render("old-key")).toContain('data-client-verification="codex" data-result="not-verified"');
     const initial = await render("new-key");
     expect(initial).toContain('data-client-verification="codex" data-result="not-verified"');
     expect(initial).toContain('data-client-verification="grok" data-result="not-verified"');
@@ -577,10 +577,10 @@ describe("Dashboard", () => {
       { user_id: "Alex", key_id: "new-key", plan: "grok.production.responses", status: "error", at: "2026-07-28T11:15:00.000Z", upstream: 500 }
     );
     const verified = await render("new-key");
-    expect(verified).toContain('data-client-verification="codex" data-result="works"');
-    expect(verified).toContain("最近任务成功 2026-07-28 11:10 UTC");
+    expect(verified).toContain('data-client-verification="codex" data-result="not-verified"');
+    expect(verified).toContain("请求已接受 2026-07-28 11:10 UTC");
     expect(verified).toContain('data-client-verification="grok" data-result="failed"');
-    expect(verified).toContain("最近任务失败 2026-07-28 11:15 UTC");
+    expect(verified).toContain("请求记录失败 2026-07-28 11:15 UTC");
   });
 
   it("renders Home with distinct organization and personal navigation", async () => {
@@ -880,7 +880,7 @@ describe("Dashboard", () => {
     expect(record("grok.production.responses")?.getAttribute("data-subscription-authority")).toBe("grok");
     expect(record("xai.production.images_generations")?.getAttribute("data-subscription-authority")).toBe("xai");
     expect(record("codex.responses")?.querySelector(".usage-record-measurement")?.textContent).toContain("150");
-    expect(record("codex.responses")?.querySelector("[popover]")).toBeNull();
+    expect(record("codex.responses")?.querySelector('[data-cost-basis="api_equivalent"]')).not.toBeNull();
     expect(record("grok.production.responses")?.querySelector(".usage-record-cost")?.textContent).toContain("$0.0006");
     expect(record("xai.production.images_generations")?.querySelector(".usage-record-cost")?.textContent).toContain("$0.0500");
     expect(record("codex.historical.responses")?.querySelector(".usage-record-measurement")?.textContent).toContain("未记录");
@@ -1028,7 +1028,7 @@ describe("Dashboard", () => {
     expect(html).toContain('id="capabilities"');
     expect(html).not.toContain('data-capability-technical-details="true"');
     expect(html).toContain("比较客户端能力");
-    expect(html).toContain('aria-label="完整的客户端能力比较"');
+    expect(html).toContain('aria-label="服务能力比较"');
     expect(new JSDOM(html).window.document.querySelector('.surface-capability-view th[scope="col"]')?.textContent).toBe('能力');
     expect(html).toContain('data-surface-column="codex"');
     expect(html).toContain('data-surface-column="grok"');
@@ -1043,7 +1043,7 @@ describe("Dashboard", () => {
     expect(html).toContain('aria-label="服务权限模型"');
     expect(html).toContain('href="?view=surfaces&amp;range=7d"');
     expect(html).toContain("查看路由");
-    expect(html).toContain("由已连接的 ChatGPT 订阅支持的完整编程客户端。");
+    expect(html).toContain("通过已连接的 ChatGPT 使用 Codex CLI。");
     expect(html).toContain("包含 Grok Build，以及有限的 xAI 能力。文件和视频仍绑定账号所有者。");
     expect(html).toContain("可以操作组织共享的 xAI API 资源。只授予值得信任的人员。");
     expect(html).toContain("api.trustedtunnel.app");

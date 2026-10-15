@@ -35,6 +35,7 @@ export interface SetupWorkbenchKey {
 }
 export interface SetupWorkbenchControl {
   readonly id: string;
+  readonly initialClient?: "codex" | "grok" | "xai";
   readonly localFiles: readonly SetupFileTarget[];
   readonly selected?: SetupWorkbenchKey;
   readonly initialMode?: "held";
@@ -43,6 +44,7 @@ export interface SetupWorkbenchControl {
 
 export function readSetupWorkbench(value: unknown): SetupWorkbenchControl | null {
   if (!value || typeof value !== "object" || !("id" in value) || typeof value.id !== "string" || !("localFiles" in value)) return null;
+  if ("initialClient" in value && value.initialClient !== undefined && !["codex","grok","xai"].includes(String(value.initialClient))) return null;
   const local = readSetupFiles({id:value.id,files:value.localFiles});
   if (!local || ("initialMode" in value && value.initialMode !== undefined && value.initialMode !== "held")) return null;
   let selected: SetupWorkbenchKey | undefined;
@@ -65,7 +67,7 @@ export function readSetupWorkbench(value: unknown): SetupWorkbenchControl | null
     if (!links || typeof links !== "object" || !("keys" in links) || typeof links.keys !== "string" || !("quota" in links) || typeof links.quota !== "string") return null;
     recovery = {keys:links.keys,quota:links.quota};
   }
-  return {id:value.id,localFiles:local.files,selected,initialMode:"initialMode" in value ? value.initialMode as "held" | undefined : undefined,recovery};
+  return {id:value.id,initialClient:("initialClient" in value ? value.initialClient : undefined) as SetupWorkbenchControl["initialClient"],localFiles:local.files,selected,initialMode:"initialMode" in value ? value.initialMode as "held" | undefined : undefined,recovery};
 }
 
 /** One client choice owns the destination, public template and local download. */
@@ -74,13 +76,13 @@ export function SetupWorkbenchView({control}: {readonly control: SetupWorkbenchC
   const key = control.selected;
   const [mode,setMode] = useState<"selected" | "held">(key && control.initialMode !== "held" ? "selected" : "held");
   const initialFiles = key && control.initialMode !== "held" ? key.files : control.localFiles;
-  const [client,setClient] = useState(initialFiles[0]?.client ?? "codex");
+  const [client,setClient] = useState(control.initialClient ?? (key ? initialFiles[0]?.client : "") ?? "");
   const [discardFocus,setDiscardFocus] = useState<string | null>(null);
   const localForm = useRef<HTMLFormElement | null>(null);
   const clientTabs = useRef<HTMLDivElement | null>(null);
   const restoredClient = useRef(false);
   const files = mode === "selected" && key ? key.files : control.localFiles;
-  const activeFile = files.find(file => file.client === client) ?? files[0];
+  const activeFile = files.find(file => file.client === client);
   useLayoutEffect(() => {
     if (discardFocus === null || activeFile?.client !== discardFocus) return;
     if (clientTabs.current?.isConnected) clientTabs.current.querySelector<HTMLButtonElement>('[data-slot="tabs-trigger"][data-state="active"]')?.focus();
@@ -120,7 +122,7 @@ export function SetupWorkbenchView({control}: {readonly control: SetupWorkbenchC
     setMode(next);
   };
   const content = <>
-    {activeFile ? <SetupFileTargetView key={activeFile.client} file={activeFile} enhanced={enhanced} showTemplate={false}/> : <p className="empty">这个密钥没有客户端访问。</p>}
+    {activeFile ? <SetupFileTargetView key={activeFile.client} file={activeFile} enhanced={enhanced} showTemplate={false}/> : <p className="empty">请选择客户端。</p>}
     {key ? <div className="setup-mode-choices" role="group" aria-label="配置方式"><Button asChild variant={mode === "selected" ? "secondary" : "outline"}><a role="button" onKeyDown={event=>{if(event.key === " "){event.preventDefault();event.currentTarget.click();}}} href={key.selectedHref} aria-pressed={mode === "selected"} onClick={event=>{event.preventDefault();chooseMode("selected");}}>{key.replacement ? "换发密钥" : "所选密钥"}</a></Button><Button asChild variant={mode === "held" ? "secondary" : "outline"}><a role="button" onKeyDown={event=>{if(event.key === " "){event.preventDefault();event.currentTarget.click();}}} href={key.heldHref} aria-pressed={mode === "held"} onClick={event=>{event.preventDefault();chooseMode("held");}}>已有密钥</a></Button></div> : null}
     {key ? <div className="setup-selected-action" hidden={mode !== "selected"}>
       {key.replacement ? <><p className="caption">换发会创建新密钥，不会自动撤销原密钥。配置包只包含此密钥获准使用的客户端。</p><form className="board-form" method="post" action={key.replacement.action} data-action="create-setup-package" autoComplete="off" data-dashboard-draft="replacement" data-draft-scope="setup" data-confirmation={key.replacement.confirmation}>
@@ -129,21 +131,21 @@ export function SetupWorkbenchView({control}: {readonly control: SetupWorkbenchC
       </form></> : key.newKeyHref ? <TaskLink className="action-link" href={key.newKeyHref}>创建新密钥</TaskLink> : <p className="caption">旧密钥无法重新显示明文。持有完整密钥时，可切换到“已有密钥”生成配置文件。</p>}
       {!key.replacement ? <TaskLink className="action-link" href={key.manageHref}>管理密钥</TaskLink> : null}
     </div> : null}
-    <form ref={localForm} className="board-form setup-held-form" data-local-config-sync="true" data-workbench-local="" autoComplete="off" data-dashboard-draft="sync" hidden={mode !== "held"}>
+    <form ref={localForm} className="board-form setup-held-form" data-local-config-sync="true" data-workbench-local="" autoComplete="off" data-dashboard-draft="sync" data-draft-scope={`sync-${control.initialClient ?? "choice"}`} hidden={mode !== "held"}>
       <fieldset disabled={!enhanced} className="setup-local-fields">
-      <div hidden><SelectView control={{id:"select-sync-client",name:"client",label:"客户端",required:true,value:control.localFiles[0]?.client ?? "codex",options:control.localFiles.map(file=>({value:file.client,label:file.clientLabel,disabled:false}))}} onValueChange={setClient}/></div>
+      <div hidden><SelectView control={{id:"select-sync-client",name:"client",label:"客户端",required:true,value:control.initialClient ?? (key ? control.localFiles[0]?.client : "") ?? "",options:[{value:"",label:"请选择客户端",disabled:true},...control.localFiles.map(file=>({value:file.client,label:file.clientLabel,disabled:false}))]}} onValueChange={setClient}/></div>
       <Field control={{label:"已有密钥",name:"existing_key",type:"password",autoComplete:"off",pattern:"cfwd_[A-Za-z0-9_-]+",required:true}}/>
       <p className="caption">密钥仅在本机生成配置文件，不会上传。</p>
       </fieldset>
-      <div className="form-footer"><Button type="submit" disabled={!enhanced}>下载配置文件</Button>{mode === "held" ? <ConfigurationInstructions recoveryHref={control.recovery ? view=>control.recovery![view] : undefined}/> : null}</div>
+      <div className="form-footer"><Button type="submit" disabled={!enhanced || !activeFile}>下载配置文件</Button>{mode === "held" ? <ConfigurationInstructions recoveryHref={control.recovery ? view=>control.recovery![view] : undefined}/> : null}</div>
     </form>
   </>;
   return <Card className="setup-config-card setup-workbench" id="sync-configuration" tabIndex={-1} data-task-help="configuration" data-setup-selected-key={key?.id} data-sync-configuration={!key || mode === "held" ? "local-only" : undefined} data-configuration-mode={mode}>
     {key ? <header className="setup-workbench-key"><div><strong>{key.owner}</strong><span>{key.name} · <code>{key.prefix}</code></span></div><div className="task-head-actions"><Badge className="key-state" data-key-state={key.state}>{key.status}</Badge><TaskClose href={key.closeHref} label="收起密钥配置"/></div></header> : null}
-    <Tabs ref={clientTabs} value={activeFile?.client ?? "codex"} onValueChange={chooseClient} className="setup-workbench-clients">
+    <Tabs ref={clientTabs} value={client} onValueChange={chooseClient} className="setup-workbench-clients">
       <div className="setup-workbench-controls">
         <TabsList variant="line" aria-label="客户端配置">{files.map(file=><TabsTrigger key={file.client} value={file.client} disabled={!enhanced}>{file.clientLabel}</TabsTrigger>)}</TabsList>
-        <TabsContent className="setup-workbench-body" value={activeFile?.client ?? "codex"}>{content}</TabsContent>
+        <TabsContent className="setup-workbench-body" value={client}>{content}</TabsContent>
       </div>
       {activeFile?.template && !(mode === "selected" && key?.hideTemplates) ? <section className="setup-workbench-preview" aria-label="配置文件预览"><h2>配置文件预览</h2><SetupTemplate file={activeFile}/></section> : null}
     </Tabs>

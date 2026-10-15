@@ -14,7 +14,7 @@ export function CapabilityComparison({ model }: { readonly model: CapabilityComp
           ))}
         </div>
         <div className="surface-capability-table-wrap">
-          <Table className="surface-capability-table" aria-label="完整的客户端能力比较">
+          <Table className="surface-capability-table" aria-label="服务能力比较">
             <TableHeader>
               <TableRow>
                 <TableHead scope="col">能力</TableHead>

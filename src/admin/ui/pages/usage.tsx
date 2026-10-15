@@ -36,17 +36,17 @@ function service(plan: string): {authority: string; label: string} {
 function responseRecord(row: UsageSummaryRow, index: number): UsageRecord {
   const source = service(row.route_profile_id);
   const measured = row.token_measurements > 0;
-  const metrics: UsageFact[] = [{label: "请求", value: formatNumber(row.requests)}, {label: "已记录令牌", value: measured ? formatNumber(row.total_tokens) : "未记录"}];
+  const metrics: UsageFact[] = [{metric:"count",label: "请求", value: formatNumber(row.requests)}, {metric:"measurement",coverage:{recorded:row.token_measurements,total:row.requests},label: "已记录令牌", value: measured ? formatNumber(row.total_tokens) : "未记录"}];
   const cost = usageCost(row.route_profile_id, row);
-  if (cost) metrics.push({label: cost.label, value: cost.measurements > 0 ? formatUsdColumn(cost.ticks) : "未提供"});
-  if (row.error_requests > 0) metrics.push({label: "失败请求", value: formatNumber(row.error_requests), tone: "bad"});
+  if (cost) metrics.push({metric:"cost",basis:cost.basis,explanation:cost.help,coverage:{recorded:cost.measurements,total:row.requests},label: cost.label, value: cost.measurements > 0 ? formatUsdColumn(cost.ticks) : "未提供"});
+  if (row.error_requests > 0) metrics.push({metric:"failure",label: "失败请求", value: formatNumber(row.error_requests), tone: "bad"});
   const cache = measured && row.input_tokens > 0 ? formatRatioPercent(row.cached_input_tokens, row.input_tokens) : "—";
   return {
     id: `responses-${index}`, authority: source.authority, service: source.label, plan: row.route_profile_id,
     owner: presentText(row.email ?? row.user_id), title: presentText(row.response_model), metrics,
     note: null,
     details: [
-      {label: "成功请求", value: formatNumber(row.ok_requests)}, {label: "失败请求", value: formatNumber(row.error_requests)},
+      {label: "成功请求", value: formatNumber(row.ok_requests)}, {metric:"failure",label: "失败请求", value: formatNumber(row.error_requests)},
       {label: "输入令牌", value: measured ? formatNumber(row.input_tokens) : "未记录"}, {label: "输出令牌", value: measured ? formatNumber(row.output_tokens) : "未记录"},
       {label: "缓存读取占比", value: cache}, {label: "令牌记录覆盖", value: `${formatRatioPercent(row.token_measurements, row.requests)} · ${formatNumber(row.token_measurements)} / ${formatNumber(row.requests)} 次请求`},
       ...(cost ? [{label: "金额记录覆盖", value: `${formatNumber(cost.measurements)} / ${formatNumber(row.requests)} 次请求`}] : []),
@@ -58,15 +58,16 @@ function mediaRecord(row: MediaUsageSummaryRow, index: number): UsageRecord {
   const source = service(row.route_profile_id);
   const titles = {image_generation: "生成图像", image_edit: "编辑图像", video_generation: "生成视频", video_edit: "编辑视频", video_extension: "延长视频"};
   const opportunities = row.capability === "image_generation" || row.capability === "image_edit" ? row.started_jobs : row.completed_jobs + row.failed_jobs + row.expired_jobs;
-  const metrics: UsageFact[] = [{label: "已开始", value: formatNumber(row.started_jobs)}, {label: "已记录输出", value: row.output_measurements > 0 ? formatNumber(row.outputs) : "未记录"}];
+  const metrics: UsageFact[] = [{metric:"count",label: "已开始", value: formatNumber(row.started_jobs)}, {metric:"measurement",coverage:{recorded:row.output_measurements,total:opportunities},label: "已记录输出", value: row.output_measurements > 0 ? formatNumber(row.outputs) : "未记录"}];
   if (row.capability.startsWith("video")) metrics.push({label: "已记录时长", value: row.duration_measurements > 0 ? formatUsageSeconds(row.video_seconds) : "未记录"});
   const cost = usageCost(row.route_profile_id, row);
-  if (cost) metrics.push({label: cost.label, value: cost.measurements > 0 ? formatUsdColumn(cost.ticks) : "未提供"});
+  if (cost) metrics.push({metric:"cost",basis:cost.basis,explanation:cost.help,coverage:{recorded:cost.measurements,total:opportunities},label: cost.label, value: cost.measurements > 0 ? formatUsdColumn(cost.ticks) : "未提供"});
   return {
     id: `media-${index}`, authority: source.authority, service: source.label, plan: row.route_profile_id,
     owner: presentText(row.email ?? row.user_id), title: titles[row.capability], metrics, note: null,
     details: [
-      {label: "已完成", value: formatNumber(row.completed_jobs)}, {label: "失败", value: formatNumber(row.failed_jobs)}, {label: "已过期", value: formatNumber(row.expired_jobs)},
+      ...(row.capability.startsWith("video") ? [{label:"已记录时长",value:row.duration_measurements > 0 ? formatUsageSeconds(row.video_seconds) : "未记录",coverage:{recorded:row.duration_measurements,total:opportunities}}] : []),
+      {label: "已完成", value: formatNumber(row.completed_jobs)}, {metric:"failure",label: "失败", value: formatNumber(row.failed_jobs)}, {label: "已过期", value: formatNumber(row.expired_jobs)},
       {label: "输出记录覆盖", value: `${formatNumber(row.output_measurements)} / ${formatNumber(opportunities)} 次${row.capability.startsWith("video") ? "终态" : "请求"}`}, {label: "时长记录覆盖", value: `${formatNumber(row.duration_measurements)} / ${formatNumber(opportunities)} 次${row.capability.startsWith("video") ? "终态" : "请求"}`},
       {label: "费用记录覆盖", value: `${formatNumber(row.cost_measurements)} / ${formatNumber(opportunities)} 次${row.capability.startsWith("video") ? "终态" : "请求"}`},
       {label: "最近使用", value: formatOperatorInstantOrDash(row.last_seen_at)}, {label: "服务", value: executionPlanPresentation(row.route_profile_id).usageLabel}

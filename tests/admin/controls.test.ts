@@ -16,7 +16,7 @@ let root: Root | null = null;
 afterEach(async () => {await act(() => {root?.unmount();}); root = null; vi.restoreAllMocks();});
 const model = {surfaces: [{name: "surfaces", value: "codex", label: "Codex", disabled: false, checked: false}], expiry: {id: "expiry", name: "expires_at", label: "有效期", required: false, value: "", options: [{value: "", label: "90 天", disabled: false}]}, lead: null, canCreate: true};
 const usage: UsageReportControl = {
-  records: [{id: "responses-0", authority: "chatgpt", service: "Codex", plan: "codex.responses", owner: "member@example.com", title: "gpt-preview", metrics: [{label: "请求", value: "12"}, {label: "已记录令牌", value: "24,500"}], details: [{label: "人员标识", value: "member_preview"}, {label: "令牌记录覆盖", value: "100.0% · 12 / 12 次请求"}], note: null}],
+  records: [{id: "responses-0", authority: "chatgpt", service: "Codex", plan: "codex.responses", owner: "member@example.com", title: "gpt-preview", metrics: [{metric:"count",label: "请求", value: "12"}, {metric:"measurement",label: "已记录令牌", value: "24,500"}], details: [{label: "人员标识", value: "member_preview"}, {label: "令牌记录覆盖", value: "100.0% · 12 / 12 次请求"}], note: null}],
   emptyLabel: "今天还没有用量记录。", exportUrl: "/admin/usage?limit=1000", truncated: false, filterPlaceholder: "搜索人员或模型", limitNote: "请求和媒体记录各显示最多 250 条。"
 };
 describe("typed console controls", () => {
@@ -67,16 +67,16 @@ describe("typed console controls", () => {
   it("rejects malformed island input at its boundary", () => {
     expect(readMemberKeyForm({...model, canCreate: "true"})).toBe(null); expect(readCapabilityComparison({view: {surfaces: [{}], groups: []}, routesHref: "?view=surfaces"})).toBe(null);
   });
-  it("shows usage numbers directly and does not open a detail popover", () => {
+  it("shows results directly and links one coherent secondary detail", () => {
     document.body.innerHTML = renderToString(createElement(UsageReport, {control: usage}));
     expect(element(".usage-record-measurement", HTMLElement).textContent).toContain("24,500");
-    expect(document.querySelector(".usage-record [popover],.usage-record button[popovertarget]")).toBeNull();
-    expect(document.body.textContent).not.toContain("member_preview");
+    expect(document.querySelector(".usage-record button[popovertarget]")?.getAttribute("popovertarget")).toBe(document.querySelector(".usage-record [popover]")?.id);
+    expect(element(".usage-record-inspect",HTMLElement).textContent).not.toContain("member_preview");
   });
-  it("keeps primary numbers after enhancement without a detail popover", async () => {
+  it("keeps typed primary metrics independent of their display labels", async () => {
     document.body.innerHTML = '<div id="root"></div>'; root = createRoot(element("#root", HTMLElement));
-    await act(() => {root?.render(createElement(UsageReport, {control: usage}));});
-    expect(document.querySelector(".usage-record button,[popover],.usage-facts")).toBeNull();
+    await act(() => {root?.render(createElement(UsageReport, {control: {...usage,records:usage.records.map(record=>({...record,metrics:record.metrics.map(metric=>({...metric,label:"Renamed label"}))}))}}));});
+    expect(document.querySelectorAll(".usage-record [popover]")).toHaveLength(1);
     expect(element(".usage-record-measurement", HTMLElement).textContent).toContain("24,500");
   });
   it("keeps an empty usage view free of unrelated controls and billing explanations", () => {

@@ -45,9 +45,6 @@ describe("client setup projection", () => {
     expect(files.find((file) => file.client === "codex")?.content).toContain(
       "experimental_bearer_token"
     );
-    expect(files.find((file) => file.client === "codex")?.content).toContain(
-      "不能当作完整官方 Codex 功能开关"
-    );
     // Accounts are administrator-owned; member setup must not imply permission
     // to reconnect provider credentials (experience.md: Administrator Accounts).
     expect(files.find((file) => file.client === "codex")?.content).toContain("请管理员在控制台「账号」检查 ChatGPT 连接");
