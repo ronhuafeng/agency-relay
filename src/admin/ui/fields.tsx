@@ -1,3 +1,4 @@
+import { InfoPopover } from "./components/info-popover";
 import { Input } from "./components/input";
 import { Label } from "./components/label";
 import type { FieldControl, InventorySearchControl } from "./models";
@@ -7,12 +8,8 @@ import { useId } from "react";
 import { Field as FieldPrimitive, FieldLabel } from "./components/field";
 
 export function ConfirmationFallback({ message }: { readonly message: string }) {
-  return (
-    <Label className="confirmation-fallback" data-confirmation-fallback="">
-      <input type="checkbox" required aria-label={message}/>
-      <span>{message}</span>
-    </Label>
-  );
+  const id = useId();
+  return <div className="confirmation-prompt"><InfoPopover id={`confirmation-${id}`} label="操作影响" iconOnly><p>{message}</p><Label className="confirmation-fallback" data-confirmation-fallback=""><input type="checkbox" required aria-label={message}/><span>确认此操作</span></Label></InfoPopover></div>;
 }
 
 

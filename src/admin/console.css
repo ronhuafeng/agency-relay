@@ -864,7 +864,6 @@ label.confirmation-fallback{
 }
 label.confirmation-fallback>span{min-width:0;flex:1 1 auto}
 .person-detail-head>.inline-form{display:grid;flex:1 1 100%;justify-items:start;gap:8px;width:min(420px,100%);margin:0}
-.console-simple form:has(>.confirmation-fallback:not([hidden])){display:grid;justify-items:start;gap:12px;width:min(420px,100%);margin:0}
 
 :is(.page-head h1,.console-simple h1,.console-simple h2,.panel h2,.panel h3,.nav-toggle-label,.brand>strong) { letter-spacing:normal; }
 

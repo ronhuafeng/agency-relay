@@ -13,7 +13,7 @@ it('keeps native submission invalid until the confirmation is checked', () => {
   const form = document.querySelector('form')!;
   const confirmation = form.querySelector<HTMLInputElement>('input[type=checkbox]')!;
   expect(form.checkValidity()).toBe(false);
-  expect(form.textContent).toContain('撤销此密钥后不能恢复。');
+  expect(form.querySelector('[popover]')?.textContent).toContain('撤销此密钥后不能恢复。');
   confirmation.checked = true;
   expect(form.checkValidity()).toBe(true);
   confirmation.checked = false;
