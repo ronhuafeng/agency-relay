@@ -78,7 +78,6 @@ export async function openKeyEditor(page: Page, task: 'rename' | 'replace'): Pro
 export { expect };
 
 export async function openNativeConfirmation(form: Locator): Promise<void> {
-  await form.getByRole('button',{name:'操作影响',exact:true}).click();
   await expect(form.locator('[data-confirmation-fallback]').getByRole('checkbox')).toBeVisible();
 }
 

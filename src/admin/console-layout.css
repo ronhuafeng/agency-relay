@@ -940,3 +940,10 @@ summary[data-slot=button]::-webkit-details-marker { display:none; }
 .route-catalog:not([data-route-ready]):has(.surface-host :target) [data-slot=tabs-content]:has(:target) { display:block; }
 
 .usage-record-inspect { justify-content:flex-start; padding:0; min-height:var(--control-target); height:auto; max-width:100%; white-space:normal; text-align:left; }
+
+/* Native confirmation and enhanced consequence help share one control frame. */
+.confirmation-prompt { display:flex; align-items:center; flex:0 0 auto; width:calc(var(--control-target) * 3); min-height:var(--control-target); }
+.confirmation-prompt>label.confirmation-fallback { flex:1; width:auto; min-width:0; align-items:center; }
+.confirmation-prompt>.info-popover { flex:0 0 auto; width:var(--control-target); }
+.confirmation-prompt>.info-popover>button { width:100%; }
+.confirmation-prompt:has(>label[hidden])>.info-popover { width:100%; }
