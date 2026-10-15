@@ -101,3 +101,20 @@ for (const owner of ['personal','delegated','administrator'] as const) test(`loc
   }
   expect(worker.requests.every(request=>request.method==='GET')).toBe(true);
 });
+
+test.describe('member service configuration context',()=>{
+ test.use({identity:'member',viewport:{width:390,height:900},colorScheme:'dark'});
+ test('keeps a service choice and asks on a generic entry',async({page,worker})=>{
+  await page.goto('/admin?area=me&view=home');
+  await page.locator('[data-surface="codex"]').getByRole('link',{name:/配置客户端：/}).click();
+  expect(new URL(page.url()).searchParams.get('client')).toBe('codex');
+  await expect(page.getByRole('tab',{name:'Codex CLI',exact:true})).toHaveAttribute('aria-selected','true');
+  await page.goto('/admin?area=me&view=setup&client=grok');
+  await expect(page.getByRole('tab',{name:'Grok Build',exact:true})).toHaveAttribute('aria-selected','true');
+  await expect(page.getByRole('heading',{name:'grok-config.toml',exact:true})).toBeVisible();
+  await page.goto('/admin?area=me&view=setup');
+  await expect(page.getByRole('tab',{selected:true})).toHaveCount(0);
+  await expect(page.getByRole('button',{name:'下载配置文件',exact:true})).toBeDisabled();
+  expect(worker.requests.every(request=>request.method==='GET')).toBe(true);
+ });
+});

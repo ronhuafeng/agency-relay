@@ -95,8 +95,9 @@ test('local client drafts survive exact selection while held secrets and selecte
   await form.getByRole('button',{name:'放弃修改',exact:true}).focus();
   await page.keyboard.press('Enter');
   await expect(page.getByRole('tab',{name:'Codex CLI',exact:true})).toBeFocused();
-  await expect(form.locator('select[name="client"]')).toHaveValue('codex');
-  await expect(page.getByRole('heading',{name:'codex-config.toml',exact:true})).toBeVisible();
+  await expect(form.locator('select[name="client"]')).toHaveValue('');
+  await expect(page.getByRole('heading',{name:'codex-config.toml',exact:true})).toHaveCount(0);
+  await expect(form.getByRole('button',{name:'下载配置文件',exact:true})).toBeDisabled();
   expect(worker.requests.every(request=>request.method==='GET')).toBe(true);
 });
 
@@ -125,8 +126,9 @@ test('discard focuses the restored client even when a frame precedes the React c
     resolve();
   }))));
   await expect(page.getByRole('tab',{name:'Codex CLI',exact:true})).toBeFocused();
-  await expect(form.locator('select[name="client"]')).toHaveValue('codex');
-  await expect(page.getByRole('heading',{name:'codex-config.toml',exact:true})).toBeVisible();
+  await expect(form.locator('select[name="client"]')).toHaveValue('');
+  await expect(page.getByRole('heading',{name:'codex-config.toml',exact:true})).toHaveCount(0);
+  await expect(form.getByRole('button',{name:'下载配置文件',exact:true})).toBeDisabled();
   expect(worker.requests.every(request=>request.method==='GET')).toBe(true);
 });
 

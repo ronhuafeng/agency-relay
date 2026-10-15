@@ -84,10 +84,10 @@ export function SetupWorkbenchView({control}: {readonly control: SetupWorkbenchC
   const files = mode === "selected" && key ? key.files : control.localFiles;
   const activeFile = files.find(file => file.client === client);
   useLayoutEffect(() => {
-    if (discardFocus === null || activeFile?.client !== discardFocus) return;
-    if (clientTabs.current?.isConnected) clientTabs.current.querySelector<HTMLButtonElement>('[data-slot="tabs-trigger"][data-state="active"]')?.focus();
+    if (discardFocus === null || client !== discardFocus) return;
+    if (clientTabs.current?.isConnected) clientTabs.current.querySelector<HTMLButtonElement>(discardFocus ? '[data-slot="tabs-trigger"][data-state="active"]' : '[data-slot="tabs-trigger"]')?.focus();
     setDiscardFocus(null);
-  },[activeFile?.client,discardFocus]);
+  },[client,discardFocus]);
   const chooseClient = (next: string): void => {
     setDiscardFocus(null);
     setClient(next);
