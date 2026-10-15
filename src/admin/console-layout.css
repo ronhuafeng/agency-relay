@@ -663,7 +663,7 @@ table.member-quota-table [data-slot=progress] { height:6px; margin-top:8px; }
   .nav-rail[data-member-nav] .console-navigation-items { display:block; }
   .nav-rail[data-member-nav] .console-nav-group { padding:0; }
   .nav-rail[data-member-nav] [data-slot=sidebar-group-label] { display:none; }
-  .nav-rail[data-member-nav] .console-nav-group [data-slot=sidebar-menu] { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:0; }
+  .nav-rail[data-member-nav] .console-nav-group [data-slot=sidebar-menu] { display:grid; grid-auto-flow:column; grid-auto-columns:minmax(0,1fr); gap:0; }
   .nav-rail[data-member-nav] .console-nav-group a { display:flex; justify-content:center; min-width:44px; padding:8px 4px; font-size:13px; }
   .nav-rail[data-member-nav] .console-nav-group a>.ui-icon { display:none; }
   .nav-rail[data-member-nav] .console-nav-group a[aria-current=page] { border:0; border-bottom:2px solid var(--primary); background:var(--accent); padding:8px 4px; }

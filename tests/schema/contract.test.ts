@@ -154,7 +154,7 @@ describe("current D1 schema", () => {
     expect(db.prepare("SELECT name FROM pragma_table_info('user_surface_credit_usage')").all()
       .map((row) => (row as { name: string }).name)).toEqual([
       "user_id", "surface_grant", "period_start", "consumed_credits", "admitted_attempts",
-      "last_seen_at"
+      "last_seen_at", "opening_credits"
     ]);
     expect(db.prepare("SELECT name FROM pragma_table_info('codex_auths')").all()
       .map((row) => (row as { name: string }).name)).toEqual(expect.arrayContaining([

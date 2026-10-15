@@ -51,6 +51,8 @@ const BACKEND_REQUEST_HEADER_DENYLIST = new Set([
   ...HOP_BY_HOP_HEADERS,
   "authorization",
   "chatgpt-account-id",
+  // Codex hosted-actor credential. Other X-OpenAI-* names are protocol metadata and remain forwarded.
+  "x-openai-actor-authorization",
   "content-length",
   "cookie",
   "forwarded",

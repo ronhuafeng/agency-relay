@@ -110,6 +110,12 @@ describe("router admission", () => {
     const crossProfile = await createKeyWithStoredGrants(fixture, user.user.id, ["surface:grok:production"]);
 
     const routes = [
+      { url: "https://api.trustedtunnel.app/backend-api/codex/models", method: "GET", websocket: false },
+      { url: "https://api.trustedtunnel.app/backend-api/codex/responses", method: "POST", websocket: false },
+      { url: "https://api.trustedtunnel.app/backend-api/codex/responses", method: "GET", websocket: true },
+      { url: "https://api.trustedtunnel.app/backend-api/transcribe", method: "POST", websocket: false },
+      { url: "https://api.trustedtunnel.app/backend-api/codex/realtime/calls", method: "POST", websocket: false },
+      { url: "https://api.trustedtunnel.app/backend-api/codex/live", method: "POST", websocket: false },
       { url: "https://api.trustedtunnel.app/v1/models", method: "GET", websocket: false },
       { url: "https://api.trustedtunnel.app/v1/responses", method: "POST", websocket: false },
       { url: "https://api.trustedtunnel.app/v1/responses", method: "GET", websocket: true },

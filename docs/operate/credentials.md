@@ -14,7 +14,7 @@ The browser console supports upstream OAuth and account management, not uploaded
 
 Promotion, email change, offboarding, and JIT follow [organization-access.md](../product/organization-access.md).
 
-## Runtime binding model
+## Provider binding model
 
 ```text
 API key + exact surface grant
@@ -24,7 +24,94 @@ API key + exact surface grant
  -> isolated provider attempt
 ```
 
-The plan owns the slot type; the stored binding selects one physical account. Clients cannot select an origin or override an account. Runtime does not choose the latest account or organization default.
+The plan owns the slot type; the stored binding selects one physical account. Clients cannot select an origin or override an account. A request does not choose the latest account or organization default.
+
+## Runtime installations
+
+Runtime lifecycle is separate from Provider bindings. `RUNTIME_INSTALLATIONS` is
+a finite deployment declaration of `{id, resource, profile, label}` entries;
+an empty declaration closes Runtime. The reviewed `google.stitch` profile fixes
+the upstream and credential header in code. An entry cannot supply an arbitrary upstream URL
+or header. Declare an exact canonical HTTPS resource with one lowercase
+letter-led path segment (letters, digits and hyphens, at most 64 characters),
+without a query or fragment. The Stitch resource is
+`https://mcp.trustedtunnel.app/google-stitch`. Its path-specific OAuth metadata is
+`https://mcp.trustedtunnel.app/.well-known/oauth-protected-resource/google-stitch`.
+The full URL identifies the installation; sharing a host does not share consent.
+Changing a stored resource/profile identity fails closed; retirement retains it.
+
+A declaration advertises the resource and OAuth issuer but does not publish its
+host, create D1 installation state, store a credential, enable forwarding or grant
+member access. The MCP host uses a Worker Custom Domain; Cloudflare manages its
+DNS and certificate. Keep its declaration in `wrangler.jsonc` and confirm the
+actual host binding after deployment. Use the Runtime release issue for these
+distinct rollout steps. Do not add short-path aliases or redirect another URL
+onto the resource.
+
+The protected operator API and same-origin administrator console share:
+
+Open **Tool services** in organization management to select a deployment-declared
+installation. Its native HTML forms reuse the lifecycle below. Credentials remain
+write-only; member access is searched and paged on the server. UI access grants
+have no expiration; use the API for an explicit future `expiresAt`. Material
+rotation requires a same-authority declaration; binding a different account uses
+rebind. The confirmation describes shared tool authority and consent invalidation.
+No control edits the fixed upstream URL or credential header.
+Native form bodies are limited to 16 KiB to allow percent encoding of a valid
+4096-byte credential. The decoded material limit and field validation stay the same.
+
+After an uncertain HTML operation, use its read-only recovery link. The `writing`
+state offers explicit abort-and-disable; `cleaning` offers exact cleanup recovery.
+Both require the current revision and original pending operation ID. A known write
+stays known when a subsequent page read fails. Do not reload a native POST to seek
+another result. Production activation still requires the Runtime release issue's
+separate domain, fresh credential and operator authority.
+An expired console session rejects the native form before reading its body or
+performing the operation. Its login link retains only the owning read-only page;
+sign-in does not replay the rejected POST.
+
+| Operation | JSON endpoint |
+| --- | --- |
+| Declared inventory / one installation | `GET /admin/runtime-installations` / `GET /admin/runtime-installations/:id` |
+| Configure, enable, disable, rename, supply, retire, recover | `POST /admin/runtime-installations/:id` |
+| Read / grant / revoke human access | `GET/PUT /admin/runtime-installations/:id/access/:user_id` |
+| Reconcile a known operation | `GET /admin/runtime-installations/:id/operations/:operation_id` |
+
+`configure` takes only `action` and creates disabled metadata. Other installation
+commands take `action`, `expectedRevision` from a fresh read and a new
+`operationId` (1–96 ASCII letters, digits, `_` or `-`). `rename` also takes `label`.
+`supply` takes write-only `material` and `authority`: `same` is an explicit
+administrator declaration that the upstream account/workspace is unchanged;
+otherwise use `rebind`, which invalidates prior consent. Initial supply is a
+rebind. Material must be a nonempty printable ASCII header value, at most 4096
+bytes. JSON bodies are limited to 8192 bytes; extra fields are rejected.
+
+Access PUT takes `state` (`granted` or `revoked`), `expectedRevision` (zero for an
+absent relation) and `expiresAt` (null or a future canonical UTC timestamp). It
+does not issue OAuth consent. Role, Provider credits and browser login do not
+grant Runtime access. Access revisions survive revocation and human re-enable.
+
+Credential operations reserve a D1 revision, write an encrypted candidate to the
+separate per-installation `RuntimeCredentials` SQLite Durable Object, conditionally
+bind it, then clean obsolete versions. `writing` and `cleaning` deny admission.
+The configured `state` is not readiness: check `phase` and `credential_ready`.
+`disable` preserves the bound credential but invalidates consent; `retire` also
+clears it and cannot be undone. A previously admitted request may finish.
+
+After a lost response, read the installation and operation stages; never resend
+secret supply blindly. `recover` requires the current revision and the pending
+operation ID. For `cleaning`, it retries the exact cleanup and confirms readiness.
+For `writing`, it explicitly aborts the unknown candidate, disables the
+installation and clears **all** versions. Supply a new credential afterwards.
+A stale completion cannot restore a newer disabled or retired state. Metadata
+and successful stage audit share a SQL transaction; D1 and DO do not.
+
+Runtime encryption uses a domain-separated HMAC subkey from
+`TOKEN_ENCRYPTION_KEY_V1`, bound to the installation and immutable version, then
+AES-GCM. It does not change Provider encryption or TokenAuthority identities.
+Neither metadata nor operation receipts return material or encrypted blobs.
+The additive D1 schema and new DO binding follow the normal release procedure;
+Worker rollback does not remove them or restore retired authority.
 
 ChatGPT production accounts are compatible with `surface:codex:production` / `chatgpt_production`. Production Grok accounts are compatible with `surface:grok:production` and `surface:xai:production` / `grok_production`. There is no separate official xAI API-key slot. Endpoint compatibility and upstream subscription authority remain exact-plan facts.
 

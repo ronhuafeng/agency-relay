@@ -106,7 +106,7 @@ export function createTaskController(initialize: (root: ParentNode) => void, dra
     document.querySelector(".identity-person")?.replaceChildren();
   };
   const visible = (element: HTMLElement | null | undefined): element is HTMLElement => Boolean(element?.getClientRects().length);
-  const heading = (): HTMLElement => Array.from(main().querySelectorAll<HTMLElement>("[data-person-detail] h2,[data-account-detail] h2,[data-setup-detail] h2")).find(visible) ?? required(main().querySelector<HTMLElement>("h1"), "heading missing");
+  const heading = (): HTMLElement => Array.from(main().querySelectorAll<HTMLElement>("[data-person-detail] h2,[data-account-detail] h2,[data-setup-detail] h2,#runtime-detail h2")).find(visible) ?? required(main().querySelector<HTMLElement>("h1"), "heading missing");
   const focus = (destination: HTMLElement): void => { if (!destination.matches("input,select,textarea,button,a[href]")) destination.tabIndex = -1; destination.focus({ preventScroll: true }); };
   const save = (source: HTMLAnchorElement | null = null): void => {
     drafts.capture(shell());

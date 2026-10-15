@@ -21,6 +21,26 @@ const LATER = new Date("2026-08-10T12:05:00.000Z");
 const GRANT = "surface:grok:production" as const;
 
 describe("inherited surface allowances", () => {
+  it("captures historical consumption once and exposes any later unreceipted debit", async () => {
+    const { env, sqlite } = fixture();
+    await assign(env, { mode: "limited", monthly_allowance: 10 });
+    sqlite.exec(`INSERT INTO user_surface_credit_usage VALUES
+      ('sop-plus', 'surface:grok:production', '2026-08-01', 4, 3, '2026-08-01', NULL)`);
+    const read = async () => (await listSurfaceCreditStates(env, NOW, "sop-plus"))
+      .find(({ surface_grant }) => surface_grant === GRANT)!.reconciliation;
+    expect(await read()).toMatchObject({ opening_credits: 4, opening_balance_captured: false, recorded_admission_credits: 0 });
+    await consumeSurfaceCredits(env, { user_id: "sop-plus", surface_grant: GRANT,
+      plan_id: "synthetic_frozen_charge", credit_charge: 2 }, NOW);
+    expect(await read()).toEqual({ opening_credits: 4, opening_balance_captured: true,
+      recorded_admission_credits: 2, terminal_confirmed_credits: 0, terminal_unconfirmed_credits: 2,
+      balance_difference: 0, charged_admissions: 1, terminal_confirmed_admissions: 0 });
+    sqlite.exec("UPDATE user_surface_credit_usage SET consumed_credits = consumed_credits + 1");
+    await consume(env, LATER);
+    expect(await read()).toMatchObject({ opening_credits: 4, recorded_admission_credits: 3, balance_difference: 1 });
+    expect(() => sqlite.exec("UPDATE user_surface_credit_usage SET opening_credits = 5"))
+      .toThrow("credit_opening_immutable");
+  });
+
   it("uses an explicit personal cap instead of the organization default", async () => {
     const { env, sqlite } = fixture();
     sqlite.prepare(
@@ -92,6 +112,7 @@ describe("inherited surface allowances", () => {
       credit_charge: 0
     }, LATER);
     expect(sqlite.prepare("SELECT consumed_credits FROM user_surface_credit_usage").get()).toEqual({ consumed_credits: 1 });
+    expect(sqlite.prepare("SELECT count(*) AS count FROM credit_admissions").get()).toEqual({ count: 1 });
     await assign(env, { mode: "disabled", monthly_allowance: null });
     await expect(consumeSurfaceCredits(env, {
       user_id: "sop-plus",
@@ -167,6 +188,8 @@ describe("inherited surface allowances", () => {
       const read = createTestD1({ file, migrations: "none" });
       expect(read.sqlite.prepare("SELECT consumed_credits, admitted_attempts FROM user_surface_credit_usage").all())
         .toEqual([{ consumed_credits: 1, admitted_attempts: 1 }]);
+      expect(read.sqlite.prepare("SELECT count(*) AS count, sum(credit_charge) AS credits FROM credit_admissions").get())
+        .toEqual({ count: 1, credits: 1 });
       read.close();
     } finally {
       rmSync(root, { recursive: true, force: true });

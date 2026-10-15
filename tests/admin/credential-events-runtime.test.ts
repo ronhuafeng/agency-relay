@@ -17,7 +17,8 @@ it("upgrades and publishes through real Workers WebSockets and rejects revoked s
         }
         return worker.fetch(request,env,ctx);
       }};`, resolveDir: process.cwd(), sourcefile: "credential-runtime-fixture.ts" },
-    bundle: true, write: false, format: "esm", platform: "browser", external: ["cloudflare:workers", "node:*"],
+    bundle: true, write: false, format: "esm", platform: "node", external: ["cloudflare:workers"],
+    banner: { js: 'import {createRequire} from "node:module";const require=createRequire("/");' },
     define: { "process.env.NODE_ENV": '"production"' }, logLevel: "silent"
   });
   const bindings = {

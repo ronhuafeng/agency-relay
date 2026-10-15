@@ -78,11 +78,27 @@ export function codexTaskSucceeded(output: string): boolean {
 }
 
 export function installCodex(client: ClientHome): void {
-  run("bash", ["-lc", "curl -fsSL https://chatgpt.com/codex/install.sh | sh"], {
-    env: client.baseEnv,
-    timeout: 180_000
-  });
+  try {
+    run("bash", ["-o", "pipefail", "-c", "curl -fsSL https://chatgpt.com/codex/install.sh | sh"], {
+      env: codexInstallerEnv(client),
+      timeout: 0
+    });
+  } finally {
+    rmSync(join(client.home, ".curlrc"), { force: true });
+  }
   run(join(client.home, ".local/bin/codex"), ["--version"], { env: client.baseEnv, timeout: 60_000 });
+}
+
+/** Official installer and curl controls; never change or wrap the installer. */
+export function codexInstallerEnv(client: ClientHome): NodeJS.ProcessEnv {
+  writeFileSync(join(client.home, ".curlrc"), "connect-timeout = 10\nmax-time = 0\nspeed-limit = 1\nspeed-time = 60\n", { mode: 0o600 });
+  return {
+    ...client.baseEnv,
+    CODEX_NON_INTERACTIVE: "1",
+    // The official primary asset source imposes a fixed 300-second deadline.
+    // Its supported GitHub source lets curl own the transfer-stall boundary.
+    CODEX_INSTALLER_USE_RELEASES_OPENAI_COM: "0"
+  };
 }
 
 export function installGrok(client: ClientHome): void {

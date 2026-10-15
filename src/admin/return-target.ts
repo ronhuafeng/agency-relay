@@ -8,13 +8,13 @@ export const CONSOLE_RETURN_SECTIONS = [
   // Exact headings for the current three-host catalog, verified against rendered links.
   '#route-host-0-title', '#route-host-1-title', '#route-host-2-title'
 ] as const;
-const memberViews = new Set(['home', 'keys', 'quota', 'usage', 'setup']);
+const memberViews = new Set(['home', 'keys', 'quota', 'usage', 'setup', 'integrations']);
 const adminFields: Record<string, readonly string[]> = {
   overview: [], credentials: ['account', 'task', 'q', 'page'],
   access: ['kind', 'person', 'key', 'task', 'q', 'page', 'page_size', 'key_q', 'key_page'],
   setup: ['person', 'key', 'task', 'q', 'page'], usage: ['person', 'plan', 'model', 'q'],
   audit: ['record', 'audit_from', 'audit_to', 'audit_plan', 'audit_user', 'audit_result', 'audit_request', 'audit_cursor', 'audit_direction'],
-  surfaces: [], quotas: [], 'control-audit': []
+  surfaces: [], quotas: [], 'control-audit': [],runtime:['installation','q','page']
 };
 const safeId = (value: string): boolean => /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/.test(value) && !/^(?:cfwd_|sk-|Bearer)/i.test(value);
 const validDay = (value: string): boolean => /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(value)) && new Date(value).toISOString().slice(0, 10) === value && value <= '9998-12-31';
@@ -22,6 +22,9 @@ const validDay = (value: string): boolean => /^\d{4}-\d{2}-\d{2}$/.test(value) &
 export function consoleReturnTarget(value: string): string | null {
   if (value.length > 4096 || !value.startsWith('/') || value.startsWith('//') || /[\u0000-\u0020\u007f\\]/.test(value) || /%(?![\da-f]{2})/i.test(value)) return null;
   const url = new URL(value, 'https://console.invalid');
+  // Only the opaque browser-bound Runtime transaction may cross organization login.
+  // OAuth parameters and client callback URLs never enter this return grammar.
+  if(/^\/runtime\/consent\/[a-f0-9-]{36}$/.test(value))return value;
   const service = /^\/me\/service-accounts\/([^/]+)$/.exec(url.pathname);
   if (url.origin !== 'https://console.invalid' || (!['/', '/admin', '/admin/'].includes(url.pathname) && !service)) return null;
   // Reject path normalization and encoded separators rather than reinterpreting an API path.
@@ -38,7 +41,9 @@ export function consoleReturnTarget(value: string): string | null {
   // An unqualified member view is retained for existing member links. Ambiguous
   // setup/usage addresses use the union of their actual owning HTML grammars.
   const personal = (): boolean => memberViews.has(view)
-    && [...query.keys()].every(field => ['view', ...(service ? [] : ['area']), ...(['keys', 'setup'].includes(view) ? ['key'] : []), ...(view === 'usage' ? ['range', 'q'] : [])].includes(field))
+    && !(service&&view==='integrations')
+    && [...query.keys()].every(field => ['view', ...(service ? [] : ['area']), ...(['keys', 'setup'].includes(view) ? ['key'] : []), ...(view === 'usage' ? ['range', 'q'] : []),...(view==='integrations'?['installation']:[])].includes(field))
+    && (!query.has('installation')||/^[a-z][a-z0-9-]{0,63}$/.test(query.get('installation')!))
     && (!query.has('key') || Boolean(query.get('key')?.trim()))
     && (!query.has('range') || ['7d', '30d'].includes(query.get('range')!));
   if (service || query.has('area') || ['home', 'keys', 'quota'].includes(view)) return personal() ? value : null;
@@ -46,6 +51,8 @@ export function consoleReturnTarget(value: string): string | null {
   const fields = Object.hasOwn(adminFields, view) ? adminFields[view] : undefined;
   if (!fields || [...query.keys()].some(field => !['view', 'range', ...fields].includes(field))) return null;
   if (query.has('kind') && !['all', 'human', 'admin', 'service', 'legacy_unresolved'].includes(query.get('kind')!)) return null;
+  if(query.has('installation')&&!/^[a-z][a-z0-9-]{0,63}$/.test(query.get('installation')!))return null;
+  if(view==='runtime'&&(query.has('q')||query.has('page'))&&!query.has('installation'))return null;
   if (query.has('page_size') && !DASHBOARD_PEOPLE_PAGE_SIZES.some(size => String(size) === query.get('page_size'))) return null;
   if (query.has('range') && !(['overview', 'usage'].includes(view) ? ['7d', '30d'] : ['today', '7d', '30d', 'all']).includes(query.get('range')!)) return null;
   for (const field of ['person', 'key', 'plan', 'model']) if (query.has(field) && !query.get(field)?.trim()) return null;
@@ -85,4 +92,13 @@ export function consoleReturnTarget(value: string): string | null {
 export function consoleLoginHref(target: string): string {
   const safe = consoleReturnTarget(target);
   return safe && safe !== '/' ? `/login?${new URLSearchParams({return: safe})}` : '/login';
+}
+
+/** Only a canonical login URL produced from an allowed read-only destination
+ * can terminate an enhanced form. Extra fields, foreign URLs and actions fail. */
+export function consoleLoginTarget(value: string): string | null {
+  try {
+    const url = new URL(value, 'https://console.invalid');
+    return url.pathname === '/login' && value === consoleLoginHref(url.searchParams.get('return') ?? '') ? value : null;
+  } catch { return null; }
 }

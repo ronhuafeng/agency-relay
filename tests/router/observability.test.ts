@@ -133,7 +133,7 @@ describe("router transport observability", () => {
         request_id: "caller-controlled-request-id",
         user_id: "user_observation",
         key_id: "key_observation",
-        route: "/v1/responses",
+        route: "/backend-api/codex/responses",
         codex_auth_id: "shared_default",
         upstream_status: 200,
         terminal_event: "response.completed",
@@ -305,7 +305,7 @@ function environment(fetchImpl: typeof fetch, prohibitedValues: string[] = []): 
       }),
       async batch(statements: Array<{ sql?: string }>) {
         if (statements.some((statement) => statement.sql?.includes("user_surface_credit_usage"))) {
-          return [{ success: true, results: [], meta: { changes: 1 } }];
+          return statements.map(() => ({ success: true, results: [], meta: { changes: 1 } }));
         }
         return [
           { success: true, results: [], meta: { changes: 0 } },

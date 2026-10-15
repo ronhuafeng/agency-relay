@@ -19,6 +19,8 @@ import { dashboardInventoryCounts, dashboardPeoplePage, dashboardKeyPage, dashbo
 import { DASHBOARD_PEOPLE_PAGE_SIZE } from "./ui/href";
 import { listOrganizationCreditDefaults, listSurfaceCreditStates, type SurfaceCreditState } from "../auth/credits";
 import { defaultCredentialMetadataUsable, previewCredentialRetirement, type RetirementPreview } from "../auth/credential-defaults";
+import {credentialActor} from "../auth/credential-defaults";
+import {readRuntimeAdmin,type RuntimeAdminModel} from "../runtime/console";
 
 const LEDGER_QUERY_LIMIT = 251;
 const LEDGER_DISPLAY_LIMIT = 250;
@@ -35,6 +37,7 @@ export const DASHBOARD_VIEW_DEFINITIONS = [
   { key: "access", title: "成员与服务", group: "workspace" },
   { key: "setup", title: "客户端配置", group: "workspace" },
   { key: "credentials", title: "上游连接", group: "resources" },
+  { key: "runtime", title: "工具服务", group: "resources" },
   { key: "quotas", title: "额度政策", group: "resources" },
   { key: "audit", title: "请求记录", group: "observation" },
   { key: "usage", title: "用量报告", group: "observation" },
@@ -50,6 +53,7 @@ export function dashboardViewTitle(view: DashboardViewKey): string {
 }
 
 export type DashboardMutationFlash =
+  | {kind:"runtime_changed"|"runtime_error";installation_id:string;message:string}
   | { kind: "key_created"; token: string; key_id: string; key_prefix: string; user_id: string; email?: string | null; scopes: string[] }
   | {
       kind: "key_replacement_created";
@@ -232,6 +236,7 @@ export interface AdminDashboardControlAuditModel extends AdminDashboardPageModel
 }
 
 export type AdminDashboardPageModel =
+  | (AdminDashboardPageModelBase & RuntimeAdminModel & {view:"runtime"})
   | AdminDashboardOverviewModel
   | AdminDashboardUsageModel
   | AdminDashboardSurfacesModel
@@ -248,6 +253,10 @@ export async function loadDashboard(input: AdminDashboardInput, base: AdminDashb
   const {person: requestedPerson, key: requestedKey, account: requestedAccount, task, inventory: inventoryQuery} = selection;
   let model: AdminDashboardPageModel;
   switch (view) {
+    case "runtime": {
+      model={...base,view,...await readRuntimeAdmin(input.env,credentialActor({actor:input.identity,requestId:input.requestId}),input.url.searchParams.get("installation"),input.url.searchParams.get("q")?.trim()??"",Number(input.url.searchParams.get("page")??"1"))};
+      break;
+    }
     case "overview": {
     const trendRange = parseUsageTrendRange(input.url, input.now);
     const [attempts, counts, codexAuths, daily] = await Promise.all([

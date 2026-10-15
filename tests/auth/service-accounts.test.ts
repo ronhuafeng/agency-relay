@@ -76,7 +76,7 @@ it("classification preserves finite, Unlimited, usage, families, material, expir
   await db.prepare("UPDATE api_keys SET name = NULL, expires_at = NULL WHERE id = ?").bind(key.key.id).run();
   await db.prepare("INSERT INTO user_surface_credit_policies VALUES (?, ?, 9, ?, ?)").bind(user.id, grant, at, at).run();
   await db.prepare("INSERT INTO user_surface_credit_modes VALUES (?, 'surface:grok:production', 'unlimited', ?, ?)").bind(user.id, at, at).run();
-  await db.prepare("INSERT INTO user_surface_credit_usage VALUES (?, ?, '2026-08-01', 7, 7, ?)").bind(user.id, grant, at).run();
+  await db.prepare("INSERT INTO user_surface_credit_usage (user_id,surface_grant,period_start,consumed_credits,admitted_attempts,last_seen_at) VALUES (?, ?, '2026-08-01', 7, 7, ?)").bind(user.id, grant, at).run();
   await db.prepare("INSERT INTO request_audit (id, route_profile_id, user_id, key_id, status, created_at, total_tokens) VALUES ('historical-request','codex.production.responses',?,?,'ok',?,123)").bind(user.id, key.key.id, at).run();
   await db.prepare("INSERT INTO usage_daily (user_id,day,route_profile_id,requests,ok_requests,total_tokens,token_measurements,last_seen_at) VALUES (?,'2026-08-10','codex.production.responses',1,1,123,1,?)").bind(user.id, at).run();
   const inspected = await admin(fixture, `https://api.trustedtunnel.app/admin/users/${user.id}`, { method: "GET" });

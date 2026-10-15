@@ -1720,7 +1720,7 @@ describe("admin pages, accounts, and audit", () => {
       expect(fixture.db.audit[0]).toMatchObject({
         user_id: user.user.id,
         key_id: key.key.id,
-        route: "/v1/responses",
+        route: "/backend-api/codex/responses",
         status: "ok",
         upstream_status: 200,
         response_id: "resp_stream_usage",
@@ -1775,7 +1775,7 @@ describe("admin pages, accounts, and audit", () => {
         total_tokens: 0
       });
       expect(fixture.db.audit[0]).toMatchObject({
-        route: "/v1/responses",
+        route: "/backend-api/codex/responses",
         status: "ok",
         response_id: null,
         input_tokens: null,

@@ -33,18 +33,29 @@ Defaults choose credentials only when a new key is issued. Runtime uses `api_key
 
 ## Codex
 
-The declared Codex surface accepts:
+Canonical Codex ingress on `api.trustedtunnel.app` uses these exact registered Execution Plans. Registration defines transport routing, not proof of a successful provider business outcome:
 
-- `GET /v1/models`;
-- `POST /v1/responses`;
-- `POST /v1/audio/speech` and `POST /v1/audio/transcriptions`;
-- `POST /v1/realtime/calls` and `POST /v1/live`;
-- WebSocket `GET /v1/realtime`, `GET /v1/live`, and `GET /v1/live/{call_id}`;
-- deprecated WebSocket `GET /v1/responses`, which returns the explicit typed `426` compatibility rejection.
+- `GET /backend-api/codex/models` → shim `/models` → `https://chatgpt.com/backend-api/codex/models`;
+- `POST /backend-api/codex/responses` → shim `/responses` → `https://chatgpt.com/backend-api/codex/responses`;
+- `POST /backend-api/codex/realtime/calls` → shim `/realtime/calls` → `https://chatgpt.com/backend-api/codex/realtime/calls`;
+- `POST /backend-api/codex/live` → shim `/live` → `https://chatgpt.com/backend-api/codex/live`;
+- `POST /backend-api/transcribe` → shim `/transcribe` → `https://chatgpt.com/backend-api/transcribe`.
 
-The issued Codex client `base_url` is `https://api.trustedtunnel.app/backend-api/codex`. Codex sends the ChatGPT-backend realtime JSON body only when its base URL contains `/backend-api`. Agency Relay rewrites that prefix onto these same `/v1` plans. An existing `/v1` client remains valid. Models and Responses use the selected ChatGPT credential through the Codex egress shim to the ChatGPT backend at `https://chatgpt.com/backend-api/codex`. That backend has no `/responses/compact` path. Context compaction is a `compaction_trigger` input item on `POST /v1/responses`, not a separate route. `CODEX_EGRESS_BASE_URL` must match the approved hostname. Transcriptions, Realtime call creation, and Live call creation use the same ChatGPT credential through the Codex egress shim. The shim forwards `/transcribe` to `https://chatgpt.com/backend-api/transcribe`, and `/realtime/calls` and `/live` to `https://chatgpt.com/backend-api/codex`. These bodies stay opaque. `POST /v1/audio/speech` and the Realtime/Live WebSocket plans still target `https://api.openai.com`; they are not the ChatGPT subscription voice flow. The public OpenAI API and the xAI API are different origins and are not the ChatGPT backend.
+Transcription is that separate native path. It is not `/backend-api/codex/audio/transcriptions`. WebSocket `GET /backend-api/codex/responses` stays the typed `426` rejection. The HTTP shim does not forward Upgrade, and Agency Relay does not carry WebRTC UDP.
 
-Codex client voice uses Realtime/WebRTC paths rather than the two audio REST paths. Do not infer new provider support from the console service name.
+Previously configured clients may still call the same operations at the exact legacy paths `GET /v1/models`, `POST /v1/responses`, `POST /v1/realtime/calls`, `POST /v1/live`, and `POST /v1/audio/transcriptions`. Those paths are aliases onto the canonical plans. The alias copies method, query, headers and body unchanged. It does not convert a public-API JSON body into a ChatGPT backend body, and it does not make an old `/v1` client select backend-only request shapes. WebSocket `GET /v1/responses` aliases to the same `426`. Any other method or Upgrade on an aliased path fails closed with the canonical plan's method rule.
+
+Verified end-user capability scope excludes `POST /backend-api/codex/live` and `POST /backend-api/transcribe`, including their exact legacy aliases. These retained opaque transports have no verified producer/wire contract or successful terminal business result. Do not present route registration as verified Live creation or file transcription support. Current Codex backend WebRTC sessions use `realtime/calls`, including FramelessBidi sessions; the non-backend Live branch does not establish a ChatGPT backend Live contract.
+
+Unregistered host/method/path/Upgrade combinations fail closed without a Provider Attempt or Credit charge. This does not require body validation or conversion for retained opaque transports.
+
+These Codex paths are not plans and must not reach a provider or a ledger charge: `POST /v1/audio/speech`, WebSocket `GET /v1/realtime`, WebSocket `GET /v1/live`, WebSocket `GET /v1/live/{call_id}`, and native-looking copies such as `/backend-api/codex/audio/speech`. No Codex plan uses `api.openai.com`. Native ChatGPT Realtime WebSocket and subscription speech remain unproven; they are not implemented here.
+
+New Codex setup files, console downloads and examples use only `https://api.trustedtunnel.app/backend-api/codex`. Grok and xAI stay on their own `/v1` origins. A `base_url` ending in `/backend-api/codex` is necessary for Codex to choose the ChatGPT realtime JSON shape, but it is not sufficient for every first-party gate. Codex `supports_codex_backend_routes` also requires provider name `OpenAI`, and `uses_codex_backend` requires a compatible auth mode without `experimental_bearer_token`. Generated setup keeps `name = "Agency Relay Codex"` and `experimental_bearer_token` so Agency Relay API keys keep working. That combination does not advertise full first-party Codex fidelity.
+
+Models and Responses use the selected ChatGPT credential through the Codex egress shim. The ChatGPT backend has no `/responses/compact` path. Context compaction is a `compaction_trigger` input item on canonical `POST /backend-api/codex/responses`. `CODEX_EGRESS_BASE_URL` must match the approved hostname. Realtime call creation, Live call creation and transcription use the same ChatGPT credential. Bodies stay opaque.
+
+Codex client voice uses Realtime/WebRTC call creation rather than a speech REST path. Do not infer new provider support from the console service name.
 
 ## Grok
 
@@ -102,7 +113,7 @@ Management API, `management-api.x.ai`, custom-voice mutations, `PUT /v1/files/{f
 
 Plan-declared compatibility identity is `codex_cli`, `grok_build`, or `none`. It never authenticates a caller, selects a credential, or changes grants.
 
-`codex.models` and `codex.responses` select `codex_cli`. `grok.production.models` and `grok.production.responses` select `grok_build`. Direct xAI-backed Grok plans, xAI API plans, Codex speech/transcriptions/realtime/live and the local Codex WebSocket rejection select `none`.
+`codex.models` and `codex.responses` select `codex_cli`. `grok.production.models` and `grok.production.responses` select `grok_build`. Direct xAI-backed Grok plans, xAI API plans, Codex transcriptions/realtime/live and the local Codex WebSocket rejection select `none`.
 
 A native Codex bundle includes official Originator/User-Agent and, for models, one matching client version. A Grok bundle includes matching version, identifier and User-Agent; optional client mode must be interactive or headless. Preserve a complete native bundle as a group, including older versions. Remove mixed/conflicting/incomplete bundles together and use only the reviewed stable-channel fallback when a valid adopted version exists. Never combine caller and fallback identity fields. Invalid channel candidates cannot replace a valid stored version; channel movement alone cannot change the reviewed wire shape.
 
@@ -120,17 +131,117 @@ Details: [usage](../operate/usage.md), [Responses development](../develop/respon
 
 Provider profiles above do not admit an MCP client. A Runtime client presents a resource-bound OAuth bearer to one exact resource. That grant is separate from an Agency Relay API key, a console session, and a Provider credential.
 
-The selected target uses one Worker and separate origins for the authorization service and the MCP resource. The resource origin serves protected-resource metadata and `POST /mcp`. The authorization origin serves authorization-server metadata, registration, authorization, token, consent, revocation, and rebind. Neither origin answers the other's routes. Public discovery, registration, and token routes stay outside the console browser-write guard. Consent, revocation, and account rebind stay inside it. [Organization access](organization-access.md) owns that guard. A path under `/oauth/` receives no exemption.
+The canonical console origin owns the OAuth issuer role. Deployment-declared MCP
+resources use origins separate from the console and Providers, in the same Worker.
+Exact discovery and
+OAuth paths are listed in [Security](../../SECURITY.md#runtime-admission-and-lifecycle).
+Public registration and token routes stay outside the console browser-write
+guard. Consent and own-client revocation stay inside it; administrator Authority
+Rebind remains the installation control operation, not a public OAuth route.
+[Organization access](organization-access.md) owns that guard. Empty declarations
+keep the OAuth surface closed. Protected MCP forwarding is a separate transport
+boundary, not established by discovery or token issuance.
 
-The protected resource is the exact `/mcp` URL. A descendant path is a different resource. A bearer for one resource is rejected by another. The resource handler rejects a token whose scope lacks `relay.read`. Advertising that scope does not enforce it.
+Each protected resource is the exact deployment-declared installation URI. A
+descendant path is a different resource. A bearer for one resource is rejected
+by another. Production admission enforces the actual `runtime.use` consent for
+installation use, not per-tool read-only authority. Advertising a scope does not
+enforce it. Browser, Provider and operator credentials cannot replace that bearer.
 
-Discovery advertises only the authorization-code response, the authorization-code and refresh-token grants, PKCE `S256`, and public-client authentication `none`. Registration accepts one redirect URI. A later registration does not replace that client's redirect. Registration attempts and token attempts against one authority are capped. A loopback redirect on `127.0.0.1`, `localhost`, or `::1` may change port and keeps scheme, hostname, userinfo, path, query, and fragment. The code verifier is 43 to 128 characters. Registration rejects a client secret, `jwks`, `jwks_uri`, and a body larger than 4096 bytes. It does not fetch client metadata. Token, consent, rebind, and `POST /mcp` bodies share that cap. A body read that stops arriving is rejected. A denied resource request does not retain the body.
+Discovery advertises only the authorization-code response, authorization-code
+and refresh-token grants, PKCE `S256`, and public-client authentication `none`.
+Registration accepts one redirect URI and allocates an independent client ID;
+it cannot replace an older registration. An HTTP loopback redirect on
+`127.0.0.1`, `localhost`, or `::1` may change only its port. The verifier has
+43–128 characters. Registration rejects client-secret/JWK authentication and
+does not fetch unrecognized metadata. Production grant limits, protocol body
+bounds and cleanup are owned by [Security](../../SECURITY.md#runtime-admission-and-lifecycle).
+Synthetic identity, task output and controlled clocks are test inputs, not live
+Feishu, upstream capability or transport-capacity evidence.
 
-The selected data plane is one request-scoped `POST /mcp` with a bearer and a JSON-RPC body. `GET /mcp`, a `GET` with `Accept: text/event-stream`, and `Mcp-Session-Id` do not authenticate or resume a session. The synthetic `initialize` result reports protocol version `2025-06-18`. That marker does not import session, resumption, or cancellation rules from any other MCP transport.
+The canonical Stitch resource is `https://mcp.trustedtunnel.app/google-stitch`.
+Runtime resources use one explicitly declared lowercase letter-led path segment
+(letters, digits and hyphens, at most 64 characters). Distinct installations can
+share an origin; exact full-URL matching selects the installation, not the first
+declaration on that host. No prefix matching, alias or trailing-slash redirect
+expands the resource. Its OAuth metadata is published at
+`https://mcp.trustedtunnel.app/.well-known/oauth-protected-resource/google-stitch`,
+and an unauthenticated request receives a challenge for that exact document.
+The resource URL is a stable authorization identity, not a mutable display name.
+
+The relay implements request-scoped POST to the exact resource. The reviewed
+`google.stitch` profile fixes the complete upstream URL to `https://stitch.googleapis.com/mcp`
+and injects the exact admitted secret version as `X-Goog-Api-Key`. No incoming
+path, query, body, header or client version selects that URL or credential.
+No query is allowed. A present Origin must equal the resource origin.
+
+The supported envelope headers declare `2025-11-25` or `2026-07-28`.
+An absent version during initialization is forwarded, not synthesized. The
+2025 compatibility subset forwards initialize and notifications but supports
+only stateless POST exchanges. Modern requests do not need a relay-owned
+initialize step. Agency Relay does not compare JSON-RPC bodies with headers,
+validate tool parameters or translate negotiated versions. The upstream owns
+those semantics. This is not full compatibility with every feature of either
+version.
+
+GET/DELETE, Upgrade, `Mcp-Session-Id` and `Last-Event-ID` are unsupported.
+They cannot authenticate or resume a session. An upstream session header is
+rejected rather than exported as a working handle. A profile requiring persistent
+session or resumability must not be enabled under this contract. Opaque
+application handles still carry shared upstream authority, not per-member object
+isolation.
+
+Request projection preserves content negotiation/encoding, `Mcp-Protocol-Version`,
+`Mcp-Method`, `Mcp-Name` and `Mcp-Param-*`, except connection-owned hop fields.
+All other request headers are removed before credential injection. Response
+projection permits content type/encoding/language, the three named MCP headers
+and Retry-After; custom headers, cookies, credentials, redirects and upstream
+authentication challenges are not exported. Responses are no-store. JSON/SSE
+bytes and SSE envelopes remain opaque, with Workers-owned re-encoding rather
+than manual compression marking.
+
+Upstream 3xx is rejected as 502 without following Location. Upstream 401/403 is
+mapped to 502 `upstream_credential_unavailable`, without its body/challenge or
+an Agency Relay OAuth re-login instruction. An absent/failed exact secret read
+returns 503 before dispatch. Other upstream statuses and bodies are preserved.
+The downstream OAuth challenge remains exclusively the admission owner's rule.
+
+The V1 transport envelope is a streamed request of at most 8 MiB, a
+sixty-second idle upload/header/response-read limit, and a ten-minute admission lease.
+There is no aggregate response-byte cap or JSON parse. The Worker cancels its
+relay at lease expiry or client disconnect and releases admission on EOF/error;
+it does not claim that the upstream tool action was undone. The OAuth authority
+owns at most four outstanding leases per member/installation and sixteen per
+installation, without holding response streams. Expired leases are removed
+before admission; recovery cannot reuse a lease or replay an upstream request.
+The idle read timer runs while a read waits, not while downstream backpressure
+withholds a pull. The absolute lease still bounds that hold. A declared oversize
+Content-Length rejects before dispatch; an unknown-length upload can be stopped
+after partial delivery. It cannot undo a tool action. Each admitted HTTP request
+has at most one relay dispatch; client retry is a distinct request, not exactly-once
+execution. Provider Responses limits remain unchanged.
+
+The request path uses one primary D1 authority snapshot, one OAuth admission
+transaction with capacity reservation, one exact secret-owner read and one terminal
+release. Terminal recording is background work and cannot pull ahead or delay
+close/cancel. The OAuth owner retains only the newest admitted request's completed
+transport facts per member/installation, with a thirty-day cleanup horizon:
+client authorization
+reference, profile/Authority Revision, attempt/status/category, timings and observed
+byte counts. These counts describe stream chunks seen by Agency Relay, not encoded
+network volume or provider billing. Older delayed completion cannot replace newer
+facts. Cleanup can be delayed. Failed recording stays unknown; stale leases expire. No per-event write,
+tool count, semantic success, token/cost measurement or Provider ledger entry is
+created. HTTP 200 or clean SSE EOF is not a tool outcome.
+
+The second fixed profile exists only in the synthetic Worker fixture and uses this
+same core. It proves the extension seam and isolation, not another vendor's behavior.
+Deterministic/native-client evidence is separate from deployed latency, capacity,
+Feishu and a real Stitch task. Empty deployment declarations remain closed.
 
 Codex may still authenticate to the existing Provider surface with a static API key or access token. Those Provider plans stay unchanged.
 
-The grant authority is one Durable Object transaction, as stated in [Security](../../SECURITY.md). This section records that target. It does not open a production route or call Stitch.
+The grant authority is one Durable Object transaction, as stated in [Security](../../SECURITY.md). Source availability does not activate a production installation or call Stitch.
 
 ## Non-product ingress and health
 

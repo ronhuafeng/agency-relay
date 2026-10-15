@@ -10,38 +10,29 @@ import {
 } from "../router/fixture";
 
 describe("Codex forwarding", () => {
-  it("forwards Codex speech to api.openai.com with the ChatGPT slot used by Responses", async () => {
+  it("fails closed for public OpenAI speech without upstream dispatch or a ledger row", async () => {
     const fixture = makeFixture();
     const created = await createUser(fixture, "speech@example.com");
     const keyBody = await createKey(fixture, created.user.id, ["surface:codex:production"]);
-    const imported = await admin(fixture, "https://api.trustedtunnel.app/admin/codex-auths/shared_default/import", {
-      method: "POST",
-      body: {
-        access_token: "shared_access",
-        expires_at: "2026-06-24T12:00:00.000Z",
-        account_id: "acct_shared"
-      }
-    });
-    expect(imported.status).toBe(201);
-
-    const speech = await handleRequest(new Request("https://api.trustedtunnel.app/v1/audio/speech", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${keyBody.api_key}`,
-        "Content-Type": "application/json"
-      },
-      body: "{}"
-    }), fixture.env, fixture.ctx, fixture.deps);
-    expect(speech.status).toBe(200);
-    expect(fixture.fetchCalls).toHaveLength(1);
-    expect(fixture.fetchCalls[0]).toMatchObject({
-      url: "https://api.openai.com/v1/audio/speech",
-      method: "POST",
-      authorization: "Bearer shared_access"
-    });
-    expect(fixture.fetchCalls[0].headers.get("Chatgpt-Account-Id")).toBe("acct_shared");
-    expect(fixture.fetchCalls[0].headers.get("X-Codex-Egress-Secret")).toBeNull();
-    expect(fixture.fetchCalls[0].headers.get("Originator")).toBeNull();
+    await importSharedAuth(fixture);
+    for (const url of [
+      "https://api.trustedtunnel.app/v1/audio/speech",
+      "https://api.trustedtunnel.app/backend-api/codex/audio/speech"
+    ]) {
+      const speech = await handleRequest(new Request(url, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${keyBody.api_key}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ input: "hello", voice: "alloy" })
+      }), fixture.env, fixture.ctx, fixture.deps);
+      expect(speech.status, url).toBe(404);
+      await expect(speech.json()).resolves.toMatchObject({ error: { code: "not_found" } });
+    }
+    expect(fixture.fetchCalls).toHaveLength(0);
+    expect(fixture.db.audit).toHaveLength(0);
+    expect(fixture.db.usageDaily.size).toBe(0);
   });
 
   it("forwards Codex transcriptions through egress to the ChatGPT transcribe route", async () => {
@@ -526,7 +517,7 @@ describe("Codex forwarding", () => {
       expect(fetchAttempts).toBe(1);
       expect(fixture.db.audit).toHaveLength(1);
       expect(fixture.db.audit[0]).toMatchObject({
-        route: "/v1/responses",
+        route: "/backend-api/codex/responses",
         status: "error",
         upstream_status: null,
         error_code: "client_request_aborted"
@@ -560,7 +551,7 @@ describe("Codex forwarding", () => {
       expect(fixture.db.audit[0].response_model).toBe("N/A");
       const outcome = logSpy.mock.calls
         .map(([value]) => JSON.parse(String(value)) as Record<string, unknown>)
-        .find((value) => value.route === "/v1/responses");
+        .find((value) => value.route === "/backend-api/codex/responses");
       expect(outcome).not.toHaveProperty("model");
       expect(outcome).not.toHaveProperty("requested_model");
     } finally {
@@ -598,7 +589,7 @@ describe("Codex forwarding", () => {
       });
       const outcome = logSpy.mock.calls
         .map(([value]) => JSON.parse(String(value)) as Record<string, unknown>)
-        .find((value) => value.route === "/v1/responses");
+        .find((value) => value.route === "/backend-api/codex/responses");
       expect(outcome).not.toHaveProperty("model");
       expect(outcome).not.toHaveProperty("requested_model");
     } finally {
@@ -647,7 +638,7 @@ describe("Codex forwarding", () => {
         user_id: user.user.id,
         key_id: key.key.id,
         codex_auth_id: SHARED_CODEX_AUTH_ID,
-        route: "/v1/responses",
+        route: "/backend-api/codex/responses",
         status: "ok",
         upstream_status: 200,
         error_code: null

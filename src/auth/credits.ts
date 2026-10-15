@@ -34,6 +34,16 @@ export interface SurfaceCreditState {
   admitted_attempts: number;
   last_seen_at: string | null;
   remaining_credits: number | null;
+  reconciliation: {
+    opening_credits: number;
+    opening_balance_captured: boolean;
+    recorded_admission_credits: number;
+    terminal_confirmed_credits: number;
+    terminal_unconfirmed_credits: number;
+    balance_difference: number;
+    charged_admissions: number;
+    terminal_confirmed_admissions: number;
+  };
 }
 
 export interface CreditAuditActor {
@@ -119,6 +129,12 @@ export async function listSurfaceCreditStates(
   const result = await env.DB.prepare(
     `WITH surfaces(surface_grant) AS (
        VALUES ('surface:codex:production'), ('surface:grok:production'), ('surface:xai:production')
+     ), admissions AS (
+       SELECT surface_grant, SUM(credit_charge) AS credits,
+         SUM(CASE WHEN terminal_confirmed = 1 THEN credit_charge ELSE 0 END) AS confirmed_credits,
+         COUNT(*) AS attempts, SUM(terminal_confirmed) AS confirmed_attempts
+       FROM credit_admissions WHERE user_id = ? AND period_start = ?
+       GROUP BY surface_grant
      )
      SELECT
        surfaces.surface_grant AS surface_grant,
@@ -139,7 +155,13 @@ export async function listSurfaceCreditStates(
        END AS source,
        COALESCE(usage.consumed_credits, 0) AS consumed_credits,
        COALESCE(usage.admitted_attempts, 0) AS admitted_attempts,
-       usage.last_seen_at AS last_seen_at
+       usage.last_seen_at AS last_seen_at,
+       COALESCE(usage.opening_credits, usage.consumed_credits, 0) AS opening_credits,
+       usage.opening_credits IS NOT NULL AS opening_balance_captured,
+       COALESCE(admissions.credits, 0) AS recorded_admission_credits,
+       COALESCE(admissions.confirmed_credits, 0) AS terminal_confirmed_credits,
+       COALESCE(admissions.attempts, 0) AS charged_admissions,
+       COALESCE(admissions.confirmed_attempts, 0) AS terminal_confirmed_admissions
      FROM surfaces
      LEFT JOIN user_surface_credit_modes AS explicit
        ON explicit.user_id = ? AND explicit.surface_grant = surfaces.surface_grant
@@ -151,8 +173,9 @@ export async function listSurfaceCreditStates(
        ON usage.user_id = ?
       AND usage.surface_grant = surfaces.surface_grant
       AND usage.period_start = ?
+     LEFT JOIN admissions ON admissions.surface_grant = surfaces.surface_grant
      ORDER BY surfaces.surface_grant`
-  ).bind(userId, userId, userId, periodStart).all<{
+  ).bind(userId, periodStart, userId, userId, userId, periodStart).all<{
     surface_grant: SurfaceGrant;
     mode: CreditMode;
     monthly_allowance: number | null;
@@ -160,10 +183,23 @@ export async function listSurfaceCreditStates(
     consumed_credits: number;
     admitted_attempts: number;
     last_seen_at: string | null;
+    opening_credits: number;
+    opening_balance_captured: number;
+    recorded_admission_credits: number;
+    terminal_confirmed_credits: number;
+    charged_admissions: number;
+    terminal_confirmed_admissions: number;
   }>();
   return (result.results ?? []).map((row) => {
     const consumed = finiteAllowance(row.consumed_credits);
     const allowance = row.monthly_allowance === null ? null : finiteAllowance(row.monthly_allowance);
+    const opening = finiteAllowance(row.opening_credits);
+    const recorded = finiteAllowance(row.recorded_admission_credits);
+    const confirmed = finiteAllowance(row.terminal_confirmed_credits);
+    const difference = consumed - opening - recorded;
+    if (!Number.isSafeInteger(difference)) {
+      throw new HttpError(503, "Credit reconciliation is unavailable.", "server_error", "credit_read_unavailable");
+    }
     return {
       user_id: userId,
       surface_grant: row.surface_grant,
@@ -175,7 +211,17 @@ export async function listSurfaceCreditStates(
       consumed_credits: consumed,
       admitted_attempts: finiteAllowance(row.admitted_attempts),
       last_seen_at: row.last_seen_at,
-      remaining_credits: row.mode === "limited" && allowance !== null ? Math.max(0, allowance - consumed) : null
+      remaining_credits: row.mode === "limited" && allowance !== null ? Math.max(0, allowance - consumed) : null,
+      reconciliation: {
+        opening_credits: opening,
+        opening_balance_captured: row.opening_balance_captured === 1,
+        recorded_admission_credits: recorded,
+        terminal_confirmed_credits: confirmed,
+        terminal_unconfirmed_credits: finiteAllowance(recorded - confirmed),
+        balance_difference: difference,
+        charged_admissions: finiteAllowance(row.charged_admissions),
+        terminal_confirmed_admissions: finiteAllowance(row.terminal_confirmed_admissions)
+      }
     };
   });
 }
@@ -392,6 +438,8 @@ export async function consumeSurfaceCredits(
     surface_grant: SurfaceGrant;
     plan_id: string;
     credit_charge: number;
+    attempt_id?: string;
+    key_id?: string;
   },
   now = new Date()
 ): Promise<void> {
@@ -405,10 +453,10 @@ export async function consumeSurfaceCredits(
   }
   const periodStart = monthlyPeriodStart(now);
   const timestamp = nowIso(now);
-  const [admission] = await env.DB.batch([env.DB.prepare(
+  const [admission, receipt] = await env.DB.batch([env.DB.prepare(
     `INSERT INTO user_surface_credit_usage
-       (user_id, surface_grant, period_start, consumed_credits, admitted_attempts, last_seen_at)
-     SELECT ?1, ?2, ?3, ?4, 1, ?5
+       (user_id, surface_grant, period_start, consumed_credits, admitted_attempts, last_seen_at, opening_credits)
+     SELECT ?1, ?2, ?3, ?4, 1, ?5, 0
      WHERE ${UNLIMITED_MODE}
         OR (
           NOT ${PERSONAL_MODE}
@@ -419,6 +467,7 @@ export async function consumeSurfaceCredits(
           ), 0)
         )
      ON CONFLICT(user_id, surface_grant, period_start) DO UPDATE SET
+       opening_credits = COALESCE(user_surface_credit_usage.opening_credits, user_surface_credit_usage.consumed_credits),
        consumed_credits = user_surface_credit_usage.consumed_credits + excluded.consumed_credits,
        admitted_attempts = user_surface_credit_usage.admitted_attempts + 1,
        last_seen_at = excluded.last_seen_at
@@ -430,8 +479,13 @@ export async function consumeSurfaceCredits(
     periodStart,
     input.credit_charge,
     timestamp
-  )]);
-  if ((admission?.meta.changes ?? 0) > 0) return;
+  ), env.DB.prepare(
+    `INSERT INTO credit_admissions
+       (attempt_id, user_id, key_id, surface_grant, period_start, plan_id, credit_charge, admitted_at)
+     SELECT ?, ?, ?, ?, ?, ?, ?, ? WHERE changes() = 1`
+  ).bind(input.attempt_id ?? generateId("audit"), input.user_id, input.key_id ?? null,
+    input.surface_grant, periodStart, input.plan_id, input.credit_charge, timestamp)]);
+  if ((admission?.meta.changes ?? 0) === 1 && (receipt?.meta.changes ?? 0) === 1) return;
   const resolved = await readResolvedCredit(env, input.user_id, input.surface_grant);
   if (resolved.mode !== "limited" || (resolved.monthly_allowance ?? 0) <= 0) throw surfaceDisabled();
   throw surfaceExhausted(input, now);
@@ -441,13 +495,16 @@ export async function consumeExecutionPlanCredits(
   env: Env,
   userId: string,
   plan: ExecutionPlan,
-  now: Date
+  now: Date,
+  identity: { attemptId: string; keyId: string }
 ): Promise<void> {
   await consumeSurfaceCredits(env, {
     user_id: userId,
     surface_grant: plan.surfaceGrant,
     plan_id: plan.id,
-    credit_charge: plan.creditCharge
+    credit_charge: plan.creditCharge,
+    attempt_id: identity.attemptId,
+    key_id: identity.keyId
   }, now);
 }
 

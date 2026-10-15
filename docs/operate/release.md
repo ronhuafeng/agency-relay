@@ -43,6 +43,14 @@ Use one computed Git SHA for artifact identity. Upload a version with message ex
 
 Full `wrangler deploy` can require access to every routed zone, including the dashboard custom domain. Prefer version upload/deploy for code when appropriate; route changes require an identity authorized for the affected zones. Keep `global_fetch_strictly_public` for the same-zone tunnel path.
 
+Durable Object class lifecycle changes require `wrangler deploy`; `versions upload`
+cannot apply them. This command publishes the version and switches traffic, so
+verify its actual Version ID and Deployment ID immediately afterwards. After a
+class lifecycle migration, Cloudflare cannot roll back to a version before that
+migration. A forward recovery build must retain the new class/binding and current
+schema while restoring the required behavior. Do not delete the namespace to
+recover code. See [Cloudflare's lifecycle deployment contract](https://developers.cloudflare.com/workers/versions-and-deployments/gradual-deployments/with-durable-objects/#durable-object-class-lifecycle-changes).
+
 Reachability smoke includes Worker and egress `/healthz`, operator `/admin/readiness`, and the affected exact client surface. Models reachability is not a completed task. Changed Responses/transport paths require their owning bounded semantic evidence, not unrelated clients' release state.
 
 ## Diagnose before modifying authority

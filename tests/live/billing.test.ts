@@ -1,7 +1,7 @@
 import { expect, it } from "vitest";
 import { assertCompletedSse } from "./oracles";
 import { codexLanguageModel } from "./support";
-import { admin, expectTerminal, isRecord, languageModel, newestModel, parseJson, requireEnv, send, sleep } from "./runtime";
+import { admin, assertJsonShape, expectTerminal, isRecord, languageModel, newestModel, parseJson, requireEnv, send, sleep } from "./runtime";
 
 it("records attributed Responses and media usage from real provider calls", async () => {
   const before = await usageCounts();
@@ -29,7 +29,7 @@ it("records attributed Responses and media usage from real provider calls", asyn
   const completedResponse = isRecord(completedBody) ? completedBody.response : null;
   const usage = isRecord(completedResponse) ? completedResponse.usage : null;
   if (isRecord(usage)) {
-    expect(usage.cost_in_usd_ticks).not.toEqual(expect.any(Number));
+    expect(typeof usage.cost_in_usd_ticks === "number").toBe(false);
   }
   const grokModel = await languageModel("https://grok.trustedtunnel.app", grokKey);
   expectTerminal(await send("https://grok.trustedtunnel.app/v1/responses", grokKey, {
@@ -73,7 +73,7 @@ async function image(key: string): Promise<void> {
   }, 180_000);
   expect(response.status).toBe(200);
   const body = parseJson(response.text);
-  expect(body).toMatchObject({ data: [expect.objectContaining({ b64_json: expect.any(String) })] });
+  assertJsonShape(body, { data: [expect.objectContaining({ b64_json: expect.any(String) })] });
   const bytes = Buffer.from((body as { data: Array<{ b64_json: string }> }).data[0]?.b64_json ?? "", "base64");
   expect(bytes.length).toBeGreaterThanOrEqual(32);
   expect(["ffd8ff", "89504e", "524946"]).toContain(bytes.subarray(0, 3).toString("hex"));
@@ -90,17 +90,18 @@ async function video(key: string): Promise<void> {
   }, 180_000);
   expect(started.status).toBe(200);
   const body = parseJson(started.text);
-  expect(body).toMatchObject({ request_id: expect.any(String) });
+  assertJsonShape(body, { request_id: expect.any(String) });
   const jobId = (body as { request_id: string }).request_id;
   const deadline = Date.now() + 1_800_000;
   while (Date.now() < deadline) {
     const polled = await send(`https://grok.trustedtunnel.app/v1/videos/${jobId}`, key);
+    expect(polled.status >= 200 && polled.status < 300).toBe(true);
     const pollBody = parseJson(polled.text);
     const state = isRecord(pollBody) && typeof pollBody.status === "string" ? pollBody.status : polled.status === 202 ? "pending" : "";
     if (state === "done") {
       return;
     }
-    expect(state).toBe("pending");
+    expect(["pending", "queued", "processing", "in_progress"].includes(state)).toBe(true);
     await sleep(15_000);
   }
   expect.fail("video terminal not reached");
@@ -118,9 +119,9 @@ async function usageCounts(): Promise<UsageCounts> {
     const response = await admin("GET", `/admin/usage?scope=all&route_profile_id=${encodeURIComponent(plan)}&limit=1000`);
     expect(response.status).toBe(200);
     const list = isRecord(response.json) && Array.isArray(response.json[ledger]) ? response.json[ledger] : undefined;
-    expect(list).toEqual(expect.any(Array));
+    expect(Array.isArray(list)).toBe(true);
     return (list ?? []).filter(isRecord).reduce<number>((total, row) => {
-      expect(row.route_profile_id).toBe(plan);
+      expect(row.route_profile_id === plan).toBe(true);
       const count = row[field];
       expect(typeof count).toBe("number");
       return total + (count as number);

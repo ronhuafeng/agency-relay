@@ -26,6 +26,10 @@
       "zone_name": "trustedtunnel.app"
     },
     {
+      "pattern": "mcp.trustedtunnel.app",
+      "custom_domain": true
+    },
+    {
       "pattern": "mini-proxy.uniweaver.com",
       "custom_domain": true
     }
@@ -34,10 +38,11 @@
     "enabled": true,
     "logs": {
       "enabled": true,
+      "invocation_logs": false,
       "head_sampling_rate": 1
     },
     "traces": {
-      "enabled": true,
+      "enabled": false,
       "head_sampling_rate": 0.05
     }
   },
@@ -50,6 +55,7 @@
     "CODEX_CLIENT_ID": "app_EMoamEEZ73f0CkXaXp7hrann",
     "ADMIN_DASHBOARD_HOST": "mini-proxy.uniweaver.com",
     "CONSOLE_EMAIL_DOMAIN": "uniweaver.com",
+    "RUNTIME_INSTALLATIONS": "[{\"id\":\"google-stitch\",\"resource\":\"https://mcp.trustedtunnel.app/google-stitch\",\"profile\":\"google.stitch\",\"label\":\"Google Stitch\"}]",
     "REQUEST_AUDIT_RETENTION_DAYS": "30"
   },
   "secrets": {
@@ -79,6 +85,14 @@
       {
         "name": "CREDENTIAL_EVENTS",
         "class_name": "CredentialEvents"
+      },
+      {
+        "name": "RUNTIME_CREDENTIALS",
+        "class_name": "RuntimeCredentials"
+      },
+      {
+        "name": "RUNTIME_OAUTH",
+        "class_name": "RuntimeOAuth"
       }
     ]
   },
@@ -90,6 +104,14 @@
     {
       "tag": "v2-credential-events",
       "new_sqlite_classes": ["CredentialEvents"]
+    },
+    {
+      "tag": "v3-runtime-credentials",
+      "new_sqlite_classes": ["RuntimeCredentials"]
+    },
+    {
+      "tag": "v4-runtime-oauth",
+      "new_sqlite_classes": ["RuntimeOAuth"]
     }
   ]
 }

@@ -73,7 +73,7 @@ test('route filtering, exact provider selection and Back retain context', async 
   await page.goto('/admin?view=surfaces');
   const host = page.locator('[data-surface-hostname="api.trustedtunnel.app"]');
   await expect(host.locator('[data-visible-row-filter-ready=true]')).toBeAttached();
-  await host.getByRole('searchbox').fill('/v1/responses');
+  await host.getByRole('searchbox').fill('/backend-api/codex/responses');
   await expect(host.locator('[data-route-id="codex.responses"]')).toBeVisible();
   await expect(host.locator('[data-route-id="codex.models"]')).toBeHidden();
   await page.goto('/admin?view=credentials&q=shared');

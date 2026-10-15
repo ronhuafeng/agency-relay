@@ -31,7 +31,7 @@ svg{flex-shrink:0}.width-field{border:1px solid var(--border);border-radius:var(
 <div class="controls" aria-label="预览设置">
 <div class="context-controls">
 <fieldset id="role" class="segmented"><legend class="sr-only">身份</legend><label><input type="radio" name="role" value="admin" checked><span>管理员</span></label><label><input type="radio" name="role" value="member"><span>成员</span></label></fieldset>
-<label class="field scene-field"><span class="field-name">场景</span><select id="scene"><option value="populated">日常管理</option><option value="empty">新组织</option><option value="long">长内容与分页</option><option value="snapshot">现网快照 · 本地副本</option></select></label>
+<label class="field scene-field"><span class="field-name">场景</span><select id="scene"><option value="populated">日常管理</option><option value="empty">新组织</option><option value="long">长内容与分页</option><option value="runtime">工具服务 · 集成 Runtime</option><option value="snapshot">现网快照 · 本地副本</option></select></label>
 <label class="field page-field"><span class="field-name">页面</span><select id="page"></select></label>
 </div>
 <div class="display-controls">
@@ -50,7 +50,7 @@ const choose=(id,value)=>{const option=[...document.querySelectorAll('input[name
 let viewport='fluid';
 let configurationQueue=Promise.resolve(),loadVersion=0,loading=false,frameTarget,pendingTarget;
 let snapshotReporting=false,snapshotAccountScoped=false,snapshotRoles=[],snapshotHistory;
-const pages={admin:[['access','成员与服务'],['overview','组织概览'],['credentials','上游连接'],['setup','客户端配置'],['audit','请求记录'],['usage','用量报告'],['surfaces','服务路由'],['quotas','额度政策'],['control-audit','管理记录']],member:[['home','我的工作台'],['keys','我的密钥'],['quota','我的额度'],['usage','我的用量'],['setup','客户端配置']]};
+const pages={admin:[['access','成员与服务'],['overview','组织概览'],['credentials','上游连接'],['runtime','工具服务'],['setup','客户端配置'],['audit','请求记录'],['usage','用量报告'],['surfaces','服务路由'],['quotas','额度政策'],['control-audit','管理记录']],member:[['home','我的工作台'],['keys','我的密钥'],['quota','我的额度'],['usage','我的用量'],['setup','客户端配置'],['integrations','我的工具服务']]};
 const params=new URLSearchParams(location.search);for(const id of ['role','theme'])choose(id,params.get(id));
 if([...$('scene').options].some(o=>o.value===params.get('scene')))$('scene').value=params.get('scene');
 const initialWidth=Number(params.get('width'));if(Number.isInteger(initialWidth)&&initialWidth>=320&&initialWidth<=2560)viewport=String(initialWidth);

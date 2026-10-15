@@ -957,7 +957,7 @@ describe("Dashboard", () => {
     const catalog = document.querySelector('[data-view-role="routes"]')!;
     const codex = catalog.querySelector('[data-route-id="codex.responses"]')!;
     expect(codex.querySelector('.route-method')?.textContent).toBe('POST');
-    expect(codex.querySelector('.route-path')?.textContent).toBe('/v1/responses');
+    expect(codex.querySelector('.route-path')?.textContent).toBe('/backend-api/codex/responses');
     expect(codex.textContent).toContain('尚无记录');
     expect([...catalog.querySelectorAll('th')].map(node => node.textContent)).toContain('最近结果');
     expect(codex.querySelector('button[popovertarget]')?.getAttribute('aria-label')).toBe('请求与授权详情');

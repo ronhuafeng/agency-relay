@@ -49,7 +49,7 @@ export function projectUpstreamClientIdentity(
       USER_AGENT_HEADER,
       `codex_cli_rs/${fallbackVersion} (Linux 6.6; x86_64) unknown`
     );
-    if (url.pathname === "/v1/models") {
+    if (isCodexModelsCatalog(url.pathname)) {
       return {
         headers,
         search: replaceRawQueryParameter(url.search, "client_version", fallbackVersion)
@@ -90,13 +90,21 @@ function nativeCodexIdentity(
   if (!match || !isFirstPartyCodexOriginator(match[1])) {
     return null;
   }
-  if (url.pathname === "/v1/models") {
+  if (isCodexModelsCatalog(url.pathname)) {
     const clientVersions = url.searchParams.getAll("client_version");
     if (clientVersions.length !== 1 || clientVersions[0] !== wholeVersion(match[2])) {
       return null;
     }
   }
   return { originator, userAgent };
+}
+
+/**
+ * Models catalog identity applies to the canonical plan path. The historical
+ * path stays recognized for a direct caller that has not been aliased.
+ */
+function isCodexModelsCatalog(pathname: string): boolean {
+  return pathname === "/backend-api/codex/models" || pathname === "/v1/models";
 }
 
 function nativeGrokIdentity(

@@ -42,6 +42,13 @@ An unchanged model keeps its DOM; drafts and open controls defer changed data.
    before commit/push, then review the actual Actions result separately from design
    approval. Unavailable execution is not a passing check.
 
+The **Tool services / integrated Runtime** scenario uses the actual Worker,
+local D1 and Runtime OAuth/Credentials Durable Objects. It creates consent and a
+bounded transport fact through the production routes; only the external MCP task
+is synthetic. No production credential or provider is loaded. This scenario allows
+member setup/revoke and finite admin lifecycle review without a fixture-only consent
+screen. Source rebuild resets this synthetic Runtime state; refresh remains explicit.
+
 The workbench and standalone tabs share one local session. Changing role or
 scenario, or resetting data, also affects those tabs on their next request.
 Preserve needed work before reset. This workflow does not prove production

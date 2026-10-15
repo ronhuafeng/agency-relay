@@ -66,16 +66,19 @@ export async function admitProviderAttempt(input: {
     surfaceGrant: input.plan.surfaceGrant
   });
   const credentialCompletedAt = input.now().getTime();
+  const attemptId = generateId("audit");
   await consumeExecutionPlanCredits(
     input.env,
     input.auth.user.id,
     input.plan,
-    new Date(input.requestContext.startedAt)
+    new Date(credentialCompletedAt),
+    { attemptId, keyId: input.auth.apiKey.id }
   );
   const admittedAt = input.now().getTime();
 
   const lifecycle = createProviderAttemptLifecycle({
     ...input,
+    attemptId,
     physicalAccountId: slot.physicalAccountId
   });
   return {
@@ -101,6 +104,7 @@ function elapsedMs(completedAt: number, startedAt: number): number {
 }
 
 function createProviderAttemptLifecycle(input: {
+  attemptId: string;
   env: Env;
   ctx: Pick<ExecutionContext, "waitUntil">;
   now: () => Date;
@@ -135,6 +139,7 @@ function createProviderAttemptLifecycle(input: {
 
 async function commitTerminalOutcome(
   input: {
+    attemptId: string;
     env: Env;
     now: () => Date;
     requestContext: RequestContext;
@@ -156,7 +161,7 @@ async function commitTerminalOutcome(
   let accountingCommitted = true;
   try {
     await commitProviderAttemptAccounting(input.env, {
-      audit_id: generateId("audit"),
+      audit_id: input.attemptId,
       request_id: input.requestContext.requestId,
       route_profile_id: input.plan.id,
       route: publicExecutionPlanPath(input.plan),

@@ -163,7 +163,7 @@ const GROUP_DEFINITIONS: readonly CapabilityGroupDefinition[] = [
         label: "上下文压缩",
         description: "让长对话保持可用，不发明跨服务商的格式。",
         cells: {
-          codex: capability("included", "同一 Responses", [], "ChatGPT backend 没有单独的压缩路径。压缩是 POST /v1/responses 输入中的 compaction_trigger。"),
+          codex: capability("included", "同一 Responses", [], "ChatGPT backend 没有单独的压缩路径。压缩是 POST /backend-api/codex/responses 输入中的 compaction_trigger。旧的 POST /v1/responses 进入同一计划，不改请求体。"),
           grok: capability("in_client", "在 Grok Build 中", [], "这是客户端本地行为。Agency Relay 不提供压缩接口。"),
           xai: capability("team_access", "远程", ["xai.production.responses_compact"])
         }
@@ -251,7 +251,7 @@ const GROUP_DEFINITIONS: readonly CapabilityGroupDefinition[] = [
         label: "文字转语音",
         description: "通过 HTTP 生成语音。支持的服务也可以使用 WebSocket。",
         cells: {
-          codex: capability("included", "HTTP", ["codex.audio_speech"]),
+          codex: capability("not_available", "未证实", [], "没有已证实的 ChatGPT 语音合成路径。公开 OpenAI speech 不再从 Codex 表面转发。"),
           grok: capability("included", "HTTP", ["grok.production.tts"]),
           xai: capability("team_access", "HTTP 与 WebSocket", [
             "xai.production.tts",
@@ -303,13 +303,10 @@ const GROUP_DEFINITIONS: readonly CapabilityGroupDefinition[] = [
         label: "实时会话",
         description: "与服务商建立双向实时会话。",
         cells: {
-          codex: capability("included", "HTTP 与 WebSocket", [
+          codex: capability("included", "HTTP", [
             "codex.realtime_calls",
-            "codex.live",
-            "codex.realtime_websocket",
-            "codex.live_websocket",
-            "codex.live_call_websocket"
-          ]),
+            "codex.live"
+          ], "ChatGPT Realtime/Live WebSocket 上游尚未证实，因此失败关闭，不转发到 api.openai.com。"),
           grok: unavailable(),
           xai: capability("team_access", "WebSocket", ["xai.production.realtime_websocket"])
         }

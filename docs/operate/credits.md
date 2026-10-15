@@ -47,6 +47,97 @@ Keep `429 surface_credit_exhausted` and a truthful UTC reset/Retry-After for a g
 
 Credit represents admitted attempts rather than successful provider output. Do not add refund-on-provider-error, token-based billing or stream parsing as part of quota inheritance. Keep the plan-owned charge and existing metering boundaries; a changed charge schedule would require a separate product decision.
 
+## Fact-backed reconciliation
+
+The Credit month and admission timestamp are selected after Credential Slot
+resolution, when admission begins. Request-audit and Provider usage retain their
+existing request-start attribution. A request spanning midnight does not make
+these different time scopes interchangeable.
+
+[Domain language](../../GLOSSARY.md) distinguishes Credit Admission, Terminal
+Confirmation and Provider Usage Measurement. The Provider Attempt Module owns
+one Mini-generated attempt identity; caller correlation can repeat and is not
+the accounting identity.
+
+Every positive-charge admission stores the actual charge, exact user/key,
+surface, Execution Plan, UTC period and admission time. That immutable admission
+fact and the monthly counter increment share one D1 transaction. A rejected
+conditional increment creates no fact; a fact-write failure rolls back the
+increment. Zero-charge operations still check entitlement but do not create a
+charged-admission fact.
+
+The first fact-backed debit freezes the period's previous consumption as its
+Opening Credit Balance. New periods start at zero. A period without fact-backed
+admissions retains its existing consumption as an uncaptured historical balance.
+No request identity, terminal result or provider measurement is fabricated for
+that balance. Old writers that change a captured counter without a fact create
+an explicit reconciliation difference; the reader does not absorb it into the
+opening balance.
+
+For the same user, surface and UTC month:
+
+```text
+consumed credits = opening credits + recorded admission credits
+recorded admission credits = terminal-confirmed credits + terminal-unconfirmed credits
+```
+
+The first equality is a checked invariant, not a derived definition of the
+opening balance after capture. Terminal-unconfirmed means no retained terminal
+confirmation; do not label it running, failed, refundable or unattempted without
+separate evidence. The terminal confirmation commits with the matching audit
+and Responses aggregate, never with another Credit debit. It survives normal
+request-audit retention. Provider usage remains a separate measurement.
+
+Existing credit reads expose source-qualified reconciliation totals, the opening
+balance capture flag and a signed balance difference. Database read failure
+remains unavailable, not a balanced zero. Historical consumption is visible but
+does not acquire request-level coverage. A schema-compatible older Worker may
+serve recovery traffic, but its unreceipted debits do not satisfy this model's
+forward reconciliation contract.
+
+`charged_admissions` counts receipt records; `recorded_admission_credits` sums
+their frozen charges. `admitted_attempts` is the existing monthly counter and
+can include history without receipts. None of these counts is a provider token
+measurement or a monetary charge. Confirmation counts a persisted terminal
+outcome, including provider rejection or transport error, not just success.
+
+The [focused state model](../../tests/models/CreditFacts.tla) checks admission
+conservation and cap safety for two owners, two months and competing attempts.
+Its missing-receipt witness rejects a counter-only commit. It permits absent
+terminal confirmation and makes no provider-progress or unbounded refinement
+claim. Real SQL, deployed D1 readback and completed provider tasks remain required.
+
+### Live acceptance
+
+Given a known deployed revision and dedicated keys bound to one approved test
+user, complete one text Responses operation on each Codex, Grok and xAI surface,
+then one Grok provider-rejected model request. Make one wrong-grant request and
+use the required model catalog reads as zero-charge controls. No permissions,
+allowances, bindings or upstream credentials change.
+
+The proof budget is four charged request invocations, one denied invocation and
+the necessary free catalog/readback calls, without runner retries. Read the same
+user's operator credit projection before and after. Require real text and
+successful terminal completion for positive tasks, a real provider rejection
+for the negative model case, preserved effective opening balances, exact per-surface
+admission/terminal deltas and zero balance differences. Poll only readback for
+bounded asynchronous persistence; never repeat paid operations to obtain a pass.
+Concurrent unrelated use of this dedicated identity makes exact-delta acceptance
+inconclusive, not permission to widen the window or discard rows.
+
+Before first capture, the existing consumption is the effective opening balance.
+The first receipted charge freezes that value; its capture flag may change from
+false to true. Later captured openings must not change. Each credit projection
+is one database snapshot. Fix the UTC month for the proof; month rollover makes
+the proof inconclusive. Internally correlate the four admissions to the tested
+invocations; counts alone cannot distinguish unrelated traffic.
+
+Retain only revision/deployment identities, counts, status codes, coverage and
+booleans. No prompts, responses, tokens, key hashes or provider resource IDs.
+This establishes the new model for those operations, not a reconstructed
+historical bill or a full Live workflow rerun. Existing un-attributed historical
+differences remain explicitly outside request-level coverage.
+
 ## Operator and member interfaces
 
 Normal administration uses a Feishu-authenticated active admin in Quotas/People. Members see only their own state through `GET /me/credits`. `/me` is personal for admins too.

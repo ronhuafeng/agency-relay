@@ -12,9 +12,167 @@ Identity, roles, ownership, JIT, and offboarding follow [organization-access.md]
 
 ## Runtime grant authority
 
-Authorization-code consumption, refresh rotation, lost-response reconciliation, and grant revocation share one Durable Object transaction. KV read-modify-write is not that authority. The inspected package `@cloudflare/workers-oauth-provider@1.2.3` is not that authority either: its grants use `env.OAUTH_KV`, and its consent helper deletes after a separate read. The fixture runs on Workers compatibility date `2026-06-24` with `nodejs_compat` and a SQLite-backed Durable Object. The exercised client is Codex CLI `0.156.1`. A repeated exchange of a code that already succeeded returns the same issued tokens when the verifier, redirect, and resource still match. A lost refresh response returns the same replacement until that replacement is itself rotated. That replacement and its immediate predecessor stay for the reconciliation. The refresh record before that predecessor is removed in the same transaction. Refresh keeps the grant account and keeps the original resource.
+Runtime routes require explicit deployment declarations; empty declarations stay
+closed. The synthetic integration uses the pinned
+`@node-oauth/oauth2-server@5.3.0` token engine, Workers compatibility date
+`2026-06-24`, `nodejs_compat`, and one SQLite-backed Durable Object transaction.
+The unmodified library owns token request validation, PKCE verification and token
+generation; Agency Relay's model owns resource binding, grant generation and
+atomic storage. The real client proof uses Codex CLI `0.156.1`, including a
+protected tool-catalogue read and denial after revocation. It does not use a model
+or Stitch credential.
 
-Revocation advances the grant generation. The next use of an old bearer or refresh is denied. A response already returned stays returned. A later allow does not revive the old bearer. Rebinding to a different account advances the generation and the account together. Rebinding to the current account is rejected. Refresh of the same account issues new refresh and access material and leaves the account in place. A previously issued access token remains usable until the grant generation changes.
+Authorization-code consumption, refresh rotation and grant revocation share that
+transaction. Expected protocol rejection commits consumption or replay revocation;
+an unexpected/storage failure rolls the transaction back. An authorization code
+is single-use, as required by [RFC 6749 section 4.1.2](https://www.rfc-editor.org/rfc/rfc6749#section-4.1.2).
+Code replay is rejected and invalidates its grant, not another grant. Refresh
+rotation also rejects replay and invalidates that grant's active credentials,
+following [RFC 9700 section 4.14.2](https://www.rfc-editor.org/rfc/rfc9700#section-4.14.2).
+A lost successful token response does not permit a second successful exchange;
+the client must obtain fresh consent. A wrong PKCE verifier consumes the code,
+matching the pinned library's policy. Refresh preserves the account, exact
+resource and granted scope, and cannot add scope.
+
+KV read-modify-write is not the authority. The inspected
+`@cloudflare/workers-oauth-provider@1.2.3` uses `env.OAUTH_KV` and does not supply
+this transaction seam. No KV emulation or OAuth library fork is introduced.
+The production OAuth owner is `src/runtime/oauth.ts`, with HTTP roles in
+`src/runtime/authorization.ts`. Synthetic identity and MCP tasks establish the
+controlled contract, not deployed Feishu or Stitch capability. Empty Runtime
+declarations publish neither an installation nor its OAuth endpoints.
+
+Revocation advances the grant generation. The next use of an old bearer or refresh is denied. A response already returned stays returned. A later allow does not revive the old bearer. Rebinding to a different account advances the generation and the account together. Rebinding to the current account is rejected. Refresh of the same account issues new refresh and access material and leaves the account in place. A previously issued access token remains usable only until expiry, grant replay invalidation or a generation change.
+
+### Runtime admission and lifecycle
+
+V1 selects one dedicated SQLite-backed OAuth Durable Object for the organization,
+separate from Provider TokenAuthority. It owns registered clients, pending
+transactions, Client Consent, authorization codes, token families and replay
+tombstones. The pinned library supplies protocol validation and credential
+generation through its model interface; application consent, exact resources and
+current entitlement remain Agency Relay policy. Production authorization-code
+issuance uses the library's authorize/model seam. The earlier synthetic consent
+handler is not an alternate production authorization server.
+
+One short `blockConcurrencyWhile` gate serializes grant reads/mutations while a
+current D1 primary read is in flight. This is necessary because awaiting external
+D1 I/O alone does not prevent a consent revocation from interleaving. Inside that
+gate, validate the credential and current consent, then perform one joined D1
+authority read and compare the captured access and Authority Revisions. For a
+successful request, that D1 snapshot is the admission point. A grant revocation
+cannot commit in the DO during this gate; a D1 revocation that commits before the
+snapshot is observed and denies admission. A later revocation does not undo an
+already admitted request. Missing/failed reads deny access. The gate is bounded
+to five seconds and never contains upstream I/O or a response stream.
+
+Use a direct D1 binding read or the first query of a fresh
+`withSession("first-primary")` session, never a reused session/bookmark that can
+select an older replica. This follows the documented
+[D1 primary-read contract](https://developers.cloudflare.com/d1/best-practices/read-replication/#start-a-session-with-all-latest-data)
+and [DO concurrency gate](https://developers.cloudflare.com/durable-objects/api/state/#blockconcurrencywhile).
+D1 and DO still do not share a transaction: an OAuth result that overlaps a later
+D1 revocation can be returned, but cannot authorize the next request under the
+changed revisions. Short-lived consent captures authority when created and
+revalidates the same revisions on Allow and token exchange, not a later authority
+substituted after login.
+
+The production target uses ten-minute access tokens, two-minute authorization
+codes, and a thirty-day absolute token-family lifetime. Refresh never extends
+that family deadline. Pending login/consent transactions expire after ten
+minutes. Keep consumed-code and spent-refresh tombstones until the family ends;
+individual credential expiry is not a safe deletion boundary while descendants
+are valid. Revoke/replay blocks the whole affected family immediately. Alarm
+cleanup selects at most 128 ended families after the ten-minute retention
+margin and limits each child-record deletion to 256 rows. It retains each
+family until all its child records are removed. Delay or failure consumes storage but
+cannot restore authority. Resource reads always check expiry and revision;
+cleanup is not the expiry mechanism.
+
+An unused registration expires after twenty-four hours. A registration with live
+consent is retained through its last token-family deadline. Expired IDs are never
+reissued, and a new registration needs fresh consent. The selected V1 caps are
+100 registrations organization-wide and five live client consents per
+member/installation. At capacity, reject new work; do not evict active grants.
+Registration attempts use a durable organization limit of 100 per UTC hour;
+token attempts use 30 per registered client per UTC minute, with an organization
+limit of 300 per minute covering unknown clients too. Revocation cannot reset
+these counters. Public request limits include malformed registration/token
+traffic; an unambiguous registered client ID also consumes its per-client token
+limit before the remaining form is validated. Authorization starts are limited
+to 300 per organization and 30 per client per UTC minute, with at most 300 pending
+transactions. Protocol bodies are limited to 8 KiB and a five-second read budget.
+
+No CIMD, JWKS fetch, third-party registration metadata fetch, automatic consent,
+or persistent MCP session is selected for V1. DCR allocates an independent public
+client ID for each registration; the synthetic fixture's one fixed client ID is
+not the production registration policy. Scope grants installation use, not
+per-tool read-only access. A consent screen must state the shared upstream
+authority consequence. All token material stays out of audit and diagnostics.
+
+The canonical console origin owns `/.well-known/oauth-authorization-server`,
+`/runtime/register`, `/runtime/authorize`, `/runtime/token`, the exact opaque
+`/runtime/consent/:id` return, and current-member `/runtime/clients` list/revoke.
+Each deployment-declared resource owns its path-specific metadata at
+`/.well-known/oauth-protected-resource/<resource-path>`, as specified by
+[RFC 9728 section 3.1](https://www.rfc-editor.org/rfc/rfc9728.html#section-3.1).
+Resources use exact HTTPS URLs with one lowercase letter-led path segment
+(letters, digits and hyphens, at most 64 characters), without a query or fragment.
+Selection and token admission use the full URL, never the first matching origin.
+Distinct installations may share an origin, but not a resource URL. A resource
+origin cannot also be a Provider or console origin. The canonical Stitch resource
+is `https://mcp.trustedtunnel.app/google-stitch`; `/stitch`, `/mcp`, descendant paths
+and trailing-slash variants are not aliases.
+Registration and token exchange require no browser cookie/Origin; their explicit
+uncredentialed CORS never advertises credentialed wildcard access. Consent and
+client revocation use the existing console principal and exact-Origin write guard.
+Only an opaque browser-bound, ten-minute transaction can survive Feishu return.
+An authenticated pending transaction captures both authority revisions; an
+anonymous start captures installation authority before login, then member access
+when that verified identity first enters consent. Neither can adopt a newer
+installation authority after rebind.
+
+Tokens are opaque: the dedicated OAuth authority looks up their domain-separated
+HMAC, expiry, exact resource and actual granted `runtime.use` scope. Provider
+keys, upstream tokens, operator secrets and console cookies are not Runtime
+bearers. Missing/invalid tokens receive a resource-metadata challenge; current
+permission loss receives 403 and unavailable authority receives 503. Own consent
+metadata is not a cached entitlement. DCR allocates a new public client ID and
+does not update an older registration. Unsupported self-asserted metadata is
+ignored without fetching it, as required by [RFC 7591 §2](https://www.rfc-editor.org/rfc/rfc7591.html#section-2);
+client-secret and JWK-based registration are rejected.
+
+The admitted snapshot freezes resource, profile/version, Authority Revision and
+the exact secret reference/version. Transport may not replace it with current
+or default material. Profile drift or a cleaned/missing version fails closed.
+The OAuth authority atomically reserves a ten-minute request lease after current
+admission, with four per member/installation and sixteen per installation.
+Terminal release and allowlisted latest-activity recording share a local SQL
+transaction; recording runs outside the response lifetime. A missing release is
+not a permission leak: expiry is enforced before the next reservation. Neither
+a lease nor transport completion is a provider tool-success fact.
+
+Runtime header projection is an explicit content/MCP allowlist, not a generic
+credential denylist. The profile injects only its code-owned credential header.
+No cookie, downstream bearer, custom key/routing header, upstream authentication
+challenge or session handle is exported. Upstream redirects are not followed;
+401/403 bodies and challenges are replaced with a safe upstream failure, never
+an Agency Relay OAuth login loop. Bodies remain opaque. No request replay,
+session translation, persistent-session ownership claim or Provider accounting
+is introduced. Exact supported versions, headers and transport limits are owned
+by [surfaces](docs/product/surfaces.md#runtime-mcp-authorization).
+
+Keep automatic invocation logs and traces off for this Worker. Cloudflare's
+[invocation logs](https://developers.cloudflare.com/workers/observability/logs/workers-logs/#invocation-logs)
+include URLs, and [trace attributes](https://developers.cloudflare.com/workers/observability/traces/spans-and-attributes/)
+include full URLs/query strings and Durable Object SQL bindings. Application
+logs remain enabled for allowlisted event categories, never callback queries,
+credentials or raw client metadata. No-store applies to OAuth responses. Protocol,
+token and redirect responses use no-referrer. The consent form HTML uses same-origin
+to retain a native POST Origin; no referrer is sent to the external client callback.
+Consent HTML blocks framing and permits form return only to the
+validated callback origin. Do not collect raw OAuth traffic with live tail,
+browser tracing or diagnostics.
 
 ## Browser protection
 

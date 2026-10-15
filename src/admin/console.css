@@ -724,7 +724,7 @@ form[aria-busy=true] :is(button,a)[aria-disabled=true],form[aria-busy=true] butt
 .console-simple [data-member-view] { display:grid; min-width:0; }
 .console-simple .keys,.console-simple .keys li { min-width:0; }
 .console-simple .choices label { border:0; padding:0; }
-.console-simple .gate { width:min(440px,100%); margin:0 auto; padding:28px 24px; display:grid; gap:16px; }
+.console-simple .gate { width:min(440px,100%); margin:0 auto; padding:28px 24px; display:grid; grid-template-columns:minmax(0,1fr); gap:16px; overflow-wrap:anywhere; }
 .shell:has(> .nav-rail) .gate,.shell:has(> .nav-rail) .unavailable-view { margin-inline:0; }
 .secret-copy [role=status] { color:var(--muted-foreground); }
 .setup-feedback { margin:0; color:var(--destructive); }

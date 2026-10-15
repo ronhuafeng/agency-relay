@@ -7,6 +7,7 @@ Use the row that matches the changed boundary. The product-design-loop owns the 
 | Question | Authority |
 | --- | --- |
 | What does Agency Relay own? | [Product North Star](product/north-star.md) |
+| Admission, terminal confirmation and usage vocabulary | [Domain language](../GLOSSARY.md) |
 | Email identity, JIT, roles, ownership and key policy | [Organization access contract](product/organization-access.md) |
 | Member/admin journeys and safe actions | [Product experience](product/experience.md) |
 | Design-token authority, runtime generation, source policy and architectural rationale | [Design System Governance Loop](develop/design-system.md) |
