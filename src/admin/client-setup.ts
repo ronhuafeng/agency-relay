@@ -47,7 +47,6 @@ const CODEX_HEADER = `# Agency Relay Codex CLI 安装
 # 密钥只在这个文件里。不要分享。
 # 如果不能使用：请管理员在控制台「账号」检查 ChatGPT 连接。
 # 这个 base_url 只选择已支持的 ChatGPT HTTP 路径。
-# 名称不是 OpenAI，并且使用 experimental_bearer_token，所以不能当作完整官方 Codex 功能开关。
 `;
 
 const GROK_HEADER = `# Agency Relay Grok Build 安装

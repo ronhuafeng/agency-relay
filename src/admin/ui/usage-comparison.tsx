@@ -75,12 +75,14 @@ export function UsageComparison({control}: {readonly control: UsageComparisonCon
   const ticks = Array.from({length: maximum / step + 1}, (_, index) => maximum - index * step);
   const band = 600 / days.length;
   const y = (value: number) => 142 - value * 134 / maximum;
+  const tickAt = (index: number, count: number) => Array.from({length: Math.min(count, days.length)}, (_, tick) => Math.round(tick * (days.length - 1) / Math.max(1, Math.min(count, days.length) - 1))).includes(index);
   return <section className="usage-comparison" aria-label="用量比较">
-    <div className="usage-chart-legend" aria-label="显示的服务">{control.series.map(series => <div key={series.id} className="usage-legend-item" data-trend-plan={series.plan} data-trend-capability={series.capability}>
-      <Button type="button" variant="ghost" disabled={!enhanced || !compatible.includes(series)} aria-pressed={!hidden.includes(series.id) && compatible.includes(series)} onClick={() => setHidden(hidden.includes(series.id) ? hidden.filter(id => id !== series.id) : [...hidden, series.id])}><svg viewBox="0 0 12 12" className="usage-series-swatch" aria-hidden="true"><rect width="12" height="12" data-series-color={colors.get(series.id)}/></svg>{series.title}</Button>
+    <div className="usage-chart-legend" aria-label="显示的服务">{control.series.map(series => <div key={series.id} className={compatible.includes(series) ? "usage-legend-item" : "sr-only"} data-trend-plan={series.plan} data-trend-capability={series.capability}>
+      {compatible.includes(series) ? <Button type="button" variant="ghost" disabled={!enhanced} aria-pressed={!hidden.includes(series.id)} onClick={() => setHidden(hidden.includes(series.id) ? hidden.filter(id => id !== series.id) : [...hidden, series.id])}><svg viewBox="0 0 12 12" className="usage-series-swatch" aria-hidden="true"><rect width="12" height="12" data-series-color={colors.get(series.id)}/></svg>{series.title}</Button> : <span>{series.title}</span>}
       <dl className="sr-only usage-metrics">{series.metrics.map(metric => <div key={metric.label}><dt>{metric.label}</dt><dd>{metric.value}</dd></div>)}</dl>
     </div>)}{control.range ? <nav className="ranges usage-legend-range" aria-label="UTC 时间范围"><a href={control.range.href7} data-dashboard-link="" aria-current={control.range.key === "7d" ? "true" : undefined}>7 天</a><a href={control.range.href30} data-dashboard-link="" aria-current={control.range.key === "30d" ? "true" : undefined}>30 天</a></nav> : null}</div>
-    {days.length ? <div className="usage-chart-frame">
+    <p className="usage-chart-context">{metricLabels[metric]} · UTC</p>
+    {days.length && visible.length ? <div className="usage-chart-frame">
       <div className="usage-chart-y" aria-hidden="true">{ticks.map(tick => <span key={tick}>{formatNumber(tick)}</span>)}</div>
       <div className="usage-chart-body"><svg className="usage-bar-plot" viewBox="0 0 600 150" preserveAspectRatio="none" role="group" aria-label={`分组柱状图 · ${metricLabels[metric]}`}>
         {ticks.map(tick => <path key={tick} className="usage-chart-grid" d={`M0 ${y(tick)} H600`}/>)}
@@ -99,8 +101,8 @@ export function UsageComparison({control}: {readonly control: UsageComparisonCon
             })}
           </g>;
         })}
-      </svg><div className="usage-chart-x" aria-hidden="true">{days.map((row, index) => { const step = days.length <= 8 ? 1 : Math.ceil(days.length / 8); return <span key={row.day}><svg className="usage-day-tick" viewBox="0 0 12 6" width="12" height="6" focusable="false"><polygon points="3,1 9,1 11,5 1,5"/><polygon points="2,0 8,0 10,4 0,4"/></svg><span>{index % step === 0 || index === days.length - 1 ? row.day.slice(5) : ""}</span></span>; })}</div></div>
-    </div> : <p role="status">没有选中的可比较服务。</p>}
+      </svg><div className="usage-chart-x" aria-hidden="true">{days.map((row, index) => <span key={row.day} data-tick-wide={tickAt(index,8)} data-tick-medium={tickAt(index,4)} data-tick-compact={tickAt(index,3)}><svg className="usage-day-tick" viewBox="0 0 12 6" width="12" height="6" focusable="false"><polygon points="3,1 9,1 11,5 1,5"/><polygon points="2,0 8,0 10,4 0,4"/></svg><span>{row.day.slice(5)}</span></span>)}</div></div>
+    </div> : <p role="status">{days.length ? "选择上方服务以显示比较。" : "此范围暂无用量记录。"}</p>}
 
   </section>;
 }

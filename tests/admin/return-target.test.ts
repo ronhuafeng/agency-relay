@@ -67,7 +67,7 @@ it.each([
   ...['member-key-form', 'member-key-inventory'].map(section => `/admin?area=me&view=keys#${section}`),
   '/me/service-accounts/svc_one?view=keys&key=key-one#member-key-inventory',
   '/admin?view=audit&audit_user=other&audit_result=error#request-history',
-  ...['usage-trends', 'usage-details'].map(section => `/admin?view=usage&person=other&range=30d#${section}`),
+  ...['usage-filter', 'usage-trends', 'usage-details'].map(section => `/admin?view=usage&person=other&range=30d#${section}`),
   '/me/service-accounts/svc_one?view=usage&range=30d#usage-trends',
   ...[0, 1, 2].map(index => `/admin?view=surfaces#route-host-${index}-title`)
 ])('retains an actual task section and its exact object/query through login: %s', target => {
@@ -88,4 +88,15 @@ it.each([
 ])('keeps unknown/unsafe task fragments and URLs rejected: %s', target => {
   expect(consoleReturnTarget(target)).toBeNull();
   expect(consoleLoginHref(target)).toBe('/login');
+});
+
+it.each(['codex','grok','xai'])('keeps a selected setup client through login: %s', client=>{
+ for(const base of ['/admin?area=me&view=setup','/me/service-accounts/svc_one?view=setup']){
+  const target=`${base}&client=${client}`;
+  expect(consoleReturnTarget(target)).toBe(target);
+ }
+ expect(consoleReturnTarget(`/admin?area=me&view=usage&client=${client}`)).toBeNull();
+});
+it('rejects an unknown or competing setup client',()=>{
+ for(const suffix of ['client=unknown','client=grok&client=codex']) expect(consoleReturnTarget(`/admin?area=me&view=setup&${suffix}`)).toBeNull();
 });

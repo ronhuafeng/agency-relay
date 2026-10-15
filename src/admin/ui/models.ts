@@ -116,6 +116,10 @@ export interface MemberKeyFormModel {
 }
 
 export interface UsageFact {
+  readonly metric?: "count" | "measurement" | "failure" | "cost";
+  readonly coverage?: {readonly recorded:number; readonly total:number};
+  readonly basis?: "api_equivalent" | "provider_reported";
+  readonly explanation?: string;
   readonly label: string;
   readonly value: string;
   readonly tone?: "bad";
@@ -149,7 +153,12 @@ function readUsageFacts(value: unknown): UsageFact[] | null {
   const facts: UsageFact[] = [];
   for (const fact of value) {
     if (!isRecord(fact) || typeof fact.label !== "string" || typeof fact.value !== "string") return null;
-    facts.push({label: fact.label, value: fact.value});
+    if (fact.metric !== undefined && !["count","measurement","failure","cost"].includes(String(fact.metric))) return null;
+    if (fact.basis !== undefined && fact.basis !== "api_equivalent" && fact.basis !== "provider_reported") return null;
+    if (fact.explanation !== undefined && typeof fact.explanation !== "string") return null;
+    const coverage = fact.coverage;
+    if (coverage !== undefined && (!isRecord(coverage) || !Number.isSafeInteger(coverage.recorded) || !Number.isSafeInteger(coverage.total) || Number(coverage.recorded)<0 || Number(coverage.total)<0)) return null;
+    facts.push({label:fact.label,value:fact.value,...(fact.metric ? {metric:fact.metric as UsageFact["metric"]} : {}),...(fact.basis ? {basis:fact.basis} : {}),...(typeof fact.explanation === "string" ? {explanation:fact.explanation} : {}),...(isRecord(coverage) ? {coverage:{recorded:coverage.recorded as number,total:coverage.total as number}} : {})});
   }
   return facts;
 }
@@ -246,6 +255,7 @@ function isCapabilityState(value: unknown): value is SurfaceCapabilityState {
     case "api_building_blocks":
     case "list_only":
     case "upgrade_required":
+    case "unverified":
     case "not_available":
       return true;
     default:

@@ -22,7 +22,9 @@ async function workbench() {
   await vi.waitFor(() => expect(frame.src).toContain("view=quotas"));
   frame.dispatchEvent(new window.Event("load"));
   const select = (id: string, value: string) => {
-    const element = window.document.querySelector<HTMLSelectElement>(`#${id}`)!;
+    const radio = window.document.querySelector<HTMLInputElement>(`input[name="${id}"][value="${value}"]`);
+    if (radio) {radio.click(); return;}
+    const element = window.document.querySelector<HTMLInputElement | HTMLSelectElement>(`#${id}`)!;
     element.value = value; element.dispatchEvent(new window.Event("change"));
   };
   return {window, requests, frame, select};
@@ -61,4 +63,26 @@ it("retains a failed configuration choice and lets the next load recover", async
   await vi.waitFor(() => expect(requests).toHaveLength(3));
   requests[2]!.finish();
   await vi.waitFor(() => expect(frame.src).toContain("view=control-audit"));
+});
+
+// Geometry choices must keep the same document and its unfinished task. A full
+// navigation with the same URL is still wrong; a different toolbar layout is valid.
+it("resizes the current preview without reloading its unfinished form", async () => {
+  const {window, requests, frame, select} = await workbench();
+  const document = frame.contentDocument!;
+  document.open(); document.write("<!doctype html><html><body></body></html>"); document.close();
+  const draft = document.createElement("input");
+  draft.value = "unfinished label";
+  document.body.append(draft);
+  (window.document.querySelector('[data-width="390"]') as HTMLButtonElement).click();
+  expect(frame.style.width).toBe("390px");
+  select("width", "1024");
+  expect(frame.style.width).toBe("1024px");
+  (window.document.querySelector('[data-width="fluid"]') as HTMLButtonElement).click();
+  expect(frame.style.width).toBe("100%");
+  expect(frame.contentDocument).toBe(document);
+  expect(draft.isConnected).toBe(true);
+  expect(draft.value).toBe("unfinished label");
+  expect(requests).toHaveLength(1);
+  expect(window.location.search).toContain("width=fluid");
 });

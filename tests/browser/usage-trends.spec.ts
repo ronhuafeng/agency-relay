@@ -16,6 +16,14 @@ for (const scenario of [
     await expect(page.locator('[data-trend-plan="codex.responses"]')).not.toContainText('OpenAI Standard');
     await expect(page.locator('[data-trend-plan="codex.responses"]')).not.toContainText('API 费率折算');
     await expect(page.locator('.usage-record[data-usage-plan="codex.responses"]').filter({hasText: 'gpt-5.5'}).locator('.usage-record-cost')).toContainText('$0.0007');
+    const usageDetail = page.getByRole('button', {name: /^查看用量详情：Codex · gpt-5\.5/}).first();
+    await usageDetail.click();
+    const detail = page.locator('.console-help-popover:popover-open');
+    await expect(detail).toContainText('API 费率折算');
+    await expect(detail).toContainText('令牌记录覆盖');
+    await expect(detail).toContainText('金额记录覆盖');
+    await page.keyboard.press('Escape');
+    await expect(detail).toHaveCount(0);
     if (scenario.identity === "member") expect((await page.locator('main').textContent())?.includes('other-private-model')).toBe(false);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
     await expect(page.locator('.usage-comparison table')).toHaveCount(0);
@@ -131,11 +139,11 @@ test.describe('personal native empty and unavailable usage', () => {
   test.use({identity: 'member', script: false, viewport: {width: 390, height: 900}});
   test('an empty ledger has one empty state; failed reads remain unavailable', async ({page, worker}) => {
     await page.goto('/admin?area=me&view=usage&range=7d');
-    await expect(page.locator('[data-trend-empty]')).toHaveCount(0);
-    await expect(page.locator('#usage-trends .usage-bar-plot')).toBeVisible();
-    await expect(page.locator('#usage-trends .usage-day-tick')).toHaveCount(7);
+    await expect(page.locator('[data-trend-empty]')).toHaveCount(1);
+    await expect(page.locator('#usage-trends .usage-bar-plot')).toHaveCount(0);
+    await expect(page.locator('#usage-trends')).toContainText('暂无用量记录');
     expect(await page.locator('[data-trend-plan]').count()).toBe(0);
-    await expect(page.getByText('至', {exact: false}).filter({hasText: 'UTC'})).toHaveCount(0);
+    await expect(page.locator('[data-trend-empty]')).toContainText('2026-06-18 至 2026-06-24 UTC');
     await page.getByRole('navigation', {name: 'UTC 时间范围'}).getByRole('link', {name: '30 天', exact: true}).click();
     await expect(page.locator('[data-usage-range-label]')).toHaveAttribute('data-usage-range-label', '2026-05-26 至 2026-06-24 UTC');
     const query = 'A'.repeat(256);

@@ -140,7 +140,7 @@ describe("account linked access", () => {
     const recovered = await f.render("&account=codex%3Acollision");
     const recoveredDocument = new JSDOM(recovered.html).window.document;
     expect(recovered.response.status).toBe(200);
-    expect(recoveredDocument.querySelector('[data-retirement="true"]')?.textContent).toContain("没有未撤销密钥绑定");
+    expect(recoveredDocument.querySelector('[data-retirement-block="true"]')).toBeNull();
     expect(recoveredDocument.querySelector<HTMLButtonElement>('[data-action="logout-codex"] button')?.disabled).toBe(false);
     expect(recoveredDocument.querySelector('[data-action="logout-codex"] .confirmation-fallback')).not.toBeNull();
   });
@@ -151,7 +151,7 @@ describe("account linked access", () => {
     seedLinkedKey(f, "live-codex", { provider: "codex", grants: ["surface:codex:production"], ...(expired ? {expires:"2026-01-01T00:00:00.000Z",personStatus:"disabled"} : {}) });
     const { html } = await f.render("&account=codex%3Acollision");
     const document = new JSDOM(html).window.document;
-    expect(document.querySelector('[data-retirement-block="true"]')?.textContent).toContain("1 个未撤销密钥仍绑定此连接");
+    expect(document.querySelector('[data-retirement-block="true"]')?.textContent).toContain("1 个未撤销密钥");
     const disconnect = document.querySelector<HTMLButtonElement>('[data-action="logout-codex"] button');
     expect(disconnect?.disabled).toBe(true);
     expect(disconnect?.title).toBe("请先处理未撤销密钥绑定");
@@ -349,7 +349,7 @@ describe("ChatGPT admission presentation", () => {
     expect(document.querySelector<HTMLButtonElement>('[data-action="refresh-codex"] button')?.disabled).toBe(false);
     const unavailable = fixture("FROM organization_surface_credential_defaults AS d");
     const failed = new JSDOM((await unavailable.render("&account=codex%3Acollision")).html).window.document;
-    expect(failed.querySelector<HTMLButtonElement>('[data-action="codex-pause"] button')?.disabled).toBe(true);
+    expect(failed.querySelector<HTMLButtonElement>('[data-action="codex-pause"] [role="switch"]')?.disabled).toBe(true);
     expect(failed.querySelector('[data-action="codex-pause"] [data-confirmation-fallback]')).toBeNull();
   });
 

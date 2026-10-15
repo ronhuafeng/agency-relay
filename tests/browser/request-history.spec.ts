@@ -1,10 +1,50 @@
 import { test, expect } from "./fixtures";
 
-for (const width of [320, 390, 1440]) test.describe(`request history ${width}px`, () => {
+for (const script of [true, false]) test.describe(`request date correction ${script ? "enhanced" : "native"}`, () => {
+  test.use({script, viewport:{width:390,height:900}});
+  test("keeps filters and lets the user correct a reversed date range", async ({page, worker}) => {
+    worker.seedRequestHistory();
+    await page.goto("/admin?view=audit");
+    if (script) await expect(page.getByRole('button',{name:'账号菜单',exact:true})).toHaveAttribute('aria-haspopup','menu');
+    await page.getByRole('button',{name:'精确定位',exact:true}).click();
+    await page.getByRole('textbox',{name:'成员',exact:true}).fill('member');
+    await page.getByRole('textbox',{name:'请求 ID',exact:true}).fill('request-shared');
+    await page.getByRole('button',{name:'精确定位',exact:true}).click();
+    await expect(page.getByRole('textbox',{name:'成员',exact:true})).toBeHidden();
+    await page.getByRole('button',{name:'精确定位',exact:true}).click();
+    await expect(page.getByRole('textbox',{name:'成员',exact:true})).toHaveValue('member');
+    await expect(page.getByRole('textbox',{name:'请求 ID',exact:true})).toHaveValue('request-shared');
+    await page.getByRole('combobox',{name:'结果',exact:true}).selectOption('error');
+    await page.getByLabel('开始日期（UTC）').fill('2026-06-25');
+    await page.getByLabel('结束日期（UTC）').fill('2026-06-24');
+    await page.getByRole('button',{name:'筛选请求',exact:true}).click();
+    const form = page.getByRole('form',{name:'筛选请求记录'});
+    await expect(form.getByRole('alert')).toHaveText('结束日期不能早于开始日期。');
+    await expect(form.getByRole('textbox',{name:'成员',exact:true})).toHaveValue('member');
+    await expect(form.getByRole('textbox',{name:'请求 ID',exact:true})).toHaveValue('request-shared');
+    await expect(form.getByRole('combobox',{name:'结果',exact:true})).toHaveValue('error');
+    await expect(form.getByLabel('开始日期（UTC）')).toHaveValue('2026-06-25');
+    await expect(form.getByLabel('结束日期（UTC）')).toHaveValue('2026-06-24');
+    await form.getByLabel('开始日期（UTC）').fill('2026-06-24');
+    await form.getByRole('button',{name:'筛选请求',exact:true}).click();
+    await expect(page.locator('[data-request-record]')).toHaveCount(1);
+    await expect(page.locator('[data-request-record="history-27"]')).toBeVisible();
+    await expect(page.getByRole('form',{name:'筛选请求记录'}).getByRole('alert')).toHaveCount(0);
+    expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+  });
+});
+
+for (const width of [320, 390, 768, 1105, 1440, 1920]) test.describe(`request history ${width}px`, () => {
   test.use({ viewport: { width, height: 900 } });
   test("filters, keyboard detail, Back/Forward and return preserve context", async ({ page, worker }, testInfo) => {
     worker.seedRequestHistory();
     await page.goto("/admin?view=audit");
+    const inspectBounds = await page.getByRole('link',{name:'查看请求 history-27',exact:true}).evaluate(link => {
+      const box = link.getBoundingClientRect();
+      return {left:box.left,right:box.right,viewport:innerWidth};
+    });
+    expect(inspectBounds.left).toBeGreaterThanOrEqual(0);
+    expect(inspectBounds.right).toBeLessThanOrEqual(inspectBounds.viewport);
     const scope = page.locator('.request-filter-actions').getByRole('button', { name: '记录范围', exact: true });
     await expect(scope).toBeVisible();
     const scopeBounds = await scope.evaluate(button => ({left:button.getBoundingClientRect().left,right:button.getBoundingClientRect().right,width:button.getBoundingClientRect().width,height:button.getBoundingClientRect().height,viewport:innerWidth}));

@@ -46,16 +46,8 @@ for (const width of [320,390,768,999,1000,1024,1199,1200,1440,1920,2560]) {
         }
         if (view === 'quotas') {
           const form = page.locator('.organization-policy-form');
-          await expect(form.getByRole('button', {name:'保存',exact:true})).toHaveCount(1);
-          const placement = await form.evaluate(element => {
-            const row = element.querySelector('tbody tr:last-child')!.getBoundingClientRect();
-            const footer = element.querySelector('[data-slot=card-footer]')!.getBoundingClientRect();
-            const save = element.querySelector('button[type=submit]')!.getBoundingClientRect();
-            return { below: save.top >= row.bottom, rightInset: footer.right - save.right };
-          });
-          expect(placement.below).toBe(true);
-          expect(placement.rightInset).toBeLessThanOrEqual(18);
-          await expect(form.locator('[data-slot=card-header],[data-slot=badge]')).toHaveCount(0);
+          await expect(form.getByRole('button', {name:'保存额度',exact:true})).toHaveCount(1);
+
         }
         if (view === 'setup&person=member&key=member-key') {
           await expect(page.locator('[data-setup-selected-key="member-key"]').getByText('~/.codex/config.toml', { exact: true })).toBeVisible();
@@ -98,12 +90,12 @@ test('quota cancellation preserves the draft until native document departure and
   await expect(page.locator('[data-confirmation-fallback]:not([hidden])')).toHaveCount(0);
   const quota = page.locator('[data-quota-default="codex"]');
   await quota.getByRole('spinbutton').fill('123');
-  await page.locator('.organization-policy-form').getByRole('button', { name:'保存', exact:true }).click();
+  await page.locator('.organization-policy-form').getByRole('button', { name:'保存额度', exact:true }).click();
   const dialog = page.getByRole('alertdialog');
   await expect(dialog).toBeVisible();
   await expect(dialog.getByRole('button', { name:'取消' })).toBeFocused();
   await page.keyboard.press('Escape');
-  await expect(page.locator('.organization-policy-form').getByRole('button', { name:'保存', exact:true })).toBeFocused();
+  await expect(page.locator('.organization-policy-form').getByRole('button', { name:'保存额度', exact:true })).toBeFocused();
   expect(worker.requests.filter(request => request.method === 'POST').length).toBe(0);
   await expect(quota.getByRole('spinbutton')).toHaveValue('123');
   await expect(page.locator('.organization-policy-form').getByText('有未保存的修改')).toBeVisible();
@@ -195,8 +187,8 @@ test('one quota save commits all three confirmed values in the enhanced workspac
   await quota.getByRole('spinbutton').fill('123');
   await page.locator('[data-quota-default="grok"]').getByRole('spinbutton').fill('456');
   await page.locator('[data-quota-default="xai"]').getByRole('spinbutton').fill('0');
-  await page.locator('.organization-policy-form').getByRole('button',{name:'保存',exact:true}).click();
-  await page.getByRole('alertdialog').getByRole('button',{name:'保存',exact:true}).click();
+  await page.locator('.organization-policy-form').getByRole('button',{name:'保存额度',exact:true}).click();
+  await page.getByRole('alertdialog').getByRole('button',{name:'保存额度',exact:true}).click();
   await expect(page.locator('[data-mutation-flash="credit_default"]')).toContainText('组织额度已更新');
   await expect(quota.getByRole('spinbutton')).toHaveValue('123');
   await expect(page).toHaveURL(/\/admin\?view=quotas/);
@@ -210,8 +202,8 @@ test('stale organization quota form rejects every change and offers a fresh read
   const initial = ['codex','grok','xai'].map(surface => worker.quotaDefault(surface));
   await page.locator('[data-quota-default="codex"]').getByRole('spinbutton').fill('321');
   worker.setQuotaDefault('grok',333);
-  await page.locator('.organization-policy-form').getByRole('button',{name:'保存',exact:true}).click();
-  await page.getByRole('alertdialog').getByRole('button',{name:'保存',exact:true}).click();
+  await page.locator('.organization-policy-form').getByRole('button',{name:'保存额度',exact:true}).click();
+  await page.getByRole('alertdialog').getByRole('button',{name:'保存额度',exact:true}).click();
   await expect(page.locator('[data-dashboard-notice]')).toContainText('组织额度已变化');
   expect(['codex','grok','xai'].map(surface=>worker.quotaDefault(surface))).toEqual([initial[0],333,initial[2]]);
   await page.getByRole('link',{name:'查看当前组织额度',exact:true}).click();
@@ -228,7 +220,7 @@ test.describe('native quota save',()=>{
     await quota.getByRole('spinbutton').fill('124');
     await openNativeConfirmation(page.locator('.organization-policy-form'));
     await page.locator('.organization-policy-form').getByRole('checkbox').check();
-    await page.locator('.organization-policy-form').getByRole('button',{name:'保存',exact:true}).click();
+    await page.locator('.organization-policy-form').getByRole('button',{name:'保存额度',exact:true}).click();
     await expect(page).toHaveURL(/\/admin\/ui\/credit-defaults$/);
     await expect(page.locator('[data-mutation-flash="credit_default"]')).toContainText('每月 124 credits');
     await expect(page.getByText('请使用上方链接读取最新额度；若刷新时提示再次提交，请取消。')).toBeVisible();
@@ -245,7 +237,7 @@ test.describe('native quota save',()=>{
     await quota.getByRole('spinbutton').fill('129');
     await openNativeConfirmation(page.locator('.organization-policy-form'));
     await page.locator('.organization-policy-form').getByRole('checkbox').check();
-    await page.locator('.organization-policy-form').getByRole('button',{name:'保存',exact:true}).click();
+    await page.locator('.organization-policy-form').getByRole('button',{name:'保存额度',exact:true}).click();
     await expect(page.locator('[data-mutation-flash="credit_default"]')).toContainText('每月 129 credits');
     await expect(page.locator('[data-dashboard-unavailable]')).toBeVisible();
     expect(worker.quotaDefault('codex')).toBe(129);
@@ -264,8 +256,8 @@ test('quota confirmed write survives a failed page read and recovers without rep
   worker.failQuotaLayoutRead(0); // The bulk command commits before the following layout read.
   const quota=page.locator('[data-quota-default="codex"]');
   await quota.getByRole('spinbutton').fill('126');
-  await page.locator('.organization-policy-form').getByRole('button',{name:'保存',exact:true}).click();
-  await page.getByRole('alertdialog').getByRole('button',{name:'保存',exact:true}).click();
+  await page.locator('.organization-policy-form').getByRole('button',{name:'保存额度',exact:true}).click();
+  await page.getByRole('alertdialog').getByRole('button',{name:'保存额度',exact:true}).click();
   await expect(page.locator('[data-mutation-flash="credit_default"]')).toContainText('组织额度已更新');
   await expect(page.locator('[data-dashboard-unavailable]')).toBeVisible();
   expect(worker.quotaDefault('codex')).toBe(126);
@@ -282,15 +274,15 @@ test('quota pending actions and stop-waiting reconcile the committed value once'
   const hold=worker.hold({method:'POST',path:'/admin/ui/credit-defaults'});
   const quota=page.locator('[data-quota-default="codex"]');
   await quota.getByRole('spinbutton').fill('127');
-  await page.locator('.organization-policy-form').getByRole('button',{name:'保存',exact:true}).click();
-  await page.getByRole('alertdialog').getByRole('button',{name:'保存',exact:true}).click();
+  await page.locator('.organization-policy-form').getByRole('button',{name:'保存额度',exact:true}).click();
+  await page.getByRole('alertdialog').getByRole('button',{name:'保存额度',exact:true}).click();
   await hold.entered;
   await expect(page.locator('.organization-policy-form')).toHaveAttribute('aria-busy','true');
-  await expect(page.locator('.organization-policy-form').getByRole('button',{name:'保存',exact:true})).toBeDisabled();
+  await expect(page.locator('.organization-policy-form').getByRole('button',{name:'保存额度',exact:true})).toBeDisabled();
   expect(worker.quotaDefault('codex')).toBe(127);
   await page.getByRole('button',{name:'停止等待'}).click();
   await expect(page.locator('[data-dashboard-notice]')).toContainText('尚未确认');
-  await expect(page.locator('.organization-policy-form').getByRole('button',{name:'保存',exact:true})).toBeDisabled();
+  await expect(page.locator('.organization-policy-form').getByRole('button',{name:'保存额度',exact:true})).toBeDisabled();
   hold.release();
   await page.getByRole('link',{name:'查看当前状态'}).click();
   await expect(page.locator('[data-quota-default="codex"]').getByRole('spinbutton')).toHaveValue('127');

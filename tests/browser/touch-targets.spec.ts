@@ -208,7 +208,7 @@ for (const width of [320, 390, 768, 1440]) for (const colorScheme of ['light', '
       await page.getByRole('navigation', { name: '控制台页面' }).getByRole('link', { name: '额度政策', exact: true }).click();
       await expect(page.locator('[data-view-role="quotas"]')).toBeVisible();
       await inspect(page, testInfo, 'admin-quotas', width);
-      await reachable(page.locator('.organization-policy-form').getByRole('button', { name: '保存', exact: true }));
+      await reachable(page.locator('.organization-policy-form').getByRole('button', { name: '保存额度', exact: true }));
       await page.goto('/admin?view=credentials&task=add-account');
       await expect(page.getByRole('radio', { name: 'ChatGPT', exact: true })).toBeVisible();
       await inspect(page, testInfo, 'admin-add-account', width);
@@ -232,6 +232,9 @@ for (const scenario of [{ width: 320, colorScheme: 'dark' }, { width: 1440, colo
       await openNativeConfirmation(page.locator('form[action="/me/ui/keys/member-key/replace"]'));
       const confirmation = page.locator('form[action="/me/ui/keys/member-key/replace"] label.confirmation-fallback');
       await reachable(confirmation);
+      await page.locator('form[action="/me/ui/keys/member-key/replace"]').getByRole('button',{name:'更换',exact:true}).click();
+      await expect(confirmation.getByRole('checkbox')).toBeFocused();
+      expect(worker.requests.filter(request=>request.method==='POST')).toHaveLength(0);
       await confirmation.click({ position: { x: 4, y: 4 } });
       await expect(confirmation.getByRole('checkbox')).toBeChecked();
       await confirmation.getByRole('checkbox').press('Space');

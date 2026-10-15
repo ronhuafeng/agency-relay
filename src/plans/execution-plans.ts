@@ -65,7 +65,7 @@ export interface ExecutionPlan {
   responseHeaderPolicy?: ResponseHeaderPolicy;
   /** Mini-owned fixed Credit charged before this plan's Provider attempt. */
   creditCharge: CreditCharge;
-  /** True when a successful attempt proves that the client completed real work. */
+  /** Selects task-related request observations; an ok status alone does not prove terminal task completion. */
   realTask: boolean;
   /** Usage capability bound when a video start returns a provider request_id. */
   mediaCapability?: VideoCapability;
@@ -1196,4 +1196,9 @@ function pathnameMatches(pattern: string | RegExp, pathname: string): boolean {
     return pattern === pathname;
   }
   return pattern.test(pathname);
+}
+
+/** Retained ok metadata is bounded by the originating protocol, not a client-success assertion. */
+export function executionPlanEvidence(planId:string): "http_acceptance" | "recorded_result" {
+  return listExecutionPlans().find(plan=>plan.id===planId)?.protocol === "openai/codex" ? "http_acceptance" : "recorded_result";
 }

@@ -57,7 +57,7 @@ for (const script of [true, false]) test.describe(`credential tasks script ${scr
     const before = worker.credentialBindings();
     await page.goto('/admin?view=credentials&account=grok%3Atask-old');
     const migration = page.locator('[data-action="credential-migrate"]');
-    await page.getByText('迁移绑定与默认连接', {exact: true}).click();
+    if (script) await page.getByRole('button', {name:'迁移绑定与默认连接',exact:true}).click();
     await migration.getByRole('combobox', {name: '替代连接', exact: true}).selectOption('task-new');
     await migration.locator('input[name="key_ids[]"][value="task-move"]').check();
     await migration.locator('input[name="default_surfaces[]"][value="grok"]').check();
@@ -71,7 +71,7 @@ for (const script of [true, false]) test.describe(`credential tasks script ${scr
 
     // Use the provided read boundary; do not reload the native POST response.
     await page.locator('[data-mutation-flash="credential_migrated"]').getByRole('link', {name: '查看当前连接', exact: true}).click();
-    await page.getByText('迁移绑定与默认连接', {exact: true}).click();
+    if (script) await page.getByRole('button', {name:'迁移绑定与默认连接',exact:true}).click();
     await migration.getByRole('combobox', {name: '替代连接', exact: true}).selectOption('task-new');
     await migration.locator('input[name="key_ids[]"][value="task-keep"]').check();
     await migration.locator('input[name="default_surfaces[]"][value="xai"]').check();
@@ -81,7 +81,7 @@ for (const script of [true, false]) test.describe(`credential tasks script ${scr
     const moved = worker.credentialBindings();
     worker.failCredentialCleanup(true);
     const disconnect = page.locator('[data-action="logout-grok"]');
-    await submit(page, disconnect, disconnect.getByRole('button'), script, '断开');
+    await submit(page, disconnect, disconnect.getByRole('button',{name:'断开',exact:true}), script, '断开');
     await expect(page.locator('[data-mutation-flash="credential_disconnected"]')).toContainText('连接已断开，令牌清理未确认');
     expect(worker.credentialStatus('task-old')).toBe('revoked');
     expect(worker.credentialCleanupCalls).toEqual(['subscription:task-old']);

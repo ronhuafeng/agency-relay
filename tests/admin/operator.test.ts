@@ -122,7 +122,6 @@ describe("admin pages, accounts, and audit", () => {
     expect(setup.status).toBe(200);
     const setupBody = await setup.text();
     expect(setupBody).toContain('data-view-role="setup"');
-    expect(new JSDOM(setupBody).window.document.querySelector('.setup-page-head h2')?.textContent).toBe("连接客户端");
     expect(new JSDOM(setupBody).window.document.querySelector('[data-local-config-sync] fieldset')?.hasAttribute('disabled')).toBe(true);
     expect(setupBody).not.toContain('data-action="create-setup-package"');
     expect(setupBody).not.toContain("Claude Code");
@@ -494,7 +493,7 @@ describe("admin pages, accounts, and audit", () => {
     expect(new JSDOM(nextHtml).window.document.querySelector('[data-local-config-sync] fieldset')?.hasAttribute('disabled')).toBe(true);
     expect(nextHtml).toContain('data-client-verification="grok"');
     expect(nextHtml).toContain('data-result="works"');
-    expect(nextHtml).toContain("最近任务成功");
+    expect(nextHtml).toContain("请求记录成功");
     const modelOnly = await admin(fixture, `https://admin.example.test/admin?view=setup&person=${modelOnlyUser.user.id}&key=${modelOnlyKey.key.id}`, { method: "GET" });
     expect(await modelOnly.text()).toContain('data-client-verification="grok" data-result="not-verified"');
   });

@@ -1,5 +1,24 @@
 import { openNativeConfirmation, test, expect } from './fixtures';
 
+test('a narrow connection picker keeps the selected task reachable and switches exact providers', async ({page,worker}) => {
+  worker.seedAdminLayouts();
+  await page.setViewportSize({width:390,height:900});
+  await page.goto('/admin?view=credentials');
+  await page.locator('[data-account-key="codex:fixture-codex"] a').click();
+  const picker = page.locator('[data-credential-catalog-toggle]');
+  await expect(picker).toHaveAttribute('aria-expanded','false');
+  await expect(page.getByRole('searchbox',{name:'搜索账号',exact:true})).toBeHidden();
+  await expect(page.locator('[data-account-detail="codex:fixture-codex"]')).toBeVisible();
+  await expect(page.locator('[data-action="refresh-codex"] button')).toBeVisible();
+  await picker.click();
+  await expect(page.getByRole('searchbox',{name:'搜索账号',exact:true})).toBeVisible();
+  await page.locator('[data-account-key="grok:fixture-codex"] a').click();
+  await expect(page.locator('[data-account-detail="grok:fixture-codex"]')).toBeVisible();
+  await expect(picker).toHaveAttribute('aria-expanded','false');
+  await expect(page.locator('[data-account-admission]')).toHaveCount(0);
+  expect(worker.requests.every(request=>request.method==='GET')).toBe(true);
+});
+
 test('an unknown creation outcome recovers the current collection without reopening the old task on reload', async ({page,worker}) => {
   await page.goto('/admin?view=access&task=add-person&q=recovered&range=30d');
   const form=page.locator('[data-dashboard-draft="person"]');
@@ -76,8 +95,9 @@ test('local client drafts survive exact selection while held secrets and selecte
   await form.getByRole('button',{name:'放弃修改',exact:true}).focus();
   await page.keyboard.press('Enter');
   await expect(page.getByRole('tab',{name:'Codex CLI',exact:true})).toBeFocused();
-  await expect(form.locator('select[name="client"]')).toHaveValue('codex');
-  await expect(page.getByRole('heading',{name:'codex-config.toml',exact:true})).toBeVisible();
+  await expect(form.locator('select[name="client"]')).toHaveValue('');
+  await expect(page.getByRole('tab',{selected:true})).toHaveCount(0);
+  await expect(form.getByRole('button',{name:'下载配置文件',exact:true})).toBeDisabled();
   expect(worker.requests.every(request=>request.method==='GET')).toBe(true);
 });
 
@@ -106,8 +126,9 @@ test('discard focuses the restored client even when a frame precedes the React c
     resolve();
   }))));
   await expect(page.getByRole('tab',{name:'Codex CLI',exact:true})).toBeFocused();
-  await expect(form.locator('select[name="client"]')).toHaveValue('codex');
-  await expect(page.getByRole('heading',{name:'codex-config.toml',exact:true})).toBeVisible();
+  await expect(form.locator('select[name="client"]')).toHaveValue('');
+  await expect(page.getByRole('heading',{name:'codex-config.toml',exact:true})).toHaveCount(0);
+  await expect(form.getByRole('button',{name:'下载配置文件',exact:true})).toBeDisabled();
   expect(worker.requests.every(request=>request.method==='GET')).toBe(true);
 });
 
@@ -135,4 +156,12 @@ for(const script of [true,false]) test.describe(`pending OAuth task with script=
     expect(await page.getByRole('button',{name:'重新连接',exact:true}).count()).toBe(1);
     expect(worker.requests.filter(request=>request.method==='POST')).toHaveLength(1);
   });
+});
+
+test('reloading held-key setup does not inherit the selected key client',async({page,worker})=>{
+ await page.goto('/admin?view=setup&person=member&key=member-key&task=sync-configuration');
+ await expect(page.getByRole('tab',{selected:true})).toHaveCount(0);
+ await expect(page.locator('[data-local-config-sync] select[name="client"]')).toHaveValue('');
+ await expect(page.getByRole('button',{name:'下载配置文件',exact:true})).toBeDisabled();
+ expect(worker.requests.every(request=>request.method==='GET')).toBe(true);
 });

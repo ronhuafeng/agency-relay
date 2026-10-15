@@ -4,7 +4,7 @@
 import { DASHBOARD_PEOPLE_PAGE_SIZES } from './ui/href';
 export const CONSOLE_RETURN_SECTIONS = [
   '#content', '#top', '#keys', '#credits', '#account-keys', '#people-list', '#accounts-list', '#setup-list', '#request-history', '#add-person', '#give-access', '#capabilities', '#add-chatgpt', '#add-grok',
-  '#person-detail', '#key-detail', '#account-detail', '#setup-detail', '#sync-configuration', '#request-detail', '#person-status', '#identity', '#assigned-services', '#member-key-form', '#member-key-inventory', '#usage-trends', '#usage-details',
+  '#person-detail', '#key-detail', '#account-detail', '#setup-detail', '#sync-configuration', '#request-detail', '#person-status', '#identity', '#assigned-services', '#member-key-form', '#member-key-inventory', '#usage-filter', '#usage-trends', '#usage-details',
   // Exact headings for the current three-host catalog, verified against rendered links.
   '#route-host-0-title', '#route-host-1-title', '#route-host-2-title'
 ] as const;
@@ -42,7 +42,8 @@ export function consoleReturnTarget(value: string): string | null {
   // setup/usage addresses use the union of their actual owning HTML grammars.
   const personal = (): boolean => memberViews.has(view)
     && !(service&&view==='integrations')
-    && [...query.keys()].every(field => ['view', ...(service ? [] : ['area']), ...(['keys', 'setup'].includes(view) ? ['key'] : []), ...(view === 'usage' ? ['range', 'q'] : []),...(view==='integrations'?['installation']:[])].includes(field))
+    && [...query.keys()].every(field => ['view', ...(service ? [] : ['area']), ...(['keys', 'setup'].includes(view) ? ['key'] : []), ...(view==='setup'?['client']:[]), ...(view === 'usage' ? ['range', 'q'] : []),...(view==='integrations'?['installation']:[])].includes(field))
+    && (!query.has('client') || ['codex','grok','xai'].includes(query.get('client')!))
     && (!query.has('installation')||/^[a-z][a-z0-9-]{0,63}$/.test(query.get('installation')!))
     && (!query.has('key') || Boolean(query.get('key')?.trim()))
     && (!query.has('range') || ['7d', '30d'].includes(query.get('range')!));

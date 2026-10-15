@@ -1,3 +1,5 @@
+import { useEnhanced } from "./use-enhanced";
+import { InfoPopover } from "./components/info-popover";
 import { Input } from "./components/input";
 import { Label } from "./components/label";
 import type { FieldControl, InventorySearchControl } from "./models";
@@ -7,12 +9,9 @@ import { useId } from "react";
 import { Field as FieldPrimitive, FieldLabel } from "./components/field";
 
 export function ConfirmationFallback({ message }: { readonly message: string }) {
-  return (
-    <details className="confirmation-disclosure"><summary>操作说明与确认</summary><p>{message}</p><Label className="confirmation-fallback" data-confirmation-fallback="">
-      <input type="checkbox" required aria-label={message}/>
-      <span>确认上述操作</span>
-    </Label></details>
-  );
+  const id = useId();
+  const enhanced = useEnhanced();
+  return <div className="confirmation-prompt"><Label className="confirmation-fallback" data-confirmation-fallback="" title={message}><input type="checkbox" required aria-label={message}/><span>确认</span></Label><InfoPopover id={`confirmation-${id}`} label="操作影响" iconOnly={!enhanced}><p>{message}</p></InfoPopover></div>;
 }
 
 

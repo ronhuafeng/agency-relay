@@ -2,7 +2,9 @@ import type { ControlAuditRow } from "../../control-audit";
 import { CREDIT_SURFACE_IDS } from "../../../auth/credits";
 import { DashLink, VisibleRowFilter } from "../chrome";
 import { Button } from "../components/button";
-import { ConfirmationFallback, Field } from "../fields";
+import { ConfirmationFallback } from "../fields";
+import { Label } from "../components/label";
+import { InputGroup, InputGroupInput, InputGroupAddon } from "../components/input-group";
 import { formatNumber, formatOperatorInstantOrDash, presentText } from "../../format";
 import { Badge } from "../components/badge";
 import { InfoPopover } from "../components/info-popover";
@@ -26,20 +28,27 @@ function surfaceTitle(surface: string): string {
 export function QuotasPage({ defaults }: { readonly defaults: readonly QuotaDefault[] }) {
   const warning = "保存组织默认额度？继承它的账号将使用这些月度上限；个人额度和已用量保持不变，额度按 UTC 月重置。0 credits 只允许已授权的零消耗操作。xAI API 正额度会开放上游团队共享资源和派生凭据权限。";
   return (
-    <section className="view-stack" aria-label="组织额度" data-view-role="quotas">
+    <section className="organization-policy-workspace" aria-label="组织额度" data-view-role="quotas">
+      <header className="organization-policy-heading">
+        <h2>组织默认额度</h2>
+        <p>设置成员与服务账号的每月额度。使用个人额度的账号不受影响。</p>
+      </header>
       <form className="organization-policy-form" autoComplete="off" data-dashboard-draft="credit-defaults" method="post" action="/admin/ui/credit-defaults" data-confirmation={warning}><Card className="organization-policy-board">
       <input type="hidden" name="confirm" value="1"/>
-      <CardContent><Table className="organization-policy-table" aria-label="组织默认月度额度"><TableHeader><TableRow><TableHead>服务</TableHead><TableHead><div className="quota-column-heading"><span>每月额度（credits）</span><InfoPopover id="organization-quota-rules" label="额度规则" iconOnly><p>组织默认只影响继承它的账号。额度每个 UTC 月重置；修改上限不会清零已用量。</p><p>0 credits 仍允许已授权的零消耗操作。xAI API 正额度开放上游团队共享资源及派生凭据权限，不提供人员间资源隔离。</p></InfoPopover></div></TableHead></TableRow></TableHeader><TableBody>
+      <header className="organization-policy-scope"><span>每人每月</span><span>按 UTC 自然月重置</span><InfoPopover id="organization-quota-rules" label="额度规则" iconOnly><p>组织默认只影响继承它的账号，不是组织共用预算。修改上限不会清零已用量。</p><p>0 credits 仍允许已授权的零消耗操作，不等同于停用服务。</p></InfoPopover></header>
+      <CardContent>
         {defaults.map((row) => {
           const surface = row.surface_grant.split(":")[1] ?? row.surface_grant;
+          const id = `organization-quota-${surface}`;
           return (
-            <TableRow key={row.surface_grant} data-quota-default={surface}>
-              <TableCell><strong>{surfaceTitle(surface)}</strong></TableCell>
-              <TableCell><input type="hidden" name={`expected_${surface}`} value={row.monthly_allowance}/><Field control={{ label: `${surfaceTitle(surface)} 每月额度`, name: surface, value: String(row.monthly_allowance), type: "number", min: "0", step: "1", required: true, inputMode: "numeric" }}/></TableCell>
-            </TableRow>
+            <div className="organization-policy-row" key={row.surface_grant} data-quota-default={surface}>
+              <Label htmlFor={id}>{surfaceTitle(surface)}<span className="sr-only"> 每月额度</span></Label>
+              <div className="organization-policy-impact" id={`${id}-impact`}>{surface === "xai" ? <><span>正额度开放上游团队共享资源</span><InfoPopover id="organization-xai-authority" label="xAI API 额度的影响" iconOnly><p>正额度开放上游团队共享资源及派生凭据权限，不提供人员间资源隔离。</p></InfoPopover></> : <span>同一账号的所有 {surfaceTitle(surface)} 密钥共用</span>}</div>
+              <div className="organization-policy-value"><input type="hidden" name={`expected_${surface}`} value={row.monthly_allowance}/><InputGroup><InputGroupInput id={id} aria-describedby={`${id}-impact ${id}-current`} name={surface} defaultValue={row.monthly_allowance} type="number" min="0" step="1" required inputMode="numeric"/><InputGroupAddon align="inline-end">credits / 月</InputGroupAddon></InputGroup><span className="caption" id={`${id}-current`}>当前额度：{formatNumber(row.monthly_allowance)}</span></div>
+            </div>
           );
         })}
-      </TableBody></Table></CardContent><CardFooter><ConfirmationFallback message={warning}/><Button type="submit" disabled={defaults.length !== CREDIT_SURFACE_IDS.length}>保存</Button></CardFooter>
+      </CardContent><CardFooter><p className="caption">三项一起保存，已用额度保留。</p><ConfirmationFallback message={warning}/><Button type="submit" disabled={defaults.length !== CREDIT_SURFACE_IDS.length}>保存额度</Button></CardFooter>
       {defaults.length !== CREDIT_SURFACE_IDS.length ? <p role="alert">组织默认额度未完整读到，请重新读取后再保存。</p> : null}
       </Card></form>
     </section>

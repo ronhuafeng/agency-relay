@@ -5,8 +5,8 @@
 :root {
   color-scheme: light dark;
   --accent: #d9f6f8;
-  --background: #eaedf2;
-  --border: #182131;
+  --background: #f6f8fa;
+  --border: #d6dde5;
   --card: #ffffff;
   /* Categorical chart series 1; does not express task health. */
   --chart-1: #007d8a;
@@ -20,6 +20,10 @@
   --chart-5: #c34675;
   /* Categorical chart series 6; does not express task health. */
   --chart-6: #5478ac;
+  /* Text on the configuration source preview surface. */
+  --code-foreground: #e2e8f0;
+  /* Dark surface for readable configuration source previews in both themes. */
+  --code-surface: #0f172a;
   --control-divider: 1px;
   --control-menu: 280px;
   --control-target: 44px;
@@ -29,7 +33,7 @@
   --font-family-sans: system-ui, "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
   --foreground: #0f172a;
   --input: #526174;
-  --line-soft: #cbd5e1;
+  --line-soft: #e2e7ed;
   --muted-foreground: #526174;
   --ok: #15803d;
   --pixel: #182131;
@@ -113,6 +117,10 @@
     --chart-5: #e893b4;
     /* Categorical chart series 6; does not express task health. */
     --chart-6: #8aaed9;
+    /* Text on the configuration source preview surface. */
+    --code-foreground: #e2e8f0;
+    /* Dark surface for readable configuration source previews in both themes. */
+    --code-surface: #0f172a;
     --control-divider: 1px;
     --control-menu: 280px;
     --control-target: 44px;

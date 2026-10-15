@@ -55,7 +55,7 @@ test.describe('delegated service management', () => {
     await leaveSecret(page);
     const replacement = worker.keyMetadata(id).find(row => row.id !== first.id)!;
     expect(replacement.family_id).toBe(first.family_id); expect(replacement.expires_at).toBe('2026-07-24T12:00:00.000Z');
-    expect(await page.locator(`[data-key-detail="${replacement.id}"] [data-key-task]`).textContent()).toContain('未记录成功任务');
+    expect(await page.locator(`[data-key-detail="${replacement.id}"] [data-key-task]`).textContent()).toContain('未记录成功请求');
     await page.locator(`[data-key-id="${replacement.id}"]`).getByRole('link', {name: /配置客户端：/}).click();
     await expect(page.getByRole('heading', {name: 'Nightly build · 客户端配置', exact: true})).toBeVisible();
     await expect(page).toHaveURL(prefix+'?view=setup');

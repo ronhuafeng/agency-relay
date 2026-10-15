@@ -22,7 +22,7 @@ describe("surface capability catalog", () => {
         summary: ["编写、审查与自动化", "工作区工具", "长时间编程"],
         authority: [
           "已连接的 ChatGPT",
-          "由已连接的 ChatGPT 订阅支持的完整编程客户端。"
+          "通过已连接的 ChatGPT 使用 Codex CLI。"
         ]
       },
       {
@@ -60,7 +60,7 @@ describe("surface capability catalog", () => {
     ]);
   });
 
-  it("classifies every product plan once into an honest capability comparison", () => {
+  it("separates supported features from retained unverified transports", () => {
     const plans = listExecutionPlans();
     const view = projectSurfaceCapabilityView(plans);
     const rows = new Map(view.groups.flatMap((group) => group.rows).map((row) => [row.id, row]));
@@ -77,14 +77,18 @@ describe("surface capability catalog", () => {
       "处理数据",
       "实时与高级"
     ]);
-    expect(classifiedPlanIds.sort()).toEqual(plans.map((plan) => plan.id).sort());
-    expect(new Set(classifiedPlanIds).size).toBe(plans.length);
+    expect(classifiedPlanIds).not.toContain("codex.audio_transcriptions");
+    expect(classifiedPlanIds).not.toContain("codex.live");
+    expect(plans.map(plan=>plan.id)).toEqual(expect.arrayContaining(["codex.audio_transcriptions", "codex.live", "codex.realtime_calls"]));
+    expect(rows.get("speech_to_text")?.cells.codex.state).toBe("unverified");
+    expect(rows.get("realtime_voice")?.cells.codex).toMatchObject({state:"included",routes:[{sourcePlanId:"codex.realtime_calls"}]});
+    expect(new Set(classifiedPlanIds).size).toBe(classifiedPlanIds.length);
     expect(view.groups.flatMap((group) => group.rows).flatMap((row) =>
       Object.values(row.cells).flatMap((cell) => cell.routes)
     ).every((route) => !/[\^$\[\]]/.test(route.path))).toBe(true);
 
     expect(rows.get("context_compaction")?.cells).toMatchObject({
-      codex: { state: "included", label: "同一 Responses" },
+      codex: { state: "included", label: "Codex CLI" },
       grok: { state: "in_client", label: "在 Grok Build 中" },
       xai: { state: "team_access", label: "远程" }
     });
@@ -115,9 +119,7 @@ describe("surface capability catalog", () => {
   it("fails closed when runtime plans and the product catalog drift", () => {
     const plans = listExecutionPlans();
     const extraPlan = { ...plans[0]!, id: "codex.future_unclassified" };
-    expect(() => projectSurfaceCapabilityView([...plans, extraPlan])).toThrow(
-      "Surface capability catalog does not classify: codex.future_unclassified"
-    );
+    expect(projectSurfaceCapabilityView([...plans, extraPlan])).toEqual(projectSurfaceCapabilityView(plans));
 
     expect(() => projectSurfaceCapabilityView(
       plans.filter((plan) => plan.id !== "xai.production.documents_search")

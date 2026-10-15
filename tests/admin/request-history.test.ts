@@ -97,6 +97,33 @@ describe("retained request SQL projection", () => {
 });
 
 describe("request history protected router and HTML", () => {
+  it("returns an editable date-order error without dropping valid filters or querying history", async () => {
+    const f = setup();
+    f.seed("matching-error", {status:"error"});
+    f.seed("other-result");
+    const path = "/admin?view=audit&audit_from=2026-06-25&audit_to=2026-06-24&audit_plan=codex.responses&audit_user=other&audit_result=error&audit_request=request-duplicate";
+    const response = await f.open(path);
+    expect(response.status).toBe(400);
+    const document = new JSDOM(await response.text()).window.document;
+    const form = document.querySelector<HTMLFormElement>('form[aria-label="筛选请求记录"]')!;
+    expect(form).not.toBeNull();
+    for (const [name, value] of new URL(path, f.url()).searchParams) {
+      expect((form.elements.namedItem(name) as HTMLInputElement | HTMLSelectElement).value).toBe(value);
+    }
+    expect(document.querySelector('[role="alert"]')?.textContent).toBe("结束日期不能早于开始日期。");
+    expect(document.querySelector('[data-request-empty],[data-request-record]')).toBeNull();
+    expect(f.reads.some(sql => sql.includes("FROM request_audit a"))).toBe(false);
+    const corrected = new URL(path, f.url());
+    corrected.searchParams.set("audit_from", "2026-06-24");
+    const recovered = await f.open(`${corrected.pathname}${corrected.search}`);
+    expect(recovered.status).toBe(200);
+    const rows = new JSDOM(await recovered.text()).window.document.querySelectorAll('[data-request-record]');
+    expect(Array.from(rows, row => row.getAttribute('data-request-record'))).toEqual(['matching-error']);
+    const invalidPage = await f.open(`${path}&range=unsupported`);
+    expect(invalidPage.status).toBe(400);
+    expect(new JSDOM(await invalidPage.text()).window.document.querySelector('form[aria-label="筛选请求记录"]')).toBeNull();
+  });
+
   it("uses one canonical task address after native GET filtering and history return", async () => {
     const f = setup();
     f.seed("audit-native", {status:"error"});

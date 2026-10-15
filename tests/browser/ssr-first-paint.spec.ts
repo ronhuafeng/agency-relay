@@ -71,8 +71,8 @@ for (const width of [390, 999, 1000, 1440]) test.describe(`SSR first paint ${wid
         await page.waitForLoadState('load');
         if (view.includes('view=setup')) {
           // Native member navigation is already present in SSR. Only the enabled
-          // local download proves that this setup island has actually enhanced.
-          await expect(page.getByRole('button', { name: '下载配置文件', exact: true })).toBeEnabled();
+          // client picker proves enhancement; download still needs an explicit client.
+          await expect(page.getByRole('tab', {name:'Codex CLI',exact:true})).toBeEnabled();
         } else await page.waitForFunction(() => document.querySelector('#console-dialog-root') !== null
           && typeof history.state?.miniEntry === 'string');
         await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
@@ -137,5 +137,5 @@ test('a failed stylesheet does not leave runtime startup waiting forever', async
   await authenticate(context, worker, 'admin');
   await page.route('**/admin/console-*.css', route => route.abort('failed'));
   await page.goto('/admin?view=setup');
-  await expect(page.getByRole('button', { name: '下载配置文件', exact: true })).toBeEnabled();
+  await expect(page.getByRole('tab', {name:'Codex CLI',exact:true})).toBeEnabled();
 });

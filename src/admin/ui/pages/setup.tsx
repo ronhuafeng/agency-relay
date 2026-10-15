@@ -5,9 +5,8 @@ import { keyIsExpired, keyStateLabel } from "../../key-label";
 import { formatOperatorInstant, personLabel, presentText } from "../../format";
 import { PRODUCT_ACCESS, productAccessLabels } from "../../client-setup";
 import type { DashboardKey, DashboardPage } from "../../inventory";
-import { executionPlanPresentation } from "../../../plans/execution-plans";
+import { executionPlanEvidence, executionPlanPresentation } from "../../../plans/execution-plans";
 import type { KeyClientVerificationRow } from "../../../db";
-import { Button } from "../components/button";
 import { DashLink } from "../chrome";
 import { inventoryUrl } from "../href";
 import { Icon } from "../icon";
@@ -44,8 +43,8 @@ function verificationText(client: string, verifications: readonly KeyClientVerif
   const rows = verifications.filter(row=>row.user_id===userId && row.key_id===keyId && executionPlanPresentation(row.route_profile_id).clientLabel===client);
   const latestSuccess = rows.map(row=>row.last_success_at).filter((value): value is string=>Boolean(value)).sort().at(-1) ?? null;
   const latestFailure = rows.map(row=>row.last_failure_at).filter((value): value is string=>Boolean(value)).sort().at(-1) ?? null;
-  if (latestFailure && (!latestSuccess || latestFailure>latestSuccess)) return {result:"failed" as const,text:"最近任务失败 "+formatOperatorInstant(latestFailure)};
-  if (latestSuccess) return {result:"works" as const,text:"最近任务成功 "+formatOperatorInstant(latestSuccess)};
+  if (latestFailure && (!latestSuccess || latestFailure>latestSuccess)) return {result:"failed" as const,text:"请求记录失败 "+formatOperatorInstant(latestFailure)};
+  if (latestSuccess) return {result:rows.some(row=>row.last_success_at===latestSuccess && executionPlanEvidence(row.route_profile_id)==="http_acceptance") ? "not-verified" as const : "works" as const,text:(rows.some(row=>row.last_success_at===latestSuccess && executionPlanEvidence(row.route_profile_id)==="http_acceptance") ? "请求已接受 " : "请求记录成功 ")+formatOperatorInstant(latestSuccess)};
   return {result:"not-verified" as const,text:"尚无任务请求记录"};
 }
 function localFiles() {
@@ -69,8 +68,8 @@ function SetupDetail({model,closeHref,held}: {readonly model: SetupPageModel; re
     replacement:replace ? {action:"/admin/ui/keys/"+encodeURIComponent(key.id)+"/replace",returnHref:model.canonicalUrl,confirmation:"为 "+key.key_prefix+" 换发密钥并下载配置包？这会创建一个新密钥。换发不会自动撤销原密钥。请先保存文件，再验证客户端。"} : undefined
   }}}/>;
 }
-export function SyncTask({recoveryHref}: ConfigurationHelpProps) {
-  return <SetupWorkbenchIsland control={{id:"setup-workbench",localFiles:localFiles(),recovery:recoveryHref?{keys:recoveryHref("keys"),quota:recoveryHref("quota")}:undefined}}/>;
+export function SyncTask({recoveryHref,client}: ConfigurationHelpProps & {client?:"codex"|"grok"|"xai"}) {
+  return <SetupWorkbenchIsland control={{id:"setup-workbench",initialClient:client,localFiles:localFiles(),recovery:recoveryHref?{keys:recoveryHref("keys"),quota:recoveryHref("quota")}:undefined}}/>;
 }
 export function SetupPage({model}: {readonly model: SetupPageModel}) {
   const query = new URL(model.canonicalUrl,"https://dashboard.invalid").searchParams;
@@ -85,7 +84,6 @@ export function SetupPage({model}: {readonly model: SetupPageModel}) {
   const selectedPerson = model.users.find(person=>person.id===model.selectedPersonId);
   return <section aria-label="连接客户端" className="setup-workspace" data-view-role="setup" id="setup-detail" tabIndex={-1}>
     <MutationNotice flash={model.mutationFlash}/>
-    <header className="setup-page-head"><h2>连接客户端</h2><Button asChild variant="outline"><DashLink href={model.canonicalUrl}>刷新状态</DashLink></Button></header>
     <details className="setup-context-picker" id="setup-list" open={query.has("q") || model.keyPage.page>1}>
       <summary><span>账号与密钥</span><strong>{model.selectedKey ? presentText(personLabel(selectedPerson,model.selectedPersonId ?? ""))+" · "+(model.selectedKey.name ?? model.selectedKey.key_prefix) : "选择要配置的密钥"}</strong><Icon name="arrow"/></summary>
       <div className="setup-choice-card"><SetupKeyChoices control={pickerControl} showHeading={false}/>{model.keys.length===0 && !query.get("q") && model.keyPage.page===1 && !model.selectedKeyId ? <DashLink className="action-link" href={inventoryUrl(model.canonicalUrl,{view:"access",person:null,key:null,task:null,q:null,page:null})}>创建新密钥 <Icon name="arrow"/></DashLink> : null}</div>

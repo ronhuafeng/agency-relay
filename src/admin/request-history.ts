@@ -22,6 +22,10 @@ export interface RequestHistoryQuery {
   direction: "older" | "newer";
 }
 
+export class RequestHistoryDateRangeError extends Error {
+  constructor(readonly query: RequestHistoryQuery) { super("invalid request history date order"); }
+}
+
 /** Called before any read, including the enclosing dashboard's canonical URL. */
 export function parseRequestHistoryQuery(url: URL): RequestHistoryQuery {
   for (const field of REQUEST_HISTORY_FIELDS) {
@@ -30,7 +34,7 @@ export function parseRequestHistoryQuery(url: URL): RequestHistoryQuery {
   const get = (field: string) => url.searchParams.get(field)?.trim() ?? "";
   const from = get("audit_from"), to = get("audit_to"), plan = get("audit_plan"), user = get("audit_user"), result = get("audit_result"), request = get("audit_request"), record = get("record");
   for (const date of [from, to]) if (date && (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isFinite(Date.parse(date)) || new Date(date).toISOString().slice(0, 10) !== date || date > "9998-12-31")) throw new Error("invalid request history date");
-  if (from && to && from > to || plan && !safeId(plan) || record && !safeId(record) || request && !safeId(request) || user.length > 254 || /[\u0000-\u0020\u007f]/.test(user) || !["", "ok", "error", "unknown"].includes(result)) throw new Error("invalid request history filter");
+  if (plan && !safeId(plan) || record && !safeId(record) || request && !safeId(request) || user.length > 254 || /[\u0000-\u0020\u007f]/.test(user) || !["", "ok", "error", "unknown"].includes(result)) throw new Error("invalid request history filter");
   const direction = get("audit_direction") || "older";
   if (direction !== "older" && direction !== "newer") throw new Error("invalid request history direction");
   let cursor: RequestHistoryQuery["cursor"] = null;
@@ -42,7 +46,9 @@ export function parseRequestHistoryQuery(url: URL): RequestHistoryQuery {
     if (!Array.isArray(decoded) || decoded.length !== 2 || typeof decoded[0] !== "string" || !/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$/.test(decoded[0]) || !Number.isFinite(Date.parse(decoded[0])) || new Date(decoded[0]).toISOString() !== decoded[0] || !safeId(decoded[1])) throw new Error("invalid request history cursor");
     cursor = { at: decoded[0], id: decoded[1] };
   } else if (url.searchParams.has("audit_direction")) throw new Error("missing request history cursor");
-  return { record: record || null, from, to, plan, user, result, request, cursor, direction };
+  const query: RequestHistoryQuery = { record: record || null, from, to, plan, user, result, request, cursor, direction };
+  if (from && to && from > to) throw new RequestHistoryDateRangeError(query);
+  return query;
 }
 
 interface StoredRequest {
@@ -133,12 +139,16 @@ export interface RequestHistoryModel {
   services: Array<{ id: string; label: string }>;
 }
 
+export function requestHistoryFilterOptions(env: Env): Pick<RequestHistoryModel, "retentionDays" | "services"> {
+  const retention = Number(env.REQUEST_AUDIT_RETENTION_DAYS);
+  return {retentionDays: Number.isInteger(retention) && retention >= 1 && retention <= 3650 ? retention : null,
+    services: plans.map(plan => ({id: plan.id, label: `${executionPlanPresentation(plan.id).usageLabel} · ${plan.method} ${publicExecutionPlanPath(plan)}`}))};
+}
+
 export async function readRequestHistory(env: Env, url: URL): Promise<RequestHistoryModel> {
   const query = parseRequestHistoryQuery(url);
   const listUrl = inventoryUrl(`${url.pathname}${url.search}`, { record: null });
-  const retention = Number(env.REQUEST_AUDIT_RETENTION_DAYS);
-  const base: RequestHistoryModel = { query, listUrl, retentionDays: Number.isInteger(retention) && retention >= 1 && retention <= 3650 ? retention : null, rows: [], detail: null, previousUrl: null, nextUrl: null,
-    services: plans.map(plan => ({ id: plan.id, label: `${executionPlanPresentation(plan.id).usageLabel} · ${plan.method} ${publicExecutionPlanPath(plan)}` })) };
+  const base: RequestHistoryModel = { query, listUrl, ...requestHistoryFilterOptions(env), rows: [], detail: null, previousUrl: null, nextUrl: null };
   const where: string[] = [], values: unknown[] = [];
   const filter = (sql: string, value: unknown) => { where.push(sql); values.push(value); };
   if (query.from) filter("a.created_at >= ?", `${query.from}T00:00:00.000Z`);

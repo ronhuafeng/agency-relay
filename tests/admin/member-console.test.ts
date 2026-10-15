@@ -29,7 +29,7 @@ describe("role-aware console", () => {
     const setup = doc.querySelector('[data-member-view="setup"]')!;
     expect(setup.querySelector('form[data-local-config-sync] input[name="existing_key"]')).not.toBeNull();
     expect(setup.querySelectorAll('[popover]')).toHaveLength(1);
-    expect(setup.querySelector('[popover]')?.getAttribute('aria-label')).toBe('配置说明');
+    expect(setup.querySelector('[popover]')?.getAttribute('aria-label')).toBe('安装与排错');
     expect([...setup.querySelectorAll('[popover] a')].map(link=>link.getAttribute('href'))).toEqual(['/admin?area=me&view=keys','/admin?area=me&view=quota']);
     expect(setup.querySelector('.member-setup-evidence,[data-setup-key],[role="alert"]')).toBeNull();
     expect(doc.querySelector('main')?.getAttribute('data-console-read-url')).toBe('/admin?area=me&view=setup');
@@ -57,8 +57,8 @@ describe("role-aware console", () => {
     const doc = new JSDOM(await response.text()).window.document;
     const evidence = doc.querySelector('[data-key-detail="selected-key"] .key-task-evidence')!;
     expect(evidence).not.toBeNull();
-    expect(evidence.querySelector('[data-key-task="codex"]')?.textContent).toContain('最近失败');
-    expect(evidence.querySelector('[data-key-task="codex"]')?.textContent).toContain('未记录成功任务');
+    expect(evidence.querySelector('[data-key-task="codex"]')?.textContent).toContain('请求记录失败');
+    expect(evidence.querySelector('[data-key-task="codex"]')?.textContent).toContain('未记录成功请求');
     expect(evidence.querySelector('[data-key-task="codex"]')?.textContent).not.toContain('最近成功');
     const home = await handleRequest(new Request('https://admin.example.test/admin?area=me&view=home', {
       headers:{Cookie:`__Host-mini-console=${cookie}`}
@@ -69,7 +69,7 @@ describe("role-aware console", () => {
     const result=homeDoc.querySelector('[data-surface="codex"] td:last-child')!;
     expect(result.querySelector('time')?.getAttribute('data-tone')).toBe('bad');
     expect(result.querySelector('time')?.getAttribute('datetime')).toBe(at);
-    expect(result.querySelector('time .sr-only')?.textContent).toBe('最近任务失败：');
+    expect(result.querySelector('time .sr-only')?.textContent).toBe('请求记录失败：');
     expect(result.querySelector('strong')).toBeNull();
     expect(homeDoc.querySelector('[data-surface="grok"] td:last-child')?.textContent).toBe('');
     db.sqlite.exec('DROP TABLE request_audit');
@@ -229,7 +229,7 @@ describe("role-aware console", () => {
     expect(reportDoc.querySelector('.usage-metrics')?.textContent).toContain('Token10');
     expect(reportDoc.querySelector('.usage-record')?.textContent).toContain('gpt-5');
     expect(reportDoc.querySelector('.usage-record')?.textContent).not.toContain('未记录令牌用量');
-    expect(reportDoc.querySelector('.usage-record [popover]')).toBeNull();
+    expect(reportDoc.querySelector('.usage-record [data-cost-basis="api_equivalent"]')).not.toBeNull();
     expect(reportDoc.querySelector('a[download]')?.getAttribute('href')).toBe('/me/usage?from=2026-06-18&to=2026-06-24');
     expect(reportDoc.querySelector('input[type="search"]')?.getAttribute('placeholder')).toBe('搜索模型');
     expect(reportHtml).not.toContain(other.user.id);
@@ -278,7 +278,6 @@ describe("role-aware console", () => {
     expect(accountsHtml).toContain("data-default-boundary=\"true\"");
     const defaults = new JSDOM(accountsHtml).window.document.querySelector("[data-default-boundary]");
     expect(defaults?.querySelector("h2")?.textContent).toBe("新密钥默认连接");
-    expect(defaults?.querySelector("th:nth-child(2)")?.textContent).toBe("连接");
     expect(defaults?.querySelectorAll('form[action^="/admin/ui/credential-defaults/"]')).toHaveLength(3);
   });
 });

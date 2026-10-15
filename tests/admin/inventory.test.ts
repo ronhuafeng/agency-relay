@@ -434,7 +434,7 @@ describe("complete dashboard inventories", () => {
     expect(html).toContain('type="password"');
     expect(html).not.toContain('data-action="create-setup-package"');
     const clientChoices = new JSDOM(html).window.document.querySelectorAll('select[name="client"] option');
-    expect(Array.from(clientChoices, option => option.getAttribute("value"))).toEqual(["codex", "grok", "xai"]);
+    expect(Array.from(clientChoices, option => option.getAttribute("value"))).toEqual(["", "codex", "grok", "xai"]);
     const doc = new JSDOM(html).window.document;
     expect(doc.querySelector('#setup-list input[name="q"]')?.getAttribute("value")).toBe("absent");
     expect(doc.querySelector('#setup-list input[name="range"]')?.getAttribute("value")).toBe("30d");
@@ -445,11 +445,11 @@ describe("complete dashboard inventories", () => {
     f.db.sqlite.prepare("INSERT INTO request_audit(id,route_profile_id,user_id,key_id,status,upstream_status,created_at) VALUES('proof','codex.responses','person-000','key-000','ok',200,'2026-09-12T11:00:00.000Z')").run();
     const { html } = await f.render("view=setup&q=person0@example.test&person=person-000&key=key-000");
     expect(ids(html, "data-setup-key-id")).toEqual(["key-000"]);
-    expect(html).toContain("最近任务成功");
+    expect(html).toContain("请求已接受");
     expect(html).not.toContain("Person not loaded");
     const other = await f.render("view=setup&q=prefix_key-001&person=person-100&key=key-001");
     expect(ids(other.html, "data-setup-key-id")).toEqual(["key-001"]);
-    expect(other.html).not.toContain("最近任务成功");
+    expect(other.html).not.toContain("请求已接受");
   });
 
   it("treats punctuation and non-ASCII search as literal input without HTML or SQL injection", async () => {

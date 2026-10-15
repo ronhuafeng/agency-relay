@@ -999,7 +999,7 @@ export interface KeyClientVerificationRow {
   last_failure_at: string | null;
 }
 
-/** Real-task observations for an exact key; unowned events cannot verify setup. */
+/** Task-related request observations for an exact key; ok does not establish terminal task completion. */
 export async function queryClientVerification(env: Env, keyIds?: readonly string[], userId?: string): Promise<KeyClientVerificationRow[]> {
   const result = await env.DB.prepare(
     `SELECT user_id, key_id, route_profile_id,

@@ -326,3 +326,7 @@ file generation; it does not add a help application, new authority or retry path
 Existing configuration must be backed up and selectively merged, not replaced
 wholesale. These explanations remain readable without JavaScript or private
 repository access; browser-local file generation still requires JavaScript.
+
+Member workbench blockers and their existing next actions are visible beside the affected service. Known keys remain manageable under independent quota/default read failures. Service configuration links retain a validated client choice through personal or delegated Setup; a generic Setup entry requires an explicit client selection. Retained successful Codex request metadata establishes HTTP acceptance, not completed client work. Recent evidence retains exact key, plan and time; other successful retained results are described as recorded requests, not proof of completed work.
+
+Usage keeps results primary, with one per-record detail for cost basis, measurement scope, coverage and cache share. A service label distinguishes equivalent model names across sources; no cross-authority bill is implied.

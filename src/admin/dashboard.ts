@@ -1,5 +1,5 @@
 import { parseUsageTrendRange, parseUsageQuery } from "./usage-query";
-import { parseRequestHistoryQuery, REQUEST_HISTORY_FIELDS } from "./request-history";
+import { parseRequestHistoryQuery, REQUEST_HISTORY_FIELDS, RequestHistoryDateRangeError, requestHistoryFilterOptions } from "./request-history";
 import { DASHBOARD_PAGE_SIZE } from "./inventory";
 import { DASHBOARD_PEOPLE_PAGE_SIZES } from "./ui/href";
 import { createElement, Fragment } from "react";
@@ -20,6 +20,7 @@ import { ReadError } from "./ui/read-error";
 import { RecoveryPage } from "./ui/recovery-page";
 import { consoleLoginHref, consoleReturnTarget } from "./return-target";
 import { consoleDataRevision, unchangedConsoleRead } from "./console-revision";
+import { RequestFiltersIsland } from "./ui/islands";
 
 
 
@@ -43,7 +44,31 @@ export async function adminDashboardResponse(input: AdminDashboardInput): Promis
     range = parseDashboardRange(input.url, input.now);
     view = parseDashboardView(input.url);
   } catch (error) {
-    if (error instanceof DashboardInputError) {
+    if (error instanceof RequestHistoryDateRangeError) {
+      // Preserve only a fully validated form. Other malformed page/filter values
+      // still use the ordinary invalid-input response, without any history read.
+      const validationUrl = new URL(input.url);
+      validationUrl.searchParams.delete("audit_from");
+      validationUrl.searchParams.delete("audit_to");
+      try {
+        const recoveryRange = parseDashboardRange(validationUrl, input.now);
+        const recoveryView = parseDashboardView(validationUrl);
+        const model = {
+          appEnabled: input.url.hostname === input.env.ADMIN_DASHBOARD_HOST,
+          canonicalUrl: `${input.url.pathname}${input.url.search}`,
+          documentTitle: "请求记录 · Agency Relay 控制台",
+          operatorId: input.identity.userId ?? null,
+          operatorLabel: input.identity.email ?? "已登录的管理员",
+          range: recoveryRange, view: recoveryView, nowMs: input.now.getTime(), dataAsOf: input.now.toISOString(), mutationFlash: null
+        };
+        const form = createElement("section", {id:"request-history", className:"panel usage-stack request-workspace", "data-request-filter-error":"date-order"},
+          createElement(RequestFiltersIsland, {control:{action:input.url.pathname, query:error.query, ...requestHistoryFilterOptions(input.env)}}));
+        return htmlResponse(renderDashboardDocument(model, nonce, form), 400, nonce, true, input.url.origin);
+      } catch (validationError) {
+        if (!(validationError instanceof DashboardInputError)) throw validationError;
+      }
+    }
+    if (error instanceof DashboardInputError || error instanceof RequestHistoryDateRangeError) {
       return renderErrorResponse({
         status: 400,
         title: "页面参数不正确",
@@ -105,7 +130,10 @@ export async function adminDashboardResponse(input: AdminDashboardInput): Promis
 }
 
 function parseDashboardRange(url: URL, now: Date): DashboardRange {
-  try { parseRequestHistoryQuery(url); } catch { throw new DashboardInputError("invalid request history query"); }
+  try { parseRequestHistoryQuery(url); } catch (error) {
+    if (error instanceof RequestHistoryDateRangeError) throw error;
+    throw new DashboardInputError("invalid request history query");
+  }
   const entries = [...url.searchParams.entries()];
   const allowed = new Set(["range", "view", "plan", "status", "limit", "model", "person", "task", "key", "account", "kind", "q", "page", "page_size", "key_q", "key_page", "installation", ...REQUEST_HISTORY_FIELDS]);
   if (

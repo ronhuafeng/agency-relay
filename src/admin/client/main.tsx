@@ -8,6 +8,7 @@ import { createDrafts } from "./drafts";
 import { createTaskController } from "./navigation";
 import { initializeBackgroundRefresh } from "./background-refresh";
 import { initializeCredentialStatus } from "./credential-status";
+import { initializeCredentialWorkspace } from "./credential-workspace";
 import { initializeMutations } from "./mutations";
 import { initializeMemberMutations } from "./member-mutations";
 import { initializeMemberKeyRows, disposeMemberKeyRows } from "./member-key-rows";
@@ -97,7 +98,7 @@ function ConfirmDialog() {
       if (returnFocus.current?.isConnected) returnFocus.current.focus();
     }}>
       <AlertDialogHeader>
-        <AlertDialogTitle>请确认</AlertDialogTitle>
+        <AlertDialogTitle>{pending?.label ?? "确认操作"}</AlertDialogTitle>
         <AlertDialogDescription data-tone={pending?.destructive ? "bad" : undefined}>{pending?.message}</AlertDialogDescription>
       </AlertDialogHeader>
       <AlertDialogFooter>
@@ -248,7 +249,7 @@ if (mount) {
   const unmount = mountConsoleDialog(mount);
   let stop = (): void => {};
   initializeSetup();
-  const initialize = (root: ParentNode): void => { prepareControls(root); initializeVisibleRowFilters(root); initializeView(root); };
+  const initialize = (root: ParentNode): void => { prepareControls(root); initializeVisibleRowFilters(root); initializeView(root); initializeCredentialWorkspace(root); };
   initialize(document);
   let acceptBackground = (doc: Document): void => {
     const next = doc.querySelector(".shell"); const current = document.querySelector(".shell");

@@ -59,7 +59,7 @@ test('expired-source replacement preserves family, selected expiry and its one-t
   await page.getByRole('link',{name:'管理新密钥',exact:true}).click();
   await expect(page).toHaveURL(new RegExp(`key=${replacement.id}`));
   await expect.poll(() => page.locator('[data-one-time-key],[data-created-token]').count()).toBe(0);
-  expect(await page.locator(`[data-key-detail="${replacement.id}"] [data-key-task]`).textContent()).toContain('未记录成功任务');
+  expect(await page.locator(`[data-key-detail="${replacement.id}"] [data-key-task]`).textContent()).toContain('未记录成功请求');
   await page.locator(`[data-key-id="${replacement.id}"]`).getByRole('link',{name:/配置客户端：/}).click();
   await expect(page.locator('.member-setup-config')).toBeVisible();
   expect(new URL(page.url()).searchParams.has('key')).toBe(false);
@@ -71,9 +71,11 @@ test('held-key configuration is local-only and clears its input on departure',as
   await page.goto('/admin?area=me&view=setup');
   const before=worker.requests.filter(request=>request.method!=='GET').length;
   const form=page.locator('[data-local-config-sync]');await expect(form).toBeVisible();
+  await expect(form.getByRole('button',{name:'下载配置文件',exact:true})).toBeDisabled();
+  await page.getByRole('tab',{name:'Codex CLI',exact:true}).click();
   // Deliberately invalid bearer; no corresponding hash exists in the fixture.
   await form.getByLabel('已有密钥').fill('cfwd_invalid');
-  const download=page.waitForEvent('download');await form.getByRole('button',{name:'下载配置'}).click();await download;
+  const download=page.waitForEvent('download');await form.getByRole('button',{name:'下载配置文件',exact:true}).click();await download;
   await expect(form.locator('[data-setup-feedback]')).toContainText('生成文件不代表密钥已通过验证');
   expect(worker.requests.filter(request=>request.method!=='GET')).toHaveLength(before);
   const setupUrl=ORIGIN+'/admin?area=me&view=setup';
@@ -86,8 +88,8 @@ test('held-key configuration is local-only and clears its input on departure',as
   await page.route(scriptPattern, bypassCache);
   const script=worker.hold({method:'GET',path:consoleClientPath()});
   const help=page.locator('[data-task-help="configuration"]');
-  await help.getByRole('button',{name:'配置说明',exact:true}).click();
-  const departure=help.getByRole('link',{name:'只读查看本账号的密钥',exact:true}).click();
+  await help.getByRole('button',{name:'安装与排错',exact:true}).click();
+  const departure=help.getByRole('link',{name:'查看密钥',exact:true}).click();
   try {
     await destination.entered;
     expect(page.url()).toBe(setupUrl);

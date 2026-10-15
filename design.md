@@ -5,11 +5,11 @@ description: Cyan pixel workspaces with cool light surfaces, deep indigo dark su
 colors:
   primary: "#00dbe9"
   on-primary: "#002a2f"
-  background: "#eaedf2"
+  background: "#f6f8fa"
   surface: "#ffffff"
   on-surface: "#0f172a"
   muted: "#526174"
-  border: "#182131"
+  border: "#d6dde5"
   input-border: "#526174"
   secondary: "#f1f5f9"
   accent: "#d9f6f8"
@@ -172,13 +172,37 @@ identify the current object, assess its facts and take the next action without
 reading a report first. Related facts and controls form one workspace. Content
 density comes from useful comparison and grouping, not smaller text.
 
+Apply proximity, contrast, repetition and alignment to every viewport. Group each
+label, field, feedback and action by task; keep related gaps smaller than gaps
+between tasks. Reuse control sizes and alignment edges while preserving readable
+differences between primary actions, secondary actions and supporting text.
+
+Every visible wrapper must clarify a task group, interaction or responsive layout.
+Remove nested surfaces, borders, headings and padding that repeat the parent's
+purpose. Retain structural or semantic elements needed for forms, focus, tables
+and reflow; a lower element count alone is not a design outcome.
+
 Use cyan for actions and selection, a cool-gray canvas with white task surfaces in
 light mode, and deep indigo surfaces in dark mode. Navigation keeps the surface
 color. Do not repaint the page to match the navigation, and do not wrap the page
 in a nested frame. Keep readable system Chinese
-fonts, 2px corners, crisp ink boundaries and hard offset shadows. Pixel character
+fonts, 2px corners, quiet structural separators and clear control boundaries. Reserve
+hard offset shadows for the brand and primary actions. Pixel character
 appears in edges, icons, sliding switches, selected states and press feedback. It
 does not require low-resolution Chinese text or game decoration.
+
+Design in this order: user intent, operation meaning, information and controls,
+layout, then observed results. For each main action, identify its exact object,
+constraints, permitted effect, commit point and recovery before selecting a
+component. Review the complete chain from control wording through code behavior
+to state change and feedback. Opening an editor is not saving; generating a file
+is not configuring a running client; stopping a browser wait is not cancelling a
+server operation. State and chart meaning must remain readable without color.
+
+[Intent by Discovery](https://jakobnielsenphd.substack.com/p/intent-ux) informs this
+focus on outcomes, constraints, authority and easy result inspection. Its AI
+interaction proposals do not add chat, agents, approvals or automation to this
+console. Use only capabilities established by the product authorities and source.
 
 New screens are designed from Agency Relay's actual read models and API operations.
 Generated counts, controls, roles, code examples and success claims are not product facts.
@@ -216,7 +240,10 @@ The format follows the [Google design.md specification](https://github.com/googl
 Use the page background as the canvas. A task object, such as a record card or a
 form, uses the surface color and one boundary. A page, and a section that only
 groups those objects, has no extra frame. Use the foreground for names and facts; muted text is secondary, not a
-substitute for a missing label. Input borders are stronger than section dividers.
+substitute for a missing label. Use a light canvas in light mode, with quiet boundaries around task surfaces.
+Input borders are stronger than section dividers; informational groups do not need
+a dark outer frame. Align the desktop brand row with the first content row while
+keeping the navigation surface continuous.
 Cyan identifies the primary action and current selection. The darker teal focus
 outline stays visible against white; dark mode uses a light cyan outline. Action
 color is not an availability signal.
@@ -273,7 +300,7 @@ It does not intercept the control that replaces that operation.
 Place page actions beside their inventory, chart or exact task. Keep the page's
 accessible heading; a visible heading must add task meaning.
 
-Create, grant and configuration tasks show their task title. Ordinary tasks open
+Create and grant tasks show their action title. Configuration work identifies the selected client and file instead of repeating the navigation label. Do not create a title-only wrapper or a routine page-refresh action. Ordinary tasks open
 with their collection and object context retained. A named close control ends the
 local task; it is not a page Back button. Native close links read the same scoped
 collection, retaining search and pagination. Keep submit and cancel in one action
@@ -311,19 +338,19 @@ areas. Never hide document overflow to conceal a broken layout.
 
 | Page | Primary organization |
 | --- | --- |
-| Organization overview | One concise resource strip, the Usage page's responsive daily trends for 7 or 30 UTC days, and actionable problems with exact recovery targets. The strip already counts upstream connections, so healthy connection rows are not repeated. A failed usage read leaves known resource facts visible. Do not repeat task outcomes in another card. |
+| Organization overview | Three separate resource cards, the Usage page's responsive daily trends in one quiet surface, then actionable problems beside named upstream connection states. At narrow widths the resource cards use two columns with a full-width connection card; the lower panels stack. A new organization replaces the chart with one connection action and offers compact member and client-setup entry points below. A failed usage read leaves known resource facts visible. Do not repeat task outcomes in another card. |
 | Members and services | Server search and Member/Admin/Service/Pending category links precede a compact table, without repeated row role badges. Inline creation opens beneath one row of toolbar actions. Stable pagination offers 10/20/40 rows, defaulting to 20; resizing retains page and size. The retained collection and selected person's continuous workspace compare side by side when space permits. Identity, state, keys, credits and service ownership remain reachable during key creation or inspection. Exact-key controls expand below their row, or separately when that exact key is outside the displayed page; missing keys never select a substitute. Independent unavailable facts stay unknown. A service table compares key coverage, cap, used progress, remaining and request admission; expand only the policy being edited. Key creation stages the new key's scopes. Identity changes open on demand. |
-| Upstream accounts | Provider-qualified account rows remain with creation and exact connection tasks. One continuous inspector holds identity, lifecycle actions, actual disconnection blockers and linked keys. Account name, provider and connection state align horizontally. Manual OAuth opens externally and completes inside the retained task. A separate service/default table below the workspace identifies the connection used for new keys; existing bindings stay unchanged. Unread upstream datasets use compact rows; they do not become empty metric cards or imply a disconnected account. |
-| Client configuration | A compact top disclosure retains server search and pagination for exact account/key selection. One configuration workbench below it uses client tabs for the destination, public placeholder template and local download. Held-key local generation is the initial mode. Exact selection adds explicit replacement and held-key modes without clearing selection; only the selected-key mode shows that key's dated task evidence and authorized clients. Templates expand with the document, without an inner vertical scroll region. Replacement remains a separately confirmed consequential action. Personal and delegated-service configuration reuse the workbench with held-key generation only. |
-| Request activity | One date/service/result filter and one request table use the same server scope and remain visible during exact inspection. Member and request-ID fields use an explicit precision-filter expansion; populated conditions remain open. Requests remain flat table rows with separate UTC time, person, service, path, result, upstream status and latency columns. Narrow collections keep a labelled, keyboard-scrollable table instead of changing rows into cards; the page itself stays within its viewport. Exact-request detail leads with service/path, current labels and recorded reason. Closing preserves filters and cursor; exact detail need not belong to the displayed page. Internal identifiers stay in field help. Scope help stays at the far right of the filter action row. |
-| Usage | The navigation already names the report, so the page heading stays available without being drawn again. One query bar uses the body text size for search. The export is only an icon at that text size, centered on the text line, with no larger button box. The 7/30-day control sits on the legend row, aligned to the end, at that same text size and height; it does not stretch into its own row. A coarse pointer may raise the search to 16px so the browser does not zoom. The export icon stays at the text size. The bar is not a card. Focusing the search control hides the export without moving the field or its clear and submit controls. Leaving that control restores the export, including when the field keeps a committed query, so the filtered export stays reachable. One grouped bar chart shows recorded tokens, or media starts when that is the only series. There is no chart title, metric caption, metric switch, stacked layout, date picker, selected-day repeat, pricing explanation or expandable data table. The legend uses the same body size as those controls. Axis labels stay caption-sized. Do not show a per-record note about unrecorded tokens. The axis labels use only their own width. Each day has one small trapezoid relief on the axis. Unrecorded values do not show a question mark. Wide detail is one table without a service column: the model name distinguishes Codex from Grok. Narrow detail is one card: model and person on the left, recorded tokens as the primary number, request count and amount quiet, and a failure only when it is not zero, in the error color. There is no per-record detail popover. Exact dates stay on chart axes. An empty range still shows the chart axes and the 7/30 control, without a date line or a second range action. Do not render unobserved media panels or repeat read time. |
+| Upstream accounts | A compact connection catalog sits beside the current task at desktop and intermediate content widths. Search, provider-qualified names, connection states and Add belong to that catalog; do not repeat the navigation title above them. On narrow screens an explicit connection switcher collapses the catalog while keeping the exact task visible; search and Add remain available on expansion. Without scripts the catalog and forms remain visible. One inspector groups identity, dated facts, request admission, lifecycle actions, actual disconnection blockers and linked keys. Migration expands as a local task and retains selections when collapsed. Manual OAuth opens externally and completes inside the retained task. Independent service/default form rows follow the inspector and identify the connection used for new keys; existing bindings stay unchanged. Unread upstream datasets use compact rows, without invented health or metrics. |
+| Client configuration | A compact top disclosure retains server search and pagination for exact account/key selection. One full-width configuration workbench below it puts client tabs, destination, key input and download on the left, with an always-visible public code preview on the right. Both columns start on the same line. They stack in task order when their usable width is insufficient. Held-key local generation is the initial mode. Exact selection adds explicit replacement and held-key modes without clearing selection; only the selected-key mode shows that key's dated task evidence and authorized clients. The dark code surface uses canonical tokens and keeps placeholders even when a held key is entered. Templates grow with the document, without an inner vertical scroll region. Replacement remains a separately confirmed consequential action. Personal and delegated-service configuration reuse the workbench with held-key generation only. |
+| Request activity | The navigation names this page; one bounded filter surface leads directly into one flat request table, without a repeated title or an extra page wrapper. Dates, exact plan and result share a deliberate grid; the filter action, exact-match toggle, clear action and scope help have their own spaced row. Entered member/request-ID conditions remain mounted when collapsed, and applied exact conditions stay open. Scripted disclosure uses a button; native rendering retains a usable disclosure and GET form. Records keep separate UTC time, current person label, service, path, result, upstream status and latency columns. Date and time form a readable two-line unit; service/outcome never split into vertical glyphs. Column geometry belongs to this composition. Narrow collections keep a labelled keyboard-scrollable table and a reachable inspect column; the page stays within its viewport. Exact detail remains in-page below the table, or beside it only when both regions retain readable widths. Closing preserves filters/cursor and returns focus to the record. Missing, empty and unavailable remain distinct; internal identifiers and evidence caveats stay in field help. |
+| Usage | The navigation already names the report, so the page heading stays available without being drawn again. The page order is filter and export, chart, then the person/model detail table. The same committed server query scopes all three. Search returns to the filter so the changed chart remains visible. One query bar uses the body text size for search. Search, export and range controls use the shared control target. Export keeps a quiet icon inside a full-size hit area. The 7/30-day control sits at the end of the legend row and wraps only when the content requires it. A coarse pointer may raise the search to 16px so the browser does not zoom. Control glyphs retain the shared icon size. The bar is not a card. Focusing the search control hides the export without moving the field or its clear and submit controls. Leaving that control restores the export, including when the field keeps a committed query, so the filtered export stays reachable. One grouped bar chart shows recorded tokens, or media starts when that is the only series. The chart names its measured quantity and UTC basis. When every compatible series is hidden, retain the legend and show how to restore a comparison. There is no repeated chart title, metric switch, stacked layout, date picker, selected-day repeat, pricing explanation or expandable data table. The legend uses the same body size as those controls. Axis labels stay caption-sized. Do not show a per-record note about unrecorded tokens. The axis labels use only their own width. Each day has one small trapezoid relief on the axis. Unrecorded values do not show a question mark. Wide detail is one table without a service column: a compact service label beside the owner distinguishes identical model names across sources. Narrow detail is one card: model and person on the left, recorded tokens as the primary number, request count and amount quiet, and a failure only when it is not zero, in the error color. Each record has one deliberate detail entry for basis, independent coverage and cache share. Partial measurement is a compact exception; complete coverage adds no repeated note. Exact dates stay on chart axes. An empty range shows one truthful empty state and the 7/30 control, without fabricated chart axes. A new organization has one clear connection action. Do not render unobserved media panels or repeat read time. |
 | Routes | Service tabs select one hostname and method/path/recorded-result table, with exact native hash links retained. Phone rows keep the result and diagnostic action beside each route; secondary authority and recorded times remain on demand. |
 | Management records | An aligned operation/object, historical actor, time and result table that stacks on phones; secondary recorded identifiers on demand. |
-| Organization allowance | One settings table compares monthly defaults, with one Save below the table at the right. Accessible service-specific field labels do not repeat visibly. Rules sit in table-header help; the shared-team badge and repeated title are absent. One pre-save confirmation names effects on inheriting accounts, retained use and xAI shared-team authority. |
+| Organization allowance | One bounded settings surface follows a task title and concise inheritance scope. Three aligned service rows group the service, relevant effect and monthly credit input with its saved value. Units stay next to the number. Rows reflow on narrow screens; labels remain visible. UTC reset and zero-credit rules have contextual help, and xAI shared-team consequences sit beside that service. One Save allowance action commits all three values after confirmation; used credits and personal overrides retain their meaning. |
 | My workspace | One service table connects monthly used/cap progress, active own keys with terminal configuration icons, and the exact key and time of the latest observed task result. The result links to that key's detail; time color and accessible outcome text distinguish success and failure. Known absence leaves an empty result cell; a failed read stays unknown. Delegated services retain their own collection entry and independent read state. |
 | My allowance | One service table compares monthly cap, used progress and remaining credits. Units are in the headings; policy and reset explanations are in one header help control. Finite zero, exhausted balance, unlimited, disabled and unavailable remain distinct. |
 | My keys | One table keeps the entire known inventory, including historical keys. Its header holds Create (+) and explicitly labelled bulk revocation. Management expands safe details and recent task evidence directly below the exact row; native links retain exact-key destinations. Collapse preserves editable drafts. Configuration opens the local file task with a terminal icon. Rename and replacement open on demand inside the detail; revocation remains separately confirmed. Open rows defer background refresh, and an unconfirmed write result blocks further writes until a fresh read. |
-| My client setup | The same configuration workbench uses client tabs and a held key for both local download and displayed destination. Public templates expand on demand. It has no key inventory, replacement action or task evidence. Installation and recovery share one help control inside the card. |
+| My client setup | The same two-column configuration workbench uses client tabs and a held key for both local download and displayed destination. The public code preview stays visible beside the controls, or below them on narrow screens. A service entry selects its matching client; generic entry asks for a choice. It has no key inventory, replacement action or task evidence. Installation and recovery share one help control inside the card. |
 
 On narrow containers, stack the retained collection and task in reading order.
 Selection focuses the task; close restores the collection's safe context when
@@ -401,6 +428,14 @@ buttons act, labeled fields accept input, switches edit binary states, and table
 express comparable records. A read-only status remains a badge or text, not an
 editable control. Do not move every removed paragraph into a new help button.
 
+Avoid generic process headings such as “Operation instructions and confirmation”.
+Name the user's object or action. Explain unfamiliar consequences at the point of
+decision, once: enhanced forms confirm on submission; native forms expose the
+same consequence beside their required acknowledgement. Do not retain a second
+instruction panel when the confirmation dialog already owns that decision.
+Help gives short, actionable installation or recovery steps, not internal design
+rules or an inventory of everything that might fail.
+
 Write the object and outcome in familiar words. Remove explanations that merely
 describe how to operate a clear control. Keep a short impact statement beside a
 control when the consequence cannot be expressed by the control alone. Place field
@@ -471,3 +506,5 @@ unavailable and uncertain-result states in the [local preview](docs/develop/cons
 Functional checks follow [verification gates](docs/develop/gates.md). Human review
 must assess hierarchy, density, control choice and visual coherence in addition
 to correct task completion.
+
+The capability comparison is a product-support projection, not the registered route inventory. Retained unverified transports do not become included features. Codex Realtime via calls remains distinct from unverified Live creation and file transcription. Keep default cells concise; authority consequences belong at the access decision.

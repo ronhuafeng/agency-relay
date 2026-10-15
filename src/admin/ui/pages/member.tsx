@@ -1,3 +1,4 @@
+import { executionPlanEvidence } from "../../../plans/execution-plans";
 import { Fragment } from "react";
 import { generateId } from "../../../crypto";
 import type { ServiceContext } from "../../../auth/service-delegation";
@@ -30,7 +31,7 @@ function instant(value: string | null): string {
   const time = Date.parse(value);
   return Number.isFinite(time) ? `${new Date(time).toISOString().slice(0,16).replace("T"," ")} UTC` : value;
 }
-const serviceStatus: Record<MemberSurfaceFact["reason"],string> = {unknown:"状态未读到",unconfigured:"待配置",disabled:"已停用",zero:"无新建额度",exhausted:"付费额度已用完","no-key":"待创建密钥","default-unavailable":"新建连接需管理员处理","default-unknown":"新建连接状态未知",expired:"密钥已失效","binding-unavailable":"连接需处理","binding-unknown":"连接状态未知","metadata-ready":"待任务验证"};
+const serviceStatus: Record<MemberSurfaceFact["reason"],string> = {unknown:"状态未读到",unconfigured:"待配置",disabled:"已停用",zero:"仅零消耗操作",exhausted:"付费额度已用完","no-key":"待创建密钥","default-unavailable":"新建连接需管理员处理","default-unknown":"新建连接状态未知",expired:"密钥已失效","binding-unavailable":"连接需处理","binding-unknown":"连接状态未知","metadata-ready":"待任务验证"};
 function shortDate(value:string|null):string { return value ? instant(value).slice(0,10) : "无到期时间"; }
 function CreditUsage({state,service}: {state:SurfaceCreditState;service:string}) {
   const cap = state.mode === "unlimited" ? "不限" : state.mode === "disabled" ? "已停用" : state.monthly_allowance;
@@ -40,20 +41,19 @@ function CreditUsage({state,service}: {state:SurfaceCreditState;service:string})
 }
 export function MemberHomePage({model}: {model:MemberAccessModel}) {
   const scope = useMemberScope(); const memberHref = scope.href;
-  const explanations = model.surfaces.filter(fact=>fact.reason!=="metadata-ready");
   return <><h1 className="sr-only">{scope.service ? scope.label("工作台") : "我的工作台"}</h1>
     <section className="member-workbench" aria-label="服务工作台">
-      <Table className="member-workbench-table" data-member-home="true" aria-label="服务、密钥与最近任务请求"><TableHeader><TableRow><TableHead className="member-service-head">服务{explanations.length > 0 ? <InfoPopover id="member-service-rules" label="服务说明" iconOnly><ul>{explanations.map(fact=><li key={fact.id}>{label(fact.id)}：{serviceStatus[fact.reason]}</li>)}</ul></InfoPopover> : null}</TableHead><TableHead>本月额度（credits）</TableHead><TableHead>关联密钥</TableHead><TableHead>最近任务请求结果</TableHead></TableRow></TableHeader><TableBody>{model.surfaces.map(fact=>{
+      <Table className="member-workbench-table" data-member-home="true" aria-label="服务、密钥与最近任务请求"><TableHeader><TableRow><TableHead className="member-service-head">服务</TableHead><TableHead>本月额度（credits）</TableHead><TableHead>关联密钥</TableHead><TableHead>最近任务请求结果</TableHead></TableRow></TableHeader><TableBody>{model.surfaces.map(fact=>{
         const keys = model.keys.known ? model.keys.value.filter(item=>item.key.scopes.includes(`surface:${fact.id}:production`) && item.key.lifecycle.state === "active") : [];
         const observations = model.keys.known ? model.keys.value.flatMap(item => item.tasks.known ? item.tasks.value.filter(task=>verificationSurface(task.route_profile_id)===fact.id).flatMap(task=>[
-          ...(task.last_success_at ? [{key:item.key,at:task.last_success_at,ok:true}] : []), ...(task.last_failure_at ? [{key:item.key,at:task.last_failure_at,ok:false}] : [])
+          ...(task.last_success_at ? [{key:item.key,at:task.last_success_at,ok:true,evidence:executionPlanEvidence(task.route_profile_id)}] : []), ...(task.last_failure_at ? [{key:item.key,at:task.last_failure_at,ok:false,evidence:executionPlanEvidence(task.route_profile_id)}] : [])
         ]) : []).sort((a,b)=>b.at.localeCompare(a.at)) : [];
         const latest = observations[0]; const unknownTasks = model.keys.known && model.keys.value.some(item=>item.key.scopes.includes(`surface:${fact.id}:production`) && !item.tasks.known);
         return <TableRow key={fact.id} data-surface={fact.id} data-service-reason={fact.reason}>
-          <TableCell><strong>{label(fact.id)}</strong>{fact.reason === "default-unavailable" || fact.reason === "binding-unavailable" ? <span className="record-subline">{fact.reason === "default-unavailable" ? "新建连接不可用" : "密钥绑定不可用"}，请联系管理员处理。</span> : fact.reason === "default-unknown" || fact.reason === "binding-unknown" ? <span className="record-subline" role="alert">连接状态未读到。<a href={memberHref("home")}>重新读取</a></span> : null}</TableCell>
+          <TableCell><strong>{label(fact.id)}</strong>{fact.reason!=="metadata-ready" ? <div className="record-subline" data-service-blocker="">{serviceStatus[fact.reason]}{fact.reason==="exhausted" && fact.quota.known ? <> · {fact.quota.value.reset_at.slice(0,10)} UTC 重置</> : null}{["unknown","default-unknown","binding-unknown"].includes(fact.reason) ? <> · <a href={memberHref("home")}>重新读取</a></> : ["no-key","expired"].includes(fact.reason) && model.canCreate ? <> · <a href={`${memberHref("keys")}#member-key-form`}>创建密钥</a></> : fact.reason==="binding-unavailable" ? <> · <a href={memberHref("keys")}>查看密钥</a></> : fact.reason!=="exhausted" ? " · 请联系管理员" : null}</div> : null}</TableCell>
           <TableCell>{!fact.quota.known ? <span role="alert">未读到</span> : <CreditUsage state={fact.quota.value} service={label(fact.id)}/>}</TableCell>
-          <TableCell>{!model.keys.known ? <span role="alert">密钥未读到</span> : keys.length ? <ul className="workbench-key-links">{keys.map(item=><li key={item.key.id}><a href={memberHref("keys",item.key.id)}>{item.key.name ?? item.key.key_prefix}</a><Button asChild variant="ghost" size="icon"><a href={memberHref("setup")} aria-label={`配置客户端：${item.key.name ?? item.key.key_prefix}`} title="配置客户端"><Icon name="configure"/></a></Button></li>)}</ul> : <><span className="caption">无有效密钥</span>{fact.existing.known && fact.existing.value.total > 0 ? <a className="record-subline" href={memberHref("keys")}>查看历史密钥</a> : null}{fact.entitlement === "eligible" && fact.default === "configured" ? <a className="record-subline" href={`${memberHref("keys")}#member-key-form`}>创建密钥</a> : null}</>}</TableCell>
-          <TableCell>{unknownTasks || !model.keys.known ? <span role="alert">结果未读到</span> : latest ? <a className="member-task-result" href={memberHref("keys",latest.key.id)}><time dateTime={latest.at} data-tone={latest.ok ? "ok" : "bad"}><span className="sr-only">{latest.ok ? "最近任务成功：" : "最近任务失败："}</span>{instant(latest.at)}</time><span className="record-subline">{latest.key.name ?? latest.key.key_prefix}</span></a> : null}</TableCell>
+          <TableCell>{!model.keys.known ? <span role="alert">密钥未读到</span> : keys.length ? <ul className="workbench-key-links">{keys.map(item=><li key={item.key.id}><a href={memberHref("keys",item.key.id)}>{item.key.name ?? item.key.key_prefix}</a><Button asChild variant="ghost" size="icon"><a href={`${memberHref("setup")}&client=${fact.id}`} aria-label={`配置客户端：${item.key.name ?? item.key.key_prefix}`} title="配置客户端"><Icon name="configure"/></a></Button></li>)}</ul> : <><span className="caption">无有效密钥</span>{fact.existing.known && fact.existing.value.total > 0 ? <a className="record-subline" href={memberHref("keys")}>查看历史密钥</a> : null}</>}</TableCell>
+          <TableCell>{unknownTasks || !model.keys.known ? <span role="alert">结果未读到</span> : latest ? <a className="member-task-result" href={memberHref("keys",latest.key.id)}><time dateTime={latest.at} data-tone={!latest.ok ? "bad" : latest.evidence === "http_acceptance" ? undefined : "ok"}><span className="sr-only">{latest.ok ? latest.evidence === "http_acceptance" ? "请求已接受：" : "请求记录成功：" : "请求记录失败："}</span>{instant(latest.at)}</time><span className="record-subline">{latest.key.name ?? latest.key.key_prefix}</span></a> : null}</TableCell>
         </TableRow>;
       })}</TableBody></Table>
     </section>
@@ -87,13 +87,13 @@ function ConfirmForm({action,message,submitLabel,keyId,children,quiet=false}: {a
 }
 const lifecycleLabels: Record<MemberKeyFact["key"]["lifecycle"]["state"],string> = {active:"有效",expired:"已过期",revoked:"已撤销",paused:"账号已暂停",inactive:"已停用",unknown:"状态未知"};
 function TaskEvidence({item}: {item:MemberKeyFact}) {
-  return <section className="key-task-evidence" aria-label="这个密钥的任务记录"><header className="task-card-head"><h3>最近任务请求结果</h3><Badge>当前密钥</Badge></header>
+  return <section className="key-task-evidence" aria-label="这个密钥的任务记录"><h3>最近任务请求结果</h3>
     {!item.tasks.known?<p>任务记录暂时未读到。</p>:scopeNames(item.key.scopes).map(surface=>{
       const rows=item.tasks.known?item.tasks.value.filter(row=>verificationSurface(row.route_profile_id)===surface):[];
       const success=rows.map(row=>row.last_success_at).filter((value):value is string=>value!==null).sort().at(-1);
+      const accepted=rows.some(row=>row.last_success_at===success && executionPlanEvidence(row.route_profile_id)==="http_acceptance");
       const failure=rows.map(row=>row.last_failure_at).filter((value):value is string=>value!==null).sort().at(-1);
-      const latest = failure&&(!success||failure>success)?failure:success;
-      return <div className="key-task-row" key={surface} data-key-task={surface}><strong>{label(surface)}</strong><span data-tone={latest===failure&&failure?"bad":success?"ok":undefined}>{success?`最近成功 ${instant(success)}`:"未记录成功任务"}{failure?`；最近失败 ${instant(failure)}`:""}</span></div>;
+      return <div className="key-task-row" key={surface} data-key-task={surface}><strong>{label(surface)}</strong><div className="key-task-times">{success ? <time dateTime={success} data-tone={accepted?undefined:"ok"}>{accepted?"请求已接受 ":"请求记录成功 "}{instant(success)}</time> : <span>未记录成功请求</span>}{failure ? <time dateTime={failure} data-tone="bad">请求记录失败 {instant(failure)}</time> : null}</div></div>;
     })}
   </section>;
 }
@@ -134,10 +134,10 @@ export function MemberKeysPage({model,now,selectedId}: {model:MemberAccessModel;
     </section>
   </div></>;
 }
-export function MemberUsagePage({model}: {model:UsagePageModel}) {const scope = useMemberScope(); return <><h1 className="usage-page-heading">{scope.label("用量")}</h1><UsagePage model={model}/></>;}
-export function MemberSetupPage() {
+export function MemberUsagePage({model}: {model:UsagePageModel}) {const scope = useMemberScope(); return <><h1 className={scope.service ? "usage-page-heading" : "sr-only"}>{scope.label("用量")}</h1><UsagePage model={model}/></>;}
+export function MemberSetupPage({client}: {client?:"codex"|"grok"|"xai"}) {
   const scope = useMemberScope();
-  return <><h1 className="sr-only">{scope.service ? scope.label("客户端配置") : "客户端配置"}</h1><section className="member-setup-config" aria-label="本机配置"><SyncTask recoveryHref={scope.href}/></section></>;
+  return <><h1 className="sr-only">{scope.service ? scope.label("客户端配置") : "客户端配置"}</h1><section className="member-setup-config" aria-label="本机配置"><SyncTask recoveryHref={scope.href} client={client}/></section></>;
 }
 export function MemberSecretPage(props:{token:string;files:readonly ClientSetupFile[];previousPrefix:string|null;oldKeyRemainsActive?:boolean;keyId?:string;keyPrefix:string}) {
   const scope = useMemberScope(); const memberHref = scope.href;
