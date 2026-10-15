@@ -16,11 +16,12 @@ for (const scenario of [
     await expect(page.locator('[data-trend-plan="codex.responses"]')).not.toContainText('OpenAI Standard');
     await expect(page.locator('[data-trend-plan="codex.responses"]')).not.toContainText('API 费率折算');
     await expect(page.locator('.usage-record[data-usage-plan="codex.responses"]').filter({hasText: 'gpt-5.5'}).locator('.usage-record-cost')).toContainText('$0.0007');
-    const usageDetail = page.getByRole('button', {name: /^查看用量详情：Codex/}).first();
+    const usageDetail = page.getByRole('button', {name: /^查看用量详情：Codex · gpt-5\.5/}).first();
     await usageDetail.click();
     const detail = page.locator('.console-help-popover:popover-open');
     await expect(detail).toContainText('API 费率折算');
-    await expect(detail).toContainText('已记录');
+    await expect(detail).toContainText('令牌记录覆盖');
+    await expect(detail).toContainText('金额记录覆盖');
     await page.keyboard.press('Escape');
     await expect(detail).toHaveCount(0);
     if (scenario.identity === "member") expect((await page.locator('main').textContent())?.includes('other-private-model')).toBe(false);

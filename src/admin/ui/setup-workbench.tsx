@@ -80,7 +80,6 @@ export function SetupWorkbenchView({control}: {readonly control: SetupWorkbenchC
   const [discardFocus,setDiscardFocus] = useState<string | null>(null);
   const localForm = useRef<HTMLFormElement | null>(null);
   const clientTabs = useRef<HTMLDivElement | null>(null);
-  const restoredClient = useRef(false);
   const files = mode === "selected" && key ? key.files : control.localFiles;
   const activeFile = files.find(file => file.client === client);
   useLayoutEffect(() => {
@@ -103,7 +102,6 @@ export function SetupWorkbenchView({control}: {readonly control: SetupWorkbenchC
     const restore = (): void => {
       const select = form.elements.namedItem("client");
       if (select instanceof HTMLSelectElement) {
-        restoredClient.current = true;
         if (mode === "held") setClient(select.value);
       }
     };
@@ -117,8 +115,8 @@ export function SetupWorkbenchView({control}: {readonly control: SetupWorkbenchC
   const chooseMode = (next: "selected" | "held"): void => {
     const nextFiles = next === "selected" && key ? key.files : control.localFiles;
     const select = localForm.current?.elements.namedItem("client");
-    const preferred = next === "held" && restoredClient.current && select instanceof HTMLSelectElement ? select.value : client;
-    chooseClient(nextFiles.find(file=>file.client===preferred)?.client ?? nextFiles[0]?.client ?? "codex");
+    const preferred = next === "held" && select instanceof HTMLSelectElement ? select.value : client;
+    chooseClient(nextFiles.find(file=>file.client===preferred)?.client ?? (next === "held" ? "" : nextFiles[0]?.client ?? ""));
     setMode(next);
   };
   const content = <>
@@ -133,7 +131,7 @@ export function SetupWorkbenchView({control}: {readonly control: SetupWorkbenchC
     </div> : null}
     <form ref={localForm} className="board-form setup-held-form" data-local-config-sync="true" data-workbench-local="" autoComplete="off" data-dashboard-draft="sync" data-draft-scope={`sync-${control.initialClient ?? "choice"}`} hidden={mode !== "held"}>
       <fieldset disabled={!enhanced} className="setup-local-fields">
-      <div hidden><SelectView control={{id:"select-sync-client",name:"client",label:"客户端",required:true,value:control.initialClient ?? (key ? control.localFiles[0]?.client : "") ?? "",options:[{value:"",label:"请选择客户端",disabled:true},...control.localFiles.map(file=>({value:file.client,label:file.clientLabel,disabled:false}))]}} onValueChange={setClient}/></div>
+      <div hidden><SelectView control={{id:"select-sync-client",name:"client",label:"客户端",required:true,value:control.initialClient ?? "",options:[{value:"",label:"请选择客户端",disabled:true},...control.localFiles.map(file=>({value:file.client,label:file.clientLabel,disabled:false}))]}} onValueChange={setClient}/></div>
       <Field control={{label:"已有密钥",name:"existing_key",type:"password",autoComplete:"off",pattern:"cfwd_[A-Za-z0-9_-]+",required:true}}/>
       <p className="caption">密钥仅在本机生成配置文件，不会上传。</p>
       </fieldset>

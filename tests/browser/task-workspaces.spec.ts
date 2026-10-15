@@ -96,7 +96,7 @@ test('local client drafts survive exact selection while held secrets and selecte
   await page.keyboard.press('Enter');
   await expect(page.getByRole('tab',{name:'Codex CLI',exact:true})).toBeFocused();
   await expect(form.locator('select[name="client"]')).toHaveValue('');
-  await expect(page.getByRole('heading',{name:'codex-config.toml',exact:true})).toHaveCount(0);
+  await expect(page.getByRole('tab',{selected:true})).toHaveCount(0);
   await expect(form.getByRole('button',{name:'下载配置文件',exact:true})).toBeDisabled();
   expect(worker.requests.every(request=>request.method==='GET')).toBe(true);
 });
