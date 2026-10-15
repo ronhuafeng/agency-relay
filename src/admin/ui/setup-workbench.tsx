@@ -140,7 +140,7 @@ export function SetupWorkbenchView({control}: {readonly control: SetupWorkbenchC
   </>;
   return <Card className="setup-config-card setup-workbench" id="sync-configuration" tabIndex={-1} data-task-help="configuration" data-setup-selected-key={key?.id} data-sync-configuration={!key || mode === "held" ? "local-only" : undefined} data-configuration-mode={mode}>
     {key ? <header className="setup-workbench-key"><div><strong>{key.owner}</strong><span>{key.name} · <code>{key.prefix}</code></span></div><div className="task-head-actions"><Badge className="key-state" data-key-state={key.state}>{key.status}</Badge><TaskClose href={key.closeHref} label="收起密钥配置"/></div></header> : null}
-    <Tabs ref={clientTabs} value={client} onValueChange={chooseClient} className="setup-workbench-clients">
+    <Tabs ref={clientTabs} activationMode="manual" value={client} onValueChange={chooseClient} className="setup-workbench-clients">
       <div className="setup-workbench-controls">
         <TabsList variant="line" aria-label="客户端配置">{files.map(file=><TabsTrigger key={file.client} value={file.client} disabled={!enhanced}>{file.clientLabel}</TabsTrigger>)}</TabsList>
         <TabsContent className="setup-workbench-body" value={client}>{content}</TabsContent>
