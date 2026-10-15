@@ -76,7 +76,7 @@ export function SetupWorkbenchView({control}: {readonly control: SetupWorkbenchC
   const key = control.selected;
   const [mode,setMode] = useState<"selected" | "held">(key && control.initialMode !== "held" ? "selected" : "held");
   const initialFiles = key && control.initialMode !== "held" ? key.files : control.localFiles;
-  const [client,setClient] = useState(control.initialClient ?? (key ? initialFiles[0]?.client : "") ?? "");
+  const [client,setClient] = useState(control.initialClient ?? (mode === "selected" ? initialFiles[0]?.client : "") ?? "");
   const [discardFocus,setDiscardFocus] = useState<string | null>(null);
   const localForm = useRef<HTMLFormElement | null>(null);
   const clientTabs = useRef<HTMLDivElement | null>(null);

@@ -157,3 +157,11 @@ for(const script of [true,false]) test.describe(`pending OAuth task with script=
     expect(worker.requests.filter(request=>request.method==='POST')).toHaveLength(1);
   });
 });
+
+test('reloading held-key setup does not inherit the selected key client',async({page,worker})=>{
+ await page.goto('/admin?view=setup&person=member&key=member-key&task=sync-configuration');
+ await expect(page.getByRole('tab',{selected:true})).toHaveCount(0);
+ await expect(page.locator('[data-local-config-sync] select[name="client"]')).toHaveValue('');
+ await expect(page.getByRole('button',{name:'下载配置文件',exact:true})).toBeDisabled();
+ expect(worker.requests.every(request=>request.method==='GET')).toBe(true);
+});
