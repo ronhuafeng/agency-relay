@@ -3,7 +3,7 @@ import { ChevronDown } from "lucide-react";
 import { Button } from "./components/button";
 import { Input } from "./components/input";
 import { NativeSelect } from "./components/native-select";
-import { Field, FieldLabel } from "./components/field";
+import { Field, FieldError, FieldLabel } from "./components/field";
 import { InfoPopover } from "./components/info-popover";
 
 export interface RequestFiltersControl {
@@ -35,9 +35,16 @@ export function RequestScope({retentionDays, id = "request-history-scope"}: {rea
 export function RequestFiltersView({control}: {readonly control: RequestFiltersControl}) {
   const q = control.query;
   const [expanded, setExpanded] = useState(Boolean(q.user || q.request));
+  const [enhanced, setEnhanced] = useState(false);
   const disclosure = useRef<HTMLDetailsElement | null>(null);
-  useLayoutEffect(() => {if (disclosure.current) setExpanded(disclosure.current.open);}, []);
+  useLayoutEffect(() => {if (disclosure.current) setExpanded(disclosure.current.open); setEnhanced(true);}, []);
   const form = useRef<HTMLFormElement>(null);
+  const [dates, setDates] = useState({from:q.from, to:q.to});
+  const dateOrderError = Boolean(dates.from && dates.to && dates.from > dates.to);
+  const readDates = (current: HTMLFormElement) => {
+    const values = new FormData(current);
+    setDates({from:String(values.get("audit_from") ?? ""), to:String(values.get("audit_to") ?? "")});
+  };
   const exactCount = Number(Boolean(q.user)) + Number(Boolean(q.request));
   const filtered = Boolean(q.from || q.to || q.plan || q.user || q.result || q.request);
   useEffect(() => {
@@ -45,16 +52,18 @@ export function RequestFiltersView({control}: {readonly control: RequestFiltersC
     if (!current) return;
     const restore = () => {
       if (new FormData(current).get("audit_user") || new FormData(current).get("audit_request")) setExpanded(true);
+      readDates(current);
     };
+    restore();
     current.addEventListener("console:restore", restore);
     return () => current.removeEventListener("console:restore", restore);
   }, []);
-  return <form ref={form} method="get" action={`${control.action}#request-history`} data-dashboard-search="" className="board-form request-filters" aria-label="筛选请求记录">
+  return <form ref={form} id="request-history" tabIndex={-1} method="get" action={`${control.action}#request-history`} data-dashboard-search="" className="board-form request-filters" aria-label="筛选请求记录" onInput={event=>readDates(event.currentTarget)}>
     <input type="hidden" name="view" value="audit" />
-    <div>
+    <div className="request-filter-content" data-request-filters-enhanced={String(enhanced)} data-exact-expanded={String(expanded)}>
       <div className="request-filter-primary">
-        <Field><FieldLabel htmlFor="request-from">开始日期（UTC）</FieldLabel><Input id="request-from" type="date" name="audit_from" defaultValue={q.from} /></Field>
-        <Field><FieldLabel htmlFor="request-to">结束日期（UTC）</FieldLabel><Input id="request-to" type="date" name="audit_to" defaultValue={q.to} /></Field>
+        <Field><FieldLabel htmlFor="request-from">开始日期（UTC）</FieldLabel><Input id="request-from" type="date" name="audit_from" defaultValue={q.from} max="9998-12-31" aria-invalid={dateOrderError || undefined} aria-describedby={dateOrderError ? "request-date-error" : undefined} /></Field>
+        <Field><FieldLabel htmlFor="request-to">结束日期（UTC）</FieldLabel><Input id="request-to" type="date" name="audit_to" defaultValue={q.to} max="9998-12-31" aria-invalid={dateOrderError || undefined} aria-describedby={dateOrderError ? "request-date-error" : undefined} />{dateOrderError ? <FieldError id="request-date-error">结束日期不能早于开始日期。</FieldError> : null}</Field>
         <Field><FieldLabel htmlFor="request-plan">服务与路由</FieldLabel><NativeSelect id="request-plan" name="audit_plan" defaultValue={q.plan}>
           <option value="">全部服务</option>
           {q.plan && !control.services.some(service => service.id === q.plan) ? <option value={q.plan}>{q.plan}（历史标识）</option> : null}
@@ -63,8 +72,9 @@ export function RequestFiltersView({control}: {readonly control: RequestFiltersC
         <Field><FieldLabel htmlFor="request-result">结果</FieldLabel><NativeSelect id="request-result" name="audit_result" defaultValue={q.result}><option value="">全部结果</option><option value="ok">成功</option><option value="error">失败</option><option value="unknown">未识别</option></NativeSelect></Field>
       </div>
       <div className="request-filter-actions">
-        <details ref={disclosure} className="request-exact-disclosure" open={expanded} onToggle={event=>setExpanded(event.currentTarget.open)}><Button asChild variant="outline"><summary role="button" aria-controls="request-exact-filters">精确定位{exactCount ? ` · ${exactCount}` : ""}<ChevronDown className="ui-icon" aria-hidden="true" /></summary></Button></details>
         <Button type="submit">筛选请求</Button>
+        <Button type="button" variant="outline" hidden={!enhanced} aria-controls="request-exact-filters" aria-expanded={expanded} onClick={()=>setExpanded(!expanded)}>精确定位{exactCount ? ` · ${exactCount}` : ""}<ChevronDown className="ui-icon" aria-hidden="true" /></Button>
+        <details ref={disclosure} hidden={enhanced} className="request-exact-disclosure" open={expanded} onToggle={event=>{if (!enhanced) setExpanded(event.currentTarget.open);}}><Button asChild variant="outline"><summary role="button" aria-controls="request-exact-filters">精确定位{exactCount ? ` · ${exactCount}` : ""}<ChevronDown className="ui-icon" aria-hidden="true" /></summary></Button></details>
         {filtered ? <Button asChild variant="ghost"><a data-dashboard-link="" href="?view=audit#request-history">清除筛选</a></Button> : null}
         <RequestScope retentionDays={control.retentionDays}/>
       </div>

@@ -5,6 +5,9 @@ import { executionPlanPresentation } from "../../plans/execution-plans";
 import { formatNumber, formatUsdTicks, formatUsageSeconds } from "../format";
 import type { UsageTrendRange } from "../usage-query";
 import { inventoryUrl } from "./href";
+import type { ReactNode } from "react";
+import { Empty, EmptyHeader, EmptyTitle, EmptyDescription, EmptyContent, EmptyMedia } from "./components/empty";
+import { Icon } from "./icon";
 export interface UsageTrendsModel {
   range: UsageTrendRange;
   daily: UsageDailyResult;
@@ -61,7 +64,7 @@ function mediaSeries(plan: string, capability: MediaUsageDailyPoint["capability"
     rows: rows.map(row => ({day: row.day, current: row.day === range.to, count: row.started_jobs, failure: row.failed_jobs, values: [number(row.started_jobs), `${number(row.completed_jobs)} / ${number(row.failed_jobs)} / ${number(row.expired_jobs)}`, measurement(row.outputs, row.output_measurements, opportunities(row)), ...(video ? [measurement(row.video_seconds, row.duration_measurements, opportunities(row), false, " 秒")] : [])]}))
   };
 }
-export function UsageTrends({model, rangeInToolbar = false}: {model: UsageTrendsModel; rangeInToolbar?: boolean}) {
+export function UsageTrends({model, rangeInToolbar = false, emptyAction, className = ""}: {model: UsageTrendsModel; rangeInToolbar?: boolean; emptyAction?: ReactNode; className?: string}) {
   const {daily, range} = model;
   const plans = [...new Set(daily.responses.map(row => row.route_profile_id))];
   const mediaGroups = [...new Map(daily.media.map(row => [`${row.route_profile_id}:${row.capability}`, {plan: row.route_profile_id, capability: row.capability}])).values()];
@@ -70,9 +73,12 @@ export function UsageTrends({model, rangeInToolbar = false}: {model: UsageTrends
   const labels: Record<string, string> = {"codex.responses": "Codex · Responses", "codex.responses_compact": "Codex · Compact", "codex.historical.responses": "Codex · 历史"};
   const distinctSeries = series.map(item => series.filter(other => other.title === item.title).length > 1 ? {...item, title: labels[item.plan] ?? `${item.title} · ${item.plan}`} : item);
   const navigation = model.navigationUrl ? {key: range.key, href7: inventoryUrl(model.navigationUrl, {range: "7d"}), href30: inventoryUrl(model.navigationUrl, {range: "30d"})} : undefined;
-  return <section id="usage-trends" tabIndex={-1} className="usage-trends view-stack" aria-label="按日用量趋势" data-usage-range-label={`${range.from} 至 ${range.to} UTC`} data-usage-search={model.search ?? ""}>
+  return <section id="usage-trends" tabIndex={-1} className={`usage-trends view-stack ${className}`} aria-label="按日用量趋势" data-usage-range-label={`${range.from} 至 ${range.to} UTC`} data-usage-search={model.search ?? ""}>
     <h2 className="sr-only">{model.scopeLabel}</h2>{model.filterLabel ? <p className="usage-filter-context">{model.filterLabel}</p> : null}
-    <UsageComparisonIsland control={{id: "usage-comparison", range: rangeInToolbar ? undefined : navigation, series: distinctSeries, days: distinctSeries.length ? undefined : range.days.map(day => ({day, current: day === range.to}))}}/>
+    {distinctSeries.length ? <UsageComparisonIsland control={{id: "usage-comparison", range: rangeInToolbar ? undefined : navigation, series: distinctSeries}}/> : <div className="usage-empty-panel">
+      {!rangeInToolbar && navigation ? <nav className="ranges" aria-label="UTC 时间范围"><a href={navigation.href7} data-dashboard-link="" aria-current={range.key === "7d" ? "true" : undefined}>7 天</a><a href={navigation.href30} data-dashboard-link="" aria-current={range.key === "30d" ? "true" : undefined}>30 天</a></nav> : null}
+      <Empty role="status" data-trend-empty=""><EmptyHeader>{emptyAction ? <EmptyMedia variant="icon"><Icon name="credentials"/></EmptyMedia> : null}<EmptyTitle>{emptyAction ? "连接账号，开始使用" : "暂无用量记录"}</EmptyTitle><EmptyDescription>{emptyAction ? "连接上游账号后，为成员配置密钥。用量会显示在这里。" : `${range.from} 至 ${range.to} UTC 没有用量记录。`}</EmptyDescription></EmptyHeader>{emptyAction ? <EmptyContent>{emptyAction}</EmptyContent> : null}</Empty>
+    </div>}
 
   </section>;
 }

@@ -119,7 +119,7 @@ export function SetupWorkbenchView({control}: {readonly control: SetupWorkbenchC
     chooseClient(nextFiles.find(file=>file.client===preferred)?.client ?? nextFiles[0]?.client ?? "codex");
     setMode(next);
   };
-  const content = <div className="setup-workbench-body" data-task-help="configuration">
+  const content = <>
     {activeFile ? <SetupFileTargetView key={activeFile.client} file={activeFile} enhanced={enhanced} showTemplate={false}/> : <p className="empty">这个密钥没有客户端访问。</p>}
     {key ? <div className="setup-mode-choices" role="group" aria-label="配置方式"><Button asChild variant={mode === "selected" ? "secondary" : "outline"}><a role="button" onKeyDown={event=>{if(event.key === " "){event.preventDefault();event.currentTarget.click();}}} href={key.selectedHref} aria-pressed={mode === "selected"} onClick={event=>{event.preventDefault();chooseMode("selected");}}>{key.replacement ? "换发密钥" : "所选密钥"}</a></Button><Button asChild variant={mode === "held" ? "secondary" : "outline"}><a role="button" onKeyDown={event=>{if(event.key === " "){event.preventDefault();event.currentTarget.click();}}} href={key.heldHref} aria-pressed={mode === "held"} onClick={event=>{event.preventDefault();chooseMode("held");}}>已有密钥</a></Button></div> : null}
     {key ? <div className="setup-selected-action" hidden={mode !== "selected"}>
@@ -133,19 +133,24 @@ export function SetupWorkbenchView({control}: {readonly control: SetupWorkbenchC
       <fieldset disabled={!enhanced} className="setup-local-fields">
       <div hidden><SelectView control={{id:"select-sync-client",name:"client",label:"客户端",required:true,value:control.localFiles[0]?.client ?? "codex",options:control.localFiles.map(file=>({value:file.client,label:file.clientLabel,disabled:false}))}} onValueChange={setClient}/></div>
       <Field control={{label:"已有密钥",name:"existing_key",type:"password",autoComplete:"off",pattern:"cfwd_[A-Za-z0-9_-]+",required:true}}/>
-      <p className="caption">密钥仅用于本机生成文件；不会上传，也不会验证服务权限或连接状态。</p>
-      <div className="form-footer"><Button type="submit" disabled={!enhanced}>下载配置文件</Button></div>
+      <p className="caption">密钥仅在本机生成配置文件，不会上传。</p>
       </fieldset>
+      <div className="form-footer"><Button type="submit" disabled={!enhanced}>下载配置文件</Button>{mode === "held" ? <ConfigurationInstructions recoveryHref={control.recovery ? view=>control.recovery![view] : undefined}/> : null}</div>
     </form>
-    <noscript><span className="setup-native-fallback"/><p className="caption">要在这台设备上生成文件或切换客户端，请启用 JavaScript。其他客户端的安装位置和模板：</p>{files.filter(file=>file.client!==activeFile?.client).map(file=><SetupFileTargetView key={file.client} file={file} enhanced={false} showTemplate={!key?.hideTemplates}/>)}</noscript>
-    {activeFile?.template && !(mode === "selected" && key?.hideTemplates) ? <details className="setup-template-disclosure"><summary>查看配置模板</summary><SetupTemplate file={activeFile}/></details> : null}
-    <footer className="setup-workbench-footer">
-      {key && mode === "selected" ? <section className="setup-verification" aria-label="所选密钥的任务记录"><h3>所选密钥的任务记录</h3>{key.verifications.map(row=><p hidden={row.client!==activeFile?.client} key={row.client} data-client-verification={row.client} data-result={row.result}><strong>{files.find(file=>file.client===row.client)?.clientLabel}</strong><Badge data-tone={row.result==="works"?"ok":row.result==="failed"?"bad":undefined}>{row.text}</Badge></p>)}</section> : <span className="caption">本机生成配置</span>}
-      <ConfigurationInstructions recoveryHref={control.recovery ? view=>control.recovery![view] : undefined}/>
-    </footer>
-  </div>;
-  return <Card className="setup-config-card setup-workbench" id="sync-configuration" tabIndex={-1} data-setup-selected-key={key?.id} data-sync-configuration={!key || mode === "held" ? "local-only" : undefined} data-configuration-mode={mode}>
+  </>;
+  return <Card className="setup-config-card setup-workbench" id="sync-configuration" tabIndex={-1} data-task-help="configuration" data-setup-selected-key={key?.id} data-sync-configuration={!key || mode === "held" ? "local-only" : undefined} data-configuration-mode={mode}>
     {key ? <header className="setup-workbench-key"><div><strong>{key.owner}</strong><span>{key.name} · <code>{key.prefix}</code></span></div><div className="task-head-actions"><Badge className="key-state" data-key-state={key.state}>{key.status}</Badge><TaskClose href={key.closeHref} label="收起密钥配置"/></div></header> : null}
-    <Tabs ref={clientTabs} value={activeFile?.client ?? "codex"} onValueChange={chooseClient} className="setup-workbench-clients"><TabsList variant="line" aria-label="客户端配置">{files.map(file=><TabsTrigger key={file.client} value={file.client} disabled={!enhanced}>{file.clientLabel}</TabsTrigger>)}</TabsList><TabsContent value={activeFile?.client ?? "codex"}>{content}</TabsContent></Tabs>
+    <Tabs ref={clientTabs} value={activeFile?.client ?? "codex"} onValueChange={chooseClient} className="setup-workbench-clients">
+      <div className="setup-workbench-controls">
+        <TabsList variant="line" aria-label="客户端配置">{files.map(file=><TabsTrigger key={file.client} value={file.client} disabled={!enhanced}>{file.clientLabel}</TabsTrigger>)}</TabsList>
+        <TabsContent className="setup-workbench-body" value={activeFile?.client ?? "codex"}>{content}</TabsContent>
+      </div>
+      {activeFile?.template && !(mode === "selected" && key?.hideTemplates) ? <section className="setup-workbench-preview" aria-label="配置文件预览"><h2>配置文件预览</h2><SetupTemplate file={activeFile}/></section> : null}
+    </Tabs>
+    <noscript><span className="setup-native-fallback"/><p className="caption">要在这台设备上生成文件或切换客户端，请启用 JavaScript。其他客户端的安装位置和模板：</p>{files.filter(file=>file.client!==activeFile?.client).map(file=><SetupFileTargetView key={file.client} file={file} enhanced={false} showTemplate={!key?.hideTemplates}/>)}</noscript>
+    {key && mode === "selected" ? <footer className="setup-workbench-footer">
+      <section className="setup-verification" aria-label="所选密钥的任务记录"><h3>所选密钥的任务记录</h3>{key.verifications.map(row=><p hidden={row.client!==activeFile?.client} key={row.client} data-client-verification={row.client} data-result={row.result}><strong>{files.find(file=>file.client===row.client)?.clientLabel}</strong><Badge data-tone={row.result==="works"?"ok":row.result==="failed"?"bad":undefined}>{row.text}</Badge></p>)}</section>
+      <ConfigurationInstructions recoveryHref={control.recovery ? view=>control.recovery![view] : undefined}/>
+    </footer> : null}
   </Card>;
 }

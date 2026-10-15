@@ -92,10 +92,10 @@ describe("organization Home usage projection", () => {
     fixture.db.seedUsage({user_id: "usage-owner", day: "2026-05-01", route_profile_id: "grok.production.responses", requests: 999});
     const {response, document} = await open(fixture, "view=overview&range=7d");
     expect(response.status).toBe(200);
-    expect(document.querySelector("[data-trend-empty]")).toBeNull();
-    expect(document.querySelector("#usage-trends .usage-bar-plot")).not.toBeNull();
+    expect(document.querySelector("[data-trend-empty]")).not.toBeNull();
+    expect(document.querySelector("#usage-trends .usage-bar-plot")).toBeNull();
     expect(document.querySelector("[data-trend-plan]")).toBeNull();
-    expect(document.querySelector("#usage-trends")?.textContent).not.toContain("至");
+    expect(document.querySelectorAll('#usage-trends nav[aria-label="UTC 时间范围"] a')).toHaveLength(2);
     expect(document.querySelector("[data-home-usage=unavailable]")).toBeNull();
   });
 

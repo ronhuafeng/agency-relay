@@ -56,7 +56,9 @@ const server = createServer(async (incoming, outgoing) => {
     for await (const chunk of incoming) { size += chunk.length; if (size > 2_000_000) { outgoing.writeHead(413).end(); return; } chunks.push(Buffer.from(chunk)); }
     const body = Buffer.concat(chunks);
     if (url.pathname === "/__preview" && method === "GET") {
-      outgoing.writeHead(200, { "Content-Type": "text/html; charset=utf-8" }).end(readFileSync(new URL("./workbench.html", import.meta.url))); return;
+      const workbench = readFileSync(new URL("./workbench.html", import.meta.url), "utf8");
+      const theme = readFileSync(new URL("../../src/admin/generated/tokens.css", import.meta.url), "utf8");
+      outgoing.writeHead(200, { "Content-Type": "text/html; charset=utf-8" }).end(workbench.replace("<style>", `<style>${theme}</style><style>`)); return;
     }
     if (url.pathname === "/__preview/data" && method === "GET") { const snapshot = readSnapshot(); outgoing.setHeader("Content-Type", "application/json"); outgoing.end(JSON.stringify({ snapshot: Boolean(snapshot), capturedAt: snapshot?.capturedAt, reporting: Boolean(snapshot && Object.keys(reportSnapshotColumns).every(table => Array.isArray(snapshot.tables[table]))), accountScoped: Boolean(snapshot?.accountScoped), requestHistory: snapshot?.requestHistory, roles: snapshot ? [...new Set(snapshot.tables.users.filter(row => row.status === "active" && row.login_capable === 1 && row.account_kind === "human").map(row => row.role === "admin" ? "admin" : "member"))] : ["admin", "member"] })); return; }
     if (url.pathname === "/__preview/revision" && method === "GET") { outgoing.end(String(revision)); return; }

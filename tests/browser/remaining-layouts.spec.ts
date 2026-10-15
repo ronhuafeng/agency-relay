@@ -77,8 +77,8 @@ for(const width of [390,1440])test.describe(`remaining journeys ${width}px`,()=>
       await page.goto(`/admin?area=me&view=${view}`);await inspect(page,info,`member-${view.replaceAll(/[^a-z-]/g,'')}`,'member');
     }
     const setupHelp=page.locator('[data-task-help="configuration"]');
-    await setupHelp.getByRole('button',{name:'配置说明',exact:true}).click();
-    await setupHelp.getByRole('link',{name:'只读查看本账号的密钥',exact:true}).click();
+    await setupHelp.getByRole('button',{name:'安装与排错',exact:true}).click();
+    await setupHelp.getByRole('link',{name:'查看密钥',exact:true}).click();
     await page.locator('[data-key-id="member-key"]').getByRole('link',{name:'管理密钥',exact:false}).click();
     await expect(page.locator('[data-key-detail="member-key"]')).toBeVisible();
     await page.locator('[data-member-key-close]:visible').click();await expect(page.locator('[data-member-key-row]:not([hidden])')).toHaveCount(0);
@@ -130,7 +130,7 @@ test.describe('200 percent CSS magnification',()=>{
       await page.evaluate(()=>{document.documentElement.style.zoom='2';});
       if(view.startsWith('setup')) {
         await expect(workspace.locator('[data-local-config-sync]')).toBeVisible();
-        await expect(workspace.getByRole('button',{name:'配置说明',exact:true})).toHaveCount(1);
+        await expect(workspace.getByRole('button',{name:'安装与排错',exact:true})).toHaveCount(1);
         await expect(page.locator('[data-setup-key]')).toHaveCount(0);
       }
       await inspect(page,info,`zoom-member-${view.replaceAll(/[^a-z-]/g,'')}`,'member',2);

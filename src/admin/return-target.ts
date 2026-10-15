@@ -4,7 +4,7 @@
 import { DASHBOARD_PEOPLE_PAGE_SIZES } from './ui/href';
 export const CONSOLE_RETURN_SECTIONS = [
   '#content', '#top', '#keys', '#credits', '#account-keys', '#people-list', '#accounts-list', '#setup-list', '#request-history', '#add-person', '#give-access', '#capabilities', '#add-chatgpt', '#add-grok',
-  '#person-detail', '#key-detail', '#account-detail', '#setup-detail', '#sync-configuration', '#request-detail', '#person-status', '#identity', '#assigned-services', '#member-key-form', '#member-key-inventory', '#usage-trends', '#usage-details',
+  '#person-detail', '#key-detail', '#account-detail', '#setup-detail', '#sync-configuration', '#request-detail', '#person-status', '#identity', '#assigned-services', '#member-key-form', '#member-key-inventory', '#usage-filter', '#usage-trends', '#usage-details',
   // Exact headings for the current three-host catalog, verified against rendered links.
   '#route-host-0-title', '#route-host-1-title', '#route-host-2-title'
 ] as const;

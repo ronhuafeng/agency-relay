@@ -1,5 +1,24 @@
 import { openNativeConfirmation, test, expect } from './fixtures';
 
+test('a narrow connection picker keeps the selected task reachable and switches exact providers', async ({page,worker}) => {
+  worker.seedAdminLayouts();
+  await page.setViewportSize({width:390,height:900});
+  await page.goto('/admin?view=credentials');
+  await page.locator('[data-account-key="codex:fixture-codex"] a').click();
+  const picker = page.locator('[data-credential-catalog-toggle]');
+  await expect(picker).toHaveAttribute('aria-expanded','false');
+  await expect(page.getByRole('searchbox',{name:'搜索账号',exact:true})).toBeHidden();
+  await expect(page.locator('[data-account-detail="codex:fixture-codex"]')).toBeVisible();
+  await expect(page.locator('[data-action="refresh-codex"] button')).toBeVisible();
+  await picker.click();
+  await expect(page.getByRole('searchbox',{name:'搜索账号',exact:true})).toBeVisible();
+  await page.locator('[data-account-key="grok:fixture-codex"] a').click();
+  await expect(page.locator('[data-account-detail="grok:fixture-codex"]')).toBeVisible();
+  await expect(picker).toHaveAttribute('aria-expanded','false');
+  await expect(page.locator('[data-account-admission]')).toHaveCount(0);
+  expect(worker.requests.every(request=>request.method==='GET')).toBe(true);
+});
+
 test('an unknown creation outcome recovers the current collection without reopening the old task on reload', async ({page,worker}) => {
   await page.goto('/admin?view=access&task=add-person&q=recovered&range=30d');
   const form=page.locator('[data-dashboard-draft="person"]');

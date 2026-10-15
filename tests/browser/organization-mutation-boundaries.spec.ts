@@ -45,8 +45,8 @@ for (const change of ["demotion", "expiry"] as const) test(`a rejected quota sav
   await page.locator('[data-quota-default="codex"]').getByRole("spinbutton").fill("321");
   if (change === "demotion") worker.setRole("admin", "user");
   else worker.expireSessions();
-  await page.getByRole("button", { name: "保存", exact: true }).click();
-  await page.getByRole("alertdialog").getByRole("button", { name: "保存", exact: true }).click();
+  await page.getByRole("button", { name: "保存额度", exact: true }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "保存额度", exact: true }).click();
   await expect(page.locator("[data-console-recovery]")).toBeVisible();
   expect(await page.locator(".shell,.identity,[data-ui-props]").count()).toBe(0);
   expect(["codex", "grok", "xai"].map(surface => worker.quotaDefault(surface))).toEqual(defaults);

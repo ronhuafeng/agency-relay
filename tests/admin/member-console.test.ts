@@ -29,7 +29,7 @@ describe("role-aware console", () => {
     const setup = doc.querySelector('[data-member-view="setup"]')!;
     expect(setup.querySelector('form[data-local-config-sync] input[name="existing_key"]')).not.toBeNull();
     expect(setup.querySelectorAll('[popover]')).toHaveLength(1);
-    expect(setup.querySelector('[popover]')?.getAttribute('aria-label')).toBe('配置说明');
+    expect(setup.querySelector('[popover]')?.getAttribute('aria-label')).toBe('安装与排错');
     expect([...setup.querySelectorAll('[popover] a')].map(link=>link.getAttribute('href'))).toEqual(['/admin?area=me&view=keys','/admin?area=me&view=quota']);
     expect(setup.querySelector('.member-setup-evidence,[data-setup-key],[role="alert"]')).toBeNull();
     expect(doc.querySelector('main')?.getAttribute('data-console-read-url')).toBe('/admin?area=me&view=setup');
@@ -278,7 +278,6 @@ describe("role-aware console", () => {
     expect(accountsHtml).toContain("data-default-boundary=\"true\"");
     const defaults = new JSDOM(accountsHtml).window.document.querySelector("[data-default-boundary]");
     expect(defaults?.querySelector("h2")?.textContent).toBe("新密钥默认连接");
-    expect(defaults?.querySelector("th:nth-child(2)")?.textContent).toBe("连接");
     expect(defaults?.querySelectorAll('form[action^="/admin/ui/credential-defaults/"]')).toHaveLength(3);
   });
 });

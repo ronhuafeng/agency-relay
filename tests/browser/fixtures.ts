@@ -77,9 +77,7 @@ export async function openKeyEditor(page: Page, task: 'rename' | 'replace'): Pro
 export { expect };
 
 export async function openNativeConfirmation(form: Locator): Promise<void> {
-  const disclosure = form.locator('.confirmation-disclosure');
-  if (await disclosure.getAttribute('open') === null) await disclosure.locator('summary').click();
-  await expect(disclosure.getByRole('checkbox')).toBeVisible();
+  await expect(form.locator('[data-confirmation-fallback]').getByRole('checkbox')).toBeVisible();
 }
 
 // A native history traversal may return a fresh response or a scrubbed BFCache

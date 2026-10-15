@@ -19,12 +19,17 @@
 .person-detail .access-choice-grid { grid-template-columns:minmax(0,1fr); }
 .person-detail .person-status-form .confirmation-fallback { max-width:280px; }
 .request-collection { container:request-list / inline-size; min-width:0; }
-.request-collection>.actions { display:flex; flex-wrap:wrap; gap:8px; }
 .setup-detail>.section-links { margin:0; }
 .configuration-local-task>[data-slot=card] { margin-top:16px; }
 @container object-workspace (min-width:1000px) {
   .object-workspace-layout[data-task-open=true] { grid-template-columns:minmax(300px,.8fr) minmax(0,1.6fr); }
-  .request-object-workspace>.object-workspace-layout[data-task-open=true] { grid-template-columns:minmax(0,1.5fr) minmax(340px,1fr); }
+  .request-object-workspace>.object-workspace-layout[data-task-open=true] { grid-template-columns:minmax(0,1fr); }
+}
+@container object-workspace (min-width:1400px) {
+  .request-object-workspace>.object-workspace-layout[data-task-open=true] { grid-template-columns:minmax(952px,1fr) minmax(400px,.4fr); }
+}
+@container object-workspace (min-width:700px) {
+  .credential-object-workspace>.object-workspace-layout { grid-template-columns:minmax(224px,.65fr) minmax(0,1.55fr); }
 }
 @container people-index (max-width:540px) {
   .people-toolbar { grid-template-columns:repeat(2,minmax(0,1fr)); }

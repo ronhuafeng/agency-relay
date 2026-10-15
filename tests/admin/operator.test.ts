@@ -122,7 +122,6 @@ describe("admin pages, accounts, and audit", () => {
     expect(setup.status).toBe(200);
     const setupBody = await setup.text();
     expect(setupBody).toContain('data-view-role="setup"');
-    expect(new JSDOM(setupBody).window.document.querySelector('.setup-page-head h2')?.textContent).toBe("连接客户端");
     expect(new JSDOM(setupBody).window.document.querySelector('[data-local-config-sync] fieldset')?.hasAttribute('disabled')).toBe(true);
     expect(setupBody).not.toContain('data-action="create-setup-package"');
     expect(setupBody).not.toContain("Claude Code");

@@ -38,9 +38,9 @@ describe("contextual task help", () => {
     expect([...popup.querySelectorAll('a')].map(link => link.getAttribute('href'))).toEqual([prefix+'keys', prefix+'quota']);
     expect(doc.querySelectorAll('[data-task-help]')).toHaveLength(1);
     expect(doc.querySelectorAll('[popover]')).toHaveLength(1);
-    expect(popup.getAttribute('aria-label')).toBe('配置说明');
-    expect(popup.textContent).toContain('先备份原配置');
-    expect(popup.textContent).toContain('读取失败表示未知');
+    expect(popup.getAttribute('aria-label')).toBe('安装与排错');
+    expect(popup.textContent).toContain('备份原配置');
+    expect(popup.textContent).toContain('状态无法读取时，重新加载后再判断');
     for (const popup of doc.querySelectorAll('[popover]')) expect(doc.querySelector(`button[popovertarget="${popup.id}"]`)).not.toBeNull();
     expect(doc.querySelector('form,input')).toBeNull();
   });

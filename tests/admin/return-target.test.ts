@@ -48,7 +48,7 @@ it.each([
   ...['member-key-form', 'member-key-inventory'].map(section => `/admin?area=me&view=keys#${section}`),
   '/me/service-accounts/svc_one?view=keys&key=key-one#member-key-inventory',
   '/admin?view=audit&audit_user=other&audit_result=error#request-history',
-  ...['usage-trends', 'usage-details'].map(section => `/admin?view=usage&person=other&range=30d#${section}`),
+  ...['usage-filter', 'usage-trends', 'usage-details'].map(section => `/admin?view=usage&person=other&range=30d#${section}`),
   '/me/service-accounts/svc_one?view=usage&range=30d#usage-trends',
   ...[0, 1, 2].map(index => `/admin?view=surfaces#route-host-${index}-title`)
 ])('retains an actual task section and its exact object/query through login: %s', target => {

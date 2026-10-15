@@ -66,12 +66,11 @@ function RequestDetail({ row, model }: { readonly row: RequestHistoryRecord; rea
 
 export function RequestHistory({ model }: { readonly model: RequestHistoryModel }) {
   const q = model.query;
-  return <section id="request-history" aria-labelledby="request-history-title" className="panel usage-stack request-workspace" tabIndex={-1}>
-    <h2 id="request-history-title" className="sr-only">请求记录</h2>
+  return <>
     <RequestFiltersIsland control={{action:new URL(model.listUrl, "https://console.invalid").pathname,query:{from:q.from,to:q.to,plan:q.plan,user:q.user,result:q.result,request:q.request},services:model.services,retentionDays:model.retentionDays}} />
-    <ObjectWorkspace className="request-object-workspace" task={q.record ? <div id="request-detail" tabIndex={-1}>{model.detail ? <RequestDetail row={model.detail} model={model} /> : <section role="status" className="unavailable-view" data-request-missing=""><div className="task-card-head"><h2>未找到保留记录</h2><TaskClose href={`${model.listUrl}#request-history`} label="收起请求详情"/></div><p>这条内部记录可能未采集、已清理或不可用。查不到记录不代表没有发生请求。</p><HistoryScope model={model} id="request-missing-scope"/></section>}</div> : null} collection={<div className="request-collection"><div className="request-table"><Table scrollLabel="保留的请求记录" role="table" aria-label="保留的请求记录"><TableHeader role="rowgroup"><TableRow role="row"><TableHead scope="col">时间（UTC）</TableHead><TableHead scope="col">成员</TableHead><TableHead scope="col">服务</TableHead><TableHead scope="col">请求路径</TableHead><TableHead scope="col">结果</TableHead><TableHead scope="col" className="number">上游状态</TableHead><TableHead scope="col" className="number">耗时</TableHead><TableHead scope="col">操作</TableHead></TableRow></TableHeader><TableBody role="rowgroup">
+    <ObjectWorkspace className="request-object-workspace" task={q.record ? <div id="request-detail" tabIndex={-1}>{model.detail ? <RequestDetail row={model.detail} model={model} /> : <section role="status" className="unavailable-view" data-request-missing=""><div className="task-card-head"><h2>未找到保留记录</h2><TaskClose href={`${model.listUrl}#request-history`} label="收起请求详情"/></div><p>这条内部记录可能未采集、已清理或不可用。查不到记录不代表没有发生请求。</p><HistoryScope model={model} id="request-missing-scope"/></section>}</div> : null} collection={<div className="request-collection"><Table className="request-table" scrollLabel="保留的请求记录" role="table" aria-label="保留的请求记录"><colgroup><col className="request-time-column"/><col className="request-person-column"/><col className="request-service-column"/><col className="request-path-column"/><col className="request-result-column"/><col className="request-status-column"/><col className="request-latency-column"/><col className="request-inspect-column"/></colgroup><TableHeader role="rowgroup"><TableRow role="row"><TableHead scope="col">时间（UTC）</TableHead><TableHead scope="col">成员（当前）</TableHead><TableHead scope="col">服务</TableHead><TableHead scope="col">请求路径</TableHead><TableHead scope="col">结果</TableHead><TableHead scope="col" className="number">上游状态</TableHead><TableHead scope="col" className="number">耗时</TableHead><TableHead scope="col">操作</TableHead></TableRow></TableHeader><TableBody role="rowgroup">
       {model.rows.map(row=><TableRow role="row" key={row.id} data-request-record={row.id} data-state={row.id===q.record?"selected":undefined}>
-        <TableCell role="cell"><time dateTime={row.at} title={row.at}>{formatOperatorInstant(row.at)}</time></TableCell>
+        <TableCell role="cell"><time dateTime={row.at} title={row.at}><span>{formatOperatorInstant(row.at).split(" ")[0]}</span>{" "}<span>{formatOperatorInstant(row.at).split(" ").slice(1).join(" ")}</span></time></TableCell>
         <TableCell role="cell">{row.currentEmail ?? row.userId ?? "未记录"}</TableCell>
         <TableCell role="cell">{row.service}</TableCell>
         <TableCell role="cell"><code>{row.path ?? "路径未记录"}</code></TableCell>
@@ -80,12 +79,12 @@ export function RequestHistory({ model }: { readonly model: RequestHistoryModel 
         <TableCell role="cell" className="number"><span className="sr-only">耗时 </span>{row.latencyMs===null?"未记录":`${formatNumber(row.latencyMs)} ms`}</TableCell>
         <TableCell role="cell"><a className="action-link request-record-link" data-dashboard-link="" data-task-link="" href={row.href} aria-label={`查看请求 ${row.id}`}><span>查看</span><ChevronRight className="ui-icon" aria-hidden="true" /></a></TableCell>
       </TableRow>)}
-    </TableBody></Table></div>
+    </TableBody></Table>
     {!model.rows.length ? <p role="status" data-request-empty="">没有符合筛选的保留记录。不代表没有发生请求；也可清除筛选查看。</p> : null}
-    <nav aria-label="请求记录分页" className="actions">
+    {model.previousUrl || model.nextUrl || q.cursor ? <nav aria-label="请求记录分页" className="request-pagination">
       {model.previousUrl ? <a className="action-link" data-dashboard-link="" href={`${model.previousUrl}#request-history`}>较新记录</a> : null}
       {model.nextUrl ? <a className="action-link" data-dashboard-link="" href={`${model.nextUrl}#request-history`}>较旧记录</a> : null}
       {q.cursor ? <a className="action-link" data-dashboard-link="" href={`${inventoryUrl(model.listUrl, { audit_cursor: null, audit_direction: null })}#request-history`}>最新一页</a> : null}
-    </nav></div>}/>
-  </section>;
+    </nav> : null}</div>}/>
+  </>;
 }

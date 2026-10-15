@@ -67,7 +67,7 @@ it("keeps personal and delegated metadata, keys, quota, usage and setup in expli
       if(view==="setup"){
         const setup=doc.querySelector('[data-member-view="setup"]')!;
         expect(setup.querySelectorAll('[popover]')).toHaveLength(1);
-        expect(setup.querySelector('[popover]')?.getAttribute('aria-label')).toBe('配置说明');
+        expect(setup.querySelector('[popover]')?.getAttribute('aria-label')).toBe('安装与排错');
         expect([...setup.querySelectorAll('[popover] a')].map(link=>link.getAttribute('href'))).toEqual([f.prefix+'?view=keys',f.prefix+'?view=quota']);
         expect(setup.querySelector('.member-setup-evidence,[data-setup-key]')).toBeNull();
         expect(doc.querySelector('main')?.getAttribute('data-console-read-url')).toBe(f.prefix+'?view=setup');

@@ -160,7 +160,7 @@ describe("usage router scope and failure boundaries", () => {
       const html = await response.text();
       expect(html).not.toContain("foreign-only-model");
       const search = doc(html).querySelector('form[data-dashboard-search]')!;
-      expect(search.getAttribute("action")).toBe("/admin#usage-details");
+      expect(search.getAttribute("action")).toBe("/admin#usage-filter");
       for (const [name, value] of [["area", "me"], ["view", "usage"], ["range", "7d"]]) {
         expect(search.querySelector(`input[name="${name}"]`)?.getAttribute("value")).toBe(value);
       }
@@ -195,8 +195,8 @@ describe("usage router scope and failure boundaries", () => {
     const empty = makeFixture();
     const daily = await queryUsageDaily(empty.env, {mode: "range", from: "2026-06-18", to: "2026-06-24", limit: 1});
     const html = renderToStaticMarkup(createElement(UsageTrends, {model: {range: parseUsageTrendRange(url(""), now), daily, scopeLabel: "我的用量"}}));
-    expect(doc(html).querySelector('[data-trend-empty]')).toBeNull();
-    expect(doc(html).querySelector('.usage-bar-plot')).not.toBeNull();
+    expect(doc(html).querySelector('[data-trend-empty]')?.textContent).toContain("暂无用量记录");
+    expect(doc(html).querySelector('.usage-bar-plot')).toBeNull();
     expect(doc(html).querySelectorAll('[data-trend-plan]')).toHaveLength(0);
     expect(html).not.toContain("查看 30 天");
   });

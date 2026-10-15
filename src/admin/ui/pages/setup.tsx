@@ -7,7 +7,6 @@ import { PRODUCT_ACCESS, productAccessLabels } from "../../client-setup";
 import type { DashboardKey, DashboardPage } from "../../inventory";
 import { executionPlanPresentation } from "../../../plans/execution-plans";
 import type { KeyClientVerificationRow } from "../../../db";
-import { Button } from "../components/button";
 import { DashLink } from "../chrome";
 import { inventoryUrl } from "../href";
 import { Icon } from "../icon";
@@ -85,7 +84,6 @@ export function SetupPage({model}: {readonly model: SetupPageModel}) {
   const selectedPerson = model.users.find(person=>person.id===model.selectedPersonId);
   return <section aria-label="连接客户端" className="setup-workspace" data-view-role="setup" id="setup-detail" tabIndex={-1}>
     <MutationNotice flash={model.mutationFlash}/>
-    <header className="setup-page-head"><h2>连接客户端</h2><Button asChild variant="outline"><DashLink href={model.canonicalUrl}>刷新状态</DashLink></Button></header>
     <details className="setup-context-picker" id="setup-list" open={query.has("q") || model.keyPage.page>1}>
       <summary><span>账号与密钥</span><strong>{model.selectedKey ? presentText(personLabel(selectedPerson,model.selectedPersonId ?? ""))+" · "+(model.selectedKey.name ?? model.selectedKey.key_prefix) : "选择要配置的密钥"}</strong><Icon name="arrow"/></summary>
       <div className="setup-choice-card"><SetupKeyChoices control={pickerControl} showHeading={false}/>{model.keys.length===0 && !query.get("q") && model.keyPage.page===1 && !model.selectedKeyId ? <DashLink className="action-link" href={inventoryUrl(model.canonicalUrl,{view:"access",person:null,key:null,task:null,q:null,page:null})}>创建新密钥 <Icon name="arrow"/></DashLink> : null}</div>

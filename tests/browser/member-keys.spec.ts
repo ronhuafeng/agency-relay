@@ -86,8 +86,8 @@ test('held-key configuration is local-only and clears its input on departure',as
   await page.route(scriptPattern, bypassCache);
   const script=worker.hold({method:'GET',path:consoleClientPath()});
   const help=page.locator('[data-task-help="configuration"]');
-  await help.getByRole('button',{name:'配置说明',exact:true}).click();
-  const departure=help.getByRole('link',{name:'只读查看本账号的密钥',exact:true}).click();
+  await help.getByRole('button',{name:'安装与排错',exact:true}).click();
+  const departure=help.getByRole('link',{name:'查看密钥',exact:true}).click();
   try {
     await destination.entered;
     expect(page.url()).toBe(setupUrl);

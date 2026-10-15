@@ -1,28 +1,79 @@
 <!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Agency Relay · 本地预览台</title>
 <style>
-:root{font:14px/1.5 system-ui,"PingFang SC",sans-serif;color:#202b3a;background:#e8edf2;color-scheme:light}*{box-sizing:border-box}body{margin:0;display:grid;grid-template-rows:auto auto minmax(0,1fr);height:100dvh}header{background:#fff;border-bottom:1px solid #c5ceda;padding:12px 20px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}h1{font-size:16px;margin:0}small{color:#657184}.source{color:#245943;background:#e9f4ed;padding:4px 9px;font-size:12px}.controls{display:flex;align-items:center;flex-wrap:wrap;gap:12px;padding:12px 20px;background:#f7f9fb;border-bottom:1px solid #c5ceda}label{display:flex;gap:7px;align-items:center;color:#566276}select,button,a.action{font:inherit;min-height:36px;padding:6px 10px;border:1px solid #bcc8d5;background:#fff;color:#202b3a;border-radius:3px;cursor:pointer;text-decoration:none}button:hover,a.action:hover{background:#eef3fa}:focus-visible{outline:3px solid #3971c8;outline-offset:3px}.spacer{flex:1}#stage{padding:20px;overflow:auto;min-height:0}iframe{display:block;border:1px solid #bcc8d5;background:#fff;width:100%;height:100%;margin:0 auto;box-shadow:0 3px 15px #17293d12}#status{font-size:12px;color:#647083;margin-left:auto}@media(max-width:700px){#stage{padding:8px;min-height:300px}.controls{gap:8px;padding:10px}header{padding:10px}}
-</style><header><h1>Agency Relay / 预览台</h1><span class="source" id="source">本地示例数据</span><small id="data-note">操作只影响本次预览，重置后恢复。</small><span id="status" role="status">正在加载</span></header>
-<div class="controls"><label>身份<select id="role"><option value="admin">管理员</option><option value="member">成员</option></select></label><label>场景<select id="scene"><option value="populated">日常管理</option><option value="empty">新组织</option><option value="long">长内容与分页</option><option value="snapshot">现网快照 · 本地副本</option></select></label><label>页面<select id="page"></select></label><label>宽度<select id="width"><option value="fluid">自适应</option><option value="1440">1440</option><option value="1024">1024</option><option value="768">768</option><option value="390">390</option><option value="320">320</option></select></label><label>主题<select id="theme"><option value="light">浅色</option><option value="dark">深色</option><option value="system">跟随系统</option></select></label><button id="reload">刷新页面</button><button id="reset">重置示例</button><a class="action" id="standalone" target="_blank" rel="noopener">独立打开 ↗</a></div>
+:root{font:var(--typography-body);color:var(--foreground);background:var(--background);color-scheme:light dark}
+*{box-sizing:border-box}body{margin:0;display:grid;grid-template-rows:auto auto auto minmax(0,1fr);height:100dvh}
+header{display:flex;align-items:center;gap:var(--space-3);padding:var(--space-2) var(--space-4);background:var(--card);border-bottom:1px solid var(--line-soft)}
+h1{font:var(--typography-section-title);margin:0}#status{font:var(--typography-caption);color:var(--muted-foreground);margin-left:auto}
+button,select,input,a.action{font:inherit;color:inherit;border-radius:var(--radius)}
+button,select,a.action{min-height:var(--control-target);padding:var(--space-2) var(--space-3);cursor:pointer;background:var(--card);border:1px solid var(--border);text-decoration:none}
+button:hover,a.action:hover{background:var(--secondary)}:focus-visible{outline:2px solid var(--ring);outline-offset:2px}
+.source-bar{display:flex;align-items:center;gap:var(--space-2);padding-inline:var(--space-4);border-bottom:1px solid var(--line-soft)}
+#source{font:var(--typography-caption);color:var(--muted-foreground);border:0;padding:0;background:transparent}#source::after{content:" ⓘ"}
+#data-note{font:var(--typography-body);color:var(--foreground);background:var(--card);border:1px solid var(--border);padding:var(--space-4);max-width:min(50ch,calc(100vw - 32px));box-shadow:var(--shadow-overlay)}
+.controls{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:var(--space-2) var(--space-4);padding:var(--space-2) var(--space-4);background:var(--card);border-bottom:1px solid var(--line-soft)}
+.context-controls,.display-controls,.actions{display:flex;align-items:center;gap:var(--space-2)}
+.context-controls{flex:1 1 470px;max-width:720px}.display-controls{flex:0 1 auto;flex-wrap:wrap}.actions{margin-left:auto;flex-shrink:0}.actions>*{display:flex;align-items:center;justify-content:center;gap:var(--space-2);min-width:var(--control-target)}
+.field{display:flex;align-items:center;gap:var(--space-2);color:var(--muted-foreground);min-width:0;white-space:nowrap}.field select{color:var(--foreground);min-width:0;width:100%}.scene-field,.page-field{flex:1}
+.segmented{display:flex;align-items:center;margin:0;padding:0;border:1px solid var(--border);border-radius:var(--radius);min-width:0;flex-shrink:0}
+.segmented label{position:relative;display:flex;min-width:var(--control-target);cursor:pointer}.segmented input{position:absolute;inset:0;opacity:0;width:100%;height:100%;margin:0;cursor:pointer}
+.segmented label>span,.segmented button{min-height:var(--control-target);display:flex;align-items:center;justify-content:center;gap:var(--space-2);padding:var(--space-2) var(--space-3);white-space:nowrap}
+.segmented button{border:0;background:transparent;min-width:var(--control-target)}.segmented input:checked+span,.segmented button[aria-pressed=true]{background:var(--accent);color:var(--foreground)}
+.segmented input:focus-visible+span{outline:2px solid var(--ring);outline-offset:2px}.segmented input:disabled+span{opacity:.5;cursor:not-allowed}
+svg{flex-shrink:0}.width-field{border:1px solid var(--border);border-radius:var(--radius);padding-right:var(--space-2);gap:var(--space-1);font:var(--typography-caption)}
+#width{width:72px;min-height:var(--control-target);border:0;background:transparent;padding:var(--space-2);font:var(--typography-body)}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+#stage{padding:var(--space-4);overflow:auto;min-height:0}iframe{display:block;border:1px solid var(--border);background:var(--card);width:100%;height:100%;min-height:240px;margin:0 auto}
+@media(max-width:1100px){.device-name{display:none}.segmented button{padding:var(--space-2)}.context-controls{max-width:none}.display-controls{margin-left:auto}}
+@media(max-width:720px){header{padding:var(--space-1) var(--space-3);gap:var(--space-2)}h1{font:var(--typography-label)}.controls{padding:var(--space-2) var(--space-3);gap:var(--space-2)}.context-controls{flex-basis:100%}.display-controls{margin-left:0}.segmented label>span{padding-inline:var(--space-2)}#stage{padding:var(--space-2)}.actions>*,.actions .action{border:0;padding:var(--space-2)}.actions span{display:none}.source-bar{padding-inline:var(--space-3)}}
+@media(max-width:480px){header{padding-inline:var(--space-2)}.actions{gap:0}h1{font:var(--typography-caption);font-weight:var(--typography-label-font-weight)}.controls{padding:var(--space-2);gap:var(--space-2)}.context-controls{gap:var(--space-1)}.field-name{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)}.display-controls{gap:var(--space-1)}.segmented label>span{gap:0}#theme label>span{width:var(--control-target);padding:0}.theme-name{display:none}.width-field{padding:0}.width-field>span[aria-hidden]{display:none}#width{width:48px;padding:0;text-align:center;appearance:textfield}#width::-webkit-inner-spin-button,#width::-webkit-outer-spin-button{appearance:none;margin:0}select,#width{font-size:var(--typography-input-phone-font-size)}select{padding-inline:var(--space-1)}#stage{padding:0}iframe{border-inline:0}.source-bar{padding-inline:var(--space-2)}}
+</style>
+<header><h1>Agency Relay / 预览台</h1><div class="actions"><button id="reload" aria-label="刷新页面" title="刷新页面"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M6 7a7 7 0 0 1 11-2l3 3M4 16l3 3a7 7 0 0 0 11-2"/></svg><span>刷新</span></button><button id="reset" aria-label="重置示例" title="重置本地示例"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10h5M3 10V5m0 5a9 9 0 1 1 1 8"/><path d="M12 7v5l3 2"/></svg><span>重置</span></button><a class="action" id="standalone" aria-label="独立打开" title="独立打开" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3h7v7m0-7L10 14"/><path d="M10 3H3v18h18v-7"/></svg><span>独立打开</span></a></div></header>
+<div class="controls" aria-label="预览设置">
+<div class="context-controls">
+<fieldset id="role" class="segmented"><legend class="sr-only">身份</legend><label><input type="radio" name="role" value="admin" checked><span>管理员</span></label><label><input type="radio" name="role" value="member"><span>成员</span></label></fieldset>
+<label class="field scene-field"><span class="field-name">场景</span><select id="scene"><option value="populated">日常管理</option><option value="empty">新组织</option><option value="long">长内容与分页</option><option value="snapshot">现网快照 · 本地副本</option></select></label>
+<label class="field page-field"><span class="field-name">页面</span><select id="page"></select></label>
+</div>
+<div class="display-controls">
+<div id="devices" class="segmented" role="group" aria-label="预览宽度"><button data-width="fluid" aria-pressed="true" aria-label="自适应" title="自适应"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 5H3v14h5m8-14h5v14h-5M8 12h8m-6-3-3 3 3 3m4-6 3 3-3 3"/></svg><span class="device-name">自适应</span></button><button data-width="1440" aria-pressed="false" aria-label="桌面 1440 像素" title="桌面 1440 像素"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="13" rx="1"/><path d="M8 21h8m-4-5v5"/></svg><span class="device-name">桌面</span></button><button data-width="768" aria-pressed="false" aria-label="平板 768 像素" title="平板 768 像素"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M11 18h2"/></svg><span class="device-name">平板</span></button><button data-width="390" aria-pressed="false" aria-label="手机 390 像素" title="手机 390 像素"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/></svg><span class="device-name">手机</span></button></div>
+<label class="field width-field"><span class="sr-only">自定义宽度（像素）</span><input id="width" type="number" min="320" max="2560" step="1" placeholder="自动"><span aria-hidden="true">px</span></label>
+<fieldset id="theme" class="segmented"><legend class="sr-only">主题</legend><label><input type="radio" name="theme" title="浅色" aria-label="浅色" value="light" checked><span><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1 1m12 12 1 1M5 19l1-1M18 6l1-1"/></svg><span class="theme-name">浅色</span></span></label><label><input type="radio" name="theme" title="深色" aria-label="深色" value="dark"><span><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 14a8 8 0 0 1-10-10A9 9 0 1 0 20 14Z"/></svg><span class="theme-name">深色</span></span></label><label><input type="radio" name="theme" title="系统" aria-label="系统" value="system"><span><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="13" rx="1"/><path d="M8 21h8m-4-5v5m0-13v5m-3-2h6"/></svg><span class="theme-name">系统</span></span></label></fieldset>
+</div>
+
+</div>
+<div class="source-bar"><button id="source" popovertarget="data-note" aria-label="查看数据来源">本地示例数据</button><span id="status" role="status">正在加载</span><div id="data-note" popover>操作只影响本次预览，重置后恢复。</div></div>
 <div id="stage"><iframe id="preview" title="Agency Relay 页面预览"></iframe></div>
 <script>
 const $=id=>document.getElementById(id), frame=$('preview');
-let configurationQueue=Promise.resolve(),loadVersion=0,loading=false,frameTarget;
+const choice=id=>document.querySelector('input[name='+id+']:checked').value;
+const choose=(id,value)=>{const option=[...document.querySelectorAll('input[name='+id+']')].find(input=>input.value===value);if(option)option.checked=true};
+let viewport='fluid';
+let configurationQueue=Promise.resolve(),loadVersion=0,loading=false,frameTarget,pendingTarget;
 let snapshotReporting=false,snapshotAccountScoped=false,snapshotRoles=[],snapshotHistory;
 const pages={admin:[['access','成员与服务'],['overview','组织概览'],['credentials','上游连接'],['setup','客户端配置'],['audit','请求记录'],['usage','用量报告'],['surfaces','服务路由'],['quotas','额度政策'],['control-audit','管理记录']],member:[['home','我的工作台'],['keys','我的密钥'],['quota','我的额度'],['usage','我的用量'],['setup','客户端配置']]};
-const params=new URLSearchParams(location.search);for(const id of ['role','scene','width','theme'])if([...$(id).options].some(o=>o.value===params.get(id)))$(id).value=params.get(id);
-function setPages(){ $('page').replaceChildren(...pages[$('role').value].map(([value,label])=>new Option(label,value)));if([...$('page').options].some(o=>o.value===params.get('page')))$('page').value=params.get('page');}
+const params=new URLSearchParams(location.search);for(const id of ['role','theme'])choose(id,params.get(id));
+if([...$('scene').options].some(o=>o.value===params.get('scene')))$('scene').value=params.get('scene');
+const initialWidth=Number(params.get('width'));if(Number.isInteger(initialWidth)&&initialWidth>=320&&initialWidth<=2560)viewport=String(initialWidth);
+function setPages(){ const preferred=$('page').value||params.get('page');$('page').replaceChildren(...pages[choice('role')].map(([value,label])=>new Option(label,value)));if([...$('page').options].some(o=>o.value===preferred))$('page').value=preferred;}
 setPages();
-function save(){const q=new URLSearchParams();for(const id of ['role','scene','page','width','theme'])q.set(id,$(id).value);history.replaceState(null,'','/__preview?'+q);}
-function geometry(){frame.style.width=$('width').value==='fluid'?'100%':$('width').value+'px';frame.style.colorScheme=$('theme').value==='system'?'light dark':$('theme').value;save();}
-function target(){return '/?'+($('role').value==='member'?'area=me&':'')+'view='+$('page').value+($('role').value==='admin'||$('page').value==='usage'?'&range=7d':'');}
+function save(){const q=new URLSearchParams({role:choice('role'),scene:$('scene').value,page:$('page').value,width:viewport,theme:choice('theme')});history.replaceState(null,'','/__preview?'+q);}
+function geometry(){
+  frame.style.width=viewport==='fluid'?'100%':viewport+'px';
+  frame.style.colorScheme=choice('theme')==='system'?'light dark':choice('theme');
+  $('width').value=viewport==='fluid'?'':viewport;
+  for(const button of $('devices').querySelectorAll('button'))button.setAttribute('aria-pressed',String(button.dataset.width===viewport));
+  save();
+}
+function target(){return '/?'+(choice('role')==='member'?'area=me&':'')+'view='+$('page').value+(choice('role')==='admin'||$('page').value==='usage'?'&range=7d':'');}
 async function load(reset=false,preserve=false){
-  for(const option of $('role').options)option.disabled=$('scene').value==='snapshot'&&!snapshotRoles.includes(option.value);
-  if($('role').selectedOptions[0].disabled){const available=[...$('role').options].find(option=>!option.disabled);if(!available){$('status').textContent='快照没有可登录账号';frame.src='about:blank';return}$('role').value=available.value;setPages();preserve=false}
+  const roles=[...$('role').querySelectorAll('input')];
+  for(const option of roles)option.disabled=$('scene').value==='snapshot'&&!snapshotRoles.includes(option.value);
+  if(roles.find(option=>option.checked).disabled){const available=roles.find(option=>!option.disabled);if(!available){$('status').textContent='快照没有可登录账号';frame.src='about:blank';return}choose('role',available.value);setPages();preserve=false}
   const version=++loadVersion,scene=$('scene').value;
-  const body=JSON.stringify({role:$('role').value,scene,theme:$('theme').value,reset});
-  const previous=preserve&&!loading&&frame.contentWindow?new URL(frame.contentWindow.location.href):undefined;
+  const body=JSON.stringify({role:choice('role'),scene,theme:choice('theme'),reset});
+  const previous=preserve?(pendingTarget??(!loading&&frame.contentWindow?new URL(frame.contentWindow.location.href):undefined)):undefined;
   const current=previous&&previous.searchParams.get('view')===$('page').value?previous.pathname+previous.search+previous.hash:target();
-  loading=true;frameTarget=undefined;frameObserver?.disconnect();$('status').textContent='正在加载';
+  pendingTarget=new URL(current,location.href);loading=true;frameTarget=undefined;frameObserver?.disconnect();$('status').textContent='正在加载';
   // Configuration changes share one server-side fixture. Apply them in order;
   // only the latest selection can navigate or update the workbench.
   const request=configurationQueue.then(()=>fetch('/__preview/config',{method:'POST',headers:{'Content-Type':'application/json'},body}));
@@ -33,12 +84,17 @@ async function load(reset=false,preserve=false){
   $('source').textContent=scene==='snapshot'?'现网快照 · 本地副本':'本地示例数据';
   $('data-note').textContent=scene==='snapshot'?(snapshotReporting?(snapshotAccountScoped?'导入指定账号、关联展示数据、额度与用量统计；操作只修改本地。上游凭据未导入。':'导入组织展示数据、额度、用量与任务记录；操作只修改本地。上游凭据未导入。'):'仅导入人员、账号、密钥与额度。用量、活动和上游连接未导入；操作只修改本地。'):'所有操作只修改本地副本，重置后恢复。';
   if(scene==='snapshot'&&snapshotHistory&&snapshotHistory.imported<snapshotHistory.available)$('data-note').textContent+=' 任务记录仅最近 '+snapshotHistory.imported.toLocaleString('zh-CN')+' / '+snapshotHistory.available.toLocaleString('zh-CN')+' 条。';
-  frameTarget=new URL(current,location.href);frame.src=current;$('standalone').href=current;geometry();
+  frameTarget=new URL(current,location.href);
+  // Reassigning a URL with a fragment can perform only a same-document jump.
+  // Explicit refresh and theme changes must load the newly configured document.
+  if(frame.contentWindow.location.href===frameTarget.href)frame.contentWindow.location.reload();else frame.src=current;
+  $('standalone').href=current;geometry();
 }
-$('role').onchange=()=>{setPages();load()};for(const id of ['scene','page'])$(id).onchange=()=>load();$('theme').onchange=()=>load(false,true);$('width').onchange=geometry;$('standalone').onclick=()=>{$('standalone').href=frame.contentWindow.location.href};$('reload').onclick=()=>load(false,true);$('reset').onclick=()=>load(true);
+$('role').onchange=()=>{setPages();load()};for(const id of ['scene','page'])$(id).onchange=()=>load();$('theme').onchange=()=>load(false,true);$('width').onchange=()=>{if(!$('width').value){viewport='fluid';geometry()}else if($('width').reportValidity()){viewport=$('width').value;geometry()}};
+for(const button of $('devices').querySelectorAll('button'))button.onclick=()=>{viewport=button.dataset.width;geometry()};$('standalone').onclick=()=>{$('standalone').href=frame.contentWindow.location.href};$('reload').onclick=()=>load(false,true);$('reset').onclick=()=>load(true);
 let frameObserver;
 function syncFrameNavigation(){if(loading)return;try{const current=new URL(frame.contentWindow.location.href);$('standalone').href=current.href;const view=current.searchParams.get('view');if(view&&[...$('page').options].some(option=>option.value===view)&&$('page').value!==view){$('page').value=view;save()}}catch{}}
-frame.onload=()=>{if(loading){if(!frameTarget)return;try{if(new URL(frame.contentWindow.location.href).searchParams.get('view')!==frameTarget.searchParams.get('view'))return}catch{return}loading=false}$('status').textContent='已加载 · 本地代码';frameObserver?.disconnect();syncFrameNavigation();try{frameObserver=new MutationObserver(syncFrameNavigation);frameObserver.observe(frame.contentDocument.body,{childList:true,subtree:true})}catch{}};
+frame.onload=()=>{if(loading){if(!frameTarget)return;try{if(new URL(frame.contentWindow.location.href).searchParams.get('view')!==frameTarget.searchParams.get('view'))return}catch{return}loading=false;pendingTarget=undefined}$('status').textContent='已加载 · 本地代码';frameObserver?.disconnect();syncFrameNavigation();try{frameObserver=new MutationObserver(syncFrameNavigation);frameObserver.observe(frame.contentDocument.body,{childList:true,subtree:true})}catch{}};
 let revision;setInterval(async()=>{try{const r=await fetch('/__preview/revision');const next=await r.text();if(revision&&next!==revision){$('status').textContent='代码已更新，点击刷新查看'}revision=next}catch{$('status').textContent='预览服务已停止'}},2000);
 fetch('/__preview/data').then(r=>r.json()).then(data=>{snapshotReporting=!!data.reporting;snapshotAccountScoped=!!data.accountScoped;snapshotHistory=data.requestHistory;snapshotRoles=data.roles??[];if(data.capturedAt)$('scene').querySelector('[value=snapshot]').textContent='现网快照 · '+new Date(data.capturedAt).toLocaleString('zh-CN',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});if(!data.snapshot)$('scene').querySelector('[value=snapshot]').disabled=true;else if(!params.has('scene'))$('scene').value='snapshot';return load()});
 </script></html>

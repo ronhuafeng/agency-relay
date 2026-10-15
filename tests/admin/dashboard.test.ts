@@ -609,10 +609,12 @@ describe("Dashboard", () => {
     expect(document.querySelector('.site-header [data-dashboard-refresh]')).toBeNull();
     expect(document.querySelector('main')?.getAttribute('data-console-read-url')).toBe('/admin?view=overview&range=7d');
     expect(document.querySelector('[data-panel="attention"]')).toBeNull();
-    expect(document.querySelector('.account-onboarding a')?.getAttribute("href")).toBe("/admin?view=credentials&range=7d&task=add-account");
+    const connect = [...document.querySelectorAll('main a')].filter(link=>link.textContent === '连接账号');
+    expect(connect).toHaveLength(1);
+    expect(connect[0]?.getAttribute("href")).toBe("/admin?view=credentials&range=7d&task=add-account");
     expect(document.querySelector("main")?.textContent).not.toContain("下一步");
-    expect(document.querySelector("[data-trend-empty]")).toBeNull();
-    expect(document.querySelector("#usage-trends .usage-bar-plot")).not.toBeNull();
+    expect(document.querySelector("[data-trend-empty]")).not.toBeNull();
+    expect(document.querySelector("#usage-trends .usage-bar-plot")).toBeNull();
     expect(html).not.toMatch(/class="metrics metrics-secondary"/);
     expect(html).not.toContain("Production ready");
     expect(html).not.toContain("page-purpose");
@@ -716,7 +718,9 @@ describe("Dashboard", () => {
       loadCodexAccount: async () => softFailAccount
     })).text();
     const document = new JSDOM(html).window.document;
-    expect(document.querySelector(".account-onboarding a")?.textContent).toBe("连接账号");
+    const connect = [...document.querySelectorAll('main a')].filter(link=>link.textContent === '连接账号');
+    expect(connect).toHaveLength(1);
+    expect(connect[0]?.getAttribute("href")).toBe("/admin?view=credentials&range=7d&task=add-account");
     expect(document.querySelector('[data-panel="attention"]')).toBeNull();
   });
 
@@ -753,8 +757,8 @@ describe("Dashboard", () => {
     const home = await render("overview");
     const document = new JSDOM(home).window.document;
     expect(document.querySelector('[data-home-summary] a[href*="credentials"] strong')?.textContent).toBe("2");
-    expect(document.querySelector("[data-trend-empty]")).toBeNull();
-    expect(document.querySelector("#usage-trends .usage-bar-plot")).not.toBeNull();
+    expect(document.querySelector("[data-trend-empty]")).not.toBeNull();
+    expect(document.querySelector("#usage-trends .usage-bar-plot")).toBeNull();
     expect(home).not.toContain('class="next-step"');
   });
 
@@ -911,7 +915,7 @@ describe("Dashboard", () => {
         [
           'aria-label="筛选请求记录"',
           'aria-label="保留的请求记录"',
-          'id="request-history-title"'
+          'id="request-history"'
         ]
       ]
     ] as const) {

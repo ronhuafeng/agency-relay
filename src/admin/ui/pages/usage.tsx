@@ -75,7 +75,7 @@ function mediaRecord(row: MediaUsageSummaryRow, index: number): UsageRecord {
 }
 export function UsagePage({model}: {readonly model: UsagePageModel}) {
   const url = new URL(model.searchUrl ?? model.trends?.navigationUrl ?? "/admin?view=usage", "https://console.invalid");
-  return <div className="usage-page view-stack">{model.trends ? <UsageTrends model={model.trends}/> : null}<section id="usage-details" tabIndex={-1} aria-label="用量明细"><form method="get" action={`${url.pathname}#usage-details`} data-dashboard-search="" className="usage-toolbar" aria-label="筛选用量明细">
+  return <div className="usage-page view-stack"><form id="usage-filter" method="get" action={`${url.pathname}#usage-filter`} data-dashboard-search="" className="usage-toolbar" aria-label="筛选用量明细">
     {[...url.searchParams].filter(([key]) => key !== "q").map(([key, value]) => <input key={key} type="hidden" name={key} value={value}/>)}
     <div className="usage-search">
       <InputGroup>
@@ -84,10 +84,10 @@ export function UsagePage({model}: {readonly model: UsagePageModel}) {
         <button type="submit" className="usage-search-icon" aria-label="搜索"><Search aria-hidden="true"/></button>
       </InputGroup>
     </div>
-    <div className="usage-export"><Button asChild variant="outline" size="icon"><a href={model.range.rawUsageUrl} download="usage.json" aria-label="导出数据" title="导出数据"><Download className="ui-icon" aria-hidden="true"/></a></Button></div>
-  </form><UsageReportIsland control={{
+    <div className="usage-export"><Button asChild variant="ghost" size="icon"><a href={model.range.rawUsageUrl} download="usage.json" aria-label="导出数据" title="导出数据"><Download className="ui-icon" aria-hidden="true"/></a></Button></div>
+  </form>{model.trends ? <UsageTrends model={model.trends}/> : null}<section id="usage-details" tabIndex={-1} aria-label="用量明细"><UsageReportIsland control={{
     records: [...model.rows.map(responseRecord), ...model.mediaRows.map(mediaRecord)],
-    emptyLabel: model.range.emptyLabel,
+    emptyLabel: model.trends && model.trends.daily.responses.length === 0 && model.trends.daily.media.length === 0 ? "" : model.range.emptyLabel,
     exportUrl: model.range.rawUsageUrl,
     truncated: model.rowsTruncated || model.mediaRowsTruncated,
     filterPlaceholder: model.filterPlaceholder ?? "搜索人员或模型",

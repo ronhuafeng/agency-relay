@@ -28,7 +28,7 @@ export function UsageReport({control}: {readonly control: UsageReportControl}) {
         {control.truncated ? <p className="usage-report-tools">当前列表未显示全部记录。</p> : null}
           <div className="table-wrap usage-detail-table"><Table role="table" aria-label="按人员和服务的用量"><TableHeader role="rowgroup"><TableRow role="row"><TableHead role="columnheader" scope="col">人员 / 模型</TableHead><TableHead role="columnheader" scope="col" className="number">请求 / 开始</TableHead><TableHead role="columnheader" scope="col" className="number">令牌 / 输出</TableHead><TableHead role="columnheader" scope="col" className="number">失败</TableHead>{costColumn ? <TableHead role="columnheader" scope="col" className="number">金额（USD）</TableHead> : null}</TableRow></TableHeader><TableBody role="rowgroup" className="usage-records">{control.records.map(record => <Record key={record.id} record={record} costColumn={costColumn} />)}</TableBody></Table></div>
         {control.truncated ? <p className="caption">{control.limitNote}</p> : null}
-      </> : <p className="empty">{control.emptyLabel}</p>}
+      </> : control.emptyLabel ? <p className="empty">{control.emptyLabel}</p> : null}
     </section>
   );
 }

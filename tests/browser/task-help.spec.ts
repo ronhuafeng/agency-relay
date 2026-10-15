@@ -24,8 +24,7 @@ for (const script of [true, false]) test.describe(`contextual help with script=$
       expect(await example.locator('h3').textContent()).toBe(file.filename);
       expect(await example.locator('code').textContent()).toBe(file.installTarget);
       const separateTemplate = script || await example.locator('figure.setup-template').count() === 0;
-      if(separateTemplate && await configuration.locator('.setup-template-disclosure').getAttribute('open') === null) await configuration.getByText('查看配置模板',{exact:true}).click();
-      const templateScope = separateTemplate ? configuration.locator('.setup-template-disclosure') : example;
+      const templateScope = separateTemplate ? configuration.getByRole('region',{name:'配置文件预览',exact:true}) : example;
       await expect(templateScope.locator('figure.setup-template figcaption')).toHaveText('配置模板 · 密钥为占位符');
       const template=templateScope.locator('figure.setup-template pre');
       expect(await template.getAttribute('aria-label')).toBeNull();
@@ -33,10 +32,10 @@ for (const script of [true, false]) test.describe(`contextual help with script=$
     }
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
     const recovery = configuration;
-    await expect(page.getByRole('button', {name:'配置说明',exact:true})).toHaveCount(1);
-    await recovery.getByRole('button', {name:'配置说明',exact:true}).focus(); await page.keyboard.press('Enter');
+    await expect(page.getByRole('button', {name:'安装与排错',exact:true})).toHaveCount(1);
+    await recovery.getByRole('button', {name:'安装与排错',exact:true}).focus(); await page.keyboard.press('Enter');
     expect(await recovery.locator('a').evaluateAll(links=>links.map(link=>link.getAttribute('href')))).toEqual(['/admin?area=me&view=keys','/admin?area=me&view=quota']);
-    await recovery.getByRole('link', {name: '只读查看本账号的密钥', exact: true}).click();
+    await recovery.getByRole('link', {name: '查看密钥', exact: true}).click();
     await page.waitForURL(/\/admin\?area=me&view=keys$/, {waitUntil: 'load'});
     await expect(page.locator('[data-key-id="member-key"]')).toBeVisible();
     await page.locator('[data-key-id="member-key"]').getByRole('link', {name:'管理密钥',exact:false}).click();
@@ -57,11 +56,11 @@ for (const script of [true, false]) test.describe(`assigned-service contextual h
     await page.waitForURL(prefix + 'setup', {waitUntil: 'load'});
     await expect(page.getByRole('heading', {name: 'Nightly build · 客户端配置', exact: true})).toBeVisible();
     const recovery = page.locator('[data-task-help="configuration"]');
-    await expect(page.getByRole('button', {name:'配置说明',exact:true})).toHaveCount(1);
-    await recovery.getByRole('button', {name:'配置说明',exact:true}).focus(); await page.keyboard.press('Enter');
-    await expect(recovery.getByRole('link', {name: '只读查看本账号的密钥', exact: true})).toHaveAttribute('href', prefix + 'keys');
-    await expect(recovery.getByRole('link', {name: '查看本账号的额度', exact: true})).toHaveAttribute('href', prefix + 'quota');
-    await recovery.getByRole('link', {name: '只读查看本账号的密钥', exact: true}).click();
+    await expect(page.getByRole('button', {name:'安装与排错',exact:true})).toHaveCount(1);
+    await recovery.getByRole('button', {name:'安装与排错',exact:true}).focus(); await page.keyboard.press('Enter');
+    await expect(recovery.getByRole('link', {name: '查看密钥', exact: true})).toHaveAttribute('href', prefix + 'keys');
+    await expect(recovery.getByRole('link', {name: '查看额度', exact: true})).toHaveAttribute('href', prefix + 'quota');
+    await recovery.getByRole('link', {name: '查看密钥', exact: true}).click();
     await page.waitForURL(prefix + 'keys', {waitUntil: 'load'});
     await expect(page.locator('[data-service-id]')).toHaveAttribute('data-service-id', service);
     await expect(page.locator('[data-key-id="member-key"]')).toHaveCount(0);
@@ -84,11 +83,11 @@ for (const owner of ['personal','delegated','administrator'] as const) test(`loc
     await expect(displayed).toBeVisible();
     await expect(displayed.getByRole('heading',{level:3})).toHaveText(file.filename);
     await expect(displayed.locator('.setup-destination code')).toHaveText(file.installTarget);
-    const template=page.locator('.setup-template-disclosure');
-    if(await template.getAttribute('open') === null) await template.locator('summary').click();
+    const template=page.getByRole('region',{name:'配置文件预览',exact:true});
     await expect(template.locator('pre')).toBeVisible();
     await expect(template.locator('figure.setup-template figcaption')).toHaveText('配置模板 · 密钥为占位符');
     expect(await template.locator('pre').getAttribute('aria-label')).toBeNull();
+    expect((await template.locator('pre').textContent())?.includes('cfwd_invalid'),'The on-screen template does not expose the held key').toBe(false);
     const result = page.waitForEvent('download');
     await form.getByRole('button',{name:'下载配置文件',exact:true}).click();
     const download = await result;

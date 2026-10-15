@@ -87,13 +87,12 @@ function ConfirmForm({action,message,submitLabel,keyId,children,quiet=false}: {a
 }
 const lifecycleLabels: Record<MemberKeyFact["key"]["lifecycle"]["state"],string> = {active:"有效",expired:"已过期",revoked:"已撤销",paused:"账号已暂停",inactive:"已停用",unknown:"状态未知"};
 function TaskEvidence({item}: {item:MemberKeyFact}) {
-  return <section className="key-task-evidence" aria-label="这个密钥的任务记录"><header className="task-card-head"><h3>最近任务请求结果</h3><Badge>当前密钥</Badge></header>
+  return <section className="key-task-evidence" aria-label="这个密钥的任务记录"><h3>最近任务请求结果</h3>
     {!item.tasks.known?<p>任务记录暂时未读到。</p>:scopeNames(item.key.scopes).map(surface=>{
       const rows=item.tasks.known?item.tasks.value.filter(row=>verificationSurface(row.route_profile_id)===surface):[];
       const success=rows.map(row=>row.last_success_at).filter((value):value is string=>value!==null).sort().at(-1);
       const failure=rows.map(row=>row.last_failure_at).filter((value):value is string=>value!==null).sort().at(-1);
-      const latest = failure&&(!success||failure>success)?failure:success;
-      return <div className="key-task-row" key={surface} data-key-task={surface}><strong>{label(surface)}</strong><span data-tone={latest===failure&&failure?"bad":success?"ok":undefined}>{success?`最近成功 ${instant(success)}`:"未记录成功任务"}{failure?`；最近失败 ${instant(failure)}`:""}</span></div>;
+      return <div className="key-task-row" key={surface} data-key-task={surface}><strong>{label(surface)}</strong><div className="key-task-times">{success ? <time dateTime={success} data-tone="ok">最近成功 {instant(success)}</time> : <span>未记录成功任务</span>}{failure ? <time dateTime={failure} data-tone="bad">最近失败 {instant(failure)}</time> : null}</div></div>;
     })}
   </section>;
 }
@@ -134,7 +133,7 @@ export function MemberKeysPage({model,now,selectedId}: {model:MemberAccessModel;
     </section>
   </div></>;
 }
-export function MemberUsagePage({model}: {model:UsagePageModel}) {const scope = useMemberScope(); return <><h1 className="usage-page-heading">{scope.label("用量")}</h1><UsagePage model={model}/></>;}
+export function MemberUsagePage({model}: {model:UsagePageModel}) {const scope = useMemberScope(); return <><h1 className={scope.service ? "usage-page-heading" : "sr-only"}>{scope.label("用量")}</h1><UsagePage model={model}/></>;}
 export function MemberSetupPage() {
   const scope = useMemberScope();
   return <><h1 className="sr-only">{scope.service ? scope.label("客户端配置") : "客户端配置"}</h1><section className="member-setup-config" aria-label="本机配置"><SyncTask recoveryHref={scope.href}/></section></>;
