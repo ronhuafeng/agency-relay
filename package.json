@@ -78,7 +78,7 @@
     "@node-oauth/oauth2-server": "5.3.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "lucide-react": "^1.57.0",
+    "lucide-react": "^1.59.0",
     "radix-ui": "^1.8.1",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
