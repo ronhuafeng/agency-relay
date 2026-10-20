@@ -141,6 +141,60 @@ it("closes opaque SSE before terminal recording and retains only scoped transpor
   }finally{await f.expire("release-terminal");await f.dispose();}
 },20000);
 
+it("frames a completed short body with its exact length and leaves an open body streaming",async()=>{
+  const payload=new TextEncoder().encode('{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2025-11-25"}}');
+  const longer=new Uint8Array(65537);
+  longer.set(payload);
+  let mode:"short"|"empty"|"long"|"open"="short";
+  let source:ReadableStreamDefaultController<Uint8Array>|undefined;
+  const stream=(bytes:Uint8Array[],close:boolean,headers:HeadersInit)=>new Response(new ReadableStream<Uint8Array>({start(controller){
+    for(const chunk of bytes)controller.enqueue(chunk);
+    if(close)controller.close();else source=controller;
+  }}),{headers});
+  const f=await oauthFixture(undefined,{upstream:async request=>{
+    await request.body?.cancel();
+    if(mode==="short")return new Response(payload,{headers:{"Content-Type":"application/json"}});
+    if(mode==="empty")return new Response(null,{status:202});
+    if(mode==="long")return new Response(longer,{headers:{"Content-Type":"application/octet-stream"}});
+    return stream([new Uint8Array([7])],false,{"Content-Type":"text/event-stream"});
+  }});
+  let open:Response|undefined;
+  try{
+    const a=await authorizedTokens(f);
+    const send=()=>f.runtime.dispatchFetch(RESOURCE,{method:"POST",headers:{Authorization:`Bearer ${a.tokens.access_token}`,"Content-Type":"application/json"},body:"{}"});
+    const framedLength=async()=>(await (await f.expire("relay-framing")).json() as {contentLength:string|null}).contentLength;
+    const initialize=await send();
+    expect(await framedLength()).toBe(String(payload.byteLength));
+    const body=new Uint8Array(await initialize.arrayBuffer());
+    expect(initialize.status).toBe(200);
+    const length=initialize.headers.get("content-length");
+    expect(length===null||length===String(payload.byteLength)).toBe(true);
+    expect(length===String(payload.byteLength)||initialize.headers.get("transfer-encoding")==="chunked").toBe(true);
+    expect(Buffer.from(body).equals(payload)).toBe(true);
+    mode="empty";
+    const initialized=await send();
+    expect(await framedLength()).toBe("0");
+    expect(initialized.status).toBe(202);
+    expect(initialized.headers.get("content-length")==="0"||initialized.headers.get("transfer-encoding")==="chunked").toBe(true);
+    expect(await initialized.text()).toBe("");
+    mode="long";
+    const oversized=await send();
+    expect(await framedLength()).toBeNull();
+    expect(oversized.headers.get("Content-Length")).toBeNull();
+    expect(new Uint8Array(await oversized.arrayBuffer())).toEqual(longer);
+    mode="open";
+    const streaming=await send();
+    open=streaming;
+    expect(await framedLength()).toBeNull();
+    expect(streaming.headers.get("Content-Length")).toBeNull();
+    const reader=streaming.body!.getReader();
+    expect(Array.from((await reader.read()).value??[])).toEqual([7]);
+    source?.enqueue(new Uint8Array([8]));
+    expect(Array.from((await reader.read()).value??[])).toEqual([8]);
+    await reader.cancel();
+  }finally{source?.close();await open?.body?.cancel().catch(()=>undefined);await f.dispose();}
+},20000);
+
 async function inventory(f:Awaited<ReturnType<typeof oauthFixture>>):Promise<{leases:number;terminalEntered:boolean;activity:Record<string,unknown>[]}>{
   return await (await f.expire("relay-inventory","member")).json() as {leases:number;terminalEntered:boolean;activity:Record<string,unknown>[]};
 }

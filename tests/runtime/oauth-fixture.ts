@@ -25,6 +25,8 @@ export async function oauthFixture(persist?:string,options:{upstream?:(request:R
         static now(){return fixtureTime;}
       };
       const timers=new Map();let nextTimer=0;
+      globalThis.__nativeSetTimeout=setTimeout;
+      globalThis.__nativeClearTimeout=clearTimeout;
       if(${options.controlledTimers===true}) {
         globalThis.setTimeout=(callback,delay=0)=>{const id=++nextTimer;timers.set(id,{at:fixtureTime+delay,callback});return id;};
         globalThis.clearTimeout=id=>timers.delete(id);
@@ -95,9 +97,11 @@ export async function oauthFixture(persist?:string,options:{upstream?:(request:R
       // by the production Worker. Both profiles use the unchanged relay core.
       RUNTIME_PROFILES['synthetic.catalog']={revision:1,upstream:'https://catalog.example.test/rpc',credentialHeader:'X-Synthetic-Credential',transport:'request-scoped'};
       let installationReadFails=false;
+      let relayContentLength=null;
       export default {async fetch(request,env,ctx){
         if(new URL(request.url).hostname==='fixture.internal') {
           const {kind,value}=await request.json();
+          if(kind==='relay-framing')return Response.json({contentLength:relayContentLength});
           if(kind==='fail-installation-read'){installationReadFails=value==='true';return Response.json({done:true});}
           const secrets=env.RUNTIME_CREDENTIALS.getByName('design');
           if(kind==='fail-write')return Response.json({done:await secrets.failWrite(value==='true')});
@@ -120,7 +124,9 @@ export async function oauthFixture(persist?:string,options:{upstream?:(request:R
           if(key==='prepare')return sql=>{if(sql==='SELECT * FROM runtime_installations WHERE id = ?')throw new Error('Synthetic installation view unavailable');return db.prepare(sql);};
           const value=Reflect.get(db,key);return typeof value==='function'?value.bind(db):value;
         }})}:env;
-        return handleRequest(request,requestEnv,ctx,{fetch:(input,init)=>env.SYNTHETIC_UPSTREAM.fetch(new Request(input,init)),now:()=>new Date()});
+        const response=await handleRequest(request,requestEnv,ctx,{fetch:(input,init)=>env.SYNTHETIC_UPSTREAM.fetch(new Request(input,init)),now:()=>new Date()});
+        relayContentLength=response.headers.get('Content-Length');
+        return response;
       }};`},
     bundle:true,write:false,format:"esm",platform:"node",external:["cloudflare:workers"],
     banner:{js:'import {createRequire} from "node:module";const require=createRequire("/");'},
