@@ -9,6 +9,10 @@ updates:
       time: "09:00"
       timezone: Asia/Shanghai
     groups:
+      react-runtime:
+        patterns:
+          - "react"
+          - "react-dom"
       pnpm-development:
         dependency-type: development
 
