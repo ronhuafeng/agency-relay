@@ -196,7 +196,10 @@ Request projection preserves content negotiation/encoding, `Mcp-Protocol-Version
 All other request headers are removed before credential injection. Response
 projection permits content type/encoding/language, the three named MCP headers
 and Retry-After; custom headers, cookies, credentials, redirects and upstream
-authentication challenges are not exported. Responses are no-store. JSON/SSE
+authentication challenges are not exported. A response whose complete forwarded
+bytes are at most 64 KiB carries `Content-Length` equal to that exact count.
+An upstream length is not copied. A longer or still-open body stays a
+pull-driven stream and has no `Content-Length`. Responses are no-store. JSON/SSE
 bytes and SSE envelopes remain opaque, with Workers-owned re-encoding rather
 than manual compression marking.
 

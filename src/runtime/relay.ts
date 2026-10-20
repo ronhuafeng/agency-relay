@@ -8,6 +8,7 @@ const CONTENT_HEADERS=new Set(["accept","accept-encoding","accept-language","con
 const MCP_HEADERS=new Set(["mcp-protocol-version","mcp-method","mcp-name"]);
 const MAX_UPLOAD_BYTES=8*1024*1024;
 const IDLE_MS=60000;
+const DEFINITE_RESPONSE_BYTES=65536;
 class RelayFailure extends Error {constructor(readonly code:RuntimeTransportError){super(code);}}
 
 /** Runtime's complete admission/projection/one-dispatch interface. Not a
@@ -81,20 +82,94 @@ export async function relayRuntimeRequest(request:Request,env:Env,ctx:Pick<Execu
     const responseHeaders=projectHeaders(upstream.headers,false);
     responseHeaders.set("Cache-Control","no-store");
     responseHeaders.set("Referrer-Policy","no-referrer");
-    const body=upstream.body?clientDrivenStream(upstream.body,abortController.signal,{
-      idleMs:IDLE_MS,onChunk:(chunk)=>{bytes=Math.min(Number.MAX_SAFE_INTEGER,bytes+chunk.byteLength);},
-      onEnd:(kind,error)=>{
-        const code=failure??(error instanceof ByteStreamError?"stream_idle_timeout":kind==="error"?"upstream_transport_failed":null);
-        finish(code&&code!=="client_request_aborted"?"error":kind,code);
-      }
-    }):null;
-    if(!body)finish("completed");
-    return new Response(body,{status:upstream.status,statusText:upstream.statusText,headers:responseHeaders});
+    const framed=await frameUpstreamBody(upstream,abortController.signal,(chunk)=>{bytes=Math.min(Number.MAX_SAFE_INTEGER,bytes+chunk.byteLength);},(kind,error)=>{
+      const code=failure??(error instanceof ByteStreamError?"stream_idle_timeout":kind==="error"?"upstream_transport_failed":null);
+      finish(code&&code!=="client_request_aborted"?"error":kind,code);
+    });
+    if(framed.kind==="definite"){
+      bytes=framed.bytes.byteLength;
+      responseHeaders.set("Content-Length",String(framed.bytes.byteLength));
+      finish("completed");
+      return new Response(framed.bytes,{status:upstream.status,statusText:upstream.statusText,headers:responseHeaders});
+    }
+    return new Response(framed.stream,{status:upstream.status,statusText:upstream.statusText,headers:responseHeaders});
   }catch(error){
     const code=error instanceof RelayFailure?error.code:failure??"upstream_transport_failed";
     finish(code==="client_request_aborted"?"cancelled":"error",code);
     return runtimeFailure(code==="client_request_aborted"?499:code==="request_too_large"?413:code==="stream_idle_timeout"||code==="lease_expired"?504:code==="upstream_credential_unavailable"?503:502,code);
   }
+}
+
+
+async function frameUpstreamBody(upstream:Response,signal:AbortSignal,onChunk:(chunk:Uint8Array)=>void,onEnd:(kind:ByteStreamEnd,error?:unknown)=>void):Promise<{kind:"definite";bytes:ArrayBuffer}|{kind:"open";stream:ReadableStream<Uint8Array>}> {
+  if(!upstream.body)return {kind:"definite",bytes:new ArrayBuffer(0)};
+  const reader=upstream.body.getReader();
+  const buffered:Uint8Array[]=[];
+  let total=0;
+  let pending:Promise<ReadableStreamReadResult<Uint8Array>>|undefined;
+  const timers=nativeTimers();
+  const open=(queued:Promise<ReadableStreamReadResult<Uint8Array>>|undefined)=>({kind:"open" as const,stream:clientDrivenStream(remainingBody(reader,buffered.splice(0),queued),signal,{idleMs:IDLE_MS,onChunk,onEnd})});
+  try{
+    while(total<=DEFINITE_RESPONSE_BYTES){
+      if(signal.aborted)throw new Error("relay_aborted");
+      const read=reader.read();
+      pending=read;
+      let timer:ReturnType<typeof setTimeout>|undefined;
+      const outcome=await Promise.race([
+        read.then(result=>({kind:"read" as const,result})).catch(error=>({kind:"error" as const,error})),
+        new Promise<{kind:"wait"}>(resolve=>{timer=timers.set(()=>resolve({kind:"wait"}),0);})
+      ]);
+      if(timer!==undefined)timers.clear(timer);
+      if(outcome.kind==="wait"){
+        if(signal.aborted)throw new Error("relay_aborted");
+        return open(pending);
+      }
+      pending=undefined;
+      if(outcome.kind==="error")throw outcome.error;
+      if(outcome.result.done){
+        try{reader.releaseLock();}catch{/* The completed reader is already released. */}
+        return {kind:"definite",bytes:concatBytes(buffered,total)};
+      }
+      buffered.push(outcome.result.value);
+      total+=outcome.result.value.byteLength;
+      if(total>DEFINITE_RESPONSE_BYTES)return open(undefined);
+    }
+  }catch(error){
+    await reader.cancel().catch(()=>undefined);
+    try{reader.releaseLock();}catch{/* The failed reader is already released. */}
+    throw error;
+  }
+  return open(undefined);
+}
+
+/** Bytes already pulled stay in order ahead of the one in-flight read.
+ * A second read on this reader would be rejected. */
+function remainingBody(reader:ReadableStreamDefaultReader<Uint8Array>,prefix:Uint8Array[],pending?:Promise<ReadableStreamReadResult<Uint8Array>>):ReadableStream<Uint8Array> {
+  const queued=prefix;
+  let next=pending;
+  const release=()=>{try{reader.releaseLock();}catch{/* The reader is already released. */}};
+  return new ReadableStream<Uint8Array>({
+    async pull(controller){
+      if(queued.length>0){controller.enqueue(queued.shift()!);return;}
+      const result=next?await next:await reader.read();
+      next=undefined;
+      if(result.done){release();controller.close();return;}
+      controller.enqueue(result.value);
+    },
+    async cancel(reason){try{await reader.cancel(reason);}finally{release();}}
+  },{highWaterMark:0});
+}
+
+function concatBytes(chunks:Uint8Array[],total:number):ArrayBuffer {
+  const bytes=new Uint8Array(new ArrayBuffer(total));
+  let offset=0;
+  for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.byteLength;}
+  return bytes.buffer;
+}
+
+function nativeTimers():{set:typeof setTimeout;clear:typeof clearTimeout} {
+  const host=globalThis as {__nativeSetTimeout?:typeof setTimeout;__nativeClearTimeout?:typeof clearTimeout};
+  return {set:host.__nativeSetTimeout??setTimeout,clear:host.__nativeClearTimeout??clearTimeout};
 }
 
 /** Explicit protocol/content allowlist: credentials/custom response challenges
