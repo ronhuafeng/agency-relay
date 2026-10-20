@@ -337,7 +337,8 @@ export class RuntimeOAuth extends DurableObject<Env> {
         if(performance.now()>=deadline)throw new Error();
         this.ctx.storage.sql.exec("INSERT INTO access_tokens VALUES (?,?,?)",accessHash,consent.id,token.accessTokenExpiresAt.getTime());
         this.ctx.storage.sql.exec("INSERT INTO refresh_tokens VALUES (?,?,?,0)",refreshHash,consent.id,consent.deadline);
-        return {...token,client:wire,user};
+        // The library omits client/user from its input type; keep the required token field explicit.
+        return {...token,accessToken:token.accessToken,client:wire,user};
       }
     };
   }
