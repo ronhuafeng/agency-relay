@@ -301,11 +301,17 @@ it("selects each fixed profile by exact path on a shared origin without sharing 
 
 it("rejects unsupported session/resumption, version, origin, path and query before any upstream dispatch",async()=>{
   let attempts=0;
-  const f=await oauthFixture(undefined,{upstream:async request=>{attempts++;await request.body?.cancel();return new Response(null,{status:202});}});
+  const versions:Array<string|null>=[];
+  const f=await oauthFixture(undefined,{upstream:async request=>{attempts++;versions.push(request.headers.get("Mcp-Protocol-Version"));await request.body?.cancel();return new Response(null,{status:202});}});
   try{
     const a=await authorizedTokens(f);
     const send=(url=RESOURCE,headers:HeadersInit={},method="POST")=>f.runtime.dispatchFetch(url,{method,headers:{Authorization:`Bearer ${a.tokens.access_token}`,...headers},...(method==="POST"?{body:"{}"}:{})});
-    for(const headers of [new Headers({"Mcp-Session-Id":"old-session"}),new Headers({"Last-Event-ID":"old-cursor"}),new Headers({"Mcp-Protocol-Version":"2024-11-05"})])expect((await send(RESOURCE,Object.fromEntries(headers))).status).toBe(400);
+    for(const headers of [new Headers({"Mcp-Session-Id":"old-session"}),new Headers({"Last-Event-ID":"old-cursor"}),new Headers({"Mcp-Protocol-Version":"2025-03-26"}),new Headers({"Mcp-Protocol-Version":"2025-06-18"})])expect((await send(RESOURCE,Object.fromEntries(headers))).status).toBe(400);
+    expect(attempts).toBe(0);
+    const legacy=await send(RESOURCE,{"Mcp-Protocol-Version":"2024-11-05"});
+    expect(legacy.status).toBe(202);
+    await legacy.body?.cancel();
+    expect(versions).toEqual(["2024-11-05"]);
     expect((await send(RESOURCE,{Origin:"https://foreign.example.test"})).status).toBe(403);
     for(const url of [RESOURCE+"?key=synthetic",RESOURCE+"?safe=1",RESOURCE+"/child",RESOURCE+"/",RESOURCE+"/mcp",
       "https://design.example.test/mcp","https://design.example.test/stitch","https://design.example.test/%67oogle-stitch"]) {
@@ -313,7 +319,7 @@ it("rejects unsupported session/resumption, version, origin, path and query befo
     }
     expect((await send(RESOURCE,{},"GET")).status).toBe(405);
     expect((await send(RESOURCE,{},"DELETE")).status).toBe(405);
-    expect(attempts).toBe(0);
+    expect(attempts).toBe(1);
   }finally{await f.dispose();}
 },20000);
 
