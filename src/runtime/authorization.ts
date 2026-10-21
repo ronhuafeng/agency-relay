@@ -122,7 +122,7 @@ export async function admitRuntimeRequest(request:Request,env:Env):Promise<Runti
     if(request.headers.has("Upgrade")||request.headers.has("Mcp-Session-Id")||request.headers.has("Last-Event-ID"))return protocolResponse({error:"runtime_transport_unsupported"},400);
     const version=request.headers.get("Mcp-Protocol-Version");
     // Absent during legacy initialize is forwarded, not invented by the relay.
-    if(version!==null&&version!=="2024-11-05"&&version!=="2025-11-25"&&version!=="2026-07-28")return protocolResponse({error:"runtime_transport_unsupported"},400);
+    if(version!==null&&version!=="2024-11-05"&&version!=="2025-06-18"&&version!=="2025-11-25"&&version!=="2026-07-28")return protocolResponse({error:"runtime_transport_unsupported"},400);
     if(request.headers.has("Origin")&&request.headers.get("Origin")!==url.origin)return protocolResponse({error:"access_denied"},403);
     const header=request.headers.get("Authorization")??"";
     const token=/^Bearer ([A-Za-z0-9_-]{20,256})$/i.exec(header)?.[1];
