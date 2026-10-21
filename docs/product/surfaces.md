@@ -175,8 +175,9 @@ and injects the exact admitted secret version as `X-Goog-Api-Key`. No incoming
 path, query, body, header or client version selects that URL or credential.
 No query is allowed. A present Origin must equal the resource origin.
 
-The supported envelope headers declare `2025-11-25` or `2026-07-28`.
-An absent version during initialization is forwarded, not synthesized. The
+The supported envelope headers declare `2024-11-05`, `2025-11-25`, or `2026-07-28`.
+Any other `Mcp-Protocol-Version` is rejected before dispatch. An absent version
+during initialization is forwarded, not synthesized. The
 2025 compatibility subset forwards initialize and notifications but supports
 only stateless POST exchanges. Modern requests do not need a relay-owned
 initialize step. Agency Relay does not compare JSON-RPC bodies with headers,
