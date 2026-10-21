@@ -306,12 +306,15 @@ it("rejects unsupported session/resumption, version, origin, path and query befo
   try{
     const a=await authorizedTokens(f);
     const send=(url=RESOURCE,headers:HeadersInit={},method="POST")=>f.runtime.dispatchFetch(url,{method,headers:{Authorization:`Bearer ${a.tokens.access_token}`,...headers},...(method==="POST"?{body:"{}"}:{})});
-    for(const headers of [new Headers({"Mcp-Session-Id":"old-session"}),new Headers({"Last-Event-ID":"old-cursor"}),new Headers({"Mcp-Protocol-Version":"2025-03-26"}),new Headers({"Mcp-Protocol-Version":"2025-06-18"})])expect((await send(RESOURCE,Object.fromEntries(headers))).status).toBe(400);
+    for(const headers of [new Headers({"Mcp-Session-Id":"old-session"}),new Headers({"Last-Event-ID":"old-cursor"}),new Headers({"Mcp-Protocol-Version":"2025-03-26"})])expect((await send(RESOURCE,Object.fromEntries(headers))).status).toBe(400);
     expect(attempts).toBe(0);
     const legacy=await send(RESOURCE,{"Mcp-Protocol-Version":"2024-11-05"});
+    const negotiated=await send(RESOURCE,{"Mcp-Protocol-Version":"2025-06-18"});
     expect(legacy.status).toBe(202);
+    expect(negotiated.status).toBe(202);
     await legacy.body?.cancel();
-    expect(versions).toEqual(["2024-11-05"]);
+    await negotiated.body?.cancel();
+    expect(versions).toEqual(["2024-11-05","2025-06-18"]);
     expect((await send(RESOURCE,{Origin:"https://foreign.example.test"})).status).toBe(403);
     for(const url of [RESOURCE+"?key=synthetic",RESOURCE+"?safe=1",RESOURCE+"/child",RESOURCE+"/",RESOURCE+"/mcp",
       "https://design.example.test/mcp","https://design.example.test/stitch","https://design.example.test/%67oogle-stitch"]) {
@@ -319,7 +322,7 @@ it("rejects unsupported session/resumption, version, origin, path and query befo
     }
     expect((await send(RESOURCE,{},"GET")).status).toBe(405);
     expect((await send(RESOURCE,{},"DELETE")).status).toBe(405);
-    expect(attempts).toBe(1);
+    expect(attempts).toBe(2);
   }finally{await f.dispose();}
 },20000);
 
