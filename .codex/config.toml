@@ -1,6 +1,6 @@
+mcp_oauth_credentials_store = "file"
 [mcp_servers.stitch]
-url = "https://stitch.googleapis.com/mcp"
-env_http_headers = { "X-Goog-Api-Key" = "STITCH_API_KEY" }
+url = "https://mcp.trustedtunnel.app/google-stitch"
 
 [plugins."stitch-design@agency-relay"]
 enabled = true
