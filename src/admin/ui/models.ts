@@ -57,7 +57,6 @@ export interface CreditPolicyControl {
 }
 
 export interface AddAccountControl {
-  readonly range: string;
   readonly query: string;
   readonly page: string;
 }
@@ -215,8 +214,8 @@ export function readCreditPolicy(value: unknown): CreditPolicyControl | null {
 
 export function readAddAccount(value: unknown): AddAccountControl | null {
   if (!isRecord(value)) return null;
-  if (typeof value.range !== "string" || typeof value.query !== "string" || typeof value.page !== "string") return null;
-  return { range: value.range, query: value.query, page: value.page };
+  if (typeof value.query !== "string" || typeof value.page !== "string") return null;
+  return { query: value.query, page: value.page };
 }
 
 export function readAccessChoice(value: unknown): AccessChoiceControl | null {

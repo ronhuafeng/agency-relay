@@ -24,7 +24,6 @@ interface SetupUser {
 }
 export interface SetupPageModel {
   readonly canonicalUrl: string;
-  readonly range: { readonly key: string };
   readonly nowMs: number;
   readonly selectedPersonId: string | null;
   readonly selectedKeyId: string | null;
@@ -36,8 +35,8 @@ export interface SetupPageModel {
   readonly mutationFlash?: DashboardMutationFlash | null;
 }
 
-function freshAccessHref(userId: string, range: string, base: string): string {
-  return inventoryUrl(base, {view:"access",range,person:userId,task:"give-access",key:null,q:null,page:null}, "give-access");
+function freshAccessHref(userId: string, base: string): string {
+  return inventoryUrl(base, {view:"access",range:null,person:userId,task:"give-access",key:null,q:null,page:null}, "give-access");
 }
 function verificationText(client: string, verifications: readonly KeyClientVerificationRow[], userId: string, keyId: string) {
   const rows = verifications.filter(row=>row.user_id===userId && row.key_id===keyId && executionPlanPresentation(row.route_profile_id).clientLabel===client);
@@ -64,7 +63,7 @@ function SetupDetail({model,closeHref,held}: {readonly model: SetupPageModel; re
     state:key.status!=="active"?"revoked":expired?"expired":person.status!=="active"?"paused":"active",status:keyStateLabel(key,person,model.nowMs),files,hideTemplates:justCreated,
     verifications:files.map(file=>({client:file.client,...verificationText(Object.values(PRODUCT_ACCESS).find(access=>access.id===file.client)!.label,model.verifications,person.id,key.id)})),
     closeHref,heldHref:inventoryUrl(model.canonicalUrl,{task:"sync-configuration"},"setup-detail"),selectedHref:inventoryUrl(model.canonicalUrl,{task:null},"setup-detail"),manageHref:inventoryUrl(model.canonicalUrl,{view:"access",q:null,page:null,task:null}),
-    newKeyHref:!justCreated && key.status==="active" && expired ? freshAccessHref(person.id,model.range.key,model.canonicalUrl) : undefined,
+    newKeyHref:!justCreated && key.status==="active" && expired ? freshAccessHref(person.id,model.canonicalUrl) : undefined,
     replacement:replace ? {action:"/admin/ui/keys/"+encodeURIComponent(key.id)+"/replace",returnHref:model.canonicalUrl,confirmation:"为 "+key.key_prefix+" 换发密钥并下载配置包？这会创建一个新密钥。换发不会自动撤销原密钥。请先保存文件，再验证客户端。"} : undefined
   }}}/>;
 }

@@ -168,7 +168,7 @@ describe('task-oriented console layouts',()=>{
     }
   });
   it('links Home failures to the observed plan, UTC date and failure result',()=>{
-    const model:HomeModel={canonicalUrl:'/admin',range:{key:'7d'},userCount:2,keyCount:3,accounts:[],trends:{range:parseUsageTrendRange(new URL('https://console.invalid/?range=7d'),new Date(at)),daily:{responses:[],media:[]},scopeLabel:'组织用量'},attempts:[{route_profile_id:'codex.responses',request_count:4,ok_count:1,error_count:3,last_success_at:'2026-06-23T09:00:00.000Z',last_failure_at:at,avg_latency_ms:null,upstream_status_sample:null}]};
+    const model:HomeModel={canonicalUrl:'/admin',userCount:2,keyCount:3,accounts:[],trends:{range:parseUsageTrendRange(new URL('https://console.invalid/?range=7d'),new Date(at)),daily:{responses:[],media:[]},scopeLabel:'组织用量'},attempts:[{route_profile_id:'codex.responses',request_count:4,ok_count:1,error_count:3,last_success_at:'2026-06-23T09:00:00.000Z',last_failure_at:at,avg_latency_ms:null,upstream_status_sample:null}]};
     const doc=new JSDOM(renderToStaticMarkup(createElement(HomePage,{model}))).window.document;
     const link=doc.querySelector('[data-attention="client-failure"] a')!;
     const url=new URL(link.getAttribute('href')!,'https://console.invalid');

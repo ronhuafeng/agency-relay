@@ -62,7 +62,7 @@ describe("account linked access", () => {
     expect(list).not.toContain("xAI API");
     expect(list).not.toContain("codex-only");
     expect(list).not.toContain("grok-other");
-    expect(list).toContain('href="/admin?view=access&amp;range=30d&amp;person=People%20%2F%20%3Cteam%3E%20%26%20%E4%B8%AD%E6%96%87&amp;key=grok-both"');
+    expect(list).toContain('href="/admin?view=access&amp;person=People%20%2F%20%3Cteam%3E%20%26%20%E4%B8%AD%E6%96%87&amp;key=grok-both"');
     expect(list).not.toContain("<form");
     expect(html).not.toContain("private_hash_");
     const other = await f.render("&account=grok%3Agrok-only");
@@ -98,7 +98,7 @@ describe("account linked access", () => {
     expect(linkedSection(second.html).match(/data-linked-key=/g)).toHaveLength(25);
     expect(linkedSection(second.html)).toContain('data-linked-key="key-064"');
     expect(second.html).toContain('name="return_page" value="2"');
-    expect(new JSDOM(second.html).window.document.querySelector("a[data-task-close]")?.getAttribute("href")).toBe("/admin?view=credentials&range=30d&q=ChatGPT#accounts-list");
+    expect(new JSDOM(second.html).window.document.querySelector("a[data-task-close]")?.getAttribute("href")).toBe("/admin?view=credentials&q=ChatGPT#accounts-list");
     const switchLink = second.html.match(/class="account-link"[^>]*href="([^"]*account=codex%3Acollision[^"]*)"/)?.[1];
     expect(switchLink).toBeDefined();
     expect(switchLink).not.toContain("page=");
@@ -183,8 +183,8 @@ describe("exact account tasks", () => {
     expect(html.match(/<li data-account-key=/g)).toHaveLength(2);
     expect(detail(html)).toContain('data-codex-admin="true"');
     expect(f.load.mock.calls).toEqual([["collision"]]);
-    expect(new JSDOM(html).window.document.querySelector("a[data-task-close]")?.getAttribute("href")).toBe("/admin?view=credentials&range=30d&q=Grok#accounts-list");
-    expect(html).toContain('href="/admin?view=credentials&amp;range=30d&amp;q=Grok&amp;task=add-account#account-detail"');
+    expect(new JSDOM(html).window.document.querySelector("a[data-task-close]")?.getAttribute("href")).toBe("/admin?view=credentials&q=Grok#accounts-list");
+    expect(html).toContain('href="/admin?view=credentials&amp;q=Grok&amp;task=add-account#account-detail"');
     expect(html).toContain('name="q" value="Grok"');
     expect(html).toContain('name="return_q" value="Grok"');
     expect(html).toContain('name="account" value="codex:collision"');
@@ -207,7 +207,7 @@ describe("exact account tasks", () => {
   it("keeps root-path selection links in the current document's navigation scope", async () => {
     const f = fixture();
     const { html } = await f.render("", undefined, "/");
-    expect(html).toContain('href="/?view=credentials&amp;range=30d&amp;account=codex%3Acollision#account-detail"');
+    expect(html).toContain('href="/?view=credentials&amp;account=codex%3Acollision#account-detail"');
     expect(new JSDOM(html).window.document.querySelector('#accounts-list a[href^="/admin?view=credentials"]')).toBeNull();
   });
   it("shows a complete inventory and independent default tasks without reading provider snapshots", async () => {
@@ -235,8 +235,8 @@ describe("exact account tasks", () => {
     const prefix = `/admin/ui/${provider === "codex" ? "codex-auths" : "subscriptions"}/collision/`;
     expect(actions.length).toBeGreaterThan(0);
     expect(actions.every(action => action.startsWith(prefix))).toBe(true);
-    expect(html).toContain(`data-dashboard-url="/admin?view=credentials&amp;range=30d&amp;account=${provider}%3Acollision"`);
-    expect(new JSDOM(html).window.document.querySelector("a[data-task-close]")?.getAttribute("href")).toBe("/admin?view=credentials&range=30d#accounts-list");
+    expect(html).toContain(`data-dashboard-url="/admin?view=credentials&amp;account=${provider}%3Acollision"`);
+    expect(new JSDOM(html).window.document.querySelector("a[data-task-close]")?.getAttribute("href")).toBe("/admin?view=credentials#accounts-list");
     if (provider === "codex") {
       expect(f.load.mock.calls).toEqual([["collision"]]);
       const dossier = new JSDOM(pane).window.document.querySelector('[data-chatgpt-dossier]')!;
@@ -268,7 +268,7 @@ describe("exact account tasks", () => {
     expect(detail(html)).toContain('<h2>添加账号</h2>');
     expect(detail(html)).toContain('action="/admin/ui/codex-auths"');
     expect(detail(html)).toContain('action="/admin/ui/subscriptions"');
-    expect(detail(html)).toContain('name="return_range" value="30d"');
+    expect(detail(html)).not.toContain('name="return_range"');
     expect(detail(html)).not.toContain('data-mgmt-state=');
     expect(f.load).not.toHaveBeenCalled();
   });
@@ -280,9 +280,9 @@ describe("exact account tasks", () => {
     const pane = detail(html);
     expect(pane).toContain('data-mgmt-state="authorizing"');
     expect(pane).toContain('name="session_id" value="synthetic-pending"');
-    expect(pane).toMatch(new RegExp(`<a[^>]*href="/admin\\?view=credentials&amp;range=30d&amp;account=${provider}%3Acollision"[^>]*data-action="oauth-cancel"`));
+    expect(pane).toMatch(new RegExp(`<a[^>]*href="/admin\\?view=credentials&amp;account=${provider}%3Acollision"[^>]*data-action="oauth-cancel"`));
     expect(pane).not.toContain('data-dashboard-draft=');
-    expect(pane).toContain('name="return_range" value="30d"');
+    expect(pane).not.toContain('name="return_range"');
     const returned = await f.render(`&account=${provider}%3Acollision`);
     expect(returned.html).not.toContain('data-oauth-pending="true"');
     expect(returned.html).not.toContain('synthetic-pending');

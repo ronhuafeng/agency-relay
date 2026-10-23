@@ -61,7 +61,7 @@ export function consoleReturnTarget(value: string): string | null {
   if(query.has('installation')&&!/^[a-z][a-z0-9-]{0,63}$/.test(query.get('installation')!))return null;
   if(view==='runtime'&&(query.has('q')||query.has('page'))&&!query.has('installation'))return null;
   if (query.has('page_size') && !DASHBOARD_PEOPLE_PAGE_SIZES.some(size => String(size) === query.get('page_size'))) return null;
-  if (query.has('range') && !(['overview', 'usage'].includes(view) ? ['1d', '7d', '30d'] : ['today', '7d', '30d', 'all']).includes(query.get('range')!)) return null;
+  if (['overview', 'usage'].includes(view) && query.has('range') && !['1d', '7d', '30d'].includes(query.get('range')!)) return null;
   for (const field of ['person', 'key', 'plan', 'model']) if (query.has(field) && !query.get(field)?.trim()) return null;
   for (const field of ['q', 'key_q']) if ((query.get(field)?.length ?? 0) > 256) return null;
   for (const field of ['page', 'key_page']) if (query.has(field) && !isDashboardPageToken(query.get(field)!)) return null;

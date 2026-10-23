@@ -1559,7 +1559,6 @@ async function dashboardAfterMutation(
   flash: DashboardMutationFlash,
   status = 200,
   keyReturn?: string,
-  accountRange?: string,
   accountSearch?: string,
   accountPage?: string
 ): Promise<Response> {
@@ -1575,7 +1574,6 @@ async function dashboardAfterMutation(
   if (view === "credentials") {
     const account = dashboardAccountForMutation(flash);
     if (account) pageUrl.searchParams.set("account", account);
-    if (accountRange && ["today", "7d", "30d", "all"].includes(accountRange)) pageUrl.searchParams.set("range", accountRange);
     if (accountSearch && accountSearch.length <= 256 && !/[\u0000-\u001f\u007f]/.test(accountSearch)) pageUrl.searchParams.set("q", accountSearch.trim());
     if (account && accountPage && isDashboardPageToken(accountPage)) pageUrl.searchParams.set("page", accountPage);
   }
@@ -1607,20 +1605,17 @@ async function dashboardAfterMutation(
     const destination = dashboardKeyReturnUrl(keyReturn ?? null, action, flash.previous_key_id, new Date(requestContext.startedAt));
     const setupDestination = destination ? null : dashboardKeyReturnUrl(keyReturn ?? null, action, flash.previous_key_id, new Date(requestContext.startedAt), "setup");
     if (setupDestination) {
-      for (const field of ["range", "q", "page"]) {
+      for (const field of ["q", "page"]) {
         const value = setupDestination.searchParams.get(field);
         if (value) pageUrl.searchParams.set(field, value);
       }
     }
-    const previous = destination ?? new URL(`/admin?view=access&range=${pageUrl.searchParams.get("range") ?? "7d"}&person=${encodeURIComponent(flash.user_id)}&key=${encodeURIComponent(flash.previous_key_id)}`, url);
+    const previous = destination ?? new URL(`/admin?view=access&person=${encodeURIComponent(flash.user_id)}&key=${encodeURIComponent(flash.previous_key_id)}`, url);
     previous.pathname = "/admin";
     flash = { ...flash, previous_key_url: `${previous.pathname}${previous.search}` };
     previous.searchParams.delete("key");
     previous.hash = "keys";
     flash = { ...flash, return_url: `${previous.pathname}${previous.search}${previous.hash}` };
-    if (destination) {
-      pageUrl.searchParams.set("range", destination.searchParams.get("range") ?? "7d");
-    }
   }
   if (flash.kind === "key_created" || flash.kind === "key_replacement_created") {
     pageUrl.searchParams.set("person", flash.user_id);
@@ -2034,8 +2029,8 @@ function stringField(body: JsonObject, field: string): string | undefined {
   return firstString(body[field]) || undefined;
 }
 
-function mutationReturn(body: JsonObject): [string | undefined, string | undefined, string | undefined] {
-  return [stringField(body, "return_range"), stringField(body, "return_q"), stringField(body, "return_page")];
+function mutationReturn(body: JsonObject): [string | undefined, string | undefined] {
+  return [stringField(body, "return_q"), stringField(body, "return_page")];
 }
 
 function dashboardKeyExpiry(body: JsonObject): string | null | undefined {

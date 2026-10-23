@@ -26,7 +26,7 @@ it("returns native role/email outcomes to the exact member and bounded list cont
     const doc = new JSDOM(await response.text()).window.document;
     const destination = new URL(doc.querySelector("main")?.getAttribute("data-dashboard-url") ?? "", host);
     expect(destination.searchParams.get("person")).toBe("target");
-    expect(destination.searchParams.get("range")).toBe("30d");
+    expect(destination.searchParams.has("range")).toBe(false);
     expect(destination.searchParams.get("q")).toBe("target");
     expect(destination.searchParams.get("page")).toBe("2");
     expect(doc.querySelector(`[data-mutation-flash="user_${action}"]`)).not.toBeNull();
@@ -39,7 +39,7 @@ it("returns native role/email outcomes to the exact member and bounded list cont
   expect(fixture.db.users.get("target")?.email).toBe("next+work@example.com");
   const outside = await form(fixture, token, "target", "role", { role: "user", person_return: "https://evil.test/admin?view=access&person=target" });
   const outsideDoc = new JSDOM(await outside.text()).window.document;
-  expect(outsideDoc.querySelector("main")?.getAttribute("data-dashboard-url")).toBe("/admin?view=access&range=7d&person=target");
+  expect(outsideDoc.querySelector("main")?.getAttribute("data-dashboard-url")).toBe("/admin?view=access&person=target");
 });
 
 it("finishes self-demotion without loading a forbidden management page", async () => {

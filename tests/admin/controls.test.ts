@@ -34,9 +34,10 @@ describe("typed console controls", () => {
     const data = new FormData(element("form", HTMLFormElement)); expect(data.getAll("surfaces")).toEqual(["codex"]); expect(data.get("expires_at")).toBe(""); expect(element("select", HTMLSelectElement).getAttribute("aria-hidden")).toBe(null);
   });
   it("identifies both provider choices before script enhancement", () => {
-    document.body.innerHTML = renderToString(createElement(AddAccountView, {control: {range: "7d", query: "", page: "1"}}));
+    document.body.innerHTML = renderToString(createElement(AddAccountView, {control: {query: "", page: "1"}}));
     const chatgpt = element('form[aria-label="添加 ChatGPT 账号"]', HTMLFormElement);
     const grok = element('form[aria-label="添加 Grok 账号"]', HTMLFormElement);
+    expect(document.body.innerHTML).not.toContain('name="return_range"');
     expect(chatgpt.querySelector('h3')?.textContent).toBe("ChatGPT");
     expect(grok.querySelector('h3')?.textContent).toBe("Grok");
     expect(chatgpt.getAttribute('action')).toBe("/admin/ui/codex-auths");

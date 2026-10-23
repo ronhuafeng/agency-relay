@@ -54,7 +54,7 @@ describe('bounded human control audit', () => {
     const person = model.rows.find(row => row.target_type === 'user' && row.target_id === 'person')!;
     expect(person.target_label).toBe('current@example.test');
     expect(person.actor_email).toBe('historical@example.test');
-    expect(person.target_href).toBe('/admin?view=access&range=7d&person=person');
+    expect(person.target_href).toBe('/admin?view=access&person=person');
     expect(model.rows.find(row => row.target_type === 'codex_auth')?.target_href).toContain('account=codex%3Ashared-id');
     expect(model.rows.find(row => row.target_type === 'subscription_account')?.target_href).toContain('account=grok%3Ashared-id');
     expect(model.rows.find(row => row.target_id === 'missing')?.target_href).toBeNull();

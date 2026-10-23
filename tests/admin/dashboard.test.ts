@@ -386,11 +386,11 @@ describe("Dashboard", () => {
       loadCodexAccount: async () => softFailAccount
     })).text();
     const setup = await render(`https://admin.example.test/admin?view=setup&person=${encodeURIComponent(person)}&key=expired-target`);
-    expect(setup).toContain(`href="/admin?view=access&amp;range=7d&amp;person=${encodeURIComponent(person)}&amp;task=give-access#give-access"`);
+    expect(setup).toContain(`href="/admin?view=access&amp;person=${encodeURIComponent(person)}&amp;task=give-access#give-access"`);
     const selected = await render(`https://admin.example.test/admin?view=access&range=30d&person=${encodeURIComponent(person)}&task=give-access`);
     expect(selected).toContain(`<input type="hidden" name="user_id" value="${person.replaceAll("&", "&amp;")}"/>`);
-    expect(selected).toContain(`data-dashboard-url="/admin?view=access&amp;range=30d&amp;person=${encodeURIComponent(person)}&amp;task=give-access"`);
-    expect(new JSDOM(selected).window.document.querySelector("a[data-discard-draft]")?.getAttribute("href")).toBe(`/admin?view=access&range=30d&person=${encodeURIComponent(person)}#keys`);
+    expect(selected).toContain(`data-dashboard-url="/admin?view=access&amp;person=${encodeURIComponent(person)}&amp;task=give-access"`);
+    expect(new JSDOM(selected).window.document.querySelector("a[data-discard-draft]")?.getAttribute("href")).toBe(`/admin?view=access&person=${encodeURIComponent(person)}#keys`);
     const missing = await render("https://admin.example.test/admin?view=access&person=missing&task=give-access");
     expect(missing).toContain('未显示人员');
     expect(missing).not.toContain('name="user_id"');
@@ -432,7 +432,7 @@ describe("Dashboard", () => {
     expect(detail).not.toContain('Filter credit');
     const task = await render("&person=Alex&task=give-access");
     expect(task).toContain('<title>创建密钥 · Agency Relay 控制台</title>');
-    expect(task).toContain('data-dashboard-url="/admin?view=access&amp;range=7d&amp;person=Alex&amp;task=give-access"');
+    expect(task).toContain('data-dashboard-url="/admin?view=access&amp;person=Alex&amp;task=give-access"');
     expect(task).toContain('name="user_id" value="Alex"');
     expect(task).toContain('data-dashboard-draft="access" data-draft-scope="Alex"');
     expect(new JSDOM(task).window.document.querySelector("a[aria-label=\"收起创建密钥\"]")?.getAttribute("href")).toContain("person=Alex");
@@ -444,7 +444,7 @@ describe("Dashboard", () => {
     expect(adding).toContain('action="/admin/ui/users"');
     expect(adding).toContain('>取消</a>');
     expect(adding).not.toContain('name="user_id"');
-    expect(adding).toContain('data-dashboard-url="/admin?view=access&amp;range=7d&amp;task=add-person"');
+    expect(adding).toContain('data-dashboard-url="/admin?view=access&amp;task=add-person"');
   });
 
   it.each(["view=access&task=unknown", "view=overview&task=add-person", "view=access&task=add-person&task=add-person", "view=access&task=give-access", "view=access&task=give-access&person=", "view=setup&task=give-access&person=Alex"])("rejects an invalid task query %s", async (query) => {
@@ -487,7 +487,7 @@ describe("Dashboard", () => {
     const html = await response.text();
     expect(html).toContain("data-dashboard-unavailable");
     expect(html).toContain('aria-label="控制台页面"');
-    expect(html).toContain(`href="/admin?view=${view}&amp;range=7d"`);
+    expect(html).toContain(`href="/admin?view=${view}${view === "overview" || view === "usage" ? "&amp;range=7d" : ""}"`);
     expect(html).toContain(">重试<");
     expect(html).not.toContain("Nothing needs attention");
     expect(html).not.toContain("这个分类下还没有账号。");
@@ -537,9 +537,9 @@ describe("Dashboard", () => {
     expect(html).toContain('data-dashboard-mutation="key_created"');
     expect(html).toContain('download="codex-config.toml"');
     expect(html).toContain("data-dashboard-unavailable");
-    expect(html).toContain('href="/admin?view=setup&amp;range=7d&amp;person=Alex&amp;key=key-test"');
+    expect(html).toContain('href="/admin?view=setup&amp;person=Alex&amp;key=key-test"');
     expect(html).toContain(">重试<");
-    expect(html).toContain('data-dashboard-url="/admin?view=setup&amp;range=7d&amp;person=Alex&amp;key=key-test"');
+    expect(html).toContain('data-dashboard-url="/admin?view=setup&amp;person=Alex&amp;key=key-test"');
     expect(JSON.stringify(log.mock.calls)).not.toContain("cfwd_test_only");
   });
 
@@ -611,7 +611,7 @@ describe("Dashboard", () => {
     expect(document.querySelector('[data-panel="attention"]')).toBeNull();
     const connect = [...document.querySelectorAll('main a')].filter(link=>link.textContent === '连接账号');
     expect(connect).toHaveLength(1);
-    expect(connect[0]?.getAttribute("href")).toBe("/admin?view=credentials&range=7d&task=add-account");
+    expect(connect[0]?.getAttribute("href")).toBe("/admin?view=credentials&task=add-account");
     expect(document.querySelector("main")?.textContent).not.toContain("下一步");
     expect(document.querySelector("[data-trend-empty]")).not.toBeNull();
     expect(document.querySelector("#usage-trends .usage-bar-plot")).toBeNull();
@@ -702,7 +702,7 @@ describe("Dashboard", () => {
     expect(Boolean(attention?.includes('data-attention="account"'))).toBe(needsAttention);
     if (needsAttention) {
       expect(attention).toContain(label);
-      expect(attention).toContain('href="/admin?view=credentials&amp;range=7d&amp;account=codex%3Ahome-account"');
+      expect(attention).toContain('href="/admin?view=credentials&amp;account=codex%3Ahome-account"');
       expect(attention).toContain('account=grok%3Ahome-grok"');
       expect(html).not.toContain('class="next-step"');
       expect(html).not.toContain("连接第一个账号");
@@ -720,7 +720,7 @@ describe("Dashboard", () => {
     const document = new JSDOM(html).window.document;
     const connect = [...document.querySelectorAll('main a')].filter(link=>link.textContent === '连接账号');
     expect(connect).toHaveLength(1);
-    expect(connect[0]?.getAttribute("href")).toBe("/admin?view=credentials&range=7d&task=add-account");
+    expect(connect[0]?.getAttribute("href")).toBe("/admin?view=credentials&task=add-account");
     expect(document.querySelector('[data-panel="attention"]')).toBeNull();
   });
 
@@ -1041,7 +1041,7 @@ describe("Dashboard", () => {
     expect(html).toContain('data-capability-state="team_access"');
     expect(html).toContain('<span class="capability-state" aria-label="不可用">—</span>');
     expect(html).toContain('aria-label="服务权限模型"');
-    expect(html).toContain('href="?view=surfaces&amp;range=7d"');
+    expect(html).toContain('href="?view=surfaces"');
     expect(html).toContain("查看路由");
     expect(html).toContain("通过已连接的 ChatGPT 使用 Codex CLI。");
     expect(html).toContain("包含 Grok Build，以及有限的 xAI 能力。文件和视频仍绑定账号所有者。");

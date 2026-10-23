@@ -37,7 +37,7 @@ describe('organization quota response negotiation',()=>{
     const doc=new JSDOM(await response.text()).window.document;
     expect(doc.querySelector('main')?.getAttribute('data-dashboard-mutation')).toBe('credit_default');
     expect(doc.querySelector('[data-mutation-flash]')?.textContent).toContain('每月 42 credits');
-    expect(doc.querySelector('main')?.getAttribute('data-dashboard-url')).toBe('/admin?view=quotas&range=7d');
+    expect(doc.querySelector('main')?.getAttribute('data-dashboard-url')).toBe('/admin?view=quotas');
     expect(doc.querySelectorAll('form[action="/admin/ui/credit-defaults"] button[type=submit]')).toHaveLength(1);
     expect(doc.querySelectorAll('form[action^="/admin/ui/credit-defaults/"]')).toHaveLength(0);
   });

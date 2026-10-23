@@ -46,7 +46,6 @@ interface LinkedKey {
 export interface AccountsPageModel {
   readonly snapshot: CodexAccountSnapshot | null;
   readonly canonicalUrl: string;
-  readonly range: { readonly key: string };
   readonly nowMs: number;
   readonly accounts: readonly AccountRecord[];
   readonly selectedAccountKey: string | null;
@@ -84,7 +83,7 @@ function AccountAdmission({ model }: { readonly model: AccountsPageModel }) {
   const controlId = `account-admission-${encodeURIComponent(account.id)}`;
   return <section className="workspace-section" aria-label="ChatGPT 请求准入" data-account-admission="">
     <form method="post" action={`/admin/ui/codex-auths/${encodeURIComponent(account.id)}/${paused ? "resume" : "pause"}`} data-action={`codex-${paused ? "resume" : "pause"}`} data-credential-admission-form="" data-admission-state={account.projection.admissionState} data-confirmation={confirmation}>
-      <ReturnFields range={model.range.key} query={params.get("q") ?? ""} page={params.get("page") ?? "1"}/>
+      <ReturnFields query={params.get("q") ?? ""} page={params.get("page") ?? "1"}/>
       <input type="hidden" name="confirm" value="1"/>
       <div className="status-switch-control"><Label htmlFor={controlId}>允许新请求</Label><Badge data-credential-admission="" className="tone-warn" hidden={!paused}>已暂停</Badge><InfoPopover id="account-admission-help" label="请求准入的影响" iconOnly><p data-admission-impact="">{impactText}</p><p>{effect}</p></InfoPopover><Switch id={controlId} type="submit" checked={!paused} disabled={blocked !== null} aria-label={`ChatGPT · ${account.label}：允许新请求`} data-confirm-label={paused ? "恢复请求" : "暂停请求"}/></div>
       {blocked ? <p className="caption">{blocked}</p> : <ConfirmationFallback message={confirmation}/>}
@@ -102,7 +101,7 @@ function RetirementImpact({ model }: { readonly model: AccountsPageModel }) {
   const provider = account.provider;
   const path = `/admin/ui/${provider === "codex" ? "codex-auths" : "subscriptions"}/${encodeURIComponent(account.id)}`;
   const params = new URL(model.canonicalUrl, "https://dashboard.invalid").searchParams;
-  const fields = <ReturnFields range={model.range.key} query={params.get("q") ?? ""} page={params.get("page") ?? "1"}/>;
+  const fields = <ReturnFields query={params.get("q") ?? ""} page={params.get("page") ?? "1"}/>;
   const migrating = retirement.live_keys.length > 0 || retirement.default_surfaces.length > 0;
   if (!migrating && retirement.status !== "revoked" && retirement.status !== "retiring") return null;
   const keys = [...new Set(retirement.live_keys.map(key => key.id))].map(id => ({
@@ -146,14 +145,13 @@ function SteadyAction(props: {
   readonly secondary: boolean;
   readonly logoutConfirm: string;
   readonly reauthConfirm: string | null;
-  readonly range: string;
   readonly query: string;
   readonly page: string;
   readonly disconnectBlock: string | null;
 }) {
   const label = actionButtonLabel(props.action);
   const variant = props.secondary ? "outline" : "default";
-  const fields = <ReturnFields range={props.range} query={props.query} page={props.page} />;
+  const fields = <ReturnFields query={props.query} page={props.page} />;
   switch (props.action) {
     case "connect":
       return <form className="inline-form" method="post" action={props.routes.start} data-action={props.routes.startAction}>{fields}<Button type="submit" variant={variant}>{label}</Button></form>;
@@ -194,7 +192,6 @@ function AuthorizingStrip(props: {
   readonly routes: AccountRoutes;
   readonly placeholder: string;
   readonly cancelUrl: string;
-  readonly range: string;
   readonly query: string;
   readonly page: string;
 }) {
@@ -212,7 +209,7 @@ function AuthorizingStrip(props: {
         </Button>
       </div>
       <form className="board-form credential-complete" method="post" action={props.routes.complete} data-action={props.routes.completeAction}>
-        <ReturnFields range={props.range} query={props.query} page={props.page} />
+        <ReturnFields query={props.query} page={props.page} />
         <input type="hidden" name="confirm" value="1" />
         <input type="hidden" name="session_id" value={projection.sessionId} />
         <Field control={{ label: "回调地址", name: "callback_url", type: "url", required: true, autoComplete: "off", autoFocus: true, placeholder: props.placeholder }} />
@@ -225,7 +222,6 @@ function AuthorizingStrip(props: {
 function IdentityCard(props: {
   readonly account: AccountRecord;
   readonly linkedTotal: number | null;
-  readonly range: string;
   readonly query: string;
   readonly page: string;
   readonly cancelUrl: string;
@@ -289,11 +285,11 @@ function IdentityCard(props: {
           </nav>
         )}
         {projection.state === "authorizing" ? (
-          <AuthorizingStrip projection={projection} routes={routes} placeholder={placeholder} cancelUrl={props.cancelUrl} range={props.range} query={props.query} page={props.page} />
+          <AuthorizingStrip projection={projection} routes={routes} placeholder={placeholder} cancelUrl={props.cancelUrl} query={props.query} page={props.page} />
         ) : (
           <div className="credential-actions" data-mgmt-actions={order.join(" ")}>
             {order.map((action) => (
-              <SteadyAction key={action} action={action} routes={routes} secondary={projection.secondaryActions.includes(action)} logoutConfirm={logoutConfirm} reauthConfirm={reauthConfirm} range={props.range} query={props.query} page={props.page} disconnectBlock={action === "logout" ? props.disconnectBlock : null} />
+              <SteadyAction key={action} action={action} routes={routes} secondary={projection.secondaryActions.includes(action)} logoutConfirm={logoutConfirm} reauthConfirm={reauthConfirm} query={props.query} page={props.page} disconnectBlock={action === "logout" ? props.disconnectBlock : null} />
             ))}
           </div>
         )}
@@ -344,7 +340,7 @@ function DefaultAccounts({model}: {readonly model: AccountsPageModel}) {
       const warning = `更改 ${name} 的新密钥默认连接？现有密钥保持原绑定，替换密钥复制原绑定。${surface === "xai" ? "xAI API 委托上游团队共享权限，个人权限不能隔离资源。" : ""}`;
       return <div className="credential-default-row" key={surface} data-default-surface={surface === "codex" ? "chatgpt" : surface}><Label htmlFor={`${formId}-account`}>{name}<span className="sr-only"> 新密钥默认连接</span></Label>
         <form id={formId} className="credential-default-form" method="post" action={`/admin/ui/credential-defaults/${surface}`} data-action="credential-default" data-confirmation={warning} data-confirm-credential="">
-          <ReturnFields range={model.range.key} query={params.get("q") ?? ""} page={params.get("page") ?? "1"}/>
+          <ReturnFields query={params.get("q") ?? ""} page={params.get("page") ?? "1"}/>
           <input type="hidden" name="confirm" value="1"/>
           <NativeSelect id={`${formId}-account`} name="credential_account_id" defaultValue={current?.id ?? ""} required disabled={!options.some(account=>account.defaultEligible)}>
             <NativeSelectOption value="" disabled>{row?.account_id ? "当前连接未读到" : "未设置 · 请选择连接"}</NativeSelectOption>
@@ -372,9 +368,9 @@ export function AccountsPage({ model }: { readonly model: AccountsPageModel }) {
     <section aria-label="账号" className="accounts-workspace" data-view-role="accounts" data-credential-admin="true" data-auth-management="lifecycle" data-show-detail={detail ? "true" : "false"}>
       <ObjectWorkspace className="credential-object-workspace" task={<div className="credential-workspace-body">{detail ? (
         <div className="account-detail" id="account-detail" tabIndex={-1} data-account-detail={model.selectedAccountKey ?? ""}>
-          {adding ? <Card className="account-create-task"><header className="task-card-head"><h2>添加账号</h2><TaskClose href={`${parentUrl}#accounts-list`} label="收起添加账号"/></header><AddAccountIsland control={{ range: model.range.key, query, page }} /></Card> : selected ? (
+          {adding ? <Card className="account-create-task"><header className="task-card-head"><h2>添加账号</h2><TaskClose href={`${parentUrl}#accounts-list`} label="收起添加账号"/></header><AddAccountIsland control={{ query, page }} /></Card> : selected ? (
             <>
-              <IdentityCard account={selected} linkedTotal={model.linkedKeys ? model.linkedKeys.total : null} range={model.range.key} query={query} page={page} cancelUrl={accountDashboardUrl(model.canonicalUrl, selected.key)} closeHref={`${parentUrl}#accounts-list`} admission={<AccountAdmission model={model}/>} retirement={<RetirementImpact model={model}/>} disconnectBlock={model.retirement === null ? "请先重新读取停用影响" : model.retirement.live_keys.length > 0 ? "请先处理未撤销密钥绑定" : model.retirement.default_surfaces.length > 0 ? "请先处理默认连接" : null}/>
+              <IdentityCard account={selected} linkedTotal={model.linkedKeys ? model.linkedKeys.total : null} query={query} page={page} cancelUrl={accountDashboardUrl(model.canonicalUrl, selected.key)} closeHref={`${parentUrl}#accounts-list`} admission={<AccountAdmission model={model}/>} retirement={<RetirementImpact model={model}/>} disconnectBlock={model.retirement === null ? "请先重新读取停用影响" : model.retirement.live_keys.length > 0 ? "请先处理未撤销密钥绑定" : model.retirement.default_surfaces.length > 0 ? "请先处理默认连接" : null}/>
               <LinkedKeys model={model} readOnly={authorizing}/>
               {model.snapshot ? <section className="account-snapshot"><AccountDossier accountId={selected.id} snapshot={model.snapshot}/></section> : null}
             </>

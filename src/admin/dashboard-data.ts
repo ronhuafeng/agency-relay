@@ -24,13 +24,6 @@ import {readRuntimeAdmin,type RuntimeAdminModel} from "../runtime/console";
 
 const LEDGER_QUERY_LIMIT = 251;
 const LEDGER_DISPLAY_LIMIT = 250;
-export const DASHBOARD_RANGE_DEFINITIONS = [
-  { key: "today", title: "今天", mode: "day", days: 1 },
-  { key: "7d", title: "7 天", mode: "range", days: 7 },
-  { key: "30d", title: "30 天", mode: "range", days: 30 },
-  { key: "all", title: "全部", mode: "all", days: null }
-] as const;
-
 /** Product pages first, followed by operational pages. */
 export const DASHBOARD_VIEW_DEFINITIONS = [
   { key: "overview", title: "组织概览", group: "workspace" },
@@ -45,7 +38,7 @@ export const DASHBOARD_VIEW_DEFINITIONS = [
   { key: "control-audit", title: "管理记录", group: "advanced" }
 ] as const;
 
-export type DashboardRangeKey = typeof DASHBOARD_RANGE_DEFINITIONS[number]["key"];
+export type DashboardRangeKey = "1d" | "7d" | "30d";
 export type DashboardViewKey = typeof DASHBOARD_VIEW_DEFINITIONS[number]["key"];
 
 export function dashboardViewTitle(view: DashboardViewKey): string {
@@ -132,14 +125,19 @@ export interface AdminDashboardPageModelBase {
   view: DashboardViewKey;
   operatorLabel: string;
   operatorId: string | null;
-  range: DashboardRange;
   nowMs: number;
   dataAsOf: string;
   mutationFlash?: DashboardMutationFlash | null;
 }
 
+type DashboardLoadModel = AdminDashboardPageModelBase & (
+  | { view: "overview" | "usage"; range: DashboardRange }
+  | { view: Exclude<DashboardViewKey, "overview" | "usage"> }
+);
+
 export interface AdminDashboardOverviewModel extends AdminDashboardPageModelBase {
   view: "overview";
+  range: DashboardRange;
   userCount: number;
   keyCount: number;
   attempts: RequestAttemptStateRow[];
@@ -149,6 +147,7 @@ export interface AdminDashboardOverviewModel extends AdminDashboardPageModelBase
 
 export interface AdminDashboardUsageModel extends AdminDashboardPageModelBase {
   view: "usage";
+  range: DashboardRange;
   search: string;
   searchUrl: string;
   trends: UsageTrendsModel;
@@ -248,8 +247,8 @@ export type AdminDashboardPageModel =
   | AdminDashboardControlAuditModel;
 
 
-export async function loadDashboard(input: AdminDashboardInput, base: AdminDashboardPageModelBase, selection: {person: string | null; key: string | null; account: string | null; task: string | null; inventory: URLSearchParams}): Promise<AdminDashboardPageModel> {
-  const { view, range } = base;
+export async function loadDashboard(input: AdminDashboardInput, base: DashboardLoadModel, selection: {person: string | null; key: string | null; account: string | null; task: string | null; inventory: URLSearchParams}): Promise<AdminDashboardPageModel> {
+  const view = base.view;
   const {person: requestedPerson, key: requestedKey, account: requestedAccount, task, inventory: inventoryQuery} = selection;
   let model: AdminDashboardPageModel;
   switch (view) {
@@ -290,7 +289,7 @@ export async function loadDashboard(input: AdminDashboardInput, base: AdminDashb
     break;
     }
     case "usage": {
-    const parsed = parseUsageQuery(new URL(range.rawUsageUrl, input.url));
+    const parsed = parseUsageQuery(new URL(base.range.rawUsageUrl, input.url));
     const usageQuery = { mode: parsed.mode, ...parsed.filters, limit: LEDGER_QUERY_LIMIT };
     const [usage, mediaUsage, daily] = await Promise.all([
       queryUsageSummary(input.env, usageQuery),

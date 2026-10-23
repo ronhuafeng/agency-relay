@@ -121,7 +121,10 @@ describe("request history protected router and HTML", () => {
     expect(Array.from(rows, row => row.getAttribute('data-request-record'))).toEqual(['matching-error']);
     const invalidPage = await f.open(`${path}&range=unsupported`);
     expect(invalidPage.status).toBe(400);
-    expect(new JSDOM(await invalidPage.text()).window.document.querySelector('form[aria-label="筛选请求记录"]')).toBeNull();
+    const ignoredRange = new JSDOM(await invalidPage.text()).window.document;
+    expect(ignoredRange.querySelector('[role="alert"]')?.textContent).toBe("结束日期不能早于开始日期。");
+    expect(ignoredRange.querySelector('form[aria-label="筛选请求记录"]')).not.toBeNull();
+    expect(ignoredRange.querySelector('[name="range"]')).toBeNull();
   });
 
   it("uses one canonical task address after native GET filtering and history return", async () => {
@@ -129,11 +132,11 @@ describe("request history protected router and HTML", () => {
     f.seed("audit-native", {status:"error"});
     f.seed("different-person", {status:"error", user_id:"member"});
     f.seed("different-result", {status:"ok"});
-    // Native forms include empty controls in DOM order, without the dashboard's
-    // default range. Their task links must still use its canonical address.
+    // Native forms include empty controls in DOM order. A leftover range is not
+    // part of request history, so both addresses use one canonical task URL.
     const native = "/admin?view=audit&audit_from=&audit_to=&audit_plan=codex.responses&audit_result=error&audit_user=other&audit_request=request-duplicate";
     const canonical = "/admin?view=audit&range=7d&audit_plan=codex.responses&audit_user=other&audit_result=error&audit_request=request-duplicate";
-    const filters = {view:"audit", range:"7d", audit_plan:"codex.responses", audit_user:"other", audit_result:"error", audit_request:"request-duplicate"};
+    const filters = {view:"audit", audit_plan:"codex.responses", audit_user:"other", audit_result:"error", audit_request:"request-duplicate"};
     const taskLinks: string[] = [];
     for (const path of [native, canonical]) {
       const response = await f.open(path);

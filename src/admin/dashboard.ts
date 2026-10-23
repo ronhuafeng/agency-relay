@@ -6,14 +6,14 @@ import { createElement, Fragment } from "react";
 import { DashboardContent, ReadUnavailable, renderDashboardDocument } from "./ui/dashboard-document";
 import { MutationNotice } from "./ui/mutation-notice";
 import { personInputMessage } from "./ui/messages";
-import { loadDashboard, dashboardViewTitle, DASHBOARD_RANGE_DEFINITIONS, DASHBOARD_VIEW_DEFINITIONS, type DashboardViewKey, type DashboardMutationFlash, type AdminDashboardInput, type DashboardRange } from "./dashboard-data";
+import { loadDashboard, dashboardViewTitle, DASHBOARD_VIEW_DEFINITIONS, type DashboardViewKey, type DashboardMutationFlash, type AdminDashboardInput, type DashboardRange } from "./dashboard-data";
 /**
  * Feishu-authenticated Agency Relay product console.
  * Product authority: docs/product/experience.md
  */
 import { presentText } from "./format";
 import { base64UrlEncode } from "../crypto";
-import { utcDay } from "../records";
+
 
 
 
@@ -26,7 +26,7 @@ import { RequestFiltersIsland } from "./ui/islands";
 
 
 
-const DAY_MS = 24 * 60 * 60 * 1000;
+
 
 class DashboardInputError extends Error {}
 
@@ -57,7 +57,7 @@ export async function adminDashboardResponse(input: AdminDashboardInput): Promis
       validationUrl.searchParams.delete("audit_from");
       validationUrl.searchParams.delete("audit_to");
       try {
-        const recoveryRange = parseDashboardRange(validationUrl, input.now);
+        parseDashboardRange(validationUrl, input.now);
         const recoveryView = parseDashboardView(validationUrl);
         const model = {
           appEnabled: input.url.hostname === input.env.ADMIN_DASHBOARD_HOST,
@@ -65,7 +65,7 @@ export async function adminDashboardResponse(input: AdminDashboardInput): Promis
           documentTitle: "请求记录 · Agency Relay 控制台",
           operatorId: input.identity.userId ?? null,
           operatorLabel: input.identity.email ?? "已登录的管理员",
-          range: recoveryRange, view: recoveryView, nowMs: input.now.getTime(), dataAsOf: input.now.toISOString(), mutationFlash: null
+          view: recoveryView, nowMs: input.now.getTime(), dataAsOf: input.now.toISOString(), mutationFlash: null
         };
         const form = createElement("section", {id:"request-history", className:"panel usage-stack request-workspace", "data-request-filter-error":"date-order"},
           createElement(RequestFiltersIsland, {control:{action:input.url.pathname, query:error.query, ...requestHistoryFilterOptions(input.env)}}));
@@ -78,7 +78,7 @@ export async function adminDashboardResponse(input: AdminDashboardInput): Promis
       return renderErrorResponse({
         status: 400,
         title: "页面参数不正确",
-        message: ["overview", "usage"].includes(input.url.searchParams.get("view") ?? "overview") ? "概览和用量页面请选择最近 1 天、7 天或 30 天，并检查筛选参数。其他日期可通过用量 API 查询。" : "请使用有效的页面。时间范围可以是今天、7 天、30 天或全部。",
+        message: ["overview", "usage"].includes(input.url.searchParams.get("view") ?? "overview") ? "概览和用量页面请选择最近 1 天、7 天或 30 天，并检查筛选参数。其他日期可通过用量 API 查询。" : "请使用有效的页面。",
         requestId: input.requestId,
         retryUrl: input.url.pathname,
         retryLabel: "打开默认页面",
@@ -101,17 +101,17 @@ export async function adminDashboardResponse(input: AdminDashboardInput): Promis
   }
   const base = {
     appEnabled: input.url.hostname === input.env.ADMIN_DASHBOARD_HOST,
-    canonicalUrl: `${input.url.pathname}?view=${view}&range=${range.key}${view==="runtime"&&input.url.searchParams.has("installation")?`&installation=${encodeURIComponent(input.url.searchParams.get("installation")!)}`:""}${requestedPerson === null ? "" : `&person=${encodeURIComponent(requestedPerson)}`}${task ? `&task=${task}` : ""}${requestedKey === null ? "" : `&key=${encodeURIComponent(requestedKey)}`}${requestedAccount === null ? "" : `&account=${encodeURIComponent(requestedAccount)}`}${inventoryQuery.size ? `&${inventoryQuery}` : ""}`,
+    canonicalUrl: `${input.url.pathname}?view=${view}${view === "overview" || view === "usage" ? `&range=${range.key}` : ""}${view==="runtime"&&input.url.searchParams.has("installation")?`&installation=${encodeURIComponent(input.url.searchParams.get("installation")!)}`:""}${requestedPerson === null ? "" : `&person=${encodeURIComponent(requestedPerson)}`}${task ? `&task=${task}` : ""}${requestedKey === null ? "" : `&key=${encodeURIComponent(requestedKey)}`}${requestedAccount === null ? "" : `&account=${encodeURIComponent(requestedAccount)}`}${inventoryQuery.size ? `&${inventoryQuery}` : ""}`,
     documentTitle: `${requestedAccount !== null ? "连接详情" : task === "add-account" ? "连接上游账号" : task === "sync-configuration" ? "生成配置文件" : requestedKey !== null ? view === "setup" ? "客户端配置" : "密钥详情" : task === "give-access" ? "创建密钥" : task === "add-person" ? "添加成员" : dashboardViewTitle(view)} · Agency Relay 控制台`,
     operatorId: input.identity.userId ?? null,
     operatorLabel: input.identity.email ?? "已登录的管理员",
-    range,
     nowMs: input.now.getTime(),
     dataAsOf,
     mutationFlash: input.mutationFlash ?? null
   };
+  const page = view === "overview" || view === "usage" ? { ...base, view, range } : { ...base, view };
   try {
-    const model = await loadDashboard(input, {...base, view}, {person: requestedPerson, key: requestedKey, account: requestedAccount, task, inventory: inventoryQuery});
+    const model = await loadDashboard(input, page, {person: requestedPerson, key: requestedKey, account: requestedAccount, task, inventory: inventoryQuery});
     // Selected upstream snapshots can read providers; only local inventories and
     // ledgers participate in periodic console updates. Write results stay put.
     const revision = !input.mutationFlash && !task && !(view === "credentials" && requestedAccount)
@@ -131,7 +131,7 @@ export async function adminDashboardResponse(input: AdminDashboardInput): Promis
       ? createElement("p", {role: "alert", "data-mutation-input-error": ""}, personInputMessage(input.mutationFlash))
       : createElement(MutationNotice, {flash: input.mutationFlash});
     const recovery = createElement(ReadUnavailable, {url: base.canonicalUrl, requestId});
-    return htmlResponse(renderDashboardDocument({...base, view}, nonce, createElement(Fragment, null, notice, recovery)), 503, nonce, true, input.url.origin);
+    return htmlResponse(renderDashboardDocument(page, nonce, createElement(Fragment, null, notice, recovery)), 503, nonce, true, input.url.origin);
   }
 }
 
@@ -146,7 +146,7 @@ function parseDashboardRange(url: URL, now: Date): DashboardRange {
     entries.some(([key]) => !allowed.has(key))
     || (url.searchParams.has("installation")&&(url.searchParams.get("view")!=="runtime"||url.searchParams.getAll("installation").length!==1||!/^[a-z][a-z0-9-]{0,63}$/.test(url.searchParams.get("installation")!)))
     || (url.searchParams.get("view")==="runtime"&&entries.some(([key])=>!["view","range","installation","q","page"].includes(key)))
-    || url.searchParams.getAll("range").length > 1
+    || (["overview", "usage"].includes(url.searchParams.get("view") ?? "overview") && url.searchParams.getAll("range").length > 1)
     || url.searchParams.getAll("view").length > 1
     || url.searchParams.getAll("person").length > 1
     || url.searchParams.getAll("task").length > 1
@@ -190,51 +190,16 @@ function parseDashboardRange(url: URL, now: Date): DashboardRange {
         rawUsageUrl: `/admin/usage?${params}`};
     } catch { throw new DashboardInputError("invalid usage query"); }
   }
-  const requestedKey = url.searchParams.get("range") ?? "7d";
-  const definition = DASHBOARD_RANGE_DEFINITIONS.find((candidate) => candidate.key === requestedKey);
-  if (!definition) {
-    throw invalidDashboardQuery();
-  }
-
-  const today = utcDay(now);
-  if (definition.mode === "day") {
-    return {
-      key: definition.key,
-      title: definition.title,
-      label: `${today} UTC`,
-      emptyLabel: `${today} UTC 没有用量记录`,
-      mode: "day",
-      day: today,
-      from: null,
-      to: null,
-      rawUsageUrl: usageUrl({ day: today })
-    };
-  }
-  if (definition.mode === "all") {
-    return {
-      key: definition.key,
-      title: definition.title,
-      label: "全部保留的 UTC 日",
-      emptyLabel: "保留的历史里没有用量记录",
-      mode: "all",
-      day: null,
-      from: null,
-      to: null,
-      rawUsageUrl: usageUrl({ scope: "all" })
-    };
-  }
-
-  const from = utcDay(new Date(now.getTime() - (definition.days - 1) * DAY_MS));
   return {
-    key: definition.key,
-    title: definition.title,
-    label: `${from} 至 ${today} UTC`,
-    emptyLabel: `${from} 至 ${today} UTC 没有用量记录`,
+    key: "7d",
+    title: "7 天",
+    label: "",
+    emptyLabel: "",
     mode: "range",
     day: null,
-    from,
-    to: today,
-    rawUsageUrl: usageUrl({ from, to: today })
+    from: null,
+    to: null,
+    rawUsageUrl: "/admin/usage"
   };
 }
 
@@ -247,22 +212,6 @@ function parseDashboardView(url: URL): DashboardViewKey {
   return definition.key;
 }
 
-function usageUrl(input: { scope?: "all"; day?: string; from?: string; to?: string }): string {
-  const params = new URLSearchParams();
-  if (input.scope) {
-    params.set("scope", input.scope);
-  }
-  if (input.day) {
-    params.set("day", input.day);
-  }
-  if (input.from && input.to) {
-    params.set("from", input.from);
-    params.set("to", input.to);
-  }
-  params.set("limit", "1000");
-  return `/admin/usage?${params.toString()}`;
-}
-
 /** A form may return only to its own valid dashboard key address. */
 export function dashboardKeyReturnUrl(value: string | null, action: URL, keyId: string, now: Date, view: "access" | "setup" = "access"): URL | null {
   if (!value) return null;
@@ -272,6 +221,7 @@ export function dashboardKeyReturnUrl(value: string | null, action: URL, keyId: 
       || url.searchParams.get("view") !== view || url.searchParams.get("key") !== keyId
       || url.searchParams.get("person") !== action.searchParams.get("person")) return null;
     parseDashboardRange(url, now);
+    url.searchParams.delete("range");
     return url;
   } catch { return null; }
 }
@@ -284,6 +234,7 @@ export function dashboardPersonReturnUrl(raw: string | undefined, action: URL, u
       || url.searchParams.get("view") !== "access" || url.searchParams.get("person") !== userId
       || url.searchParams.has("task") || url.searchParams.has("key")) return null;
     parseDashboardRange(url, now);
+    url.searchParams.delete("range");
     return url;
   } catch { return null; }
 }

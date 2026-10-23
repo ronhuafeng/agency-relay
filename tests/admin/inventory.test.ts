@@ -148,7 +148,8 @@ describe("complete dashboard inventories", () => {
     expect(unknown?.textContent).toContain("连接列表暂时未读到");
     expect(unknown?.querySelector("form,select")).toBeNull();
     const recovery = new URL(unknown!.querySelector("a")!.getAttribute("href")!, "https://admin.example.test");
-    expect(Object.fromEntries(recovery.searchParams)).toMatchObject({ view: "access", person: "person-000", key: "key-000", range: "30d", q: "absent" });
+    expect(Object.fromEntries(recovery.searchParams)).toMatchObject({ view: "access", person: "person-000", key: "key-000", q: "absent" });
+    expect(recovery.searchParams.has("range")).toBe(false);
     expect(doc.querySelector('[data-action="credential-binding-set"][action*="/grok"]')).not.toBeNull();
     expect(doc.querySelector('[data-action="credential-binding-set"][action*="/codex"]')).toBeNull();
     expect(doc.querySelector('[data-action="replace-key"]')).not.toBeNull();
@@ -235,7 +236,7 @@ describe("complete dashboard inventories", () => {
     const parent = new URL(new JSDOM(detail.html).window.document.querySelector('a[aria-label="收起密钥详情"]')!.getAttribute("href")!, "https://console.invalid");
     expect(parent?.searchParams.has("key")).toBe(false);
     expect(parent?.searchParams.get("person")).toBe("person-100");
-    expect(parent?.searchParams.get("range")).toBe("30d");
+    expect(parent?.searchParams.has("range")).toBe(false);
     expect(parent?.searchParams.get("key_page")).toBe("5");
     expect(parent?.searchParams.get("q")).toBe("absent");
     expect(detail.html).not.toContain("private_hash_");
@@ -385,7 +386,7 @@ describe("complete dashboard inventories", () => {
     expect(search).toContain('name="key" value="key-000"');
     const parent = hrefs(detail.html).find(url => url.searchParams.get("q") === "absent" && !url.searchParams.has("person") && !url.searchParams.has("task"));
     expect(parent?.searchParams.get("page")).toBe("3");
-    expect(parent?.searchParams.get("range")).toBe("30d");
+    expect(parent?.searchParams.has("range")).toBe(false);
     reads.mockImplementation(sql => {
       if (sql.includes("request_audit")) throw new Error("Synthetic verification failure");
       return prepare(sql);
@@ -437,7 +438,7 @@ describe("complete dashboard inventories", () => {
     expect(Array.from(clientChoices, option => option.getAttribute("value"))).toEqual(["", "codex", "grok", "xai"]);
     const doc = new JSDOM(html).window.document;
     expect(doc.querySelector('#setup-list input[name="q"]')?.getAttribute("value")).toBe("absent");
-    expect(doc.querySelector('#setup-list input[name="range"]')?.getAttribute("value")).toBe("30d");
+    expect(doc.querySelector('#setup-list input[name="range"]')).toBeNull();
   });
 
   it("finds older setup packages and attributes real-task evidence to the displayed key", async () => {
@@ -474,9 +475,10 @@ describe("complete dashboard inventories", () => {
     const searchForm = html.match(/<form class="inventory-search"[\s\S]*?<\/form>/)?.[0];
     expect(searchForm).toContain('method="get"');
     expect(searchForm).toContain('action="/admin#people-list"');
-    for (const [name, value] of [["view", "access"], ["range", "30d"], ["person", "person-100"], ["task", "give-access"], ["key_page", "3"], ["page_size", "10"]]) {
+    for (const [name, value] of [["view", "access"], ["person", "person-100"], ["task", "give-access"], ["key_page", "3"], ["page_size", "10"]]) {
       expect(searchForm).toContain(`name="${name}" value="${value}"`);
     }
+    expect(searchForm).not.toContain('name="range"');
     expect(searchForm).not.toContain('name="page"');
     const next = hrefs(html).find(url => url.searchParams.get("page") === "3" && url.searchParams.get("task") === "give-access");
     expect(next?.pathname).toBe("/admin");
@@ -507,9 +509,10 @@ describe("complete dashboard inventories", () => {
       expect(form?.getAttribute("method")).toBe("get");
       expect(form?.querySelector('[name="page_size"] option[selected]')?.getAttribute("value")).toBe(String(pageSize));
       expect(form?.querySelector('[name="page"]')).toBeNull();
-      for (const [name, value] of [["q", "person-"], ["person", "person-001"], ["range", "30d"]]) {
+      for (const [name, value] of [["q", "person-"], ["person", "person-001"]]) {
         expect(form?.querySelector(`[name="${name}"]`)?.getAttribute("value")).toBe(value);
       }
+      expect(form?.querySelector('[name="range"]')).toBeNull();
       expect(hrefs(html).filter(url => url.searchParams.get("page")).every(url => url.searchParams.get("page_size") === String(pageSize))).toBe(true);
     }
     expect(all).toHaveLength(86);

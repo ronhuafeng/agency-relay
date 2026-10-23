@@ -458,7 +458,7 @@ describe("admin pages, accounts, and audit", () => {
     expect(html).toContain("安装到");
     const issued = [...fixture.db.apiKeys.values()].find((row) => row.user_id === user.user.id);
     expect(issued).toBeDefined();
-    expect(html).toContain(`data-dashboard-url="/admin?view=setup&amp;range=7d&amp;person=${user.user.id}&amp;key=${issued!.id}"`);
+    expect(html).toContain(`data-dashboard-url="/admin?view=setup&amp;person=${user.user.id}&amp;key=${issued!.id}"`);
     expect(html).not.toContain(String(issued?.key_hash));
 
     const modelOnlyUser = await createUser(fixture, "setup-model-only@example.com");
@@ -512,7 +512,7 @@ describe("admin pages, accounts, and audit", () => {
     expect(created.id).toMatch(/^usr_/);
     expect(fixture.db.users.has("attacker-chosen-id")).toBe(false);
     expect(new JSDOM(html).window.document.querySelector('[data-mutation-flash="user_created"]')?.textContent).toContain("已添加 alex+work@example.com。");
-    expect(html).toContain(`data-dashboard-url="/admin?view=access&amp;range=7d&amp;person=${created.id}"`);
+    expect(html).toContain(`data-dashboard-url="/admin?view=access&amp;person=${created.id}"`);
     expect(fixture.db.apiKeys.size).toBe(0);
     expect(fixture.db.operatorMutationAudit).toContainEqual(expect.objectContaining({ action: "user.create", target_id: created.id, actor_kind: "access" }));
     expect(html).not.toContain('data-one-time-key="true"');
@@ -573,7 +573,7 @@ describe("admin pages, accounts, and audit", () => {
     expect(bindingNotice?.querySelector("h2")?.textContent).toBe("Codex 上游绑定已更新");
     expect(bindingNotice?.querySelector("code")?.textContent).toBe(key.key.id);
     expect(boundHtml).not.toContain("Grok 已刷新");
-    expect(boundHtml).toContain('range=30d');
+    expect(boundHtml).not.toContain('range=30d');
     expect(boundHtml).toContain('key_page=2');
     expect(new JSDOM(boundHtml).window.document.querySelector('select[name="credential_account_id"] option[selected]')?.getAttribute("value")).toBe(SHARED_CODEX_AUTH_ID);
     const revoked = await adminForm(fixture, `https://admin.example.test/admin/ui/keys/${key.key.id}/revoke?person=${person}`, new URLSearchParams({ confirm: "1", key_return: returnTo }));
@@ -598,9 +598,9 @@ describe("admin pages, accounts, and audit", () => {
     const html = await result.text();
     expect(html).toContain('data-dashboard-mutation="key_replacement_created"');
     expect(html).toContain('data-one-time-key');
-    expect(html).toContain(`href="/admin?view=access&amp;person=${person}&amp;range=30d&amp;q=person&amp;key_page=2#keys"`);
+    expect(html).toContain(`href="/admin?view=access&amp;person=${person}&amp;q=person&amp;key_page=2#keys"`);
     const replacement = [...fixture.db.apiKeys.values()].find(candidate => candidate.user_id === user.user.id && candidate.id !== key.key.id)!;
-    expect(html).toContain(`data-dashboard-url="/admin?view=setup&amp;range=30d&amp;person=${person}&amp;key=${replacement.id}"`);
+    expect(html).toContain(`data-dashboard-url="/admin?view=setup&amp;person=${person}&amp;key=${replacement.id}"`);
     expect(fixture.db.apiKeys.get(key.key.id)?.status).toBe("active");
     expect([...fixture.db.apiKeys.values()].filter(candidate => candidate.user_id === user.user.id && candidate.status === "active")).toHaveLength(2);
   });
@@ -644,7 +644,7 @@ describe("admin pages, accounts, and audit", () => {
     expect(canonical.searchParams.get("person")).toBe(user.user.id);
     expect(canonical.searchParams.get("key")).toBe(replacement.id);
     const accepted = variant === "valid" || variant === "task";
-    expect(canonical.searchParams.get("range")).toBe(accepted ? "30d" : "7d");
+    expect(canonical.searchParams.has("range")).toBe(false);
     expect(canonical.searchParams.get("q")).toBe(accepted ? "absent" : null);
     expect(canonical.searchParams.get("page")).toBe(accepted ? "3" : null);
     expect(html).toContain(`data-setup-selected-key="${replacement.id}"`);
@@ -672,7 +672,7 @@ describe("admin pages, accounts, and audit", () => {
       expect(result.status).toBe(200);
       const html = await result.text();
       expect(html).toContain('data-dashboard-mutation="credential_binding"');
-      expect(html).toContain(`data-dashboard-url="/admin?view=access&amp;range=7d&amp;person=${person}"`);
+      expect(html).toContain(`data-dashboard-url="/admin?view=access&amp;person=${person}"`);
       expect(html).not.toContain('data-key-detail=');
     }
   });
@@ -687,7 +687,7 @@ describe("admin pages, accounts, and audit", () => {
     const issued = await admin(fixture, "https://admin.example.test/admin/ui/keys", { method: "POST", body: { user_id: id, name: "Board key", scopes: ["surface:codex:production"], codex_credential_account_id: SHARED_CODEX_AUTH_ID } });
     expect(issued.status).toBe(201);
     const key = { key: await issued.json() as { id: string } };
-    const canonical = `/admin?view=access&amp;range=7d&amp;person=${encoded}`;
+    const canonical = `/admin?view=access&amp;person=${encoded}`;
     const mutations = [
       [`users/${encoded}/status`, { status: "disabled", confirm: "1" }],
       [`users/${encoded}/credits/codex`, { monthly_allowance: "10", confirm: "1" }],
@@ -956,7 +956,7 @@ describe("admin pages, accounts, and audit", () => {
     expect([...fixture.db.subscriptionAccounts.values()]).toHaveLength(1);
   });
 
-  it.each(["codex", "grok"])("keeps every %s account form result on its exact account, search, linked-key page and range", async provider => {
+  it.each(["codex", "grok"])("keeps every %s account form result on its exact account, search and linked-key page", async provider => {
     const fixture = makeFixture();
     const originalFetch = fixture.deps.fetch;
     fixture.deps.fetch = (async (input, init) => {
@@ -971,7 +971,7 @@ describe("admin pages, accounts, and audit", () => {
     const selected = createdHtml.match(/data-account-detail="([^"]+)"/)?.[1];
     expect(selected).toMatch(new RegExp(`^${provider}:`));
     const id = selected!.slice(provider.length + 1);
-    const canonical = `/admin?view=credentials&amp;range=30d&amp;account=${encodeURIComponent(selected!)}&amp;q=Other+%26+%E4%B8%AD%E6%96%87&amp;page=2`;
+    const canonical = `/admin?view=credentials&amp;account=${encodeURIComponent(selected!)}&amp;q=Other+%26+%E4%B8%AD%E6%96%87&amp;page=2`;
     expect(createdHtml).toContain(`data-dashboard-url="${canonical}"`);
     expect(createdHtml).toContain('data-mgmt-state="absent"');
 
@@ -1019,7 +1019,7 @@ describe("admin pages, accounts, and audit", () => {
     expect(html).toContain('data-mutation-flash="grok_created"');
     expect(html).toContain("已添加 Grok 账号");
     expect(html).toContain("控制台暂时打不开");
-    expect(html).toContain(`data-dashboard-url="/admin?view=credentials&amp;range=30d&amp;account=grok%3A${account.id}&amp;q=Other+%26+%E4%B8%AD%E6%96%87&amp;page=2"`);
+    expect(html).toContain(`data-dashboard-url="/admin?view=credentials&amp;account=grok%3A${account.id}&amp;q=Other+%26+%E4%B8%AD%E6%96%87&amp;page=2"`);
   });
 
   it.each(["a".repeat(257), "bad\u0000search"])("ignores invalid return context after a confirmed account creation", async returnQuery => {
@@ -1030,7 +1030,7 @@ describe("admin pages, accounts, and audit", () => {
     expect(result.status).toBe(200);
     const html = await result.text();
     expect(html).toContain('data-mutation-flash="codex_created"');
-    expect(html).toContain('data-dashboard-url="/admin?view=credentials&amp;range=7d&amp;account=codex%3A');
+    expect(html).toContain('data-dashboard-url="/admin?view=credentials&amp;account=codex%3A');
     expect(html).not.toContain("页面参数不正确");
     expect(html).toContain('name="return_q" value=""');
   });
