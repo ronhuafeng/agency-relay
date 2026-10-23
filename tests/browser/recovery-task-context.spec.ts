@@ -34,7 +34,7 @@ test('an email draft stays visible for its exact person and regains focus after 
 for(const width of [390,1440]) test.describe(`stopped management wait ${width}px`,()=>{
 test.use({viewport:{width,height:900}});
 test('a stopped management wait remains unknown when the next foreground read requires login',async({page,worker},testInfo)=>{
-  const target='/admin?view=access&range=7d&person=other';
+  const target='/admin?view=access&person=other';
   await page.goto(target); await expect(page.locator('[data-confirmation-fallback]:not([hidden])')).toHaveCount(0);
   const write=worker.hold({method:'POST',path:'/admin/ui/users/other/status'});
   await page.getByRole('switch',{name:/启用账号/}).click();

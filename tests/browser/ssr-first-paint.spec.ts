@@ -42,6 +42,9 @@ for (const width of [390, 999, 1000, 1440]) test.describe(`SSR first paint ${wid
   test('script arrival preserves shell and task geometry', async ({ page, context, worker }) => {
     worker.seedAdminLayouts();
     for (const [view, identity] of [['view=access&person=other', 'admin'], ['view=setup', 'admin'], ['view=audit', 'admin'], ['view=surfaces', 'admin'], ['view=surfaces#route-host-1-title', 'admin'], ['area=me&view=setup', 'member']] as const) {
+      // Each first-paint case needs a new document. A fragment-only transition
+      // within the previous page does not request another enhancement runtime.
+      await page.goto('about:blank');
       await authenticate(context, worker, identity);
       let release!: () => void;
       let entered!: () => void;

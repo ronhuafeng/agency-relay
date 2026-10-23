@@ -41,7 +41,7 @@ test('an unknown creation outcome recovers the current collection without reopen
   await expect(page.locator(`[data-user-id="${created!.id}"]`)).toBeVisible();
   expect(new URL(page.url()).searchParams.get('task')).toBeNull();
   expect(new URL(page.url()).searchParams.get('q')).toBe('recovered');
-  expect(new URL(page.url()).searchParams.get('range')).toBe('30d');
+  expect(new URL(page.url()).searchParams.get('range')).toBeNull();
   await page.reload();
   await expect(page.locator('#add-person')).not.toBeVisible();
   await expect(page.locator(`[data-user-id="${created!.id}"]`)).toBeVisible();

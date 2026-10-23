@@ -109,6 +109,6 @@ test("a metadata pause invalidates the stale control and keeps the exact recover
   await expect(admission(page).getByRole("switch")).not.toBeChecked();
   await expect(admission(page).getByRole("switch")).toBeEnabled();
   expect(new URL(page.url()).searchParams.get("q")).toBe("Synthetic");
-  expect(new URL(page.url()).searchParams.get("range")).toBe("30d");
+  expect(new URL(page.url()).searchParams.get("range")).toBeNull();
   expect(admissionPosts(worker.requests)).toHaveLength(0);
 });
