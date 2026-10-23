@@ -1,4 +1,6 @@
 import { fetchCodexAccountResource } from "./adapter";
+import { cancelUnreadBody } from "../proxy/byte-stream";
+import { asRecord, stringOrNull as stringValue } from "../records";
 import type { CodexAccountEgressPath } from "./adapter";
 import type { AppDependencies, FreshAccessToken } from "../types";
 
@@ -147,7 +149,7 @@ async function readResource<T>(
       : AbortSignal.timeout(ACCOUNT_RESOURCE_TIMEOUT_MS);
     const response = await fetchCodexAccountResource(env, deps, freshToken, path, resourceSignal);
     if (!response.ok) {
-      await response.body?.cancel().catch(() => undefined);
+      await cancelUnreadBody(response);
       return { status: "unavailable" };
     }
     const parsed = parse(await response.json());
@@ -160,13 +162,13 @@ async function readResource<T>(
 }
 
 function parseUsage(value: unknown): CodexUsage | null {
-  const object = record(value);
+  const object = asRecord(value);
   const planType = stringValue(object?.plan_type);
   if (!object || planType === null) {
     return null;
   }
-  const reachedType = record(object.rate_limit_reached_type);
-  const resetCredits = record(object.rate_limit_reset_credits);
+  const reachedType = asRecord(object.rate_limit_reached_type);
+  const resetCredits = asRecord(object.rate_limit_reset_credits);
   return {
     planType,
     rateLimit: parseRateLimit(object.rate_limit),
@@ -182,7 +184,7 @@ function parseUsage(value: unknown): CodexUsage | null {
 }
 
 function parseRateLimit(value: unknown): CodexRateLimit | null {
-  const object = record(value);
+  const object = asRecord(value);
   if (!object) {
     return null;
   }
@@ -195,7 +197,7 @@ function parseRateLimit(value: unknown): CodexRateLimit | null {
 }
 
 function parseRateLimitWindow(value: unknown): CodexRateLimitWindow | null {
-  const object = record(value);
+  const object = asRecord(value);
   if (!object) {
     return null;
   }
@@ -208,7 +210,7 @@ function parseRateLimitWindow(value: unknown): CodexRateLimitWindow | null {
 }
 
 function parseCredits(value: unknown): CodexCredits | null {
-  const object = record(value);
+  const object = asRecord(value);
   if (!object) {
     return null;
   }
@@ -222,7 +224,7 @@ function parseCredits(value: unknown): CodexCredits | null {
 }
 
 function parseSpendControl(value: unknown): CodexSpendControl | null {
-  const object = record(value);
+  const object = asRecord(value);
   if (!object) {
     return null;
   }
@@ -233,7 +235,7 @@ function parseSpendControl(value: unknown): CodexSpendControl | null {
 }
 
 function parseSpendControlLimit(value: unknown): CodexSpendControlLimit | null {
-  const object = record(value);
+  const object = asRecord(value);
   if (!object) {
     return null;
   }
@@ -250,7 +252,7 @@ function parseSpendControlLimit(value: unknown): CodexSpendControlLimit | null {
 }
 
 function parseAdditionalRateLimit(value: unknown): CodexAdditionalRateLimit | null {
-  const object = record(value);
+  const object = asRecord(value);
   const name = stringValue(object?.limit_name);
   const meteredFeature = stringValue(object?.metered_feature);
   if (!object || name === null || meteredFeature === null) {
@@ -264,14 +266,14 @@ function parseAdditionalRateLimit(value: unknown): CodexAdditionalRateLimit | nu
 }
 
 function parseTokenActivity(value: unknown): CodexTokenActivity | null {
-  const stats = record(record(value)?.stats);
+  const stats = asRecord(asRecord(value)?.stats);
   if (!stats) {
     return null;
   }
   const dailyUsage = arrayValue(stats.daily_usage_buckets)
     .slice(0, DAILY_USAGE_DISPLAY_LIMIT)
     .map((bucket): CodexDailyTokenUsage | null => {
-      const object = record(bucket);
+      const object = asRecord(bucket);
       const date = stringValue(object?.start_date);
       const tokens = numberValue(object?.tokens);
       return object && date !== null && tokens !== null ? { date, tokens } : null;
@@ -288,7 +290,7 @@ function parseTokenActivity(value: unknown): CodexTokenActivity | null {
 }
 
 function parseResetCredits(value: unknown): CodexResetCredits | null {
-  const object = record(value);
+  const object = asRecord(value);
   const availableCount = numberValue(object?.available_count);
   if (!object || availableCount === null || !Array.isArray(object.credits)) {
     return null;
@@ -296,7 +298,7 @@ function parseResetCredits(value: unknown): CodexResetCredits | null {
   const credits = object.credits
     .slice(0, RESET_CREDIT_DISPLAY_LIMIT)
     .map((credit): CodexResetCredit | null => {
-      const details = record(credit);
+      const details = asRecord(credit);
       const id = stringValue(details?.id);
       const resetType = stringValue(details?.reset_type);
       const status = stringValue(details?.status);
@@ -318,12 +320,6 @@ function parseResetCredits(value: unknown): CodexResetCredits | null {
   return { availableCount, credits };
 }
 
-function record(value: unknown): Record<string, unknown> | null {
-  return value !== null && typeof value === "object" && !Array.isArray(value)
-    ? value as Record<string, unknown>
-    : null;
-}
-
 function arrayValue(value: unknown): unknown[] {
   return Array.isArray(value) ? value : [];
 }
@@ -332,9 +328,6 @@ function optionalArrayCount(value: unknown): number | undefined {
   return Array.isArray(value) ? value.length : undefined;
 }
 
-function stringValue(value: unknown): string | null {
-  return typeof value === "string" ? value : null;
-}
 
 function numberValue(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;

@@ -1,4 +1,5 @@
 import { HttpError } from "../errors";
+import { isUtcCalendarDay, utcDay } from "../records";
 
 const MAX_USAGE_LIMIT = 1000;
 const DAY_MS = 86_400_000;
@@ -104,29 +105,18 @@ function optionalDayQueryParam(url: URL, field: string): string | null {
   if (!value) {
     return null;
   }
-  if (!isValidUtcDay(value)) {
+  if (!isUtcCalendarDay(value)) {
     throw new HttpError(400, `${field} must be a valid YYYY-MM-DD UTC date`, "invalid_request_error", "invalid_day");
   }
   return value;
 }
 
-function isValidUtcDay(value: string): boolean {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-    return false;
-  }
-  const parsed = new Date(`${value}T00:00:00.000Z`);
-  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
-}
-
 function requiredUsageLimit(url: URL): number {
+  const invalid = new HttpError(400, "limit must be an integer from 1 to 1000", "invalid_request_error", "invalid_limit");
   const raw = optionalUsageQueryParam(url, "limit", "invalid_limit");
-  if (!raw || !/^[1-9]\d*$/.test(raw)) {
-    throw new HttpError(400, "limit must be an integer from 1 to 1000", "invalid_request_error", "invalid_limit");
-  }
+  if (!raw || !/^[1-9]\d*$/.test(raw)) throw invalid;
   const parsed = Number.parseInt(raw, 10);
-  if (!Number.isSafeInteger(parsed) || parsed > MAX_USAGE_LIMIT) {
-    throw new HttpError(400, "limit must be an integer from 1 to 1000", "invalid_request_error", "invalid_limit");
-  }
+  if (!Number.isSafeInteger(parsed) || parsed > MAX_USAGE_LIMIT) throw invalid;
   return parsed;
 }
 
@@ -148,9 +138,9 @@ export function parseUsageTrendRange(url: URL, now: Date): UsageTrendRange {
     throw new HttpError(400, "Choose range=7d or range=30d", "invalid_request_error", "invalid_usage_range");
   }
   const count = key === "7d" ? 7 : 30;
-  const to = now.toISOString().slice(0, 10);
-  const from = new Date(Date.parse(`${to}T00:00:00Z`) - (count - 1) * DAY_MS).toISOString().slice(0, 10);
+  const to = utcDay(now);
+  const from = utcDay(new Date(Date.parse(`${to}T00:00:00Z`) - (count - 1) * DAY_MS));
   const validated = parseUsageQuery(new URL(`https://usage.invalid/?from=${from}&to=${to}&limit=100`));
   return { key, from: validated.filters.from!, to: validated.filters.to!, asOf: now.toISOString(),
-    days: Array.from({length: count}, (_, index) => new Date(Date.parse(`${from}T00:00:00Z`) + index * DAY_MS).toISOString().slice(0, 10)) };
+    days: Array.from({length: count}, (_, index) => utcDay(new Date(Date.parse(`${from}T00:00:00Z`) + index * DAY_MS))) };
 }

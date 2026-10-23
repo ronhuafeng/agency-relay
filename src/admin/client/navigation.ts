@@ -2,6 +2,7 @@ import { retainConsoleActor } from "./authority";
 import { consoleLoginHref } from "../return-target";
 import type { Drafts } from "./drafts";
 import { setConsoleStatus } from "./background-refresh";
+import { consoleErrorCode } from "../ui/messages";
 interface Context { url: string; scroll: number; focusLink: string | null; filters: string[] }
 interface Entry { miniEntry: string; miniDepth: number }
 export interface TaskController {
@@ -150,7 +151,7 @@ export function createTaskController(initialize: (root: ParentNode) => void, dra
         // An object-specific denial is not proof that the whole session ended.
         if ([401, 403].includes(response.status)) {
           let code: unknown;
-          try { const value: unknown = await response.json(); code = typeof value === "object" && value !== null && "error" in value && typeof value.error === "object" && value.error !== null && "code" in value.error ? value.error.code : undefined; } catch { /* Unrecognized denial has no session authority. */ }
+          try { const value: unknown = await response.json(); code = consoleErrorCode(value); } catch { /* Unrecognized denial has no session authority. */ }
           if (code === "admin_required") throw new Error("role");
           if (["admin_auth_required", "user_inactive", "console_identity_changed"].includes(String(code))) throw new Error("session");
           throw new Error("denied");

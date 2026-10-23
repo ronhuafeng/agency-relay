@@ -1,5 +1,5 @@
 import type { KeyActor } from "./api-keys";
-import { HttpError } from "../errors";
+import { HttpError, serviceNotFound } from "../errors";
 
 /** Current console authority at the same SQL boundary as the key change. */
 export function keyActorAuthority(actor: KeyActor, ownerId: string): { sql: string; values: unknown[] } {
@@ -21,6 +21,6 @@ export function keyActorAuthority(actor: KeyActor, ownerId: string): { sql: stri
 export async function assertKeyActorAuthority(env: Env, actor: KeyActor, ownerId: string): Promise<void> {
   const guard = keyActorAuthority(actor, ownerId);
   const result = await env.DB.prepare(`SELECT ${guard.sql} AS allowed`).bind(...guard.values).first<{allowed: number}>();
-  if (result?.allowed !== 1 && actor.delegatedServiceId) throw new HttpError(404, "Service not found", "invalid_request_error", "service_not_found");
+  if (result?.allowed !== 1 && actor.delegatedServiceId) throw serviceNotFound();
   if (result?.allowed !== 1) throw new HttpError(403, "Console authority changed before the key operation.", "authentication_error", "console_identity_changed");
 }

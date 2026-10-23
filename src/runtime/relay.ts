@@ -1,6 +1,7 @@
 import {admitRuntimeRequest} from "./authorization";
 import {requireRuntimeInstallation,RUNTIME_PROFILES} from "./profiles";
-import {clientDrivenStream,ByteStreamError,type ByteStreamEnd} from "../proxy/byte-stream";
+import {connectionHeaderNames} from "../proxy/adapter";
+import {cancelUnreadBody,clientDrivenStream,ByteStreamError,copyBytes,type ByteStreamEnd} from "../proxy/byte-stream";
 import type {AppDependencies} from "../types";
 import type {RuntimeTransportError} from "./oauth";
 
@@ -78,7 +79,7 @@ export async function relayRuntimeRequest(request:Request,env:Env,ctx:Pick<Execu
     headersMs=Math.max(0,deps.now().getTime()-started);
     status=upstream.status;
     const error=status>=300&&status<400?"upstream_redirect_rejected":status===401||status===403?"upstream_credential_unavailable":upstream.headers.has("Mcp-Session-Id")?"runtime_transport_unsupported":null;
-    if(error){void upstream.body?.cancel().catch(()=>undefined);finish("error",error);return runtimeFailure(502,error);}
+    if(error){void cancelUnreadBody(upstream);finish("error",error);return runtimeFailure(502,error);}
     const responseHeaders=projectHeaders(upstream.headers,false);
     responseHeaders.set("Cache-Control","no-store");
     responseHeaders.set("Referrer-Policy","no-referrer");
@@ -101,8 +102,8 @@ export async function relayRuntimeRequest(request:Request,env:Env,ctx:Pick<Execu
 }
 
 
-async function frameUpstreamBody(upstream:Response,signal:AbortSignal,onChunk:(chunk:Uint8Array)=>void,onEnd:(kind:ByteStreamEnd,error?:unknown)=>void):Promise<{kind:"definite";bytes:ArrayBuffer}|{kind:"open";stream:ReadableStream<Uint8Array>}> {
-  if(!upstream.body)return {kind:"definite",bytes:new ArrayBuffer(0)};
+async function frameUpstreamBody(upstream:Response,signal:AbortSignal,onChunk:(chunk:Uint8Array)=>void,onEnd:(kind:ByteStreamEnd,error?:unknown)=>void):Promise<{kind:"definite";bytes:Uint8Array<ArrayBuffer>}|{kind:"open";stream:ReadableStream<Uint8Array>}> {
+  if(!upstream.body)return {kind:"definite",bytes:new Uint8Array(new ArrayBuffer(0))};
   const reader=upstream.body.getReader();
   const buffered:Uint8Array[]=[];
   let total=0;
@@ -128,7 +129,7 @@ async function frameUpstreamBody(upstream:Response,signal:AbortSignal,onChunk:(c
       if(outcome.kind==="error")throw outcome.error;
       if(outcome.result.done){
         try{reader.releaseLock();}catch{/* The completed reader is already released. */}
-        return {kind:"definite",bytes:concatBytes(buffered,total)};
+        return {kind:"definite",bytes:copyBytes(buffered,total)};
       }
       buffered.push(outcome.result.value);
       total+=outcome.result.value.byteLength;
@@ -139,7 +140,7 @@ async function frameUpstreamBody(upstream:Response,signal:AbortSignal,onChunk:(c
     try{reader.releaseLock();}catch{/* The failed reader is already released. */}
     throw error;
   }
-  return open(undefined);
+  throw new Error("relay_frame_invariant");
 }
 
 /** Bytes already pulled stay in order ahead of the one in-flight read.
@@ -160,13 +161,6 @@ function remainingBody(reader:ReadableStreamDefaultReader<Uint8Array>,prefix:Uin
   },{highWaterMark:0});
 }
 
-function concatBytes(chunks:Uint8Array[],total:number):ArrayBuffer {
-  const bytes=new Uint8Array(new ArrayBuffer(total));
-  let offset=0;
-  for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.byteLength;}
-  return bytes.buffer;
-}
-
 function nativeTimers():{set:typeof setTimeout;clear:typeof clearTimeout} {
   const host=globalThis as {__nativeSetTimeout?:typeof setTimeout;__nativeClearTimeout?:typeof clearTimeout};
   return {set:host.__nativeSetTimeout??setTimeout,clear:host.__nativeClearTimeout??clearTimeout};
@@ -176,11 +170,14 @@ function nativeTimers():{set:typeof setTimeout;clear:typeof clearTimeout} {
  * have no forwarding path. Per-tool modern envelope fields stay opaque. */
 function projectHeaders(incoming:Headers,requestSide:boolean):Headers {
   const headers=new Headers();
-  const hopNames=new Set((incoming.get("Connection")??"").split(",").map(name=>name.trim().toLowerCase()));
+  const hopNames=connectionHeaderNames(incoming.get("Connection"));
   incoming.forEach((value,name)=>{
     if(hopNames.has(name))return;
-    if(CONTENT_HEADERS.has(name)&& (requestSide||!name.startsWith("accept")) || MCP_HEADERS.has(name)
-      ||requestSide&&/^mcp-param-[a-z0-9-]+$/.test(name) ||!requestSide&&name==="retry-after")headers.set(name,value);
+    // Response accept* headers are request metadata, not content.
+    const content=CONTENT_HEADERS.has(name)&&(requestSide||!name.startsWith("accept"));
+    const mcpParameter=requestSide&&/^mcp-param-[a-z0-9-]+$/.test(name);
+    const retryAfter=!requestSide&&name==="retry-after";
+    if(content||MCP_HEADERS.has(name)||mcpParameter||retryAfter)headers.set(name,value);
   });
   return headers;
 }

@@ -52,7 +52,7 @@ import {
   insertOperatorMutationAudit,
   type OperatorMutationAuditInput
 } from "../db";
-import { HttpError } from "../errors";
+import { HttpError, codexAuthNotFound, keyNotActive, keyNotFound, subscriptionNotFound, userNotFound } from "../errors";
 import { parseGrokSessionArtifact } from "../grok/session-import";
 import {
   createSubscriptionAccount as insertSubscriptionAccount,
@@ -134,28 +134,19 @@ function lifecycleActor(ctx: OperatorMutationContext): LifecycleActor {
   };
 }
 
-async function auditOk(
-  ctx: OperatorMutationContext,
-  input: Omit<OperatorMutationAuditInput, "actor_kind" | "actor_email" | "actor_subject" | "result" | "request_id">
-): Promise<void> {
+type OperatorAuditInput = Omit<OperatorMutationAuditInput, "actor_kind" | "actor_email" | "actor_subject" | "result" | "request_id">;
+
+async function audit(ctx: OperatorMutationContext, input: OperatorAuditInput, result: "ok" | "error"): Promise<void> {
   await insertOperatorMutationAudit(ctx.env, {
     ...actorFields(ctx.actor),
     ...input,
-    result: "ok",
+    result,
     request_id: ctx.requestId
   }, ctx.now);
 }
 
-async function auditError(
-  ctx: OperatorMutationContext,
-  input: Omit<OperatorMutationAuditInput, "actor_kind" | "actor_email" | "actor_subject" | "result" | "request_id">
-): Promise<void> {
-  await insertOperatorMutationAudit(ctx.env, {
-    ...actorFields(ctx.actor),
-    ...input,
-    result: "error",
-    request_id: ctx.requestId
-  }, ctx.now);
+function auditOk(ctx: OperatorMutationContext, input: OperatorAuditInput): Promise<void> {
+  return audit(ctx, input, "ok");
 }
 
 export async function createUser(
@@ -204,7 +195,7 @@ export async function issueApiKey(
   const name = normalizeKeyName(input.name);
   const expiresAt = resolveKeyExpiry(input.expires_at, ctx.now);
   const user = await getUser(ctx.env, input.user_id);
-  if (!user) throw new HttpError(404, "User not found", "invalid_request_error", "user_not_found");
+  if (!user) throw userNotFound();
   await assertIssuanceEntitlement(ctx.env, input.user_id, grants, ctx.now);
   const selections = input.credential_bindings === undefined
     ? await selectIssuanceDefaults(ctx.env, grants as OrganizationSurface[], defaultCredentialProbe(ctx.env), ctx.now)
@@ -241,14 +232,14 @@ export async function issueReplacementApiKey(
 }> {
   const existing = await getApiKeyById(ctx.env, keyId);
   if (!existing) {
-    throw new HttpError(404, "API key not found", "invalid_request_error", "key_not_found");
+    throw keyNotFound();
   }
   if (existing.status !== "active") {
-    throw new HttpError(409, "Only an active key can be replaced", "invalid_request_error", "key_not_active");
+    throw keyNotActive();
   }
   const user = await getUser(ctx.env, existing.user_id);
   if (!user) {
-    throw new HttpError(404, "User not found", "invalid_request_error", "user_not_found");
+    throw userNotFound();
   }
   const grants = assertIssuableSurfaceGrants(parseApiKeyScopes(existing.scopes));
   const existingBindings = await listApiKeySurfaceCredentials(ctx.env, existing.id);
@@ -280,7 +271,7 @@ export async function setApiKeyCredentialBinding(
 ) {
   const key = await getApiKeyById(ctx.env, input.api_key_id);
   if (!key) {
-    throw new HttpError(404, "API key not found", "invalid_request_error", "key_not_found");
+    throw keyNotFound();
   }
   if (key.status !== "active") {
     throw new HttpError(409, "Only an active key can be rebound", "invalid_request_error", "key_not_active");
@@ -331,7 +322,7 @@ export async function revokeApiKey(
 ): Promise<{ id: string; revoked: true; already_revoked: boolean; key_prefix: string | null }> {
   const existing = await getApiKeyById(ctx.env, keyId);
   if (!existing) {
-    throw new HttpError(404, "API key not found", "invalid_request_error", "key_not_found");
+    throw keyNotFound();
   }
   return revokeKey(ctx.env, credentialActor(ctx), existing, ctx.now);
 }
@@ -792,8 +783,13 @@ async function requireGrokSubscriptionAccount(
 ) {
   const account = await getSubscriptionAccount(ctx.env, accountId);
   if (!account) {
-    throw new HttpError(404, "Subscription Account not found", "invalid_request_error", "subscription_not_found");
+    throw subscriptionNotFound();
   }
+  assertGrokCapability(account);
+  return account;
+}
+
+export function assertGrokCapability(account: { capability_source: string }): void {
   if (account.capability_source !== "grok") {
     throw new HttpError(
       400,
@@ -802,7 +798,6 @@ async function requireGrokSubscriptionAccount(
       "invalid_capability_source"
     );
   }
-  return account;
 }
 
 async function storeGrokMaterial(
@@ -905,12 +900,12 @@ export async function testGrokCredential(
       last_test_at: ctx.now.toISOString(),
       last_test_status: "error"
     }, ctx.now);
-    await auditError(ctx, {
+    await audit(ctx, {
       action: "credential.grok_test",
       target_type: "subscription_account",
       target_id: accountId,
       meta: { capability_source: account.capability_source, failure_code: code }
-    });
+    }, "error");
     throw error;
   }
 }
@@ -944,14 +939,7 @@ export async function logoutGrokCredential(
       storage_cleared: cleared.cleared
     };
   }
-  if (account.capability_source !== "grok") {
-    throw new HttpError(
-      400,
-      "Subscription credential operations support Grok; use ChatGPT import for Codex",
-      "invalid_request_error",
-      "invalid_capability_source"
-    );
-  }
+  assertGrokCapability(account);
   const outcome = await disconnectCredential(ctx.env, credentialActor(ctx), {
     kind: "grok",
     account_id: accountId
@@ -982,7 +970,7 @@ function optionalNonEmpty(value: string | null | undefined): string | undefined 
 async function requireCodexAuth(ctx: OperatorMutationContext, authId: string): Promise<CodexAuthRow> {
   const auth = await getCodexAuth(ctx.env, authId);
   if (!auth) {
-    throw new HttpError(404, "ChatGPT Credential Account not found", "invalid_request_error", "codex_auth_not_found");
+    throw codexAuthNotFound();
   }
   return auth;
 }

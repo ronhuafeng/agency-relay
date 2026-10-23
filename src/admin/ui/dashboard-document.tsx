@@ -8,7 +8,7 @@ import { HomePage } from "./pages/home";
 import { AccountsPage } from "./pages/accounts";
 import { RequestHistory } from "./pages/request-history";
 import { UsagePage } from "./pages/usage";
-import { RoutesPage } from "./pages/routes";
+import { RoutesIsland } from "./islands";
 import { QuotasPage, ControlAuditPage } from "./pages/organization";
 import { SetupPage } from "./pages/setup";
 import { PeoplePage } from "./pages/people";
@@ -29,7 +29,7 @@ function DashboardPage({model}: {readonly model: AdminDashboardPageModel}) {
     case "setup": return <SetupPage model={model} />;
     case "audit": return <RequestHistory model={model.history} />;
     case "usage": return <UsagePage model={model} />;
-    case "surfaces": return <RoutesPage routes={model.routes} />;
+    case "surfaces": return <RoutesIsland routes={model.routes} />;
     case "quotas": return <QuotasPage defaults={model.defaults} />;
     case "control-audit": return <ControlAuditPage rows={model.rows} truncated={model.truncated} />;
   }

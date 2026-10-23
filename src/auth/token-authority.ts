@@ -6,7 +6,8 @@ import {
   readCodexAuthStatus,
   updateCodexAuthAfterRefresh
 } from "../db";
-import { HttpError } from "../errors";
+import { errorMessage, HttpError } from "../errors";
+import { nonNegativeIntegerOrNull } from "../records";
 import { refreshCodexToken } from "../codex/oauth";
 import {
   driverFor,
@@ -58,7 +59,7 @@ export class TokenAuthority extends DurableObject<Env> {
       const ciphertext = await encryptJson(this.env.TOKEN_ENCRYPTION_KEY_V1, normalized);
       await this.replaceSecret(TOKEN_STORAGE_KEY, ciphertext);
       await this.syncD1(normalized);
-      await this.scheduleNextRefresh(normalized);
+      await this.scheduleRefresh(normalized);
       return null;
     });
   }
@@ -94,7 +95,7 @@ export class TokenAuthority extends DurableObject<Env> {
       : undefined;
     await this.ctx.storage.transaction(async (txn) => {
       if (ciphertext) await txn.put(TOKEN_STORAGE_KEY, ciphertext);
-      await txn.put(LIFECYCLE_GENERATION_KEY, generationValue(await txn.get<number>(LIFECYCLE_GENERATION_KEY)) + 1);
+      await bumpLifecycleGeneration(txn);
     });
     await this.ctx.storage.deleteAlarm();
     this.notifyChange();
@@ -107,7 +108,7 @@ export class TokenAuthority extends DurableObject<Env> {
       const ciphertext = await encryptJson(this.env.TOKEN_ENCRYPTION_KEY_V1, normalized);
       await this.replaceSecret(SUBSCRIPTION_STORAGE_KEY, ciphertext);
       await this.syncSubscriptionD1(normalized);
-      await this.scheduleSubscriptionRefresh(normalized);
+      await this.scheduleRefresh(normalized);
       return null;
     });
   }
@@ -159,7 +160,7 @@ export class TokenAuthority extends DurableObject<Env> {
     await this.ctx.storage.transaction(async (txn) => {
       cleared = (await txn.get(SUBSCRIPTION_STORAGE_KEY)) !== undefined;
       await txn.delete(SUBSCRIPTION_STORAGE_KEY);
-      await txn.put(LIFECYCLE_GENERATION_KEY, generationValue(await txn.get<number>(LIFECYCLE_GENERATION_KEY)) + 1);
+      await bumpLifecycleGeneration(txn);
     });
     await this.ctx.storage.deleteAlarm();
     this.notifyChange();
@@ -215,10 +216,7 @@ export class TokenAuthority extends DurableObject<Env> {
    * Expired/near-expiry without refresh → reauth_required and local fail.
    */
   private async ensureFreshSharedToken(snapshot: CodexSnapshot): Promise<CodexToken> {
-    const nowMs = this.deps.now().getTime();
-    const expiresAt = parseIsoMillis(snapshot.token.expires_at);
-    const needsRefresh = expiresAt !== undefined && expiresAt - nowMs <= REFRESH_LEAD_MS;
-    if (!needsRefresh) return snapshot.token;
+    if (!this.expiresWithinRefreshLead(snapshot.token.expires_at)) return snapshot.token;
     if (!snapshot.token.refresh_token) {
       if (!await this.commitCodexReauth(snapshot)) throw lifecycleChanged();
       throw new HttpError(401, "Codex auth expired and has no refresh token", "authentication_error", "reauth_required");
@@ -227,10 +225,7 @@ export class TokenAuthority extends DurableObject<Env> {
   }
 
   private async ensureFreshSubscriptionCredential(snapshot: SubscriptionSnapshot): Promise<SubscriptionCredential> {
-    const nowMs = this.deps.now().getTime();
-    const expiresAt = parseIsoMillis(snapshot.credential.expires_at);
-    const needsRefresh = expiresAt !== undefined && expiresAt - nowMs <= REFRESH_LEAD_MS;
-    if (!needsRefresh) return snapshot.credential;
+    if (!this.expiresWithinRefreshLead(snapshot.credential.expires_at)) return snapshot.credential;
     if (!snapshot.credential.refresh_token) {
       if (!await this.commitSubscriptionReauth(snapshot)) throw lifecycleChanged();
       throw new HttpError(
@@ -244,13 +239,12 @@ export class TokenAuthority extends DurableObject<Env> {
   }
 
   private refreshOnceShared(snapshot: CodexSnapshot): Promise<CodexToken> {
-    const current = this.codexRefresh;
-    if (current?.generation === snapshot.generation) return current.promise;
-    const promise = this.refreshOnce(snapshot).finally(() => {
-      if (this.codexRefresh?.promise === promise) this.codexRefresh = undefined;
-    });
-    this.codexRefresh = { generation: snapshot.generation, promise };
-    return promise;
+    return this.singleFlight(
+      () => this.codexRefresh,
+      (slot) => { this.codexRefresh = slot; },
+      snapshot.generation,
+      () => this.refreshOnce(snapshot)
+    );
   }
 
   private async refreshOnce(snapshot: CodexSnapshot): Promise<CodexToken> {
@@ -262,17 +256,31 @@ export class TokenAuthority extends DurableObject<Env> {
       if (error instanceof HttpError && error.code === "credential_lifecycle_changed") throw error;
       if (!isPermanentOAuthFailure(error)) throw error;
       if (!await this.commitCodexReauth(snapshot)) throw lifecycleChanged();
-      throw new HttpError(401, "Codex auth requires reauthorization", "authentication_error", "reauth_required");
+      throw codexReauthRequired();
     }
   }
 
   private refreshSubscriptionOnceShared(snapshot: SubscriptionSnapshot): Promise<SubscriptionCredential> {
-    const current = this.subscriptionRefresh;
-    if (current?.generation === snapshot.generation) return current.promise;
-    const promise = this.refreshSubscriptionOnce(snapshot).finally(() => {
-      if (this.subscriptionRefresh?.promise === promise) this.subscriptionRefresh = undefined;
+    return this.singleFlight(
+      () => this.subscriptionRefresh,
+      (slot) => { this.subscriptionRefresh = slot; },
+      snapshot.generation,
+      () => this.refreshSubscriptionOnce(snapshot)
+    );
+  }
+
+  private singleFlight<T>(
+    read: () => { generation: number; promise: Promise<T> } | undefined,
+    write: (slot: { generation: number; promise: Promise<T> } | undefined) => void,
+    generation: number,
+    run: () => Promise<T>
+  ): Promise<T> {
+    const current = read();
+    if (current?.generation === generation) return current.promise;
+    const promise = run().finally(() => {
+      if (read()?.promise === promise) write(undefined);
     });
-    this.subscriptionRefresh = { generation: snapshot.generation, promise };
+    write({ generation, promise });
     return promise;
   }
 
@@ -295,7 +303,7 @@ export class TokenAuthority extends DurableObject<Env> {
           permanent: true
         }));
         if (!marked) throw lifecycleChanged();
-        throw new HttpError(401, "Subscription requires reauthorization", "authentication_error", "reauth_required");
+        throw subscriptionReauthRequired();
       }
       console.error(JSON.stringify({
         event: "subscription_refresh_failed",
@@ -324,7 +332,7 @@ export class TokenAuthority extends DurableObject<Env> {
       console.error(JSON.stringify({
         event: "token_authority_d1_projection_failed",
         auth_id: refreshed.auth_id,
-        error: projectionError instanceof Error ? projectionError.message : "unknown"
+        error: errorMessage(projectionError)
       }));
       projected = !await this.terminalCodex(refreshed.auth_id);
     }
@@ -334,7 +342,7 @@ export class TokenAuthority extends DurableObject<Env> {
     }
     this.notifyChange();
     try {
-      await this.scheduleNextRefresh(refreshed);
+      await this.scheduleRefresh(refreshed);
     } catch {
       // Alarm bookkeeping is best-effort after commit.
     }
@@ -364,7 +372,7 @@ export class TokenAuthority extends DurableObject<Env> {
       console.error(JSON.stringify({
         event: "subscription_d1_projection_failed",
         account_id: refreshed.account_id,
-        error: projectionError instanceof Error ? projectionError.message : "unknown"
+        error: errorMessage(projectionError)
       }));
       projected = !await this.terminalSubscription(refreshed.account_id);
     }
@@ -374,7 +382,7 @@ export class TokenAuthority extends DurableObject<Env> {
     }
     this.notifyChange();
     try {
-      await this.scheduleSubscriptionRefresh(refreshed);
+      await this.scheduleRefresh(refreshed);
     } catch {
       // best-effort
     }
@@ -421,63 +429,40 @@ export class TokenAuthority extends DurableObject<Env> {
   }
 
   private async revokeCodexIfCurrent(generation: number, token: CodexToken): Promise<void> {
-    const ciphertext = await encryptJson(this.env.TOKEN_ENCRYPTION_KEY_V1, { ...token, status: "revoked" });
-    let applied = false;
-    await this.ctx.storage.transaction(async (txn) => {
-      if (generationValue(await txn.get<number>(LIFECYCLE_GENERATION_KEY)) !== generation) return;
-      await txn.put(TOKEN_STORAGE_KEY, ciphertext);
-      applied = true;
-    });
-    if (applied) await this.ctx.storage.deleteAlarm();
+    await this.revokeIfCurrent(TOKEN_STORAGE_KEY, generation, { ...token, status: "revoked" });
   }
 
   private async revokeSubscriptionIfCurrent(generation: number, credential: SubscriptionCredential): Promise<void> {
-    const ciphertext = await encryptJson(this.env.TOKEN_ENCRYPTION_KEY_V1, { ...credential, status: "revoked" });
-    let applied = false;
-    await this.ctx.storage.transaction(async (txn) => {
-      if (generationValue(await txn.get<number>(LIFECYCLE_GENERATION_KEY)) !== generation) return;
-      await txn.put(SUBSCRIPTION_STORAGE_KEY, ciphertext);
-      applied = true;
-    });
-    if (applied) await this.ctx.storage.deleteAlarm();
+    await this.revokeIfCurrent(SUBSCRIPTION_STORAGE_KEY, generation, { ...credential, status: "revoked" });
+  }
+
+  private async revokeIfCurrent(key: string, generation: number, value: unknown): Promise<void> {
+    const ciphertext = await encryptJson(this.env.TOKEN_ENCRYPTION_KEY_V1, value);
+    if (await this.storeIfCurrent(key, generation, ciphertext)) await this.ctx.storage.deleteAlarm();
   }
 
   private async loadCodexSnapshot(): Promise<CodexSnapshot> {
-    let encrypted: TokenCiphertext | undefined;
-    let generation = 0;
-    await this.ctx.storage.transaction(async (txn) => {
-      encrypted = await txn.get<TokenCiphertext>(TOKEN_STORAGE_KEY);
-      generation = generationValue(await txn.get<number>(LIFECYCLE_GENERATION_KEY));
-    });
-    if (!encrypted) {
-      throw new HttpError(401, "Codex auth is not configured", "authentication_error", "missing_codex_auth");
-    }
-    if (encrypted.kid !== "v1") {
-      throw new HttpError(500, "Unsupported token encryption key version", "server_error", "unsupported_token_kid");
-    }
-    return {
-      token: await decryptJson<CodexToken>(this.env.TOKEN_ENCRYPTION_KEY_V1, encrypted),
-      generation
-    };
+    const { encrypted, generation } = await this.readV1Snapshot(TOKEN_STORAGE_KEY, new HttpError(401, "Codex auth is not configured", "authentication_error", "missing_codex_auth"));
+    return { token: await decryptJson<CodexToken>(this.env.TOKEN_ENCRYPTION_KEY_V1, encrypted), generation };
   }
 
   private async loadSubscriptionSnapshot(): Promise<SubscriptionSnapshot> {
+    const { encrypted, generation } = await this.readV1Snapshot(SUBSCRIPTION_STORAGE_KEY, new HttpError(401, "Subscription credential is not configured", "authentication_error", "missing_subscription_credential"));
+    return { credential: await decryptJson<SubscriptionCredential>(this.env.TOKEN_ENCRYPTION_KEY_V1, encrypted), generation };
+  }
+
+  private async readV1Snapshot(key: string, missing: HttpError): Promise<{ encrypted: TokenCiphertext; generation: number }> {
     let encrypted: TokenCiphertext | undefined;
     let generation = 0;
     await this.ctx.storage.transaction(async (txn) => {
-      encrypted = await txn.get<TokenCiphertext>(SUBSCRIPTION_STORAGE_KEY);
+      encrypted = await txn.get<TokenCiphertext>(key);
       generation = generationValue(await txn.get<number>(LIFECYCLE_GENERATION_KEY));
     });
-    if (!encrypted) {
-      throw new HttpError(401, "Subscription credential is not configured", "authentication_error", "missing_subscription_credential");
-    }
+    if (!encrypted) throw missing;
     if (encrypted.kid !== "v1") {
       throw new HttpError(500, "Unsupported token encryption key version", "server_error", "unsupported_token_kid");
     }
-    return {
-      credential: await decryptJson<SubscriptionCredential>(this.env.TOKEN_ENCRYPTION_KEY_V1, encrypted),
-      generation
-    };
+    return { encrypted, generation };
   }
 
   private async loadToken(): Promise<CodexToken> {
@@ -491,7 +476,7 @@ export class TokenAuthority extends DurableObject<Env> {
   private async replaceSecret(key: string, ciphertext: TokenCiphertext): Promise<void> {
     await this.ctx.storage.transaction(async (txn) => {
       await txn.put(key, ciphertext);
-      await txn.put(LIFECYCLE_GENERATION_KEY, generationValue(await txn.get<number>(LIFECYCLE_GENERATION_KEY)) + 1);
+      await bumpLifecycleGeneration(txn);
     });
   }
 
@@ -546,7 +531,7 @@ export class TokenAuthority extends DurableObject<Env> {
 
   private assertUsable(token: CodexToken): void {
     if (token.status === "reauth_required") {
-      throw new HttpError(401, "Codex auth requires reauthorization", "authentication_error", "reauth_required");
+      throw codexReauthRequired();
     }
     if (token.status !== "active") {
       throw new HttpError(401, "Codex auth is not active", "authentication_error", "codex_auth_inactive");
@@ -558,10 +543,7 @@ export class TokenAuthority extends DurableObject<Env> {
 
   private assertSubscriptionUsable(credential: SubscriptionCredential): void {
     if (credential.status === "reauth_required") {
-      throw new HttpError(401, "Subscription requires reauthorization", "authentication_error", "reauth_required");
-    }
-    if (credential.status === "revoked" || credential.status === "disabled") {
-      throw new HttpError(401, "Subscription account is not active", "authentication_error", "subscription_inactive");
+      throw subscriptionReauthRequired();
     }
     if (credential.status !== "active" && credential.status !== "degraded") {
       throw new HttpError(401, "Subscription account is not active", "authentication_error", "subscription_inactive");
@@ -571,21 +553,12 @@ export class TokenAuthority extends DurableObject<Env> {
     }
   }
 
-  private async scheduleNextRefresh(token: CodexToken): Promise<void> {
-    if (!token.refresh_token || token.status !== "active") {
-      await this.ctx.storage.deleteAlarm();
-      return;
-    }
-    const expiresAt = parseIsoMillis(token.expires_at);
-    if (expiresAt === undefined) {
-      await this.ctx.storage.deleteAlarm();
-      return;
-    }
-    const alarmAt = Math.max(this.deps.now().getTime() + MIN_ALARM_DELAY_MS, expiresAt - REFRESH_LEAD_MS + secureJitterMillis(ALARM_JITTER_MS));
-    await this.ctx.storage.setAlarm(alarmAt);
+  private expiresWithinRefreshLead(expiresAt?: string | null): boolean {
+    const expires = parseIsoMillis(expiresAt);
+    return expires !== undefined && expires - this.deps.now().getTime() <= REFRESH_LEAD_MS;
   }
 
-  private async scheduleSubscriptionRefresh(credential: SubscriptionCredential): Promise<void> {
+  private async scheduleRefresh(credential: { refresh_token?: string; status: string; expires_at?: string }): Promise<void> {
     if (!credential.refresh_token || credential.status !== "active") {
       await this.ctx.storage.deleteAlarm();
       return;
@@ -595,16 +568,25 @@ export class TokenAuthority extends DurableObject<Env> {
       await this.ctx.storage.deleteAlarm();
       return;
     }
-    const alarmAt = Math.max(
-      this.deps.now().getTime() + MIN_ALARM_DELAY_MS,
-      expiresAt - REFRESH_LEAD_MS + secureJitterMillis(ALARM_JITTER_MS)
-    );
+    const alarmAt = Math.max(this.deps.now().getTime() + MIN_ALARM_DELAY_MS, expiresAt - REFRESH_LEAD_MS + secureJitterMillis(ALARM_JITTER_MS));
     await this.ctx.storage.setAlarm(alarmAt);
   }
 }
 
+async function bumpLifecycleGeneration(txn: { get<T>(key: string): Promise<T | undefined>; put(key: string, value: number): Promise<void> }): Promise<void> {
+  await txn.put(LIFECYCLE_GENERATION_KEY, generationValue(await txn.get<number>(LIFECYCLE_GENERATION_KEY)) + 1);
+}
+
+function codexReauthRequired(): HttpError {
+  return new HttpError(401, "Codex auth requires reauthorization", "authentication_error", "reauth_required");
+}
+
+function subscriptionReauthRequired(): HttpError {
+  return new HttpError(401, "Subscription requires reauthorization", "authentication_error", "reauth_required");
+}
+
 function generationValue(value: unknown): number {
-  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0 ? value : 0;
+  return nonNegativeIntegerOrNull(value) ?? 0;
 }
 
 function isAdministrativeTerminal(status: string | null): boolean {
@@ -620,12 +602,16 @@ function isSettledRefresh(error: unknown): boolean {
     && (error.code === "reauth_required" || error.code === "credential_lifecycle_changed");
 }
 
+function missingAccessToken(): HttpError {
+  return new HttpError(400, "access_token is required", "invalid_request_error", "missing_access_token");
+}
+
 function normalizeToken(token: CodexToken, now = new Date()): CodexToken {
   if (!token.auth_id) {
     throw new HttpError(400, "auth_id is required", "invalid_request_error", "missing_auth_id");
   }
   if (!token.access_token) {
-    throw new HttpError(400, "access_token is required", "invalid_request_error", "missing_access_token");
+    throw missingAccessToken();
   }
   return {
     ...token,
@@ -641,7 +627,7 @@ function normalizeSubscriptionCredential(
     throw new HttpError(400, "account_id is required", "invalid_request_error", "missing_account_id");
   }
   if (!credential.access_token) {
-    throw new HttpError(400, "access_token is required", "invalid_request_error", "missing_access_token");
+    throw missingAccessToken();
   }
   const source = credential.capability_source as CapabilitySource;
   if (source !== "chatgpt" && source !== "grok") {

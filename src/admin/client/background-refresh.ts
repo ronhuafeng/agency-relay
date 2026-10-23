@@ -1,4 +1,5 @@
 import { consoleActorId, retainConsoleActor } from "./authority";
+import { consoleErrorCode } from "../ui/messages";
 
 export function setConsoleStatus(message: string, state: "pending" | "stale" | "error" = "pending"): void {
   const status = document.querySelector<HTMLElement>("[data-console-status]");
@@ -97,7 +98,7 @@ export function initializeBackgroundRefresh(apply: (doc: Document) => void): () 
       if (response.headers.get("Content-Type")?.includes("application/json")) {
         const value: unknown = await response.json();
         if (!current()) return;
-        const code = value && typeof value === "object" && "error" in value && value.error && typeof value.error === "object" && "code" in value.error ? value.error.code : null;
+        const code = consoleErrorCode(value);
         if (["admin_required", "admin_auth_required", "user_inactive", "console_identity_changed", "service_not_found"].includes(String(code))) {
           document.dispatchEvent(new CustomEvent("console:actor-changed", {detail: {outcome: "read", changed: false, reason: "authority"}}));
           return;

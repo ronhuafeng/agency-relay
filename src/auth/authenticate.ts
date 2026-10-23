@@ -1,5 +1,5 @@
 import { findEndUserAuthByKeyPrefix, touchApiKey } from "../db";
-import { HttpError } from "../errors";
+import { HttpError, adminAuthRequired, invalidApiKey, userInactive } from "../errors";
 import { hmacSha256Hex, keyPrefix, parseIsoMillis, timingSafeEqualHex, timingSafeEqualString } from "../crypto";
 import { ISSUABLE_SURFACE_GRANTS } from "../plans/execution-plans";
 import type { AuthenticatedUser } from "../types";
@@ -28,7 +28,7 @@ export async function requireOperator(request: Request, env: Env): Promise<Admin
   if (env.ADMIN_SECRET && candidate && timingSafeEqualString(candidate, env.ADMIN_SECRET)) {
     return { kind: "admin_secret", email: null, subject: null, userId: null, role: null };
   }
-  throw new HttpError(403, "Admin authentication required", "authentication_error", "admin_auth_required");
+  throw adminAuthRequired();
 }
 
 export async function verifyConsoleAccess(request: Request, env: Env, now = new Date()): Promise<ConsolePrincipal | null> {
@@ -42,18 +42,18 @@ export async function authenticateEndUser(
   authorization: EndUserAuthorization,
   now = new Date()
 ): Promise<AuthenticatedUser> {
-  const plaintext = endUserCredential(request);
+  const plaintext = bearerToken(request);
   if (!plaintext) {
     throw new HttpError(401, "Missing bearer token", "authentication_error", "missing_bearer_token");
   }
   const candidate = await findEndUserAuthByKeyPrefix(env, keyPrefix(plaintext));
   if (!candidate || candidate.apiKey.status !== "active") {
-    throw new HttpError(401, "Invalid API key", "authentication_error", "invalid_api_key");
+    throw invalidApiKey();
   }
 
   const actualHash = await hmacSha256Hex(env.API_KEY_HASH_PEPPER, plaintext);
   if (!timingSafeEqualHex(actualHash, candidate.apiKey.key_hash)) {
-    throw new HttpError(401, "Invalid API key", "authentication_error", "invalid_api_key");
+    throw invalidApiKey();
   }
 
   if (keyIsExpired(candidate.apiKey, now.getTime())) {
@@ -61,13 +61,13 @@ export async function authenticateEndUser(
   }
 
   // Current invariant: surface grants only; no route-profile compatibility bridge.
-  if (!authorizeScopes(candidate.apiKey.scopes, authorization.requiredSurfaceGrant).ok) {
+  if (!parseScopes(candidate.apiKey.scopes).includes(authorization.requiredSurfaceGrant)) {
     throw new HttpError(403, "API key scope denied", "authentication_error", "scope_denied");
   }
 
   const user = candidate.user;
   if (!user || user.status !== "active") {
-    throw new HttpError(403, "User is not active", "authentication_error", "user_inactive");
+    throw userInactive();
   }
 
   const lastUsedAt = parseIsoMillis(candidate.apiKey.last_used_at);
@@ -80,14 +80,6 @@ export async function authenticateEndUser(
     );
   }
   return { user, apiKey: candidate.apiKey };
-}
-
-export function authorizeScopes(
-  rawScopes: string,
-  requiredSurfaceGrant: string
-): { ok: boolean } {
-  const scopes = parseScopes(rawScopes);
-  return { ok: scopes.includes(requiredSurfaceGrant) };
 }
 
 /** Validate grants for new key issuance — surface+env only, non-empty. */
@@ -117,10 +109,6 @@ function bearerToken(request: Request): string | undefined {
   const header = request.headers.get("Authorization") ?? "";
   const match = /^Bearer\s+(.+)$/i.exec(header.trim());
   return match?.[1]?.trim() || undefined;
-}
-
-function endUserCredential(request: Request): string | undefined {
-  return bearerToken(request);
 }
 
 function parseScopes(raw: string): string[] {

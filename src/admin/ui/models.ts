@@ -1,4 +1,5 @@
 import type { SurfaceCapabilityState, SurfaceCapabilityView } from "../../plans/capabilities";
+import { isRecord } from "../../records";
 
 export interface FieldControl {
   readonly label: string;
@@ -144,9 +145,6 @@ export interface UsageReportControl {
   readonly limitNote: string;
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 
 function readUsageFacts(value: unknown): UsageFact[] | null {
   if (!Array.isArray(value)) return null;

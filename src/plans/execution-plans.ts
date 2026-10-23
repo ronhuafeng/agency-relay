@@ -12,9 +12,17 @@ export const CODEX_API_HOSTNAME = "api.trustedtunnel.app";
 export const XAI_API_HOSTNAME = "xai.trustedtunnel.app";
 const GROK_CLI_PROVIDER_BASE_URL = "https://cli-chat-proxy.grok.com";
 const XAI_API_PROVIDER_BASE_URL = "https://api.x.ai";
+const providerPathSegment = "(?![^/]*%2[fF])[^/]{1,200}";
+/** Shared with the Grok owner check. xAI file routes keep PROVIDER_PATH_SEGMENT. */
+export const XAI_OBJECT_ID = "[A-Za-z0-9_-]{1,200}";
+export const XAI_FILE_ID_PATTERN = `file_${XAI_OBJECT_ID}`;
 
 type PlanEnvironment = "production";
 export type CredentialSlotId = "chatgpt_production" | "grok_production";
+
+export function isChatgptProductionSlot(slot: string): boolean {
+  return slot === "chatgpt_production";
+}
 
 /**
  * Execution modes (M7: do not add convert/normalize/chat_completions modes).
@@ -85,13 +93,9 @@ export function publicExecutionPlanPath(plan: ExecutionPlan): string {
   return path;
 }
 
-/** Provider relay is the only current domain. The value does not select a credential or an authentication mechanism. */
-export type RelayDomain = "provider";
-
 /** One writable declaration of the facts shared by every operation on a surface. */
 export interface ProviderRelayProfile {
   readonly id: "codex" | "grok" | "xai";
-  readonly domain: RelayDomain;
   readonly hostname: string;
   readonly environment: PlanEnvironment;
   readonly surfaceGrant: `surface:${string}:${PlanEnvironment}`;
@@ -103,7 +107,6 @@ export interface ProviderRelayProfile {
 export const PROVIDER_RELAY_PROFILES = {
   codex: {
     id: "codex",
-    domain: "provider",
     hostname: CODEX_API_HOSTNAME,
     environment: "production",
     surfaceGrant: "surface:codex:production",
@@ -113,7 +116,6 @@ export const PROVIDER_RELAY_PROFILES = {
   },
   grok: {
     id: "grok",
-    domain: "provider",
     hostname: "grok.trustedtunnel.app",
     environment: "production",
     surfaceGrant: "surface:grok:production",
@@ -123,7 +125,6 @@ export const PROVIDER_RELAY_PROFILES = {
   },
   xai: {
     id: "xai",
-    domain: "provider",
     hostname: XAI_API_HOSTNAME,
     environment: "production",
     surfaceGrant: "surface:xai:production",
@@ -241,8 +242,6 @@ function codexProductionPlans(): ExecutionPlan[] {
 }
 
 function grokProductionPlans(): ExecutionPlan[] {
-  const providerPathSegment = "(?![^/]*%2[fF])[^/]{1,200}";
-  const fileId = "file_[A-Za-z0-9_-]{1,200}";
   const plans: PlanOperation[] = [
     {
       id: "grok.production.models",
@@ -519,7 +518,7 @@ function grokProductionPlans(): ExecutionPlan[] {
       creditCharge: 1,
       realTask: false,
       method: "GET",
-      pathname: /^\/v1\/videos\/[A-Za-z0-9_-]{1,200}$/,
+      pathname: new RegExp(`^/v1/videos/${XAI_OBJECT_ID}$`),
       mode: "video_poll",
       upstreamClientIdentity: "none",
       usageObserver: "video",
@@ -548,7 +547,7 @@ function grokProductionPlans(): ExecutionPlan[] {
       usageObserver: "none",
       realTask: false,
       method: "GET",
-      pathname: new RegExp(`^/v1/files/${fileId}$`),
+      pathname: new RegExp(`^/v1/files/${XAI_FILE_ID_PATTERN}$`),
       mode: "file_owner",
       upstreamClientIdentity: "none",
       providerBaseUrl: XAI_API_PROVIDER_BASE_URL,
@@ -562,7 +561,7 @@ function grokProductionPlans(): ExecutionPlan[] {
       usageObserver: "none",
       realTask: false,
       method: "GET",
-      pathname: new RegExp(`^/v1/files/${fileId}/content$`),
+      pathname: new RegExp(`^/v1/files/${XAI_FILE_ID_PATTERN}/content$`),
       mode: "file_owner",
       upstreamClientIdentity: "none",
       providerBaseUrl: XAI_API_PROVIDER_BASE_URL,
@@ -576,7 +575,7 @@ function grokProductionPlans(): ExecutionPlan[] {
       usageObserver: "none",
       realTask: false,
       method: "DELETE",
-      pathname: new RegExp(`^/v1/files/${fileId}$`),
+      pathname: new RegExp(`^/v1/files/${XAI_FILE_ID_PATTERN}$`),
       mode: "file_owner",
       upstreamClientIdentity: "none",
       providerBaseUrl: XAI_API_PROVIDER_BASE_URL,
@@ -589,7 +588,6 @@ function grokProductionPlans(): ExecutionPlan[] {
 }
 
 function xaiProductionPlans(): ExecutionPlan[] {
-  const providerPathSegment = "(?![^/]*%2[fF])[^/]{1,200}";
   type XaiRoute = Pick<ExecutionPlan,
     | "id"
     | "method"
@@ -1180,7 +1178,7 @@ export function slotSourceEnvironment(slot: CredentialSlotId): {
   source: "chatgpt" | "grok";
   environment: PlanEnvironment;
 } {
-  if (slot === "chatgpt_production") {
+  if (isChatgptProductionSlot(slot)) {
     return { source: "chatgpt", environment: "production" };
   }
   return { source: "grok", environment: "production" };
@@ -1191,7 +1189,7 @@ export const ISSUABLE_SURFACE_GRANTS: ReadonlySet<string> = new Set(
   Object.values(PROVIDER_RELAY_PROFILES).map(profile => profile.surfaceGrant)
 );
 
-function pathnameMatches(pattern: string | RegExp, pathname: string): boolean {
+export function pathnameMatches(pattern: string | RegExp, pathname: string): boolean {
   if (typeof pattern === "string") {
     return pattern === pathname;
   }

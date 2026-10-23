@@ -2,6 +2,7 @@
  * Grok (xai/grok) Execution Plan handlers — opaque forward path.
  */
 import { hmacSha256Hex } from "../crypto";
+import { asRecord, nonNegativeIntegerOrNull } from "../records";
 import {
   bindXaiFileOwner,
   createVideoJob,
@@ -13,7 +14,8 @@ import {
   recordUntrackedVideoStart
 } from "../db";
 import { HttpError } from "../errors";
-import type { ExecutionPlan } from "../plans/execution-plans";
+import { XAI_FILE_ID_PATTERN, XAI_OBJECT_ID, type ExecutionPlan } from "../plans/execution-plans";
+import { copyBytes } from "../proxy/byte-stream";
 import { assertProviderBaseUrl } from "../proxy/origin";
 import {
   forwardTransparentProxy,
@@ -80,8 +82,8 @@ export async function executeGrokPlan(
 const MAX_PROVIDER_CONTROL_RESPONSE_BYTES = 64 * 1024;
 const MAX_IMAGE_METADATA_DEPTH = 64;
 const MAX_IMAGE_OUTPUT_FILE_IDS = 64;
-const VIDEO_REQUEST_ID = /^[A-Za-z0-9_-]{1,200}$/;
-const XAI_FILE_ID = /^file_[A-Za-z0-9_-]{1,200}$/;
+const VIDEO_REQUEST_ID = new RegExp(`^${XAI_OBJECT_ID}$`);
+const XAI_FILE_ID = new RegExp(`^${XAI_FILE_ID_PATTERN}$`);
 
 async function executeFileUploadPlan(
   request: Request,
@@ -99,39 +101,15 @@ async function executeFileUploadPlan(
   const { upstream, bytes } = await forwardProviderControl(
     request, deps, credentials, attempt, request.body
   );
-  if (!isSuccess(upstream.status)) {
-    attempt.complete({
-      requestStatus: "error",
-      providerResult: "rejected",
-      upstreamStatus: upstream.status,
-      errorCode: null
-    });
-    return replayProviderControlResponse(upstream, bytes);
-  }
+  const rejected = rejectedControlResponse(attempt, upstream, bytes);
+  if (rejected) return rejected;
   const file = parseXaiFileMetadata(bytes);
   if (!file || !await bindFileId(
     env, file.fileId, auth.user.id, "upload", file.expiresAt, deps.now()
   )) {
-    attempt.complete({
-      requestStatus: "error",
-      providerResult: "accepted",
-      upstreamStatus: upstream.status,
-      errorCode: "xai_file_binding_failed"
-    });
-    throw new ProxyUpstreamError(
-      502,
-      "Provider file could not be bound to the caller",
-      "xai_file_binding_failed",
-      upstream.status
-    );
+    rejectAcceptedControl(attempt, upstream, "xai_file_binding_failed", "Provider file could not be bound to the caller");
   }
-  attempt.complete({
-    requestStatus: "ok",
-    providerResult: "accepted",
-    upstreamStatus: upstream.status,
-    errorCode: null
-  });
-  return replayProviderControlResponse(upstream, bytes);
+  return acceptControlResponse(attempt, upstream, bytes);
 }
 
 async function executeFileOwnerPlan(
@@ -147,7 +125,7 @@ async function executeFileOwnerPlan(
   const fileId = xaiFileIdFromPath(request);
   const fileIdHash = await xaiFileIdHash(env, fileId);
   if (!await findXaiFileOwner(env, fileIdHash, auth.user.id)) {
-    throw new HttpError(404, "xAI file not found", "invalid_request_error", "xai_file_not_found");
+    throw xaiFileNotFound();
   }
   const { attempt, credentials } = await beginGrokProviderAttempt(
     env, ctx, deps, requestContext, auth, plan, fallbackIdentityVersion
@@ -173,14 +151,7 @@ async function executeFileOwnerPlan(
     }
     return response;
   } catch (error) {
-    if (error instanceof ProxyUpstreamError && error.attempted) {
-      attempt.complete({
-        requestStatus: "error",
-        providerResult: providerResultForProxyError(error),
-        upstreamStatus: error.upstreamStatus,
-        errorCode: error.code ?? null
-      });
-    }
+    failAttemptedProxy(attempt, error);
     throw error;
   }
 }
@@ -202,30 +173,12 @@ async function executeVideoStartPlan(
     request, deps, credentials, attempt, request.body
   );
 
-  if (!isSuccess(upstream.status)) {
-    attempt.complete({
-      requestStatus: "error",
-      providerResult: "rejected",
-      upstreamStatus: upstream.status,
-      errorCode: null
-    });
-    return replayProviderControlResponse(upstream, bytes);
-  }
+  const rejected = rejectedControlResponse(attempt, upstream, bytes);
+  if (rejected) return rejected;
 
   const requestId = parseVideoStartRequestId(bytes);
   if (!requestId) {
-    attempt.complete({
-      requestStatus: "error",
-      providerResult: "accepted",
-      upstreamStatus: upstream.status,
-      errorCode: "video_start_response_invalid"
-    });
-    throw new ProxyUpstreamError(
-      502,
-      "Provider returned an invalid video start response",
-      "video_start_response_invalid",
-      upstream.status
-    );
+    rejectAcceptedControl(attempt, upstream, "video_start_response_invalid", "Provider returned an invalid video start response");
   }
 
   const requestIdHash = await videoRequestIdHash(env, requestId);
@@ -266,13 +219,7 @@ async function executeVideoStartPlan(
     );
   }
 
-  attempt.complete({
-    requestStatus: "ok",
-    providerResult: "accepted",
-    upstreamStatus: upstream.status,
-    errorCode: null
-  });
-  return replayProviderControlResponse(upstream, bytes);
+  return acceptControlResponse(attempt, upstream, bytes);
 }
 
 async function executeVideoPollPlan(
@@ -289,7 +236,7 @@ async function executeVideoPollPlan(
   const requestIdHash = await videoRequestIdHash(env, requestId);
   const job = await findVideoJobForUser(env, requestIdHash, auth.user.id);
   if (!job) {
-    throw new HttpError(404, "Video job not found", "invalid_request_error", "video_job_not_found");
+    throw videoJobNotFound();
   }
 
   // Resolve on every poll so silent refresh and reauthorization state remain live.
@@ -300,15 +247,8 @@ async function executeVideoPollPlan(
     request, deps, credentials, attempt
   );
 
-  if (!isSuccess(upstream.status)) {
-    attempt.complete({
-      requestStatus: "error",
-      providerResult: "rejected",
-      upstreamStatus: upstream.status,
-      errorCode: null
-    });
-    return replayProviderControlResponse(upstream, bytes);
-  }
+  const rejected = rejectedControlResponse(attempt, upstream, bytes);
+  if (rejected) return rejected;
 
   const observation = parseVideoPollObservation(bytes);
   let fileBindingFailed = false;
@@ -384,14 +324,7 @@ async function forwardProviderControl(
   try {
     upstream = await forwardTransparentProxy(request, deps, credentials, body);
   } catch (error) {
-    if (error instanceof ProxyUpstreamError && error.attempted) {
-      attempt.complete({
-        requestStatus: "error",
-        providerResult: providerResultForProxyError(error),
-        upstreamStatus: error.upstreamStatus,
-        errorCode: error.code ?? null
-      });
-    }
+    failAttemptedProxy(attempt, error);
     throw error;
   }
   try {
@@ -461,13 +394,7 @@ async function readProviderControlResponse(
   } finally {
     reader.releaseLock();
   }
-  const bytes = new Uint8Array(total);
-  let offset = 0;
-  for (const chunk of chunks) {
-    bytes.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-  return bytes;
+  return copyBytes(chunks, total);
 }
 
 function replayProviderControlResponse(upstream: Response, bytes: Uint8Array): Response {
@@ -516,15 +443,15 @@ function parseVideoPollObservation(bytes: Uint8Array): {
   if (status !== "pending" && status !== "done" && status !== "failed" && status !== "expired") {
     return null;
   }
-  const video = isJsonObject(value.video) ? value.video : null;
+  const video = asRecord(value.video);
   const duration = video?.duration;
   const videoSeconds = typeof duration === "number" && Number.isFinite(duration) && duration >= 0
     ? duration
     : null;
   const outputUrl = video?.url;
-  const fileOutput = isJsonObject(video?.file_output) ? video.file_output : null;
+  const fileOutput = asRecord(video?.file_output);
   const fileId = fileOutput?.file_id;
-  const usage = isJsonObject(value.usage) ? value.usage : null;
+  const usage = asRecord(value.usage);
   const providerCost = usage?.cost_in_usd_ticks;
   return {
     status,
@@ -532,11 +459,7 @@ function parseVideoPollObservation(bytes: Uint8Array): {
     outputs: status === "done" && typeof outputUrl === "string" && outputUrl.length > 0 ? 1 : null,
     model: typeof value.model === "string" && value.model.length <= 200 ? value.model : null,
     fileIds: typeof fileId === "string" && XAI_FILE_ID.test(fileId) ? [fileId] : [],
-    costTicks: typeof providerCost === "number"
-      && Number.isSafeInteger(providerCost)
-      && providerCost >= 0
-      ? providerCost
-      : null,
+    costTicks: nonNegativeIntegerOrNull(providerCost),
     expiresAt: unixSecondsToIso(fileOutput?.expires_at)
   };
 }
@@ -544,20 +467,25 @@ function parseVideoPollObservation(bytes: Uint8Array): {
 function parseJsonObject(bytes: Uint8Array): Record<string, unknown> | null {
   try {
     const value: unknown = JSON.parse(new TextDecoder().decode(bytes));
-    return isJsonObject(value) ? value : null;
+    return asRecord(value);
   } catch {
     return null;
   }
 }
 
-function isJsonObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
+
+function videoJobNotFound(): HttpError {
+  return new HttpError(404, "Video job not found", "invalid_request_error", "video_job_not_found");
+}
+
+function xaiFileNotFound(): HttpError {
+  return new HttpError(404, "xAI file not found", "invalid_request_error", "xai_file_not_found");
 }
 
 function videoRequestIdFromPath(request: Request): string {
   const requestId = new URL(request.url).pathname.slice("/v1/videos/".length);
   if (!VIDEO_REQUEST_ID.test(requestId)) {
-    throw new HttpError(404, "Video job not found", "invalid_request_error", "video_job_not_found");
+    throw videoJobNotFound();
   }
   return requestId;
 }
@@ -571,7 +499,7 @@ function xaiFileIdFromPath(request: Request): string {
   const suffix = pathname.endsWith("/content") ? "/content" : "";
   const fileId = pathname.slice("/v1/files/".length, suffix ? -suffix.length : undefined);
   if (!XAI_FILE_ID.test(fileId)) {
-    throw new HttpError(404, "xAI file not found", "invalid_request_error", "xai_file_not_found");
+    throw xaiFileNotFound();
   }
   return fileId;
 }
@@ -594,6 +522,57 @@ async function bindFileId(
     source,
     expires_at: expiresAt
   }, now);
+}
+
+function rejectAcceptedControl(attempt: AdmittedProviderAttempt, upstream: Response, code: string, message: string): never {
+  attempt.complete({
+    requestStatus: "error",
+    providerResult: "accepted",
+    upstreamStatus: upstream.status,
+    errorCode: code
+  });
+  throw new ProxyUpstreamError(502, message, code, upstream.status);
+}
+
+function acceptControlResponse(attempt: AdmittedProviderAttempt, upstream: Response, bytes: Uint8Array): Response {
+  attempt.complete({
+    requestStatus: "ok",
+    providerResult: "accepted",
+    upstreamStatus: upstream.status,
+    errorCode: null
+  });
+  return replayProviderControlResponse(upstream, bytes);
+}
+
+function rejectedControlResponse(
+  attempt: { complete(outcome: {
+    requestStatus: "error";
+    providerResult: "rejected";
+    upstreamStatus: number;
+    errorCode: null;
+  }): void },
+  upstream: Response,
+  bytes: Uint8Array
+): Response | null {
+  if (isSuccess(upstream.status)) return null;
+  attempt.complete({
+    requestStatus: "error",
+    providerResult: "rejected",
+    upstreamStatus: upstream.status,
+    errorCode: null
+  });
+  return replayProviderControlResponse(upstream, bytes);
+}
+
+function failAttemptedProxy(attempt: AdmittedProviderAttempt, error: unknown): void {
+  if (error instanceof ProxyUpstreamError && error.attempted) {
+    attempt.complete({
+      requestStatus: "error",
+      providerResult: providerResultForProxyError(error),
+      upstreamStatus: error.upstreamStatus,
+      errorCode: error.code ?? null
+    });
+  }
 }
 
 function isSuccess(status: number): boolean {
@@ -727,13 +706,7 @@ function createBoundedJsonMetadataObserver(): {
       if (exceeded || total === 0) {
         return null;
       }
-      const bytes = new Uint8Array(total);
-      let offset = 0;
-      for (const chunk of chunks) {
-        bytes.set(chunk, offset);
-        offset += chunk.byteLength;
-      }
-      return bytes;
+      return copyBytes(chunks, total);
     }
   };
 }
@@ -1579,7 +1552,6 @@ function npeTransparentCredentials(
   const credentials: ProxyUpstreamCredentials = {
     baseUrl: providerBaseUrl(plan),
     accessToken,
-    authStyle: "bearer",
     upstreamClientIdentity: plan.upstreamClientIdentity,
     fallbackIdentityVersion
   };

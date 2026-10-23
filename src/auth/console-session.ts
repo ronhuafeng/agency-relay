@@ -1,13 +1,18 @@
 import { organizationDomain, isOrganizationLoginUser, type ConsolePrincipal } from "./principal";
+import { d1ChangeCount } from "../db";
 import { HttpError } from "../errors";
 import { base64UrlEncode, hmacSha256Hex, nowIso, parseIsoMillis } from "../crypto";
 
 export const CONSOLE_COOKIE = "__Host-mini-console";
 const SESSION_SECONDS = 8 * 60 * 60;
 
+function loginIdentityChanged(): HttpError {
+  return new HttpError(403, "The login identity changed. Sign in again.", "authentication_error", "console_identity_changed");
+}
+
 export async function createConsoleSession(env: Env, principal: Pick<ConsolePrincipal, "id" | "email" | "sessionEpoch">, now = new Date()): Promise<string> {
   if (!isOrganizationLoginUser(env, { canonical_email: principal.email, login_capable: 1, account_kind: "human" })) {
-    throw new HttpError(403, "The login identity changed. Sign in again.", "authentication_error", "console_identity_changed");
+    throw loginIdentityChanged();
   }
   const token = base64UrlEncode(crypto.getRandomValues(new Uint8Array(32)));
   const expires = new Date(now.getTime() + SESSION_SECONDS * 1000);
@@ -21,30 +26,38 @@ export async function createConsoleSession(env: Env, principal: Pick<ConsolePrin
        AND substr(canonical_email, instr(canonical_email, '@') + 1) = ?7`
   ).bind(await hmacSha256Hex(env.API_KEY_HASH_PEPPER, token), nowIso(expires), nowIso(now),
     principal.id, principal.email, principal.sessionEpoch, organizationDomain(env) ?? "").run();
-  if (result.meta.changes !== 1) {
-    throw new HttpError(403, "The login identity changed. Sign in again.", "authentication_error", "console_identity_changed");
+  if (d1ChangeCount(result) !== 1) {
+    throw loginIdentityChanged();
   }
   return token;
 }
 
+export function httpOnlyLaxCookie(name: string, value: string, maxAge: number): string {
+  return `${name}=${value}; HttpOnly; Secure; Path=/; SameSite=Lax; Max-Age=${maxAge}`;
+}
+
 export function consoleSessionCookie(token: string, maxAge = SESSION_SECONDS): string {
-  return `${CONSOLE_COOKIE}=${token}; HttpOnly; Secure; Path=/; SameSite=Lax; Max-Age=${maxAge}`;
+  return httpOnlyLaxCookie(CONSOLE_COOKIE, token, maxAge);
 }
 
 export function clearConsoleSessionCookie(): string {
-  return `${CONSOLE_COOKIE}=; HttpOnly; Secure; Path=/; SameSite=Lax; Max-Age=0`;
+  return httpOnlyLaxCookie(CONSOLE_COOKIE, "", 0);
 }
 
-export function consoleCookieToken(request: Request): string | null {
+export function readCookieValue(request: Request, cookieName: string): string | null {
   const header = request.headers.get("Cookie") ?? "";
   for (const part of header.split(";")) {
     const separator = part.indexOf("=");
     if (separator === -1) continue;
     const name = part.slice(0, separator).trim();
     const value = part.slice(separator + 1).trim();
-    if (name === CONSOLE_COOKIE && value) return value;
+    if (name === cookieName && value) return value;
   }
   return null;
+}
+
+export function consoleCookieToken(request: Request): string | null {
+  return readCookieValue(request, CONSOLE_COOKIE);
 }
 
 export async function readConsoleSessionPrincipal(env: Env, request: Request, now = new Date()): Promise<ConsolePrincipal | null> {

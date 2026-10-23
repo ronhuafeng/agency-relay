@@ -7,7 +7,7 @@ import { Checkbox } from "./components/checkbox";
 import { Switch } from "./components/switch";
 import { RadioGroup, RadioGroupItem } from "./components/radio-group";
 import { useEnhanced } from "./use-enhanced";
-import { ConfirmationFallback } from "./fields";
+import { ConfirmationFallback, ReturnFields } from "./fields";
 import { isCreditPolicyMode, type SelectControl, type CreditPolicyControl, type CreditPolicyMode, type AddAccountControl, type CheckControl, type AccessChoiceControl, type MemberKeyFormModel } from "./models";
 
 export function SelectView({ control, onValueChange }: { readonly control: SelectControl; readonly onValueChange?: (value: string) => void }) {
@@ -17,16 +17,6 @@ export function SelectView({ control, onValueChange }: { readonly control: Selec
       {control.options.map((option) => <NativeSelectOption key={option.value} value={option.value} disabled={option.disabled}>{option.label}</NativeSelectOption>)}
     </NativeSelect>
   </div>;
-}
-
-function AccountReturnFields({ control }: { readonly control: AddAccountControl }) {
-  return (
-    <>
-      <input type="hidden" name="return_range" value={control.range} />
-      <input type="hidden" name="return_q" value={control.query} />
-      <input type="hidden" name="return_page" value={control.page} />
-    </>
-  );
 }
 
 export function CreditPolicyForm({control, initialMode = control.mode}: {readonly control: CreditPolicyControl; readonly initialMode?: CreditPolicyMode}) {
@@ -95,13 +85,13 @@ export function AddAccountView({ control }: { readonly control: AddAccountContro
       </RadioGroup> : <p className="caption">选择下面的账号类型，填写名称后添加。</p>}
       <form className="board-form add-chatgpt" method="post" action="/admin/ui/codex-auths" aria-label="添加 ChatGPT 账号" autoComplete="off" data-dashboard-draft="account">
         {!enhanced ? <h3>ChatGPT</h3> : null}
-        <AccountReturnFields control={control} />
+        <ReturnFields range={control.range} query={control.query} page={control.page} />
         <Label>名称 <Input name="label" required autoComplete="off" placeholder="团队或负责人" /></Label>
         <Button type="submit">添加账号</Button>
       </form>
       <form className="board-form add-grok" method="post" action="/admin/ui/subscriptions" aria-label="添加 Grok 账号" autoComplete="off" data-dashboard-draft="account">
         {!enhanced ? <h3>Grok</h3> : null}
-        <AccountReturnFields control={control} />
+        <ReturnFields range={control.range} query={control.query} page={control.page} />
         <input type="hidden" name="capability_source" value="grok" />
         <input type="hidden" name="environment" value="production" />
         <Label>名称 <Input name="label" required autoComplete="off" placeholder="团队或负责人" /></Label>

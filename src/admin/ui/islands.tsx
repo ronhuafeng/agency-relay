@@ -1,9 +1,6 @@
 import { AddAccountView, AccessChoiceView, MemberKeyForm } from "./forms";
 import { CopySecretView, DisclosureView } from "./secrets";
-import { CapabilityComparison } from "./capabilities";
-import { UsageReport } from "./usage-report";
-import type { UsageReportControl } from "./models";
-import type { AddAccountControl, AccessChoiceControl, MemberKeyFormModel, CopySecretControl, DisclosureControl, CapabilityComparisonModel } from "./models";
+import type { AddAccountControl, AccessChoiceControl, MemberKeyFormModel, CopySecretControl, DisclosureControl } from "./models";
 import { AccountMenuView, type AccountMenuControl } from "./account-menu";
 import { SetupFilesView, type SetupFilesControl } from "./setup-files";
 import { SetupWorkbenchView, type SetupWorkbenchControl } from "./setup-workbench";
@@ -86,40 +83,12 @@ type IslandModel =
   | {readonly kind: "access-choice"; readonly value: AccessChoiceControl}
   | {readonly kind: "member-key-form"; readonly value: MemberKeyFormModel}
   | {readonly kind: "copy-secret"; readonly value: CopySecretControl}
-  | {readonly kind: "disclosure"; readonly value: DisclosureControl}
-  | {readonly kind: "capability"; readonly value: CapabilityComparisonModel}
-  | {readonly kind: "usage-report"; readonly value: UsageReportControl};
+  | {readonly kind: "disclosure"; readonly value: DisclosureControl};
 function IslandData({id, kind, value}: IslandModel & {readonly id: string}) {
   return <script type="application/json" id={id} data-ui-props={kind} dangerouslySetInnerHTML={{__html: JSON.stringify(value).replaceAll("<", "\\u003c")}} />;
-}
-
-export function UsageReportIsland({control}: {readonly control: UsageReportControl}) {
-  return <><div id="usage-report"><UsageReport control={control} /></div></>;
 }
 
 export function DisclosureIsland({control}: {readonly control: DisclosureControl}) {
   return <><div id={`${control.id}-root`}><DisclosureView control={control} /></div><IslandData id={`${control.id}-props`} kind="disclosure" value={control} /></>;
 }
 
-function publishedComparison(model: CapabilityComparisonModel): CapabilityComparisonModel {
-  return {
-    routesHref: model.routesHref,
-    view: {
-      surfaces: model.view.surfaces.map(({id, label, accessLevel, badge, authorityLabel, authorityNote}) => ({id, label, accessLevel, badge, authorityLabel, authorityNote})),
-      groups: model.view.groups.map(({id, label, rows}) => ({id, label, rows: rows.map(({id, label, description, cells}) => ({id, label, description, cells: {
-        codex: {state: cells.codex.state, label: cells.codex.label, detail: cells.codex.detail},
-        grok: {state: cells.grok.state, label: cells.grok.label, detail: cells.grok.detail},
-        xai: {state: cells.xai.state, label: cells.xai.label, detail: cells.xai.detail}
-      }}))}))
-    }
-  };
-}
-
-export function CapabilityIsland({ model }: { readonly model: CapabilityComparisonModel }) {
-  const published = publishedComparison(model);
-  return (
-    <>
-      <div id="capability-comparison"><CapabilityComparison model={published} /></div>
-    </>
-  );
-}

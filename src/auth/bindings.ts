@@ -1,7 +1,8 @@
+import { ADMINISTRATIVE_TERMINAL_SQL, CODEX_SHARED_PRODUCTION_SQL, d1ChangeCount, GROK_PRODUCTION_SQL, OPERATOR_MUTATION_AUDIT_COLUMNS } from "../db";
 import { generateId, nowIso } from "../crypto";
-import { HttpError } from "../errors";
+import { HttpError, adminRequired, userInactive } from "../errors";
 import { sqlSurfaceEntitled, assertIssuanceEntitlement } from "./credits";
-import type { CredentialSlotId } from "../plans/execution-plans";
+import { isChatgptProductionSlot, type CredentialSlotId } from "../plans/execution-plans";
 import { keyIsLive } from "./key-state";
 import { replacementCredentialMetadataSql } from "./credential-defaults";
 import { keyActorAuthority, assertKeyActorAuthority } from "./key-authority";
@@ -19,12 +20,27 @@ export interface ApiKeySurfaceCredentialRow {
   updated_at: string;
 }
 
+export const API_KEY_SURFACE_CREDENTIAL_COLUMNS = "api_key_id, surface_grant, codex_auth_id, subscription_account_id, created_at, updated_at";
+
 export type SurfaceCredentialSelection =
   | { surface_grant: "surface:codex:production"; credential_account_id: string }
   | {
       surface_grant: "surface:grok:production" | "surface:xai:production";
       credential_account_id: string;
     };
+
+function credentialColumnIds(selection: {
+  surface_grant: SurfaceCredentialSelection["surface_grant"];
+  credential_account_id: string;
+}): {
+  codexAuthId: string | null;
+  subscriptionAccountId: string | null;
+} {
+  if (selection.surface_grant === "surface:codex:production") {
+    return { codexAuthId: selection.credential_account_id, subscriptionAccountId: null };
+  }
+  return { codexAuthId: null, subscriptionAccountId: selection.credential_account_id };
+}
 
 export async function insertBoundApiKey(
   env: Env,
@@ -143,12 +159,7 @@ export async function insertBoundApiKey(
     ).bind(row.id, timestamp, timestamp, input.copy_bindings_from_api_key_id, row.scopes, row.id));
   } else {
     for (const selection of input.selections ?? []) {
-      const codexAuthId = selection.surface_grant === "surface:codex:production"
-        ? selection.credential_account_id
-        : null;
-      const subscriptionAccountId = selection.surface_grant === "surface:codex:production"
-        ? null
-        : selection.credential_account_id;
+      const { codexAuthId, subscriptionAccountId } = credentialColumnIds(selection);
       statements.push(env.DB.prepare(
         `INSERT INTO api_key_surface_credentials
            (api_key_id, surface_grant, codex_auth_id, subscription_account_id,
@@ -174,7 +185,7 @@ export async function insertBoundApiKey(
     }
     throw mapKeyWriteError(error);
   }
-  if (results[0]?.meta.changes !== 1) {
+  if (d1ChangeCount(results[0]) !== 1) {
     await assertKeyActorAuthority(env, input.actor, row.user_id);
     throw await explainIssueRejection(env, row, input.copy_bindings_from_api_key_id);
   }
@@ -218,7 +229,7 @@ async function liveKeySnapshot(env: Env, userId: string, now: Date): Promise<Arr
 async function explainIssueRejection(env: Env, row: ApiKeyRow, sourceId?: string): Promise<Error> {
   const user = await env.DB.prepare("SELECT status FROM users WHERE id = ?").bind(row.user_id).first<{ status: string }>();
   if (!user || user.status !== "active") {
-    return new HttpError(403, "User is not active", "authentication_error", "user_inactive");
+    return userInactive();
   }
   if (sourceId) {
     const source = await env.DB.prepare("SELECT user_id, status FROM api_keys WHERE id = ?").bind(sourceId).first<{ user_id: string; status: string }>();
@@ -256,8 +267,7 @@ export async function getApiKeySurfaceCredential(
   surfaceGrant: string
 ): Promise<ApiKeySurfaceCredentialRow | null> {
   return env.DB.prepare(
-    `SELECT api_key_id, surface_grant, codex_auth_id, subscription_account_id,
-            created_at, updated_at
+    `SELECT ${API_KEY_SURFACE_CREDENTIAL_COLUMNS}
      FROM api_key_surface_credentials
      WHERE api_key_id = ? AND surface_grant = ?
      LIMIT 1`
@@ -270,15 +280,13 @@ export async function listApiKeySurfaceCredentials(
 ): Promise<ApiKeySurfaceCredentialRow[]> {
   const statement = apiKeyId
     ? env.DB.prepare(
-      `SELECT api_key_id, surface_grant, codex_auth_id, subscription_account_id,
-              created_at, updated_at
+      `SELECT ${API_KEY_SURFACE_CREDENTIAL_COLUMNS}
        FROM api_key_surface_credentials
        WHERE api_key_id = ?
        ORDER BY surface_grant`
     ).bind(apiKeyId)
     : env.DB.prepare(
-      `SELECT api_key_id, surface_grant, codex_auth_id, subscription_account_id,
-              created_at, updated_at
+      `SELECT ${API_KEY_SURFACE_CREDENTIAL_COLUMNS}
        FROM api_key_surface_credentials
        ORDER BY api_key_id, surface_grant`
     );
@@ -298,15 +306,10 @@ export async function replaceApiKeySurfaceCredential(
 ): Promise<ApiKeySurfaceCredentialRow> {
   await assertCredentialAccountCompatible(env, input.surface_grant, input.credential_account_id);
   const timestamp = nowIso(now);
-  const codexAuthId = input.surface_grant === "surface:codex:production"
-    ? input.credential_account_id
-    : null;
-  const subscriptionAccountId = input.surface_grant === "surface:codex:production"
-    ? null
-    : input.credential_account_id;
+  const { codexAuthId, subscriptionAccountId } = credentialColumnIds(input);
   const account = input.surface_grant === "surface:codex:production"
-    ? "EXISTS (SELECT 1 FROM codex_auths WHERE id = ? AND kind = 'shared' AND environment = 'production' AND admission_state = 'enabled' AND status NOT IN ('retiring', 'revoked', 'disabled'))"
-    : "EXISTS (SELECT 1 FROM subscription_accounts WHERE id = ? AND capability_source = 'grok' AND environment = 'production' AND status NOT IN ('retiring', 'revoked', 'disabled'))";
+    ? `EXISTS (SELECT 1 FROM codex_auths WHERE id = ? AND ${CODEX_SHARED_PRODUCTION_SQL} AND admission_state = 'enabled' AND ${ADMINISTRATIVE_TERMINAL_SQL})`
+    : `EXISTS (SELECT 1 FROM subscription_accounts WHERE id = ? AND ${GROK_PRODUCTION_SQL} AND ${ADMINISTRATIVE_TERMINAL_SQL})`;
   const authority = serviceAdminAuthorityBindings(env, actor);
   const results = await env.DB.batch([env.DB.prepare(
     `INSERT INTO api_key_surface_credentials
@@ -334,18 +337,16 @@ export async function replaceApiKeySurfaceCredential(
     input.credential_account_id,
     ...authority
   ), env.DB.prepare(
-    `INSERT INTO operator_mutation_audit (
-       id, at, actor_kind, actor_email, actor_subject, actor_user_id, actor_role,
-       action, target_type, target_id, result, request_id, meta, created_at
-     ) SELECT ?, ?, ?, ?, ?, ?, ?, 'key.credential_binding.set',
+    `INSERT INTO operator_mutation_audit (${OPERATOR_MUTATION_AUDIT_COLUMNS})
+     SELECT ?, ?, ?, ?, ?, ?, ?, 'key.credential_binding.set',
        'api_key_surface_credential', ?, 'ok', ?, ?, ? WHERE changes() = 1`
   ).bind(generateId("oma"), timestamp, actor.kind, actor.email, actor.subject, actor.userId, actor.role,
     `${input.api_key_id}:${input.surface_grant}`, actor.requestId,
     JSON.stringify({api_key_id: input.api_key_id, surface_grant: input.surface_grant, credential_account_id: input.credential_account_id}), timestamp)]);
-  if (results[0]?.meta.changes !== 1) {
+  if (d1ChangeCount(results[0]) !== 1) {
     const current = await env.DB.prepare(`SELECT ${serviceAdminAuthoritySql} AS allowed`)
       .bind(...authority).first<{allowed: number}>();
-    if (current?.allowed !== 1) throw new HttpError(403, "Admin authentication required", "authentication_error", "admin_required");
+    if (current?.allowed !== 1) throw adminRequired();
     throw new HttpError(409, "The key or account changed. Read its current state before changing a binding.", "invalid_request_error", "credential_binding_changed");
   }
   const row = await getApiKeySurfaceCredential(env, input.api_key_id, input.surface_grant);
@@ -356,7 +357,7 @@ export async function replaceApiKeySurfaceCredential(
 }
 
 export function credentialAccountId(row: ApiKeySurfaceCredentialRow, slot: CredentialSlotId): string {
-  const accountId = slot === "chatgpt_production"
+  const accountId = isChatgptProductionSlot(slot)
     ? row.codex_auth_id
     : row.subscription_account_id;
   if (!accountId) {
@@ -378,8 +379,8 @@ export async function assertCredentialAccountCompatible(
   if (surfaceGrant === "surface:codex:production") {
     const row = await env.DB.prepare(
       `SELECT id FROM codex_auths
-       WHERE id = ? AND kind = 'shared' AND environment = 'production'
-         AND admission_state = 'enabled' AND status NOT IN ('retiring', 'revoked', 'disabled')
+       WHERE id = ? AND ${CODEX_SHARED_PRODUCTION_SQL}
+         AND admission_state = 'enabled' AND ${ADMINISTRATIVE_TERMINAL_SQL}
        LIMIT 1`
     ).bind(accountId).first();
     if (!row) {
@@ -389,8 +390,8 @@ export async function assertCredentialAccountCompatible(
   }
   const row = await env.DB.prepare(
     `SELECT id FROM subscription_accounts
-     WHERE id = ? AND capability_source = 'grok' AND environment = 'production'
-       AND status NOT IN ('retiring', 'revoked', 'disabled')
+     WHERE id = ? AND ${GROK_PRODUCTION_SQL}
+       AND ${ADMINISTRATIVE_TERMINAL_SQL}
      LIMIT 1`
   ).bind(accountId).first();
   if (!row) {

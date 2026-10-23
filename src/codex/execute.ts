@@ -9,7 +9,7 @@ import {
   type CodexChatGptBackendPath,
   type CodexProviderTerminalOutcome
 } from "./adapter";
-import { HttpError } from "../errors";
+import { routeNotFound } from "../errors";
 import { publicExecutionPlanPath, type ExecutionPlan } from "../plans/execution-plans";
 import { admitProviderAttempt, type AdmittedProviderAttempt } from "../auth/provider-attempt";
 import type {
@@ -22,6 +22,20 @@ import { requireFallbackIdentityVersion } from "../plans/identity-version";
 
 const CODEX_SESSION_ID_HEADER = "session-id";
 const CODEX_THREAD_ID_HEADER = "thread-id";
+
+function rememberCodexCaller(requestContext: RequestContext, request: Request, auth: AuthenticatedUser): void {
+  requestContext.userId = auth.user.id;
+  requestContext.apiKeyId = auth.apiKey.id;
+  requestContext.sessionId = request.headers.get(CODEX_SESSION_ID_HEADER) ?? undefined;
+  requestContext.threadId = request.headers.get(CODEX_THREAD_ID_HEADER) ?? undefined;
+}
+
+function codexFreshToken(attempt: AdmittedProviderAttempt) {
+  return {
+    access_token: attempt.credential.accessToken,
+    ...(attempt.credential.accountId ? { account_id: attempt.credential.accountId } : {})
+  };
+}
 
 export async function executeCodexPlan(
   request: Request,
@@ -42,10 +56,7 @@ export async function executeCodexPlan(
     const attempt = await admitProviderAttempt({
       env, ctx, now: deps.now, requestContext, auth, plan
     });
-    return await forwardModels(request, env, deps, {
-      access_token: attempt.credential.accessToken,
-      ...(attempt.credential.accountId ? { account_id: attempt.credential.accountId } : {})
-    }, {
+    return await forwardModels(request, env, deps, codexFreshToken(attempt), {
       upstreamClientIdentity: plan.upstreamClientIdentity,
       fallbackIdentityVersion,
       onTerminal: (outcome) => completeCodexProviderAttempt(attempt, outcome)
@@ -64,7 +75,7 @@ export async function executeCodexPlan(
   }
   // Codex plans do not select api.openai.com. Unproven public API speech and
   // Realtime/Live WebSocket routes are absent, so they never reach this function.
-  throw new HttpError(404, "Route not found", "invalid_request_error", "not_found");
+  throw routeNotFound();
 }
 
 const CHATGPT_BACKEND_EGRESS = {
@@ -88,38 +99,15 @@ async function routeChatGptBackend(
   fallbackIdentityVersion: string | null,
   path: CodexChatGptBackendPath
 ): Promise<Response> {
-  requestContext.userId = auth.user.id;
-  requestContext.apiKeyId = auth.apiKey.id;
-  requestContext.sessionId = request.headers.get(CODEX_SESSION_ID_HEADER) ?? undefined;
-  requestContext.threadId = request.headers.get(CODEX_THREAD_ID_HEADER) ?? undefined;
+  rememberCodexCaller(requestContext, request, auth);
   const attempt = await admitProviderAttempt({
     env, ctx, now: deps.now, requestContext, auth, plan
   });
-  return await forwardCodexChatGptBackend(request, env, deps, requestContext, {
-    access_token: attempt.credential.accessToken,
-    ...(attempt.credential.accountId ? { account_id: attempt.credential.accountId } : {})
-  }, path, request.body, {
+  return await forwardCodexChatGptBackend(request, env, deps, requestContext, codexFreshToken(attempt), path, request.body, {
     upstreamClientIdentity: plan.upstreamClientIdentity,
     fallbackIdentityVersion,
     onTerminal: (outcome) => {
-      if (!outcome.attempted) {
-        return;
-      }
-      const completion = completeCodexProviderAttempt(attempt, outcome);
-      ctx.waitUntil(completion.then((result) => {
-        logOutcome(
-          deps,
-          requestContext,
-          auth,
-          attempt.credential.physicalAccountId,
-          outcome.requestStatus,
-          outcome.upstreamStatus,
-          publicExecutionPlanPath(plan),
-          undefined,
-          undefined,
-          result.accountingCommitted ? undefined : "request_accounting_failed"
-        );
-      }));
+      settleCodexTerminal(ctx, deps, requestContext, auth, attempt, publicExecutionPlanPath(plan), outcome);
     }
   });
 }
@@ -134,39 +122,19 @@ async function routeResponses(
   plan: ExecutionPlan,
   fallbackIdentityVersion: string | null
 ): Promise<Response> {
-  requestContext.userId = auth.user.id;
-  requestContext.apiKeyId = auth.apiKey.id;
-  requestContext.sessionId = request.headers.get(CODEX_SESSION_ID_HEADER) ?? undefined;
-  requestContext.threadId = request.headers.get(CODEX_THREAD_ID_HEADER) ?? undefined;
+  rememberCodexCaller(requestContext, request, auth);
   const route = publicExecutionPlanPath(plan);
   const attempt = await admitProviderAttempt({
     env, ctx, now: deps.now, requestContext, auth, plan
   });
   const onTerminal = (outcome: CodexProviderTerminalOutcome) => {
-    if (!outcome.attempted) {
-      return;
-    }
-    const completion = completeCodexProviderAttempt(attempt, outcome);
-    ctx.waitUntil(completion.then((result) => {
-      logOutcome(
-        deps,
-        requestContext,
-        auth,
-        attempt.credential.physicalAccountId,
-        outcome.requestStatus,
-        outcome.upstreamStatus,
-        route,
-        outcome.errorCode ?? undefined,
-        outcome.observation,
-        result.accountingCommitted ? undefined : "request_accounting_failed"
-      );
-    }));
+    settleCodexTerminal(ctx, deps, requestContext, auth, attempt, route, outcome, {
+      errorCode: outcome.errorCode ?? undefined,
+      observation: outcome.observation
+    });
   };
 
-  const freshToken = {
-    access_token: attempt.credential.accessToken,
-    ...(attempt.credential.accountId ? { account_id: attempt.credential.accountId } : {})
-  };
+  const freshToken = codexFreshToken(attempt);
   const forwardOptions = {
     onTerminal,
     upstreamClientIdentity: plan.upstreamClientIdentity,
@@ -174,6 +142,34 @@ async function routeResponses(
     waitUntil: (promise: Promise<void>) => ctx.waitUntil(promise)
   };
   return await forwardResponses(request, env, deps, requestContext, freshToken, request.body, forwardOptions);
+}
+
+function settleCodexTerminal(
+  ctx: Pick<ExecutionContext, "waitUntil">,
+  deps: ExecutionDependencies,
+  requestContext: RequestContext,
+  auth: AuthenticatedUser,
+  attempt: AdmittedProviderAttempt,
+  route: string,
+  outcome: CodexProviderTerminalOutcome,
+  detail: { errorCode?: string; observation?: CodexTransportObservation } = {}
+): void {
+  if (!outcome.attempted) return;
+  const completion = completeCodexProviderAttempt(attempt, outcome);
+  ctx.waitUntil(completion.then((result) => {
+    logOutcome(
+      deps,
+      requestContext,
+      auth,
+      attempt.credential.physicalAccountId,
+      outcome.requestStatus,
+      outcome.upstreamStatus,
+      route,
+      detail.errorCode,
+      detail.observation,
+      result.accountingCommitted ? undefined : "request_accounting_failed"
+    );
+  }));
 }
 
 function completeCodexProviderAttempt(

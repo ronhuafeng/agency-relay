@@ -82,7 +82,7 @@ export async function memberConsoleResponse(input: {
       try {await assertRuntimePageActor(input);}
       catch {
         if(input.runtimeRevoked)return consoleLifecycleOutcome({title:"客户端授权已撤销",href:"/login",returnTarget:readUrl,label:"重新登录",message:"撤销已经完成，但当前登录无法确认。请重新登录后只读查看；不要重复提交。"});
-        throw new HttpError(403,"Console authority changed.","authentication_error","console_identity_changed");
+        throw consoleAuthorityChanged();
       }
     }
     if (error instanceof HttpError && (error.status === 400 || error.status === 404)) throw error;
@@ -90,10 +90,14 @@ export async function memberConsoleResponse(input: {
   }
 }
 
+function consoleAuthorityChanged(): HttpError {
+  return new HttpError(403,"Console authority changed.","authentication_error","console_identity_changed");
+}
+
 async function assertRuntimePageActor(input:{request:Request;env:Env;principal:ConsolePrincipal;now:Date}) {
   const current=await verifyConsoleAccess(input.request,input.env,input.now);
   if(!current||current.id!==input.principal.id||current.email!==input.principal.email||current.role!==input.principal.role||current.sessionEpoch!==input.principal.sessionEpoch)
-    throw new HttpError(403,"Console authority changed.","authentication_error","console_identity_changed");
+    throw consoleAuthorityChanged();
 }
 
 export async function memberUsageResponse(input: {
@@ -242,26 +246,21 @@ function html(status: number, requestId: string, body: ReactNode, principal: Con
   });
 }
 
+const memberNavigation: Record<MemberView, { icon: IconName; label: string }> = {
+  home: { icon: "overview", label: "工作台" },
+  keys: { icon: "keys", label: "我的密钥" },
+  usage: { icon: "usage", label: "我的用量" },
+  quota: { icon: "quotas", label: "我的额度" },
+  setup: { icon: "setup", label: "客户端配置" },
+  integrations: { icon: "surfaces", label: "我的工具服务" }
+};
+
 function memberIcon(view: MemberView): IconName {
-  switch (view) {
-    case "home": return "overview";
-    case "keys": return "keys";
-    case "usage": return "usage";
-    case "quota": return "quotas";
-    case "setup": return "setup";
-    case "integrations": return "surfaces";
-  }
+  return memberNavigation[view].icon;
 }
 
 function label(view: MemberView): string {
-  switch (view) {
-    case "home": return "工作台";
-    case "keys": return "我的密钥";
-    case "usage": return "我的用量";
-    case "quota": return "我的额度";
-    case "setup": return "客户端配置";
-    case "integrations": return "我的工具服务";
-  }
+  return memberNavigation[view].label;
 }
 
 /** Acknowledged writes render without any optional list/quota/default reads. */

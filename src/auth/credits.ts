@@ -1,7 +1,7 @@
 import { isOrganizationLoginUser, organizationDomain } from "./principal";
 import { generateId, nowIso } from "../crypto";
-import { getUser } from "../db";
-import { HttpError } from "../errors";
+import { d1ChangeCount, getUser, OPERATOR_MUTATION_AUDIT_COLUMNS } from "../db";
+import { HttpError, adminRequired, userNotFound } from "../errors";
 import { ISSUABLE_SURFACE_GRANTS, type ExecutionPlan } from "../plans/execution-plans";
 
 export const CREDIT_SURFACE_IDS = ["codex", "grok", "xai"] as const;
@@ -95,11 +95,11 @@ export function sqlSurfaceEntitled(surfaceExpression: string): string {
   )`;
 }
 
-export function surfaceGrantForCreditId(surfaceId: string): SurfaceGrant {
+export function surfaceGrantForCreditId(surfaceId: string): `surface:${CreditSurfaceId}:production` {
   if (!CREDIT_SURFACE_IDS.includes(surfaceId as CreditSurfaceId)) {
     throw new HttpError(400, "Surface must be codex, grok, or xai", "invalid_request_error", "invalid_surface");
   }
-  const grant = `surface:${surfaceId}:production` as SurfaceGrant;
+  const grant = `surface:${surfaceId}:production` as `surface:${CreditSurfaceId}:production`;
   if (!ISSUABLE_SURFACE_GRANTS.has(grant)) {
     throw new HttpError(400, "Surface is not issuable", "invalid_request_error", "invalid_surface");
   }
@@ -265,7 +265,7 @@ export async function commitPersonalCreditPolicy(
     throw new HttpError(400, "Unlimited and disabled policies do not take a monthly allowance.", "invalid_request_error", "invalid_credit_policy");
   }
   if (!await getUser(env, input.user_id)) {
-    throw new HttpError(404, "User not found", "invalid_request_error", "user_not_found");
+    throw userNotFound();
   }
   const at = nowIso(now);
   const meta = {
@@ -321,32 +321,23 @@ export async function clearPersonalCreditPolicy(
   now = new Date()
 ): Promise<{ deleted: boolean; state: SurfaceCreditState }> {
   if (!await getUser(env, input.user_id)) {
-    throw new HttpError(404, "User not found", "invalid_request_error", "user_not_found");
+    throw userNotFound();
   }
   const at = nowIso(now);
-  const removedMode = await commitCreditMutation(env, actor, {
-    statement: (authority) => `DELETE FROM user_surface_credit_modes WHERE user_id = ? AND surface_grant = ? AND ${authority}`,
-    bindings: [input.user_id, input.surface_grant],
-    action: "credit_policy.delete",
-    targetId: `${input.user_id}:${input.surface_grant}`,
-    meta: {
-      user_id: input.user_id,
-      surface_grant: input.surface_grant,
-      previous_monthly_allowance: input.previous_monthly_allowance
-    }
-  }, at);
-  const removedPolicy = await commitCreditMutation(env, actor, {
-    statement: (authority) => `DELETE FROM user_surface_credit_policies WHERE user_id = ? AND surface_grant = ? AND ${authority}`,
-    bindings: [input.user_id, input.surface_grant],
-    action: "credit_policy.delete",
-    targetId: `${input.user_id}:${input.surface_grant}`,
-    meta: {
-      user_id: input.user_id,
-      surface_grant: input.surface_grant,
-      previous_monthly_allowance: input.previous_monthly_allowance
-    }
-  }, at);
-  const deleted = removedMode || removedPolicy;
+  let deleted = false;
+  for (const table of ["user_surface_credit_modes", "user_surface_credit_policies"] as const) {
+    deleted = await commitCreditMutation(env, actor, {
+      statement: (authority) => `DELETE FROM ${table} WHERE user_id = ? AND surface_grant = ? AND ${authority}`,
+      bindings: [input.user_id, input.surface_grant],
+      action: "credit_policy.delete",
+      targetId: `${input.user_id}:${input.surface_grant}`,
+      meta: {
+        user_id: input.user_id,
+        surface_grant: input.surface_grant,
+        previous_monthly_allowance: input.previous_monthly_allowance
+      }
+    }, at) || deleted;
+  }
   return {
     deleted,
     state: requireState(await listSurfaceCreditStates(env, now, input.user_id), input.surface_grant)
@@ -392,10 +383,8 @@ export async function commitOrganizationCreditDefaults(
         WHERE policy.surface_grant IN (SELECT surface_grant FROM requested) AND EXISTS (SELECT 1 FROM eligible)`,
       bindings:[requested,at]
     }),
-    env.DB.prepare(`INSERT INTO operator_mutation_audit (
-      id, at, actor_kind, actor_email, actor_subject, actor_user_id, actor_role,
-      action, target_type, target_id, result, request_id, meta, created_at
-    ) SELECT json_extract(value, '$.audit_id'), ?2, ?3, ?4, ?5, ?6, ?7,
+    env.DB.prepare(`INSERT INTO operator_mutation_audit (${OPERATOR_MUTATION_AUDIT_COLUMNS})
+      SELECT json_extract(value, '$.audit_id'), ?2, ?3, ?4, ?5, ?6, ?7,
       'credit_default.set', 'surface_credit', json_extract(value, '$.surface_grant'), 'ok', ?8,
       json_object('surface_grant', json_extract(value, '$.surface_grant'),
         'previous_monthly_allowance', json_extract(value, '$.expected_monthly_allowance'),
@@ -403,7 +392,7 @@ export async function commitOrganizationCreditDefaults(
       FROM json_each(?1) WHERE changes() = json_array_length(?1)`)
       .bind(requested,at,actor.kind,actor.email,actor.subject,actor.userId,actor.role,actor.requestId)
   ]);
-  if (changedRows(results[0]) !== input.length || changedRows(results[1]) !== input.length) {
+  if (d1ChangeCount(results[0]) !== input.length || d1ChangeCount(results[1]) !== input.length) {
     await assertCurrentCreditAdmin(env, actor);
     throw new HttpError(409, "Organization defaults changed. Read current defaults before saving.", "invalid_request_error", "credit_defaults_changed");
   }
@@ -485,7 +474,7 @@ export async function consumeSurfaceCredits(
      SELECT ?, ?, ?, ?, ?, ?, ?, ? WHERE changes() = 1`
   ).bind(input.attempt_id ?? generateId("audit"), input.user_id, input.key_id ?? null,
     input.surface_grant, periodStart, input.plan_id, input.credit_charge, timestamp)]);
-  if ((admission?.meta.changes ?? 0) === 1 && (receipt?.meta.changes ?? 0) === 1) return;
+  if (d1ChangeCount(admission) === 1 && d1ChangeCount(receipt) === 1) return;
   const resolved = await readResolvedCredit(env, input.user_id, input.surface_grant);
   if (resolved.mode !== "limited" || (resolved.monthly_allowance ?? 0) <= 0) throw surfaceDisabled();
   throw surfaceExhausted(input, now);
@@ -546,10 +535,7 @@ async function commitCreditMutation(
     ...(input.prelude ?? []).map(prepare),
     prepare(input),
     env.DB.prepare(
-      `INSERT INTO operator_mutation_audit (
-         id, at, actor_kind, actor_email, actor_subject, actor_user_id, actor_role,
-         action, target_type, target_id, result, request_id, meta, created_at
-       )
+      `INSERT INTO operator_mutation_audit (${OPERATOR_MUTATION_AUDIT_COLUMNS})
        SELECT ?, ?, ?, ?, ?, ?, ?, ?, 'surface_credit', ?, 'ok', ?, ?, ?
        WHERE changes() = 1`
     ).bind(
@@ -567,7 +553,7 @@ async function commitCreditMutation(
       at
     )
   ]);
-  const changed = changedRows(results[results.length - 1]) === 1;
+  const changed = d1ChangeCount(results[results.length - 1]) === 1;
   if (!changed) await assertCurrentCreditAdmin(env, actor);
   if (!changed && input.action === "credit_policy.set") throw new HttpError(409, "The policy change was rejected. Review current authority and try again.", "invalid_request_error", "credit_policy_rejected");
   return changed;
@@ -592,7 +578,7 @@ async function assertCurrentCreditAdmin(env: Env, actor: CreditAuditActor): Prom
   if (!current || current.role !== "admin" || current.status !== "active" || !isOrganizationLoginUser(env,current) || current.canonical_email !== actor.email || current.console_session_epoch !== (actor.sessionEpoch ?? 0)) throw creditAdminRequired();
 }
 function creditAdminRequired(): HttpError {
-  return new HttpError(403, "Admin authentication required", "authentication_error", "admin_required");
+  return adminRequired();
 }
 
 function creditStateEntitlesIssuance(state: SurfaceCreditState): boolean {
@@ -621,7 +607,7 @@ async function readResolvedCredit(
        END AS monthly_allowance`
   ).bind(userId, surfaceGrant).first<{ mode: CreditMode; monthly_allowance: number | null }>();
   if (!row || (row.mode !== "unlimited" && row.mode !== "limited" && row.mode !== "disabled")) {
-    throw new HttpError(503, "Allowance is unavailable.", "server_error", "credit_read_unavailable");
+    throw creditReadUnavailable();
   }
   return {
     mode: row.mode,
@@ -640,7 +626,7 @@ function finiteAllowance(value: unknown): number {
 function requireState(states: SurfaceCreditState[], surfaceGrant: SurfaceGrant): SurfaceCreditState {
   const state = states.find((candidate) => candidate.surface_grant === surfaceGrant);
   if (!state) {
-    throw new HttpError(503, "Allowance is unavailable.", "server_error", "credit_read_unavailable");
+    throw creditReadUnavailable();
   }
   return state;
 }
@@ -649,6 +635,10 @@ function withXaiAuthority<T extends { surface_grant: SurfaceGrant }>(value: T): 
   return value.surface_grant === "surface:xai:production"
     ? { ...value, shared_provider_authority: XAI_SHARED_PROVIDER_AUTHORITY }
     : value;
+}
+
+function creditReadUnavailable(): HttpError {
+  return new HttpError(503, "Allowance is unavailable.", "server_error", "credit_read_unavailable");
 }
 
 function surfaceDisabled(): HttpError {
@@ -680,8 +670,3 @@ function surfaceExhausted(input: { user_id: string; surface_grant: string; plan_
   );
 }
 
-function changedRows(result: unknown): number {
-  if (!result || typeof result !== "object" || !("meta" in result)) return 0;
-  const changes = (result as { meta?: { changes?: number } }).meta?.changes;
-  return typeof changes === "number" ? changes : 0;
-}

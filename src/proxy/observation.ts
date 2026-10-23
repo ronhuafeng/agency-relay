@@ -1,5 +1,7 @@
 import { Readable } from "node:stream";
 import { createBrotliDecompress, createGunzip, createInflate } from "node:zlib";
+import { copyBytes } from "./byte-stream";
+import { isRecord, nonNegativeIntegerOrNull } from "../records";
 import { SseDecoder, SseDecoderError, type SseEvent } from "./sse-decoder";
 import type { CapturedProviderUsage, CapturedResponseUsage, CodexTransportObservation } from "../types";
 
@@ -16,6 +18,68 @@ export class ResponseObservationError extends Error {
   ) {
     super(code ?? "response_observation_failed");
     this.name = "ResponseObservationError";
+  }
+}
+
+export function noteObservedUsage(observation: CodexTransportObservation, usage: CapturedResponseUsage | null): void {
+  observation.usage_captured = usage?.usage !== null && usage?.usage !== undefined;
+  observation.observation_status = "ok";
+  observation.observation_error_code = null;
+}
+
+export function noteObservationParseFailure(observation: CodexTransportObservation, error: unknown): void {
+  observation.observation_status = "error";
+  if (error instanceof ResponseObservationError) {
+    observation.observation_error_code = error.code;
+    observation.observation_stage = error.stage;
+  } else {
+    observation.observation_error_code = "response_observation_parse_failed";
+    observation.observation_stage = "response_parse";
+  }
+}
+
+/** Copies response bytes for observation and closes when the queue cannot take the next chunk. */
+export class ResponseObservationTap {
+  readonly stream: ReadableStream<Uint8Array>;
+  private controller: ReadableStreamDefaultController<Uint8Array> | null = null;
+  private stopped = false;
+
+  constructor() {
+    this.stream = new ReadableStream<Uint8Array>({
+      start: (controller) => {
+        this.controller = controller;
+      },
+      cancel: () => {
+        this.stopped = true;
+      }
+    }, new ByteLengthQueuingStrategy({ highWaterMark: MAX_RESPONSE_OBSERVATION_LAG_BYTES }));
+  }
+
+  push(chunk: Uint8Array): void {
+    if (this.stopped || !this.controller) return;
+    if ((this.controller.desiredSize ?? 0) < chunk.byteLength) {
+      this.fail(new ResponseObservationError("response_observation_limit", "response_body"));
+      return;
+    }
+    this.controller.enqueue(chunk);
+  }
+
+  end(): void {
+    if (this.stopped || !this.controller) return;
+    this.stopped = true;
+    this.controller.close();
+  }
+
+  stop(): void {
+    if (this.stopped || !this.controller) return;
+    this.stopped = true;
+    this.controller.close();
+  }
+
+  fail(error: unknown): void {
+    if (this.stopped || !this.controller) return;
+    this.stopped = true;
+    this.controller.error(error);
   }
 }
 
@@ -41,6 +105,29 @@ export async function observeCodexResponse(
     : observeUnaryResponse(chunks, observation, signal);
 }
 
+function observationParseFailed(): ResponseObservationError {
+  return new ResponseObservationError("response_observation_parse_failed", "response_parse");
+}
+
+function throwIfClientAborted(signal: AbortSignal): void {
+  if (signal.aborted) {
+    throw new ResponseObservationError("client_request_aborted", "response_body");
+  }
+}
+
+function parseObservationRecord(text: string): JsonObject {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    parsed = null;
+  }
+  if (!isRecord(parsed)) {
+    throw observationParseFailed();
+  }
+  return parsed;
+}
+
 async function observeSseResponse(
   chunks: AsyncIterable<Uint8Array>,
   observation: CodexTransportObservation,
@@ -61,21 +148,17 @@ async function observeSseResponse(
       capture ??= observeSseEvent(event, observation, now, startedAt);
     }
   } catch (error) {
-    if (signal.aborted) {
-      throw new ResponseObservationError("client_request_aborted", "response_body");
-    }
+    throwIfClientAborted(signal);
     if (error instanceof ResponseObservationError) {
       throw error;
     }
     if (error instanceof SseDecoderError) {
       throw new ResponseObservationError("response_observation_limit", "response_parse");
     }
-    throw new ResponseObservationError("response_observation_parse_failed", "response_parse");
+    throw observationParseFailed();
   }
 
-  if (signal.aborted) {
-    throw new ResponseObservationError("client_request_aborted", "response_body");
-  }
+  throwIfClientAborted(signal);
   if (observation.terminal_event === null) {
     throw new ResponseObservationError("response_observation_premature_eof", "response_body");
   }
@@ -98,30 +181,18 @@ async function observeUnaryResponse(
       chunks.push(chunk);
     }
   } catch (error) {
-    if (signal.aborted) {
-      throw new ResponseObservationError("client_request_aborted", "response_body");
-    }
+    throwIfClientAborted(signal);
     if (error instanceof ResponseObservationError) {
       throw error;
     }
-    throw new ResponseObservationError("response_observation_parse_failed", "response_parse");
+    throw observationParseFailed();
   }
-  if (signal.aborted) {
-    throw new ResponseObservationError("client_request_aborted", "response_body");
-  }
+  throwIfClientAborted(signal);
   if (totalBytes === 0) {
     throw new ResponseObservationError("response_observation_premature_eof", "response_body");
   }
 
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(new TextDecoder().decode(concatBytes(chunks, totalBytes)));
-  } catch {
-    throw new ResponseObservationError("response_observation_parse_failed", "response_parse");
-  }
-  if (!isJsonObject(parsed)) {
-    throw new ResponseObservationError("response_observation_parse_failed", "response_parse");
-  }
+  const parsed = parseObservationRecord(new TextDecoder().decode(concatBytes(chunks, totalBytes)));
   const terminal = unaryTerminalEvent(parsed);
   if (terminal === null) {
     throw new ResponseObservationError("response_observation_premature_eof", "response_parse");
@@ -160,9 +231,7 @@ async function* decodedChunks(
     if (error instanceof ResponseObservationError) {
       throw error;
     }
-    if (signal.aborted) {
-      throw new ResponseObservationError("client_request_aborted", "response_body");
-    }
+    throwIfClientAborted(signal);
     throw new ResponseObservationError("response_observation_decompression_failed", "response_decompression");
   }
 }
@@ -191,9 +260,7 @@ async function* rawChunks(
       yield result.value;
     }
   } catch (error) {
-    if (signal.aborted) {
-      throw new ResponseObservationError("client_request_aborted", "response_body");
-    }
+    throwIfClientAborted(signal);
     if (error instanceof ResponseObservationError) {
       throw error;
     }
@@ -254,15 +321,7 @@ function observeSseEvent(
   if (event.event !== undefined && namedTerminal === null) {
     return null;
   }
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(data);
-  } catch {
-    throw new ResponseObservationError("response_observation_parse_failed", "response_parse");
-  }
-  if (!isJsonObject(parsed)) {
-    throw new ResponseObservationError("response_observation_parse_failed", "response_parse");
-  }
+  const parsed = parseObservationRecord(data);
   const terminal = namedTerminal ?? terminalEventType(parsed);
   if (terminal === null || observation.terminal_event !== null) {
     return null;
@@ -290,10 +349,10 @@ function terminalEventType(event: JsonObject): CodexTransportObservation["termin
 }
 
 function captureResponseUsage(value: JsonObject): CapturedResponseUsage | null {
-  const response = isJsonObject(value.response) ? value.response : value;
-  const usageObject = isJsonObject(response.usage)
+  const response = isRecord(value.response) ? value.response : value;
+  const usageObject = isRecord(response.usage)
     ? response.usage
-    : isJsonObject(value.usage)
+    : isRecord(value.usage)
       ? value.usage
       : null;
   const responseId = stringOrNull(response.id);
@@ -309,8 +368,8 @@ function captureResponseUsage(value: JsonObject): CapturedResponseUsage | null {
 }
 
 function normalizeUsage(usage: JsonObject): CapturedProviderUsage {
-  const inputDetails = isJsonObject(usage.input_tokens_details) ? usage.input_tokens_details : undefined;
-  const outputDetails = isJsonObject(usage.output_tokens_details) ? usage.output_tokens_details : undefined;
+  const inputDetails = isRecord(usage.input_tokens_details) ? usage.input_tokens_details : undefined;
+  const outputDetails = isRecord(usage.output_tokens_details) ? usage.output_tokens_details : undefined;
   const cacheWrites = nonNegativeIntegerOrNull(inputDetails?.cache_write_tokens);
   return {
     input_tokens: nonNegativeIntegerOrNull(usage.input_tokens),
@@ -323,29 +382,13 @@ function normalizeUsage(usage: JsonObject): CapturedProviderUsage {
   };
 }
 
-function isJsonObject(value: unknown): value is JsonObject {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
-
 function stringOrNull(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value : null;
 }
 
-function nonNegativeIntegerOrNull(value: unknown): number | null {
-  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0 ? value : null;
-}
-
 function concatBytes(chunks: Uint8Array[], totalBytes: number): Uint8Array {
-  if (chunks.length === 1) {
-    return chunks[0];
-  }
-  const result = new Uint8Array(totalBytes);
-  let offset = 0;
-  for (const chunk of chunks) {
-    result.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-  return result;
+  if (chunks.length === 1) return chunks[0];
+  return copyBytes(chunks, totalBytes);
 }
 
 function elapsedMs(now: () => Date, startedAt: number): number {

@@ -1,6 +1,6 @@
 import { parseUsageTrendRange, parseUsageQuery } from "./usage-query";
 import { parseRequestHistoryQuery, REQUEST_HISTORY_FIELDS, RequestHistoryDateRangeError, requestHistoryFilterOptions } from "./request-history";
-import { DASHBOARD_PAGE_SIZE } from "./inventory";
+import { isDashboardPageToken } from "./dashboard-page";
 import { DASHBOARD_PEOPLE_PAGE_SIZES } from "./ui/href";
 import { createElement, Fragment } from "react";
 import { DashboardContent, ReadUnavailable, renderDashboardDocument } from "./ui/dashboard-document";
@@ -12,6 +12,8 @@ import { loadDashboard, dashboardViewTitle, DASHBOARD_RANGE_DEFINITIONS, DASHBOA
  * Product authority: docs/product/experience.md
  */
 import { presentText } from "./format";
+import { base64UrlEncode } from "../crypto";
+import { utcDay } from "../records";
 
 
 
@@ -27,6 +29,10 @@ import { RequestFiltersIsland } from "./ui/islands";
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 class DashboardInputError extends Error {}
+
+function invalidDashboardQuery(): DashboardInputError {
+  return new DashboardInputError("invalid dashboard query");
+}
 
 export function dashboardAccountForMutation(flash: DashboardMutationFlash | null | undefined): string | null {
   if (flash?.kind === "credential_default") return `${flash.surface_grant === "surface:codex:production" ? "codex" : "grok"}:${flash.account_id}`;
@@ -154,7 +160,7 @@ function parseDashboardRange(url: URL, now: Date): DashboardRange {
     || (url.searchParams.has("task") && (url.searchParams.get("task") === "sync-configuration" ? url.searchParams.get("view") !== "setup" || url.searchParams.has("person") && !url.searchParams.has("key") : url.searchParams.get("task") === "add-account" ? url.searchParams.get("view") !== "credentials" || url.searchParams.has("person") : !["add-person", "add-service", "give-access"].includes(url.searchParams.get("task")!) || url.searchParams.get("view") !== "access"))
     || (url.searchParams.get("task") === "give-access" && !url.searchParams.get("person")?.trim())
   ) {
-    throw new DashboardInputError("invalid dashboard query");
+    throw invalidDashboardQuery();
   }
   for (const field of ["q", "page", "key_q", "key_page"]) {
     if (!url.searchParams.has(field)) continue;
@@ -163,7 +169,7 @@ function parseDashboardRange(url: URL, now: Date): DashboardRange {
       || field.startsWith("key_") && (url.searchParams.get("view") !== "access" || !url.searchParams.get("person")?.trim())) throw new DashboardInputError("invalid inventory query");
     const value = url.searchParams.get(field)!;
     if (field.endsWith("page")) {
-      if (!/^[1-9]\d*$/.test(value) || !Number.isSafeInteger(Number(value) * DASHBOARD_PAGE_SIZE)) throw new DashboardInputError("invalid inventory page");
+      if (!isDashboardPageToken(value)) throw new DashboardInputError("invalid inventory page");
     } else if (value.length > 256 || /[\u0000-\u001f\u007f]/.test(value)) throw new DashboardInputError("invalid inventory search");
   }
   if (["overview", "usage"].includes(url.searchParams.get("view") ?? "overview")) {
@@ -187,7 +193,7 @@ function parseDashboardRange(url: URL, now: Date): DashboardRange {
   const requestedKey = url.searchParams.get("range") ?? "7d";
   const definition = DASHBOARD_RANGE_DEFINITIONS.find((candidate) => candidate.key === requestedKey);
   if (!definition) {
-    throw new DashboardInputError("invalid dashboard query");
+    throw invalidDashboardQuery();
   }
 
   const today = utcDay(now);
@@ -236,7 +242,7 @@ function parseDashboardView(url: URL): DashboardViewKey {
   const requestedView = url.searchParams.get("view") ?? "overview";
   const definition = DASHBOARD_VIEW_DEFINITIONS.find((candidate) => candidate.key === requestedView);
   if (!definition) {
-    throw new DashboardInputError("invalid dashboard query");
+    throw invalidDashboardQuery();
   }
   return definition.key;
 }
@@ -349,16 +355,9 @@ function dashboardErrorCategory(error: unknown): "schema_unavailable" | "read_fa
 }
 
 /** Operator-facing instant (no raw ISO walls). */
-function utcDay(value: Date): string {
-  return value.toISOString().slice(0, 10);
-}
 
 function randomNonce(): string {
   const bytes = new Uint8Array(18);
   crypto.getRandomValues(bytes);
-  let binary = "";
-  for (const byte of bytes) {
-    binary += String.fromCharCode(byte);
-  }
-  return btoa(binary).replaceAll("+", "-").replaceAll("/", "_").replaceAll("=", "");
+  return base64UrlEncode(bytes);
 }

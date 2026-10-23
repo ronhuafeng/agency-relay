@@ -51,7 +51,7 @@ export function assertStrictHttpsOrigin(
     }
     throw new HttpError(500, options.invalidMessage, "server_error", options.invalidCode);
   }
-  return trimmed.replace(/\/+$/, "") || "https://invalid.invalid";
+  return trimmed.replace(/\/+$/, "");
 }
 
 /** Codex egress base URL: fixed to the deployed shim before any credential is attached. */

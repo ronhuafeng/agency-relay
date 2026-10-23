@@ -1,9 +1,10 @@
 import { generateId, nowIso } from "../crypto";
+import { CODEX_SHARED_PRODUCTION_SQL, d1ChangeCount, GROK_PRODUCTION_SQL, OPERATOR_MUTATION_AUDIT_COLUMNS } from "../db";
 import { readTokenResult } from "./token-result";
-import { HttpError } from "../errors";
+import { HttpError, adminAuthRequired } from "../errors";
 import type { SurfaceCredentialSelection } from "./bindings";
 import { PROVIDER_RELAY_PROFILES } from "../plans/execution-plans";
-import { serviceAdminAuthorityBindings, serviceAdminAuthoritySql } from "./service-accounts";
+import { assertServiceAdmin, serviceAdminAuthorityBindings, serviceAdminAuthoritySql } from "./service-accounts";
 
 export const PROVIDER_RESOURCE_BOUNDARY =
   "Changing the upstream account does not move provider-owned files, responses, jobs, or histories.";
@@ -136,7 +137,7 @@ export async function commitCredentialDefault(
          )
          SELECT ?, id, NULL, ?, ?
          FROM codex_auths
-         WHERE id = ? AND kind = 'shared' AND environment = 'production'
+         WHERE id = ? AND ${CODEX_SHARED_PRODUCTION_SQL}
            AND admission_state = 'enabled' AND status IN ('active', 'degraded') AND ${authority}
          ON CONFLICT(surface_grant) DO UPDATE SET
            codex_auth_id = excluded.codex_auth_id,
@@ -147,7 +148,7 @@ export async function commitCredentialDefault(
          )
          SELECT ?, NULL, id, ?, ?
          FROM subscription_accounts
-         WHERE id = ? AND capability_source = 'grok' AND environment = 'production'
+         WHERE id = ? AND ${GROK_PRODUCTION_SQL}
            AND status IN ('active', 'degraded') AND ${authority}
          ON CONFLICT(surface_grant) DO UPDATE SET
            codex_auth_id = NULL,
@@ -176,10 +177,7 @@ export async function selectIssuanceDefaults(
   const selections: SurfaceCredentialSelection[] = [];
   for (const surface of surfaces) {
     const row = selected.find((candidate) => candidate.surface_grant === surface);
-    if (!row || !await rowUsable(env, row, probe, now)) {
-      throw new HttpError(503, "A service needed for a new key is unavailable.", "server_error", "credential_default_unavailable");
-    }
-    const accountId = accountIdOf(row);
+    const accountId = row && await rowUsable(env, row, probe, now) ? accountIdOf(row) : null;
     if (!accountId) {
       throw new HttpError(503, "A service needed for a new key is unavailable.", "server_error", "credential_default_unavailable");
     }
@@ -227,7 +225,7 @@ export async function migrateCredentialBindings(
   await assertReplacement(env, input.kind, input.replacement_account_id);
   const at = nowIso(now);
   const accountColumn = input.kind === "codex" ? "codex_auth_id" : "subscription_account_id";
-  const table = input.kind === "codex" ? "codex_auths" : "subscription_accounts";
+  const table = accountTable(input.kind);
   // Every write has its own committing predicate. A zero-row first UPDATE does
   // not roll back valid later statements in a D1 batch.
   const eligible = `EXISTS (SELECT 1 FROM ${table}
@@ -235,53 +233,47 @@ export async function migrateCredentialBindings(
     AND EXISTS (SELECT 1 FROM ${table} WHERE id = ? AND status NOT IN ('revoked', 'disabled'))
     AND ${serviceAdminAuthoritySql}`;
   const eligibilityBindings = [input.replacement_account_id, input.account_id, ...serviceAdminAuthorityBindings(env, actor)];
+  const migrationMeta = { kind: input.kind, replacement_account_id: input.replacement_account_id };
   const statements: D1PreparedStatement[] = [
     env.DB.prepare(`${statusSql(input.kind, "retiring")} AND ${eligible}`).bind(at, input.account_id, ...eligibilityBindings),
     auditStatement(env, actor, {
       action: "credential.retire",
       targetId: input.account_id,
-      meta: { kind: input.kind, replacement_account_id: input.replacement_account_id }
+      meta: migrationMeta
     }, at, true)
   ];
-  if (input.key_ids.length > 0) {
-    const keyPlaceholders = input.key_ids.map(() => "?").join(", ");
+  const queueMove = (table: "api_key_surface_credentials" | "organization_surface_credential_defaults", idColumn: "api_key_id" | "surface_grant", ids: readonly string[], action: string) => {
+    if (ids.length === 0) return;
+    const placeholders = ids.map(() => "?").join(", ");
     statements.push(env.DB.prepare(
-      `UPDATE api_key_surface_credentials
+      `UPDATE ${table}
        SET ${accountColumn} = ?, updated_at = ?
        WHERE ${accountColumn} = ?
-         AND api_key_id IN (${keyPlaceholders}) AND ${eligible}`
-    ).bind(input.replacement_account_id, at, input.account_id, ...input.key_ids, ...eligibilityBindings));
+         AND ${idColumn} IN (${placeholders}) AND ${eligible}`
+    ).bind(input.replacement_account_id, at, input.account_id, ...ids, ...eligibilityBindings));
     statements.push(auditStatement(env, actor, {
-      action: "credential.migrate_bindings",
+      action,
       targetId: input.account_id,
-      meta: { kind: input.kind, replacement_account_id: input.replacement_account_id }
+      meta: migrationMeta
     }, at, true, true));
-  }
-  if (input.default_surfaces.length > 0) {
-    const surfacePlaceholders = input.default_surfaces.map(() => "?").join(", ");
-    statements.push(env.DB.prepare(
-      `UPDATE organization_surface_credential_defaults
-       SET ${accountColumn} = ?, updated_at = ?
-       WHERE ${accountColumn} = ?
-         AND surface_grant IN (${surfacePlaceholders}) AND ${eligible}`
-    ).bind(input.replacement_account_id, at, input.account_id, ...input.default_surfaces, ...eligibilityBindings));
-    statements.push(auditStatement(env, actor, {
-      action: "credential.migrate_defaults",
-      targetId: input.account_id,
-      meta: { kind: input.kind, replacement_account_id: input.replacement_account_id }
-    }, at, true, true));
-  }
+  };
+  queueMove("api_key_surface_credentials", "api_key_id", input.key_ids, "credential.migrate_bindings");
+  queueMove("organization_surface_credential_defaults", "surface_grant", input.default_surfaces, "credential.migrate_defaults");
   const results = await env.DB.batch(statements);
-  const statusChanged = changed(results[0]);
+  const statusChanged = d1ChangeCount(results[0]);
   let cursor = 2;
-  const migratedBindings = input.key_ids.length > 0 ? changed(results[cursor]) : 0;
+  const migratedBindings = input.key_ids.length > 0 ? d1ChangeCount(results[cursor]) : 0;
   if (input.key_ids.length > 0) cursor += 2;
-  const migratedDefaults = input.default_surfaces.length > 0 ? changed(results[cursor]) : 0;
+  const migratedDefaults = input.default_surfaces.length > 0 ? d1ChangeCount(results[cursor]) : 0;
   if (statusChanged + migratedBindings + migratedDefaults === 0) {
-    await assertCredentialAdmin(env, actor);
+    await assertServiceAdmin(env, actor);
     throw new HttpError(409, "Nothing was migrated.", "invalid_request_error", "retirement_unchanged");
   }
   return { migrated_bindings: migratedBindings, migrated_defaults: migratedDefaults };
+}
+
+function disconnectBlocked(): HttpError {
+  return new HttpError(409, "Disconnect is blocked while live keys still use this account.", "invalid_request_error", "credential_disconnect_blocked");
 }
 
 export async function disconnectCredential(
@@ -292,11 +284,11 @@ export async function disconnectCredential(
   now = new Date()
 ): Promise<{ completion: "complete" | "partial"; d1_status: "revoked"; token_cleanup: "cleared" | "failed"; recovery?: "retry_cleanup"; live_bindings: number }> {
   if (input.force && actor.kind !== "admin_secret") {
-    throw new HttpError(403, "Admin authentication required", "authentication_error", "admin_auth_required");
+    throw adminAuthRequired();
   }
   const live = await liveBindings(env, input.kind, input.account_id);
   if (!input.force && live.length > 0) {
-    throw new HttpError(409, "Disconnect is blocked while live keys still use this account.", "invalid_request_error", "credential_disconnect_blocked");
+    throw disconnectBlocked();
   }
   const at = nowIso(now);
   const bindingGuard = input.force ? "" : `AND NOT EXISTS (SELECT 1 ${liveBindingRowsSql(input.kind)})`;
@@ -315,12 +307,12 @@ export async function disconnectCredential(
     const account = await requireAccount(env, input.kind, input.account_id);
     if (account.status !== "revoked") {
       if (!input.force && (await liveBindings(env, input.kind, input.account_id)).length > 0) {
-        throw new HttpError(409, "Disconnect is blocked while live keys still use this account.", "invalid_request_error", "credential_disconnect_blocked");
+        throw disconnectBlocked();
       }
       throw new HttpError(409, "The account was not disconnected.", "invalid_request_error", "credential_disconnect_rejected");
     }
   }
-  await assertCredentialAdmin(env, actor);
+  await assertServiceAdmin(env, actor);
   return finishCleanup(cleanup, live.length);
 }
 
@@ -338,7 +330,7 @@ export async function retryCredentialCleanup(
   const at = nowIso(now);
   // TokenAuthority is a separate store: authorize immediately before starting
   // cleanup and record its actual outcome, without claiming a cross-store batch.
-  await assertCredentialAdmin(env, actor);
+  await assertServiceAdmin(env, actor);
   try {
     await cleanup();
   } catch {
@@ -370,6 +362,8 @@ export function defaultCredentialProbe(env: Env): UsabilityProbe {
 }
 
 type UsabilityProbe = (env: Env, kind: CredentialKind, accountId: string) => Promise<void>;
+
+export const ORGANIZATION_DEFAULT_ACCOUNT_COLUMNS = "surface_grant, codex_auth_id, subscription_account_id";
 
 interface DefaultRow {
   surface_grant: OrganizationSurface;
@@ -404,6 +398,10 @@ async function rowUsable(env: Env, row: DefaultRow, probe: UsabilityProbe, _now:
   }
 }
 
+function accountTable(kind: CredentialKind): "codex_auths" | "subscription_accounts" {
+  return kind === "codex" ? "codex_auths" : "subscription_accounts";
+}
+
 function accountIdOf(row: { codex_auth_id: string | null; subscription_account_id: string | null }): string | null {
   return row.codex_auth_id ?? row.subscription_account_id;
 }
@@ -415,7 +413,7 @@ function surfaceId(surface: OrganizationSurface): ServiceAvailability["surface"]
 }
 
 function statusSql(kind: CredentialKind, status: "retiring" | "revoked"): string {
-  const table = kind === "codex" ? "codex_auths" : "subscription_accounts";
+  const table = accountTable(kind);
   const blocked = status === "retiring" ? "'retiring', 'revoked', 'disabled'" : "'revoked', 'disabled'";
   return `UPDATE ${table}
     SET status = '${status}', updated_at = ?
@@ -423,7 +421,7 @@ function statusSql(kind: CredentialKind, status: "retiring" | "revoked"): string
 }
 
 async function requireAccount(env: Env, kind: CredentialKind, accountId: string): Promise<{ id: string; status: string }> {
-  const table = kind === "codex" ? "codex_auths" : "subscription_accounts";
+  const table = accountTable(kind);
   const row = await env.DB.prepare(`SELECT id, status FROM ${table} WHERE id = ?`).bind(accountId).first<{ id: string; status: string }>();
   if (!row) throw new HttpError(404, "Credential account not found", "invalid_request_error", "credential_account_not_found");
   return row;
@@ -431,7 +429,7 @@ async function requireAccount(env: Env, kind: CredentialKind, accountId: string)
 
 async function assertReplacement(env: Env, kind: CredentialKind, accountId: string): Promise<void> {
   await requireAccount(env, kind, accountId);
-  const table = kind === "codex" ? "codex_auths" : "subscription_accounts";
+  const table = accountTable(kind);
   const row = await env.DB.prepare(`SELECT id FROM ${table} WHERE id = ? AND ${migrationReplacementSql(kind)}`)
     .bind(accountId).first();
   if (!row) {
@@ -448,10 +446,10 @@ function migrationReplacementSql(kind: CredentialKind): string {
 async function compatibleReplacements(env: Env, kind: CredentialKind, accountId: string): Promise<Array<{ id: string; label: string }>> {
   const sql = kind === "codex"
     ? `SELECT id, label FROM codex_auths
-       WHERE id <> ? AND kind = 'shared' AND environment = 'production' AND admission_state = 'enabled' AND status IN ('active', 'degraded')
+       WHERE id <> ? AND ${CODEX_SHARED_PRODUCTION_SQL} AND admission_state = 'enabled' AND status IN ('active', 'degraded')
        ORDER BY id`
     : `SELECT id, label FROM subscription_accounts
-       WHERE id <> ? AND capability_source = 'grok' AND environment = 'production' AND status IN ('active', 'degraded')
+       WHERE id <> ? AND ${GROK_PRODUCTION_SQL} AND status IN ('active', 'degraded')
        ORDER BY id`;
   const result = await env.DB.prepare(sql).bind(accountId).all<{ id: string; label: string }>();
   return result.results ?? [];
@@ -483,15 +481,9 @@ async function audited(
     env.DB.prepare(input.statement(serviceAdminAuthoritySql)).bind(...input.bindings, ...serviceAdminAuthorityBindings(env, actor)),
     auditStatement(env, actor, input, at, true)
   ]);
-  const committed = changed(results[1]) === 1;
-  if (!committed) await assertCredentialAdmin(env, actor);
+  const committed = d1ChangeCount(results[1]) === 1;
+  if (!committed) await assertServiceAdmin(env, actor);
   return committed;
-}
-
-async function assertCredentialAdmin(env: Env, actor: CredentialActor): Promise<void> {
-  const current = await env.DB.prepare(`SELECT 1 AS authorized WHERE ${serviceAdminAuthoritySql}`)
-    .bind(...serviceAdminAuthorityBindings(env, actor)).first();
-  if (!current) throw new HttpError(403, "Admin authentication required", "authentication_error", "admin_required");
 }
 
 async function insertAudit(
@@ -515,14 +507,12 @@ function auditStatement(
   const metaSql = gated && recordChanged ? "json_set(?, '$.changed', changes())" : "?";
   const sql = gated
     ? `INSERT INTO operator_mutation_audit (
-         id, at, actor_kind, actor_email, actor_subject, actor_user_id, actor_role,
-         action, target_type, target_id, result, request_id, meta, created_at
+         ${OPERATOR_MUTATION_AUDIT_COLUMNS}
        )
        SELECT ?, ?, ?, ?, ?, ?, ?, ?, 'credential', ?, ?, ?, ${metaSql}, ?
        WHERE changes() > 0`
     : `INSERT INTO operator_mutation_audit (
-         id, at, actor_kind, actor_email, actor_subject, actor_user_id, actor_role,
-         action, target_type, target_id, result, request_id, meta, created_at
+         ${OPERATOR_MUTATION_AUDIT_COLUMNS}
        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'credential', ?, ?, ?, ?, ?)`;
   return env.DB.prepare(sql).bind(
     generateId("oma"),
@@ -556,8 +546,3 @@ async function finishCleanup(cleanup: () => Promise<void>, liveBindingsCount: nu
   }
 }
 
-function changed(result: unknown): number {
-  if (!result || typeof result !== "object" || !("meta" in result)) return 0;
-  const changes = (result as { meta?: { changes?: number } }).meta?.changes;
-  return typeof changes === "number" ? changes : 0;
-}

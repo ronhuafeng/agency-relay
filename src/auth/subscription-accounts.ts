@@ -3,7 +3,9 @@
  * D1 holds non-secret current state only; Durable Objects hold encrypted tokens.
  */
 import { generateId, nowIso } from "../crypto";
-import { HttpError } from "../errors";
+import { firstString } from "../records";
+import { ADMINISTRATIVE_TERMINAL_SQL, d1ChangeCount } from "../db";
+import { HttpError, requiredTrimmedString, subscriptionNotFound } from "../errors";
 import {
   assertSupportedGrokOidcIssuer,
   refreshGrokOidcToken
@@ -189,7 +191,7 @@ export async function projectSubscriptionRefreshIfMutable(
        last_refresh_at = ?,
        reauth_required_at = ?,
        updated_at = ?
-     WHERE id = ? AND status NOT IN ('revoked', 'disabled', 'retiring')`
+     WHERE id = ? AND ${ADMINISTRATIVE_TERMINAL_SQL}`
   ).bind(
     patch.status,
     patch.provider_account_ref,
@@ -200,7 +202,7 @@ export async function projectSubscriptionRefreshIfMutable(
     nowIso(now),
     id
   ).run();
-  return (result.meta?.changes ?? 0) > 0;
+  return d1ChangeCount(result) > 0;
 }
 
 export async function markSubscriptionReauthRequiredIfMutable(env: Env, id: string, now = new Date()): Promise<boolean> {
@@ -208,9 +210,9 @@ export async function markSubscriptionReauthRequiredIfMutable(env: Env, id: stri
   const result = await env.DB.prepare(
     `UPDATE subscription_accounts
      SET status = 'reauth_required', reauth_required_at = ?, updated_at = ?
-     WHERE id = ? AND status NOT IN ('revoked', 'disabled', 'retiring')`
+     WHERE id = ? AND ${ADMINISTRATIVE_TERMINAL_SQL}`
   ).bind(at, at, id).run();
-  return (result.meta?.changes ?? 0) > 0;
+  return d1ChangeCount(result) > 0;
 }
 
 export async function updateSubscriptionAccountMetadata(
@@ -232,7 +234,7 @@ export async function updateSubscriptionAccountMetadata(
 ): Promise<void> {
   const current = await getSubscriptionAccount(env, id);
   if (!current) {
-    throw new HttpError(404, "Subscription Account not found", "invalid_request_error", "subscription_not_found");
+    throw subscriptionNotFound();
   }
   await env.DB.prepare(
     `UPDATE subscription_accounts SET
@@ -303,7 +305,7 @@ export function driverFor(source: CapabilitySource): SubscriptionCredentialDrive
 const grokDriver: SubscriptionCredentialDriver = {
   source: "grok",
   normalizeImport(input) {
-    const access_token = requiredString(input, "access_token");
+    const access_token = requiredTrimmedString(input, "access_token");
     const refresh_token = optionalString(input, "refresh_token");
     const oidc_issuer = optionalString(input, "oidc_issuer");
     const oidc_client_id = optionalString(input, "oidc_client_id");
@@ -365,20 +367,8 @@ function assertEnvironment(value: string): asserts value is SubscriptionEnvironm
   }
 }
 
-function requiredString(input: Record<string, unknown>, field: string): string {
-  const value = input[field];
-  if (typeof value !== "string" || !value.trim()) {
-    throw new HttpError(400, `${field} is required`, "invalid_request_error", `missing_${field}`);
-  }
-  return value.trim();
-}
-
 function optionalString(input: Record<string, unknown>, field: string): string | undefined {
-  const value = input[field];
-  if (typeof value !== "string" || !value.trim()) {
-    return undefined;
-  }
-  return value.trim();
+  return firstString(input[field]) || undefined;
 }
 
 export { ACTIVE_STATUSES };

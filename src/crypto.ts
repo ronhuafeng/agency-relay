@@ -46,9 +46,7 @@ export async function hmacSha256Hex(secret: string, value: string): Promise<stri
   return bytesToHex(new Uint8Array(signature));
 }
 
-export function timingSafeEqualHex(left: string, right: string): boolean {
-  const a = hexToBytes(left);
-  const b = hexToBytes(right);
+function timingSafeEqualBytes(a: Uint8Array, b: Uint8Array): boolean {
   let diff = a.length ^ b.length;
   const length = Math.max(a.length, b.length);
   for (let i = 0; i < length; i += 1) {
@@ -57,15 +55,17 @@ export function timingSafeEqualHex(left: string, right: string): boolean {
   return diff === 0;
 }
 
+export function timingSafeEqualHex(left: string, right: string): boolean {
+  return timingSafeEqualBytes(hexToBytes(left), hexToBytes(right));
+}
+
 export function timingSafeEqualString(left: string, right: string): boolean {
-  const a = encoder.encode(left);
-  const b = encoder.encode(right);
-  let diff = a.length ^ b.length;
-  const length = Math.max(a.length, b.length);
-  for (let i = 0; i < length; i += 1) {
-    diff |= (a[i] ?? 0) ^ (b[i] ?? 0);
-  }
-  return diff === 0;
+  return timingSafeEqualBytes(encoder.encode(left), encoder.encode(right));
+}
+
+/** Stored Runtime OAuth hashes. The prefix is part of the persisted key. */
+export function runtimeOAuthMaterialHash(pepper: string, value: string): Promise<string> {
+  return hmacSha256Hex(pepper, `runtime-oauth\0${value}`);
 }
 
 export async function encryptJson(secret: string, value: unknown) {
@@ -99,7 +99,7 @@ async function aesKey(secret: string): Promise<CryptoKey> {
   return crypto.subtle.importKey("raw", digest, "AES-GCM", false, ["encrypt", "decrypt"]);
 }
 
-function bytesToHex(bytes: Uint8Array): string {
+export function bytesToHex(bytes: Uint8Array): string {
   return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
@@ -130,6 +130,35 @@ export function base64UrlDecode(value: string): Uint8Array<ArrayBuffer> {
     out[i] = binary.charCodeAt(i);
   }
   return out;
+}
+
+export async function pkceChallengeS256(verifier: string): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", encoder.encode(verifier));
+  return base64UrlEncode(new Uint8Array(digest));
+}
+
+/** Accepts an absolute callback URL or a raw query string. */
+export function parseOAuthCallback(callbackUrl?: string | null): { code?: string; state?: string } {
+  if (!callbackUrl?.trim()) {
+    return {};
+  }
+  try {
+    const url = new URL(callbackUrl.trim());
+    return {
+      code: url.searchParams.get("code") ?? undefined,
+      state: url.searchParams.get("state") ?? undefined
+    };
+  } catch {
+    try {
+      const params = new URLSearchParams(callbackUrl.includes("?") ? callbackUrl.split("?")[1] : callbackUrl);
+      return {
+        code: params.get("code") ?? undefined,
+        state: params.get("state") ?? undefined
+      };
+    } catch {
+      return {};
+    }
+  }
 }
 
 export function secureJitterMillis(maxExclusive: number): number {

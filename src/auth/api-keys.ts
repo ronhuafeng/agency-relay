@@ -11,10 +11,10 @@ import {
   type OrganizationSurface
 } from "./credential-defaults";
 import { generateApiKey, generateId, hmacSha256Hex, nowIso } from "../crypto";
-import { getApiKeyById, getUser, operatorMutationAuditStatement, type OperatorMutationAuditInput } from "../db";
+import { d1ChangeCount, getApiKeyById, getUser, OPERATOR_MUTATION_AUDIT_COLUMNS, operatorMutationAuditStatement, type OperatorMutationAuditInput } from "../db";
 import { keyActorAuthority, assertKeyActorAuthority } from "./key-authority";
 import { keyLifecycle, type KeyLifecycle } from "./key-state";
-import { HttpError } from "../errors";
+import { HttpError, keyNotActive, keyNotFound, userInactive, userNotFound } from "../errors";
 import type { ApiKeyRow } from "../types";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -143,7 +143,7 @@ export async function replaceMemberKey(
 ): Promise<{ replacement: IssuedApiKey; previous: PublicApiKey; old_key_remains_active: boolean }> {
   const existing = await ownedKey(env, userId, keyId);
   if (existing.status !== "active") {
-    throw new HttpError(409, "Only an active key can be replaced", "invalid_request_error", "key_not_active");
+    throw keyNotActive();
   }
   const replacement = await commitReplacement(env, actor, existing, expiresAt, now, issuanceId, submissionFingerprint);
   const previous = publicApiKey(existing, now, "active");
@@ -169,7 +169,7 @@ export async function renameMemberKey(
       name: nextName
     }, now, true)
   ]);
-  if (changed(results[0]) !== 1) {
+  if (d1ChangeCount(results[0]) !== 1) {
     await assertKeyActorAuthority(env, actor, userId);
     throw new HttpError(409, "Key name was not changed.", "invalid_request_error", "key_rename_rejected");
   }
@@ -203,7 +203,7 @@ export async function revokeAllMemberKeys(
     ).bind(at, userId, ...guard.values),
     auditStatement(env, actor, "key.revoke_all", userId, { user_id: userId }, now, true)
   ]);
-  const revoked = changed(results[0]);
+  const revoked = d1ChangeCount(results[0]);
   if (revoked === 0) await assertKeyActorAuthority(env, actor, userId);
   return { revoked };
 }
@@ -226,8 +226,8 @@ export async function commitIssuedKey(
   now = new Date()
 ): Promise<IssuedApiKey> {
   const user = await getUser(env, input.user_id);
-  if (!user) throw new HttpError(404, "User not found", "invalid_request_error", "user_not_found");
-  if (user.status !== "active") throw new HttpError(403, "User is not active", "authentication_error", "user_inactive");
+  if (!user) throw userNotFound();
+  if (user.status !== "active") throw userInactive();
   const grants = assertIssuableSurfaceGrants(input.scopes);
   await assertIssuanceEntitlement(env, input.user_id, grants, now);
   if (input.copy_bindings_from_api_key_id) {
@@ -304,13 +304,13 @@ export async function revokeKey(
       already_revoked: false
     }, now, true)
   ]);
-  if (changed(results[0]) === 1) {
+  if (d1ChangeCount(results[0]) === 1) {
     return { id: existing.id, revoked: true, already_revoked: false, key_prefix: existing.key_prefix };
   }
   await assertKeyActorAuthority(env, actor, existing.user_id);
   const current = await getApiKeyById(env, existing.id);
   if (!current || current.user_id !== existing.user_id) {
-    throw new HttpError(404, "API key not found", "invalid_request_error", "key_not_found");
+    throw keyNotFound();
   }
   if (current.status !== "revoked") {
     throw new HttpError(409, "Key revocation was rejected.", "invalid_request_error", "key_revoke_rejected");
@@ -331,7 +331,7 @@ export function memberSurfaces(values: readonly string[]): OrganizationSurface[]
 async function ownedKey(env: Env, userId: string, keyId: string): Promise<ApiKeyRow> {
   const key = await getApiKeyById(env, keyId);
   if (!key || key.user_id !== userId) {
-    throw new HttpError(404, "API key not found", "invalid_request_error", "key_not_found");
+    throw keyNotFound();
   }
   return key;
 }
@@ -361,10 +361,7 @@ function auditStatement(
   if (!countChanges) return operatorMutationAuditStatement(env, input, now);
   const at = nowIso(now);
   return env.DB.prepare(
-    `INSERT INTO operator_mutation_audit (
-      id, at, actor_kind, actor_email, actor_subject, actor_user_id, actor_role,
-      action, target_type, target_id, result, request_id, meta, created_at
-    )
+    `INSERT INTO operator_mutation_audit (${OPERATOR_MUTATION_AUDIT_COLUMNS})
     SELECT ?, ?, ?, ?, ?, ?, CASE WHEN ? = 'access' THEN (SELECT role FROM users WHERE id = ?) ELSE ? END, ?, 'api_key', ?, 'ok', ?, json_set(?, '$.changed', changes()), ?
     WHERE changes() > 0`
   ).bind(
@@ -385,8 +382,3 @@ function auditStatement(
   );
 }
 
-function changed(result: unknown): number {
-  if (!result || typeof result !== "object" || !("meta" in result)) return 0;
-  const changes = (result as { meta?: { changes?: number } }).meta?.changes;
-  return typeof changes === "number" ? changes : 0;
-}

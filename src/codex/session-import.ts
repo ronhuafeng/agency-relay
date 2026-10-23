@@ -2,10 +2,9 @@
  * Parse Codex CLI session / auth.json artifacts into storeable Codex tokens.
  * Shape aligned with sub2api ImportCodexSession (tokens.* + top-level fields).
  */
-import { HttpError } from "../errors";
+import { HttpError, rejectExpiredAccessToken, requireSessionAccessToken, requireSessionText, sessionExpiry, sessionRecord, sessionRefreshToken, warnMissingSessionRefreshToken } from "../errors";
+import { asRecord, firstString, looksLikeJson } from "../records";
 import type { CodexToken } from "../types";
-
-const CLOCK_SKEW_MS = 120_000;
 
 export interface ParsedCodexSession {
   access_token: string;
@@ -19,10 +18,7 @@ export interface ParsedCodexSession {
 }
 
 export function parseCodexSessionArtifact(content: string, now = new Date()): ParsedCodexSession {
-  const trimmed = content.trim();
-  if (!trimmed) {
-    throw new HttpError(400, "Session content is empty", "invalid_request_error", "empty_session");
-  }
+  const trimmed = requireSessionText(content);
 
   // Bare access token (JWT-ish or opaque)
   if (!looksLikeJson(trimmed) && !trimmed.includes("\n")) {
@@ -39,13 +35,11 @@ export function parseCodexSessionArtifact(content: string, now = new Date()): Pa
   } catch {
     // Multi-line: take first JSON object line or fail
     const line = trimmed.split("\n").map((part) => part.trim()).find((part) => looksLikeJson(part));
-    if (!line) {
-      throw new HttpError(400, "Could not parse Codex session JSON", "invalid_request_error", "invalid_session_json");
-    }
+    if (!line) invalidCodexSessionJson();
     try {
       value = JSON.parse(line);
     } catch {
-      throw new HttpError(400, "Could not parse Codex session JSON", "invalid_request_error", "invalid_session_json");
+      invalidCodexSessionJson();
     }
   }
 
@@ -55,49 +49,19 @@ export function parseCodexSessionArtifact(content: string, now = new Date()): Pa
     }
     value = value[0];
   }
-  if (!value || typeof value !== "object") {
-    throw new HttpError(400, "Session must be a JSON object", "invalid_request_error", "invalid_session_json");
-  }
-
-  const raw = value as Record<string, unknown>;
+  const raw = sessionRecord(value);
   const tokens = asRecord(raw.tokens) ?? {};
   const warnings: string[] = [];
-
-  const access_token = firstString(
-    tokens.access_token,
-    tokens.accessToken,
-    raw.access_token,
-    raw.accessToken,
-    raw.token
-  );
-  if (!access_token) {
-    throw new HttpError(400, "Session missing access_token", "invalid_request_error", "missing_access_token");
-  }
-
-  const refresh_token = firstString(
-    tokens.refresh_token,
-    tokens.refreshToken,
-    raw.refresh_token,
-    raw.refreshToken
-  ) || undefined;
+  const access_token = requireSessionAccessToken(raw, tokens);
+  const refresh_token = sessionRefreshToken(raw, tokens);
   const id_token = firstString(tokens.id_token, tokens.idToken, raw.id_token, raw.idToken) || undefined;
 
   if (firstString(raw.session_token, raw.sessionToken)) {
     warnings.push("sessionToken ignored; it is not stored as OAuth refresh_token");
   }
 
-  let expires_at = firstString(
-    tokens.expires_at,
-    tokens.expiresAt,
-    raw.expires_at,
-    raw.expiresAt
-  ) || undefined;
-  if (expires_at) {
-    const expMs = Date.parse(expires_at);
-    if (Number.isFinite(expMs) && expMs <= now.getTime() - CLOCK_SKEW_MS) {
-      throw new HttpError(400, `access_token expired at ${expires_at}`, "invalid_request_error", "access_token_expired");
-    }
-  }
+  let expires_at = sessionExpiry(raw, tokens);
+  if (expires_at) rejectExpiredAccessToken(expires_at, now);
 
   const email = firstString(raw.email, asRecord(raw.user)?.email) || undefined;
   const account_id = firstString(
@@ -110,9 +74,7 @@ export function parseCodexSessionArtifact(content: string, now = new Date()): Pa
     asRecord(raw.account)?.chatgpt_account_id
   ) || claimsAccountId(id_token) || undefined;
 
-  if (!refresh_token) {
-    warnings.push("No refresh_token in session; automatic refresh unavailable until re-auth");
-  }
+  warnMissingSessionRefreshToken(warnings, refresh_token);
 
   return {
     access_token,
@@ -145,24 +107,8 @@ export function codexTokenFromParsedSession(
   };
 }
 
-function looksLikeJson(value: string): boolean {
-  const t = value.trim();
-  return t.startsWith("{") || t.startsWith("[");
-}
-
-function asRecord(value: unknown): Record<string, unknown> | null {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? value as Record<string, unknown>
-    : null;
-}
-
-function firstString(...candidates: unknown[]): string {
-  for (const candidate of candidates) {
-    if (typeof candidate === "string" && candidate.trim()) {
-      return candidate.trim();
-    }
-  }
-  return "";
+function invalidCodexSessionJson(): never {
+  throw new HttpError(400, "Could not parse Codex session JSON", "invalid_request_error", "invalid_session_json");
 }
 
 function claimsEmail(idToken?: string): string | undefined {

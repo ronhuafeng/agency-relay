@@ -1,4 +1,5 @@
 import type { CapturedResponseUsage } from "../types";
+import { nonNegativeIntegerOrNull } from "../records";
 
 // Standard text-token rates, checked 2026-10-07. This is not subscription spend.
 // https://developers.openai.com/api/docs/pricing
@@ -40,7 +41,7 @@ const PRICES: Readonly<Record<string, Price>> = {
   "o4-mini": { short: [11000, 2750, 44000] }
 };
 function count(value: unknown): value is number {
-  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
+  return nonNegativeIntegerOrNull(value) !== null;
 }
 
 /** Price one physical request. Missing buckets and unknown models stay unpriced. */

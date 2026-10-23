@@ -4,12 +4,15 @@ import { LoginEntry, LogoutEntry } from "../admin/ui/pages/login";
 import { assertConsoleBrowserWrite } from "../admin/browser-write";
 import { consoleDocument } from "../admin/console-shell";
 import { base64UrlEncode, nowIso } from "../crypto";
-import { HttpError } from "../errors";
+import { HttpError, invalidConsoleReturn, publicInternalError } from "../errors";
+import { asRecord as record } from "../records";
 import type { AppDependencies, RequestContext } from "../types";
 import {
   clearConsoleSessionCookie,
   consoleSessionCookie,
   createConsoleSession,
+  readCookieValue,
+  httpOnlyLaxCookie,
   deleteConsoleSession,
   readConsoleSessionPrincipal
 } from "./console-session";
@@ -61,13 +64,7 @@ async function loginPage(request: Request, env: Env, now: Date): Promise<Respons
     // server. Carry only a bounded section ID into the checked return target.
     extra: createElement("script", {dangerouslySetInnerHTML: {__html: `const f=document.querySelector('form[action^="/login"]');if(f&&${JSON.stringify(CONSOLE_RETURN_SECTIONS)}.includes(location.hash)){const u=new URL(f.action);const t=u.searchParams.get("return")||"/";if(!t.includes("#")){u.searchParams.set("return",t+location.hash);f.action=u.pathname+u.search;}}`}})
   });
-  return new Response(html, {
-    headers: {
-      "Content-Type": "text/html; charset=utf-8",
-      "Cache-Control": "no-store",
-      "Referrer-Policy": "same-origin"
-    }
-  });
+  return htmlPage(html, "same-origin");
 }
 
 async function startLogin(request: Request, env: Env, url: URL, now: Date): Promise<Response> {
@@ -76,7 +73,7 @@ async function startLogin(request: Request, env: Env, url: URL, now: Date): Prom
   const config = feishuConfig(env);
   if (!config) {
     console.error(JSON.stringify({ event: "feishu_login_unconfigured" }));
-    throw new HttpError(500, "An internal error occurred", "server_error", "internal_error");
+    throw publicInternalError();
   }
   const state = randomToken();
   await env.DB.prepare(`DELETE FROM console_login_states WHERE expires_at <= ?`).bind(nowIso(now)).run();
@@ -130,18 +127,22 @@ async function finishLogin(
   }
 }
 
+function htmlPage(html: string, referrer: "same-origin" | "no-referrer"): Response {
+  return new Response(html, {
+    headers: {
+      "Content-Type": "text/html; charset=utf-8",
+      "Cache-Control": "no-store",
+      "Referrer-Policy": referrer
+    }
+  });
+}
+
 function logoutPage(): Response {
   const html = consoleDocument({
     title: "退出 · Mini",
     main: createElement(LogoutEntry)
   });
-  return new Response(html, {
-    headers: {
-      "Content-Type": "text/html; charset=utf-8",
-      "Cache-Control": "no-store",
-      "Referrer-Policy": "no-referrer"
-    }
-  });
+  return htmlPage(html, "no-referrer");
 }
 
 async function logout(request: Request, env: Env, url: URL): Promise<Response> {
@@ -247,30 +248,22 @@ function loginTarget(url: URL): string {
   if (!url.searchParams.has("return")) return "/";
   const target = url.searchParams.getAll("return");
   const safe = target.length === 1 ? consoleReturnTarget(target[0]) : null;
-  if (!safe) throw new HttpError(400, "Invalid console return target", "invalid_request_error", "invalid_console_return");
+  if (!safe) throw invalidConsoleReturn();
   return safe;
 }
 
 const LOGIN_STATE_COOKIE = "__Host-mini_login";
 
 function loginStateCookie(state: string): string {
-  return `${LOGIN_STATE_COOKIE}=${state}; HttpOnly; Secure; Path=/; SameSite=Lax; Max-Age=${STATE_SECONDS}`;
+  return httpOnlyLaxCookie(LOGIN_STATE_COOKIE, state, STATE_SECONDS);
 }
 
 function clearLoginStateCookie(): string {
-  return `${LOGIN_STATE_COOKIE}=; HttpOnly; Secure; Path=/; SameSite=Lax; Max-Age=0`;
+  return httpOnlyLaxCookie(LOGIN_STATE_COOKIE, "", 0);
 }
 
 function readLoginState(request: Request): string | null {
-  const header = request.headers.get("Cookie") ?? "";
-  for (const part of header.split(";")) {
-    const separator = part.indexOf("=");
-    if (separator === -1) continue;
-    const name = part.slice(0, separator).trim();
-    const value = part.slice(separator + 1).trim();
-    if (name === LOGIN_STATE_COOKIE && value) return value;
-  }
-  return null;
+  return readCookieValue(request, LOGIN_STATE_COOKIE);
 }
 
 function loginError(env: Env, code: string, target = "/", clearLogin = false): Response {
@@ -299,10 +292,6 @@ async function readJson(response: Response): Promise<unknown> {
   } catch {
     return null;
   }
-}
-
-function record(value: unknown): Record<string, unknown> | null {
-  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
 }
 
 function nonEmpty(value: unknown): value is string {

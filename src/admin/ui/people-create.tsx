@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { isRecord } from "../../records";
 import { Button } from "./components/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "./components/collapsible";
 import { Field } from "./fields";
@@ -13,8 +14,8 @@ export interface PeopleCreateControl {
 }
 
 export function readPeopleCreate(value: unknown): PeopleCreateControl | null {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
-  const control = value as PeopleCreateControl;
+  if (!isRecord(value)) return null;
+  const control = value as unknown as PeopleCreateControl;
   const kind = (value: unknown) => value === "human" || value === "service";
   return typeof control.returnHref === "string" && /^\/(?:admin)?\?/.test(control.returnHref)
     && (control.initialKind === null || kind(control.initialKind))

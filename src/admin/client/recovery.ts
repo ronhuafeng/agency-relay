@@ -4,6 +4,7 @@ import { createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { flushSync } from 'react-dom';
 import { RecoveryPage, type RecoveryState } from '../ui/recovery-page';
+import { consoleErrorCode } from '../ui/messages';
 
 function recoveryTarget(): string {
   const current = new URL(location.href);
@@ -116,7 +117,7 @@ export function initializeRecovery(dispose: () => void): () => void {
       const data: unknown = response.ok || response.headers.get('Content-Type')?.includes('application/json') ? await response.json() : null;
       if (!current()) return;
       if (!response.ok) {
-        const code = data && typeof data === 'object' && 'error' in data && data.error && typeof data.error === 'object' && 'code' in data.error ? data.error.code : null;
+        const code = consoleErrorCode(data);
         const login = response.status === 401 || ['admin_auth_required', 'console_identity_changed'].includes(String(code));
         clear(login ? '当前登录已失效。重新登录后，将打开原页面并检查访问权限。' : '当前登录或页面权限已经改变。请重新打开以读取获准访问的内容。', login ? 'login' : 'authority'); return;
       }

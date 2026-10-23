@@ -1,9 +1,6 @@
+import { bytesToHex } from "../crypto";
 import { errorResponse } from "../errors";
-import type { IngressProtocol } from "../plans/execution-plans";
 import type { AuthenticatedUser } from "../types";
-
-/** B5 protocol labels (also used as error-renderer branch ids). */
-export type ProtocolLabel = IngressProtocol;
 
 export type RoutePolicyReason =
   | "method_not_allowed"
@@ -15,21 +12,16 @@ const MAX_LOGGED_PATH_BYTES = 256;
 
 /**
  * A3: single Mini-owned error exit for plan failures.
- * Client envelope stays OpenAI-compatible; label is audit/branch id only.
+ * Client envelope stays OpenAI-compatible.
  */
-export function renderPlanError(
-  _protocolLabel: ProtocolLabel,
-  error: unknown,
-  requestId?: string
-): Response {
-  void _protocolLabel;
-  return errorResponse(error, requestId ?? crypto.randomUUID());
+export function renderPlanError(error: unknown, requestId: string): Response {
+  return errorResponse(error, requestId);
 }
 
 export async function routeProfilePolicyRejection(
   request: Request,
   auth: AuthenticatedUser,
-  profile: Pick<{ id: string; protocol: ProtocolLabel }, "id" | "protocol">,
+  profile: { id: string },
   reason: RoutePolicyReason,
   status: 400 | 404 | 405,
   allow?: string
@@ -58,7 +50,6 @@ export async function routeProfilePolicyRejection(
     ...(allow ? { Allow: allow } : {}),
     "X-Mini-Route-Policy-Trace-Id": traceId
   };
-  void profile.protocol;
   const mapped = openAIPolicyError(reason);
   return openAIErrorResponse(status, mapped.type, mapped.message, mapped.code, traceId, headers);
 }
@@ -116,5 +107,5 @@ async function sha256Hex(bytes: Uint8Array): Promise<string> {
   const copy = new Uint8Array(bytes.byteLength);
   copy.set(bytes);
   const digest = await crypto.subtle.digest("SHA-256", copy);
-  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+  return bytesToHex(new Uint8Array(digest));
 }

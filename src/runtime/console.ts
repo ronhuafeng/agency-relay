@@ -1,4 +1,6 @@
 import {HttpError} from "../errors";
+import {copyBytes} from "../proxy/byte-stream";
+import {headerMediaType} from "../records";
 import {organizationDomain,type LifecycleActor} from "../auth/principal";
 import {runtimeInstallations} from "./profiles";
 import {changeRuntimeInstallation,configureRuntimeInstallation,readRuntimeInstallation,setRuntimeAccess} from "./installations";
@@ -9,7 +11,7 @@ const invalid=()=>new HttpError(400,"Reopen the Runtime form and check its field
 /** Native HTML forms have the same bounded input and exact field grammar as the
  * Runtime API. Neither form contents nor storage exceptions are logged. */
 export async function readRuntimeForm(request:Request):Promise<Record<string,string>> {
-  if(request.headers.get("Content-Type")?.split(";",1)[0]?.trim()!=="application/x-www-form-urlencoded")throw invalid();
+  if(headerMediaType(request.headers.get("Content-Type"))!=="application/x-www-form-urlencoded")throw invalid();
   const reader=request.body?.getReader();if(!reader)throw invalid();
   const chunks:Uint8Array[]=[];let size=0;
   let timer:ReturnType<typeof setTimeout>|undefined;
@@ -18,7 +20,7 @@ export async function readRuntimeForm(request:Request):Promise<Record<string,str
     // A valid 4096-byte header value can occupy 12288 bytes after percent
     // encoding. Keep the native form bounded without reducing the API's limit.
     for(;;){const part=await Promise.race([reader.read(),timeout]);if(part.done)break;size+=part.value.byteLength;if(size>16384)throw invalid();chunks.push(part.value);}
-    const bytes=new Uint8Array(size);let offset=0;for(const part of chunks){bytes.set(part,offset);offset+=part.byteLength;}
+    const bytes=copyBytes(chunks,size);
     const params=new URLSearchParams(new TextDecoder("utf-8",{fatal:true}).decode(bytes));
     const body:Record<string,string>={};
     for(const [key,value] of params){if(params.getAll(key).length!==1||key==="__proto__"||key==="constructor"||key==="prototype")throw invalid();body[key]=value;}

@@ -61,6 +61,10 @@ export function consoleErrorMessage(code: string | null): string {
   const message = code && Object.hasOwn(errors, code) ? errors[code] : undefined;
   return message ?? "服务器未接受这次操作。请检查填写的内容和当前状态，再提交。";
 }
+export function consoleErrorCode(value: unknown): unknown {
+  return value && typeof value === "object" && "error" in value && value.error && typeof value.error === "object" && "code" in value.error ? value.error.code : null;
+}
+
 export function readConsoleRejection(value: unknown): string | null {
   if (typeof value !== "object" || value === null || !("error" in value)) return null;
   const error = value.error;

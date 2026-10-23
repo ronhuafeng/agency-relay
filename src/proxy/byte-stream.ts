@@ -52,3 +52,18 @@ export function clientDrivenStream(
     async cancel(reason){finish("cancelled");try{await reader.cancel(reason);}finally{reader.releaseLock();}}
   },{highWaterMark:0});
 }
+
+export function copyBytes(chunks: readonly Uint8Array[], total: number): Uint8Array<ArrayBuffer> {
+  const bytes = new Uint8Array(new ArrayBuffer(total));
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return bytes;
+}
+
+/** Drop an unread body. A failed cancel must not replace the caller's result. */
+export async function cancelUnreadBody(response: Response): Promise<void> {
+  await response.body?.cancel().catch(() => undefined);
+}

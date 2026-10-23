@@ -1,3 +1,5 @@
+import { copyBytes } from "./byte-stream";
+
 export const MAX_PENDING_SSE_BUFFER_BYTES = 1024 * 1024;
 export const MAX_SSE_EVENT_BYTES = 16 * 1024 * 1024;
 
@@ -136,17 +138,7 @@ export class SseDecoder {
 }
 
 function concatBytes(chunks: Uint8Array[], totalBytes: number): Uint8Array {
-  if (chunks.length === 0) {
-    return new Uint8Array();
-  }
-  if (chunks.length === 1) {
-    return chunks[0];
-  }
-  const result = new Uint8Array(totalBytes);
-  let offset = 0;
-  for (const chunk of chunks) {
-    result.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-  return result;
+  if (chunks.length === 0) return new Uint8Array();
+  if (chunks.length === 1) return chunks[0];
+  return copyBytes(chunks, totalBytes);
 }

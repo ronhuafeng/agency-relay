@@ -9,12 +9,12 @@ import {
   readAdminCredentialDefaults,
   readServiceAvailability,
   retryCredentialCleanup,
-  type CredentialActor,
-  type CredentialKind,
-  type OrganizationSurface
+  type CredentialKind
 } from "../auth/credential-defaults";
+import { surfaceGrantForCreditId } from "../auth/credits";
 import type { OperatorMutationContext } from "./operator-mutations";
-import { HttpError, jsonResponse } from "../errors";
+import { HttpError, jsonObjectRequired, jsonResponse, methodNotAllowed, requiredTrimmedString } from "../errors";
+import { isConfirmValue, isRecord } from "../records";
 
 export async function credentialControlResponse(
   request: Request,
@@ -30,12 +30,12 @@ export async function credentialControlResponse(
   const setDefault = /^\/admin\/credential-defaults\/(codex|grok|xai)$/.exec(url.pathname);
   if (setDefault && request.method === "PUT") {
     const body = await readBody(request);
-    await commitCredentialDefault(env, actorOf(operator), {
-      surface_grant: surfaceGrant(setDefault[1]!),
-      credential_account_id: requiredString(body, "credential_account_id")
+    await commitCredentialDefault(env, credentialActor(operator), {
+      surface_grant: surfaceGrantForCreditId(setDefault[1]!),
+      credential_account_id: requiredTrimmedString(body, "credential_account_id")
     }, operator.now);
     return jsonResponse({
-      surface_grant: surfaceGrant(setDefault[1]!),
+      surface_grant: surfaceGrantForCreditId(setDefault[1]!),
       provider_resources_not_migrated: PROVIDER_RESOURCE_BOUNDARY
     });
   }
@@ -43,11 +43,11 @@ export async function credentialControlResponse(
   if (uiDefault && request.method === "POST") {
     const body = await readBody(request);
     requireConfirm(body);
-    await commitCredentialDefault(env, actorOf(operator), {
-      surface_grant: surfaceGrant(uiDefault[1]!),
-      credential_account_id: requiredString(body, "credential_account_id")
+    await commitCredentialDefault(env, credentialActor(operator), {
+      surface_grant: surfaceGrantForCreditId(uiDefault[1]!),
+      credential_account_id: requiredTrimmedString(body, "credential_account_id")
     }, operator.now);
-    return jsonResponse({ ok: true, surface_grant: surfaceGrant(uiDefault[1]!) });
+    return jsonResponse({ ok: true, surface_grant: surfaceGrantForCreditId(uiDefault[1]!) });
   }
   const retirement = /^\/admin\/(?:ui\/)?(codex-auths|subscriptions)\/([^/]+)\/(retirement|migrate|disconnect|cleanup)$/.exec(url.pathname)
     ?? (url.pathname.includes("/admin/ui/")
@@ -61,18 +61,18 @@ export async function credentialControlResponse(
     return jsonResponse(await previewCredentialRetirement(env, kind, accountId), { headers: { "Cache-Control": "no-store" } });
   }
   if (request.method !== "POST") {
-    throw new HttpError(405, "Method not allowed", "invalid_request_error", "method_not_allowed");
+    throw methodNotAllowed();
   }
-  const actor = actorOf(operator);
+  const actor = credentialActor(operator);
   const cleanup = () => revokeStoredCredential(env, kind, accountId);
   if (action === "migrate") {
     const body = await readBody(request);
     return jsonResponse(await migrateCredentialBindings(env, actor, {
       kind,
       account_id: accountId,
-      replacement_account_id: requiredString(body, "replacement_account_id"),
+      replacement_account_id: requiredTrimmedString(body, "replacement_account_id"),
       key_ids: stringArray(body, "key_ids"),
-      default_surfaces: stringArray(body, "default_surfaces").map(surfaceGrant)
+      default_surfaces: stringArray(body, "default_surfaces").map(surfaceGrantForCreditId)
     }, operator.now));
   }
   if (action === "disconnect" || action === "force-disconnect") {
@@ -91,23 +91,12 @@ export async function serviceAvailabilityResponse(env: Env, now: Date): Promise<
   }, { headers: { "Cache-Control": "no-store" } });
 }
 
-function actorOf(operator: OperatorMutationContext): CredentialActor {
-  return credentialActor(operator);
-}
-
 async function revokeStoredCredential(env: Env, kind: CredentialKind, accountId: string): Promise<void> {
   if (kind === "codex") {
     await env.TOKEN_AUTHORITY.get(env.TOKEN_AUTHORITY.idFromName(accountId)).revoke();
     return;
   }
   await env.TOKEN_AUTHORITY.get(env.TOKEN_AUTHORITY.idFromName(`subscription:${accountId}`)).revokeSubscription();
-}
-
-function surfaceGrant(value: string): OrganizationSurface {
-  if (value === "codex") return "surface:codex:production";
-  if (value === "grok") return "surface:grok:production";
-  if (value === "xai") return "surface:xai:production";
-  throw new HttpError(400, "Surface must be codex, grok, or xai", "invalid_request_error", "invalid_surface");
 }
 
 async function readBody(request: Request): Promise<Record<string, unknown>> {
@@ -127,18 +116,10 @@ async function readBody(request: Request): Promise<Record<string, unknown>> {
     return body;
   }
   const parsed = await request.json() as unknown;
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-    throw new HttpError(400, "JSON object required", "invalid_request_error", "invalid_json");
+  if (!isRecord(parsed)) {
+    throw jsonObjectRequired();
   }
   return parsed as Record<string, unknown>;
-}
-
-function requiredString(body: Record<string, unknown>, field: string): string {
-  const value = body[field];
-  if (typeof value !== "string" || !value.trim()) {
-    throw new HttpError(400, `${field} is required`, "invalid_request_error", `missing_${field}`);
-  }
-  return value.trim();
 }
 
 function stringArray(body: Record<string, unknown>, field: string): string[] {
@@ -152,8 +133,7 @@ function stringArray(body: Record<string, unknown>, field: string): string[] {
 }
 
 function requireConfirm(body: Record<string, unknown>): void {
-  const raw = body.confirm;
-  if (raw !== true && raw !== 1 && raw !== "1" && raw !== "true" && raw !== "on" && raw !== "yes") {
+  if (!isConfirmValue(body.confirm)) {
     throw new HttpError(400, "Default change requires confirm=1", "invalid_request_error", "confirm_required");
   }
 }

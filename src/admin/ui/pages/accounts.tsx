@@ -8,7 +8,7 @@ import { formatNumber, formatOperatorInstant, personLabel, presentText } from ".
 import { keyStateLabel } from "../../key-label";
 import { AddAccountIsland } from "../islands";
 import { Button } from "../components/button";
-import { ConfirmationFallback, Field, InventorySearchView } from "../fields";
+import { ConfirmationFallback, Field, InventorySearchView, ReturnFields } from "../fields";
 import { TaskLink } from "../chrome";
 import { accountDashboardUrl, inventoryUrl } from "../href";
 import { Icon } from "../icon";
@@ -64,21 +64,6 @@ interface AccountRoutes {
   readonly completeAction: string;
   readonly refreshAction: string;
   readonly logoutAction: string;
-}
-
-function serviceName(surface: string): string {
-  if (surface === "codex") return "ChatGPT";
-  if (surface === "grok") return "Grok";
-  if (surface === "xai") return "xAI API";
-  return "服务";
-}
-
-function defaultSurfaceName(grant: string): string {
-  const surface = grant.split(":")[1] ?? "";
-  if (surface === "codex") return "chatgpt";
-  if (surface === "grok") return "grok";
-  if (surface === "xai") return "xai";
-  return "service";
 }
 
 function AccountAdmission({ model }: { readonly model: AccountsPageModel }) {
@@ -152,16 +137,6 @@ function RetirementImpact({ model }: { readonly model: AccountsPageModel }) {
       ) : <span className="caption">暂无可替换连接</span> : null}
       {retirement.status === "revoked" ? <form className="credential-cleanup-task" method="post" action={`${path}/cleanup`} data-action="credential-cleanup" data-confirmation={cleanupWarning}>{fields}<input type="hidden" name="confirm" value="1"/><p>连接已断开。如上次令牌清理未确认，可继续清理。</p><ConfirmationFallback message={cleanupWarning}/><Button type="submit" variant="outline">重试清理</Button></form> : null}
     </section>
-  );
-}
-
-function ReturnFields({ range, query, page }: { readonly range: string; readonly query: string; readonly page: string }) {
-  return (
-    <>
-      <input type="hidden" name="return_range" value={range} />
-      <input type="hidden" name="return_q" value={query} />
-      <input type="hidden" name="return_page" value={page} />
-    </>
   );
 }
 
@@ -363,11 +338,11 @@ function DefaultAccounts({model}: {readonly model: AccountsPageModel}) {
       const provider = surface === "codex" ? "codex" : "grok";
       const options = model.accounts.filter(account => account.provider === provider);
       const current = options.find(account => account.id === row?.account_id);
-      const name = surface === "codex" ? "Codex" : serviceName(surface);
+      const name = surface === "grok" ? "Grok" : surface === "xai" ? "xAI API" : "Codex";
       const params = new URL(model.canonicalUrl, "https://dashboard.invalid").searchParams;
       const formId = `default-${surface}`;
       const warning = `更改 ${name} 的新密钥默认连接？现有密钥保持原绑定，替换密钥复制原绑定。${surface === "xai" ? "xAI API 委托上游团队共享权限，个人权限不能隔离资源。" : ""}`;
-      return <div className="credential-default-row" key={surface} data-default-surface={defaultSurfaceName(grant)}><Label htmlFor={`${formId}-account`}>{name}<span className="sr-only"> 新密钥默认连接</span></Label>
+      return <div className="credential-default-row" key={surface} data-default-surface={surface === "codex" ? "chatgpt" : surface}><Label htmlFor={`${formId}-account`}>{name}<span className="sr-only"> 新密钥默认连接</span></Label>
         <form id={formId} className="credential-default-form" method="post" action={`/admin/ui/credential-defaults/${surface}`} data-action="credential-default" data-confirmation={warning} data-confirm-credential="">
           <ReturnFields range={model.range.key} query={params.get("q") ?? ""} page={params.get("page") ?? "1"}/>
           <input type="hidden" name="confirm" value="1"/>

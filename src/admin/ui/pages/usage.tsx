@@ -2,7 +2,7 @@ import { UsageTrends, type UsageTrendsModel } from "../usage-trends";
 import { formatNumber, formatOperatorInstantOrDash, formatUsdColumn, formatUsageSeconds, presentText } from "../../format";
 import { executionPlanPresentation } from "../../../plans/execution-plans";
 import type { MediaUsageSummaryRow, UsageSummaryRow } from "../../../types";
-import { UsageReportIsland } from "../islands";
+import { UsageReport } from "../usage-report";
 import type { UsageFact, UsageRecord } from "../models";
 import { usageCost } from "../../usage-cost";
 import { Button } from "../components/button";
@@ -33,6 +33,13 @@ function service(plan: string): {authority: string; label: string} {
     case "Client": return {authority: "unattributed", label: "来源未记录"};
   }
 }
+function recentService(row: { last_seen_at: string | null; route_profile_id: string }) {
+  return [
+    {label: "最近使用", value: formatOperatorInstantOrDash(row.last_seen_at)},
+    {label: "服务", value: executionPlanPresentation(row.route_profile_id).usageLabel}
+  ];
+}
+
 function responseRecord(row: UsageSummaryRow, index: number): UsageRecord {
   const source = service(row.route_profile_id);
   const measured = row.token_measurements > 0;
@@ -50,7 +57,7 @@ function responseRecord(row: UsageSummaryRow, index: number): UsageRecord {
       {label: "输入令牌", value: measured ? formatNumber(row.input_tokens) : "未记录"}, {label: "输出令牌", value: measured ? formatNumber(row.output_tokens) : "未记录"},
       {label: "缓存读取占比", value: cache}, {label: "令牌记录覆盖", value: `${formatRatioPercent(row.token_measurements, row.requests)} · ${formatNumber(row.token_measurements)} / ${formatNumber(row.requests)} 次请求`},
       ...(cost ? [{label: "金额记录覆盖", value: `${formatNumber(cost.measurements)} / ${formatNumber(row.requests)} 次请求`}] : []),
-      {label: "最近使用", value: formatOperatorInstantOrDash(row.last_seen_at)}, {label: "服务", value: executionPlanPresentation(row.route_profile_id).usageLabel}
+      ...recentService(row)
     ]
   };
 }
@@ -70,7 +77,7 @@ function mediaRecord(row: MediaUsageSummaryRow, index: number): UsageRecord {
       {label: "已完成", value: formatNumber(row.completed_jobs)}, {metric:"failure",label: "失败", value: formatNumber(row.failed_jobs)}, {label: "已过期", value: formatNumber(row.expired_jobs)},
       {label: "输出记录覆盖", value: `${formatNumber(row.output_measurements)} / ${formatNumber(opportunities)} 次${row.capability.startsWith("video") ? "终态" : "请求"}`}, {label: "时长记录覆盖", value: `${formatNumber(row.duration_measurements)} / ${formatNumber(opportunities)} 次${row.capability.startsWith("video") ? "终态" : "请求"}`},
       {label: "费用记录覆盖", value: `${formatNumber(row.cost_measurements)} / ${formatNumber(opportunities)} 次${row.capability.startsWith("video") ? "终态" : "请求"}`},
-      {label: "最近使用", value: formatOperatorInstantOrDash(row.last_seen_at)}, {label: "服务", value: executionPlanPresentation(row.route_profile_id).usageLabel}
+      ...recentService(row)
     ]
   };
 }
@@ -86,12 +93,12 @@ export function UsagePage({model}: {readonly model: UsagePageModel}) {
       </InputGroup>
     </div>
     <div className="usage-export"><Button asChild variant="ghost" size="icon"><a href={model.range.rawUsageUrl} download="usage.json" aria-label="导出数据" title="导出数据"><Download className="ui-icon" aria-hidden="true"/></a></Button></div>
-  </form>{model.trends ? <UsageTrends model={model.trends}/> : null}<section id="usage-details" tabIndex={-1} aria-label="用量明细"><UsageReportIsland control={{
+  </form>{model.trends ? <UsageTrends model={model.trends}/> : null}<section id="usage-details" tabIndex={-1} aria-label="用量明细"><div id="usage-report"><UsageReport control={{
     records: [...model.rows.map(responseRecord), ...model.mediaRows.map(mediaRecord)],
     emptyLabel: model.trends && model.trends.daily.responses.length === 0 && model.trends.daily.media.length === 0 ? "" : model.range.emptyLabel,
     exportUrl: model.range.rawUsageUrl,
     truncated: model.rowsTruncated || model.mediaRowsTruncated,
     filterPlaceholder: model.filterPlaceholder ?? "搜索人员或模型",
     limitNote: model.limitNote ?? "请求和媒体记录分别显示最多 250 条，导出文件中各保留最多 1,000 条。"
-  }} /></section></div>;
+  }} /></div></section></div>;
 }

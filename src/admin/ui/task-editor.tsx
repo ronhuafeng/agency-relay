@@ -1,4 +1,5 @@
 import { useLayoutEffect, useRef, useState } from "react";
+import { isRecord } from "../../records";
 import { Button } from "./components/button";
 import { Field, ConfirmationFallback } from "./fields";
 import { SelectView } from "./forms";
@@ -20,13 +21,13 @@ export interface TaskEditorControl {
   readonly draftScope?: string;
 }
 export function readTaskEditor(value: unknown): TaskEditorControl | null {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
-  const control = value as TaskEditorControl;
+  if (!isRecord(value)) return null;
+  const control = value as unknown as TaskEditorControl;
   if (typeof control.id !== "string" || typeof control.label !== "string" || typeof control.action !== "string"
     || !/^\/(?:admin|me)(?:\/|$)/.test(control.action) || typeof control.submitLabel !== "string"
     || !Array.isArray(control.fields) || !control.fields.every(field => field && typeof field.name === "string"
       && typeof field.label === "string" && (field.value === undefined || typeof field.value === "string"))
-    || !control.hidden || typeof control.hidden !== "object" || Array.isArray(control.hidden)
+    || !isRecord(control.hidden)
     || !Object.values(control.hidden).every(value => typeof value === "string")) return null;
   if (control.select !== undefined && (!control.select || !Array.isArray(control.select.options)
     || !control.select.options.every(option => option && typeof option.value === "string" && typeof option.label === "string" && typeof option.disabled === "boolean")

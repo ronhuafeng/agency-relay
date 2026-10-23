@@ -1,10 +1,14 @@
 import egressProtocol from "../../deploy/codex-egress-shim/egress-protocol.json";
-import { HttpError } from "../errors";
+import { errorCause, HttpError } from "../errors";
+import { connectionHeaderNames } from "../proxy/adapter";
+import { cancelUnreadBody } from "../proxy/byte-stream";
+import { headerMediaType } from "../records";
 import { assertCodexEgressBaseUrl } from "../proxy/origin";
 import {
-  MAX_RESPONSE_OBSERVATION_LAG_BYTES,
+  noteObservationParseFailure,
+  noteObservedUsage,
   observeCodexResponse,
-  ResponseObservationError
+  ResponseObservationTap
 } from "../proxy/observation";
 import type { UpstreamClientIdentity } from "../plans/execution-plans";
 import type { ProviderResult } from "../auth/provider-attempt";
@@ -80,6 +84,33 @@ const BACKEND_RESPONSE_HEADER_DENYLIST = new Set([
   egressProtocol.transportTrace.header
 ]);
 
+function createTerminalReporter(
+  observation: CodexTransportObservation,
+  options: ForwardOptions,
+  attempted: () => boolean
+) {
+  let terminalReported = false;
+  return (usage: CapturedResponseUsage | null, errorCode: string | null = null) => {
+    if (terminalReported) return;
+    terminalReported = true;
+    const providerResult = providerResultForStatus(observation.upstream_status);
+    try {
+      options.onTerminal?.({
+        attempted: attempted(),
+        requestStatus: providerResult === "accepted" ? "ok" : "error",
+        providerResult,
+        upstreamStatus: observation.upstream_status,
+        errorCode,
+        usage,
+        observation: { ...observation }
+      });
+    } catch {
+      // Provider Attempt persistence must never change client transport.
+      console.error(JSON.stringify({ event: "provider_attempt_terminal_callback_failed" }));
+    }
+  };
+}
+
 export async function forwardModels(
   request: Request,
   env: Env,
@@ -96,27 +127,7 @@ export async function forwardModels(
   const target = codexTarget(env, "/models", projected.search);
   const headers = egressRequestHeaders(projected.headers, env);
   const observation = createTransportObservation();
-  let terminalReported = false;
-  const reportTerminal = (errorCode: string | null) => {
-    if (terminalReported) {
-      return;
-    }
-    terminalReported = true;
-    const providerResult = providerResultForStatus(observation.upstream_status);
-    try {
-      options.onTerminal?.({
-        attempted: true,
-        requestStatus: providerResult === "accepted" ? "ok" : "error",
-        providerResult,
-        upstreamStatus: observation.upstream_status,
-        errorCode,
-        usage: null,
-        observation: { ...observation }
-      });
-    } catch {
-      console.error(JSON.stringify({ event: "provider_attempt_terminal_callback_failed" }));
-    }
-  };
+  const reportTerminal = createTerminalReporter(observation, options, () => true);
 
   let upstream: Response;
   try {
@@ -128,7 +139,7 @@ export async function forwardModels(
     });
   } catch (error) {
     const projected = upstreamTransportError(request, error);
-    reportTerminal(projected.code ?? null);
+    reportTerminal(null, projected.code ?? null);
     throw projected;
   }
   observation.upstream_status = upstream.status;
@@ -142,7 +153,7 @@ export async function forwardModels(
   try {
     upstream = await rejectCodexRedirect(upstream);
   } catch (error) {
-    reportTerminal(error instanceof HttpError ? error.code ?? null : null);
+    reportTerminal(null, error instanceof HttpError ? error.code ?? null : null);
     throw error;
   }
 
@@ -194,28 +205,7 @@ async function forwardResponseRoute(
 ): Promise<Response> {
   const observation = createTransportObservation();
   let providerAttempted = false;
-  let terminalReported = false;
-  const reportTerminal = (usage: CapturedResponseUsage | null, errorCode: string | null = null) => {
-    if (terminalReported) {
-      return;
-    }
-    terminalReported = true;
-    const providerResult = providerResultForStatus(observation.upstream_status);
-    try {
-      options.onTerminal?.({
-        attempted: providerAttempted,
-        requestStatus: providerResult === "accepted" ? "ok" : "error",
-        providerResult,
-        upstreamStatus: observation.upstream_status,
-        errorCode,
-        usage,
-        observation: { ...observation }
-      });
-    } catch {
-      // Provider Attempt persistence must never change client transport.
-      console.error(JSON.stringify({ event: "provider_attempt_terminal_callback_failed" }));
-    }
-  };
+  const reportTerminal = createTerminalReporter(observation, options, () => providerAttempted);
   const upstream = await withFailedObservation(
     () => fetchCodex(
       request,
@@ -278,18 +268,9 @@ async function finishResponseObservation(
   let usageCapture: CapturedResponseUsage | null = null;
   try {
     usageCapture = await observeCodexResponse(body, observation, deps.now, requestContext.startedAt, signal);
-    observation.usage_captured = usageCapture?.usage !== null && usageCapture?.usage !== undefined;
-    observation.observation_status = "ok";
-    observation.observation_error_code = null;
+    noteObservedUsage(observation, usageCapture);
   } catch (error) {
-    observation.observation_status = "error";
-    if (error instanceof ResponseObservationError) {
-      observation.observation_error_code = error.code;
-      observation.observation_stage = error.stage;
-    } else {
-      observation.observation_error_code = "response_observation_parse_failed";
-      observation.observation_stage = "response_parse";
-    }
+    noteObservationParseFailure(observation, error);
   } finally {
     await body.cancel().catch(() => undefined);
     observation.client_aborted = signal.aborted;
@@ -310,27 +291,7 @@ export async function forwardCodexChatGptBackend(
 ): Promise<Response> {
   const observation = createTransportObservation();
   let providerAttempted = false;
-  let terminalReported = false;
-  const reportTerminal = (errorCode: string | null) => {
-    if (terminalReported) {
-      return;
-    }
-    terminalReported = true;
-    const providerResult = providerResultForStatus(observation.upstream_status);
-    try {
-      options.onTerminal?.({
-        attempted: providerAttempted,
-        requestStatus: providerResult === "accepted" ? "ok" : "error",
-        providerResult,
-        upstreamStatus: observation.upstream_status,
-        errorCode,
-        usage: null,
-        observation: { ...observation }
-      });
-    } catch {
-      console.error(JSON.stringify({ event: "provider_attempt_terminal_callback_failed" }));
-    }
-  };
+  const reportTerminal = createTerminalReporter(observation, options, () => providerAttempted);
   try {
     const upstream = await fetchCodex(
       request,
@@ -350,7 +311,7 @@ export async function forwardCodexChatGptBackend(
     reportTerminal(null);
     return transparentUpstream(upstream);
   } catch (error) {
-    reportTerminal(error instanceof HttpError ? error.code ?? null : null);
+    reportTerminal(null, error instanceof HttpError ? error.code ?? null : null);
     throw error;
   }
 }
@@ -431,7 +392,7 @@ function responseTransport(
   if (contentType === null && accept?.trim().toLowerCase() === "text/event-stream") {
     return "http_sse";
   }
-  const mediaType = contentType?.split(";", 1)[0]?.trim().toLowerCase();
+  const mediaType = headerMediaType(contentType).toLowerCase();
   if (mediaType === "text/event-stream") {
     return "http_sse";
   }
@@ -569,65 +530,13 @@ function observedClientBody(
   });
 }
 
-class ResponseObservationTap {
-  readonly stream: ReadableStream<Uint8Array>;
-  private controller: ReadableStreamDefaultController<Uint8Array> | null = null;
-  private stopped = false;
-
-  constructor() {
-    this.stream = new ReadableStream<Uint8Array>({
-      start: (controller) => {
-        this.controller = controller;
-      },
-      cancel: () => {
-        this.stopped = true;
-      }
-    }, new ByteLengthQueuingStrategy({ highWaterMark: MAX_RESPONSE_OBSERVATION_LAG_BYTES }));
-  }
-
-  push(chunk: Uint8Array): void {
-    if (this.stopped || !this.controller) {
-      return;
-    }
-    if ((this.controller.desiredSize ?? 0) < chunk.byteLength) {
-      this.fail(new ResponseObservationError("response_observation_limit", "response_body"));
-      return;
-    }
-    this.controller.enqueue(chunk);
-  }
-
-  end(): void {
-    if (this.stopped || !this.controller) {
-      return;
-    }
-    this.stopped = true;
-    this.controller.close();
-  }
-
-  stop(): void {
-    if (this.stopped || !this.controller) {
-      return;
-    }
-    this.stopped = true;
-    this.controller.close();
-  }
-
-  fail(error: unknown): void {
-    if (this.stopped || !this.controller) {
-      return;
-    }
-    this.stopped = true;
-    this.controller.error(error);
-  }
-}
-
 function upstreamTransportError(request: Request, error: unknown): HttpError {
   if (request.signal.aborted) {
     return new HttpError(499, "Client aborted request", "invalid_request_error", "client_request_aborted");
   }
   // Metadata only — never log headers, tokens, secrets, or bodies.
   const err = error instanceof Error ? error : null;
-  const cause = err && "cause" in err && err.cause instanceof Error ? err.cause : null;
+  const cause = errorCause(err);
   console.error(JSON.stringify({
     event: "codex_upstream_transport_error",
     error_name: err?.name ?? "unknown",
@@ -657,7 +566,7 @@ async function rejectCodexRedirect(response: Response): Promise<Response> {
   if (response.status < 300 || response.status >= 400) {
     return response;
   }
-  await response.body?.cancel().catch(() => undefined);
+  await cancelUnreadBody(response);
   throw new HttpError(
     502,
     "Codex upstream redirect was rejected",
@@ -681,14 +590,7 @@ function codexTarget(
 }
 
 function backendRequestHeaders(incoming: Headers, freshToken: FreshAccessToken): Headers {
-  const headers = new Headers();
-  const connectionOwnedNames = connectionHeaderNames(incoming.get("connection"));
-  incoming.forEach((value, name) => {
-    const lowerName = name.toLowerCase();
-    if (!BACKEND_REQUEST_HEADER_DENYLIST.has(lowerName) && !connectionOwnedNames.has(lowerName) && !lowerName.startsWith("cf-")) {
-      headers.set(name, value);
-    }
-  });
+  const headers = copyUnownedHeaders(incoming, BACKEND_REQUEST_HEADER_DENYLIST, "cf-");
   headers.set("Authorization", `Bearer ${freshToken.access_token}`);
   if (freshToken.account_id) {
     headers.set("Chatgpt-Account-Id", freshToken.account_id);
@@ -713,22 +615,18 @@ function egressRequestHeaders(
 }
 
 function backendResponseHeaders(upstream: Headers): Headers {
+  return copyUnownedHeaders(upstream, BACKEND_RESPONSE_HEADER_DENYLIST);
+}
+
+function copyUnownedHeaders(source: Headers, deny: ReadonlySet<string>, denyPrefix?: string): Headers {
   const headers = new Headers();
-  const connectionOwnedNames = connectionHeaderNames(upstream.get("connection"));
-  upstream.forEach((value, name) => {
+  const connectionOwnedNames = connectionHeaderNames(source.get("connection"));
+  source.forEach((value, name) => {
     const lowerName = name.toLowerCase();
-    if (!BACKEND_RESPONSE_HEADER_DENYLIST.has(lowerName) && !connectionOwnedNames.has(lowerName)) {
+    if (!deny.has(lowerName) && !connectionOwnedNames.has(lowerName) && !(denyPrefix && lowerName.startsWith(denyPrefix))) {
       headers.set(name, value);
     }
   });
   return headers;
 }
 
-function connectionHeaderNames(value: string | null): Set<string> {
-  return new Set(
-    (value ?? "")
-      .split(",")
-      .map((name) => name.trim().toLowerCase())
-      .filter(Boolean)
-  );
-}

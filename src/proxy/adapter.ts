@@ -1,21 +1,20 @@
-import { HttpError } from "../errors";
+import { errorCause, HttpError } from "../errors";
 import type { UpstreamClientIdentity } from "../plans/execution-plans";
 import { assertProviderBaseUrl } from "./origin";
 import {
-  MAX_RESPONSE_OBSERVATION_LAG_BYTES,
+  noteObservationParseFailure,
+  noteObservedUsage,
   observeCodexResponse,
-  ResponseObservationError
+  ResponseObservationTap
 } from "./observation";
 import type { AppDependencies, CapturedResponseUsage, CodexTransportObservation } from "../types";
 import { projectRequiredUpstreamClientIdentity } from "../plans/identity-version";
-import {clientDrivenStream} from "./byte-stream";
+import {cancelUnreadBody, clientDrivenStream} from "./byte-stream";
 
 /** Mini-owned provider credentials (Grok opaque path). */
 export interface ProxyUpstreamCredentials {
   baseUrl: string;
   accessToken: string;
-  /** How to attach the access token on the provider request (Grok uses bearer). */
-  authStyle: "bearer";
   /** Plan-selected Provider client identity; never used as authority. */
   upstreamClientIdentity: UpstreamClientIdentity;
   /** Null when the bundle is native or the plan selects none. Chosen before credit admission. */
@@ -157,29 +156,8 @@ export async function forwardTransparentProxy(
 ): Promise<Response> {
   validateCredentials(credentials);
   const projected = requestProjection(request, credentials, REQUEST_HEADER_DENYLIST);
-  const upstreamUrl = targetUrl(request, credentials.baseUrl, projected.search);
-  let upstream: Response;
-  try {
-    upstream = await deps.fetch(upstreamUrl, {
-      method: request.method,
-      headers: projected.headers,
-      ...(body === undefined ? {} : { body }),
-      redirect: "manual",
-      signal: request.signal
-    });
-  } catch (error) {
-    throw classifyUpstreamFetchError(request, error);
-  }
-
-  if (upstream.status >= 300 && upstream.status < 400) {
-    await upstream.body?.cancel().catch(() => undefined);
-    throw new ProxyUpstreamError(
-      502,
-      "Provider redirect was rejected",
-      "upstream_redirect_rejected",
-      upstream.status
-    );
-  }
+  const upstream = await fetchManualProvider(request, deps, targetUrl(request, credentials.baseUrl, projected.search), projected.headers, body);
+  await rejectProviderRedirect(upstream);
 
   if(!upstream.body&&options.beforeResponseClose){
     try{await options.beforeResponseClose({kind:"completed",upstreamStatus:upstream.status});}
@@ -189,10 +167,45 @@ export async function forwardTransparentProxy(
   return transparentResponse(upstream, request, options, deps);
 }
 
+async function fetchManualProvider(
+  request: Request,
+  deps: AppDependencies,
+  upstreamUrl: string,
+  headers: Headers,
+  body?: BodyInit | null
+): Promise<Response> {
+  try {
+    return await deps.fetch(upstreamUrl, {
+      method: request.method,
+      headers,
+      ...(body === undefined ? {} : { body }),
+      redirect: "manual",
+      signal: request.signal
+    });
+  } catch (error) {
+    throw classifyUpstreamFetchError(request, error);
+  }
+}
+
+async function rejectProviderRedirect(upstream: Response): Promise<void> {
+  if (upstream.status < 300 || upstream.status >= 400) return;
+  await cancelUnreadBody(upstream);
+  throw new ProxyUpstreamError(
+    502,
+    "Provider redirect was rejected",
+    "upstream_redirect_rejected",
+    upstream.status
+  );
+}
+
 /**
  * Opaque xAI WebSocket proxy: authenticate the upstream handshake with the
  * Mini-owned bearer, then relay frames without inspecting their contents.
  */
+function invalidWebSocketHandshake(status: number): ProxyUpstreamError {
+  return new ProxyUpstreamError(502, "Provider returned an invalid WebSocket handshake", "provider_websocket_handshake_invalid", status);
+}
+
 export async function forwardTransparentWebSocket(
   request: Request,
   deps: AppDependencies,
@@ -202,48 +215,16 @@ export async function forwardTransparentWebSocket(
   validateCredentials(credentials);
   const projected = requestProjection(request, credentials, WEBSOCKET_REQUEST_HEADER_DENYLIST);
   projected.headers.set("Upgrade", "websocket");
-  const upstreamUrl = targetUrl(request, credentials.baseUrl, projected.search);
-  let upstream: Response;
-  try {
-    upstream = await deps.fetch(upstreamUrl, {
-      method: request.method,
-      headers: projected.headers,
-      redirect: "manual",
-      signal: request.signal
-    });
-  } catch (error) {
-    throw classifyUpstreamFetchError(request, error);
-  }
-
-  if (upstream.status >= 300 && upstream.status < 400) {
-    await upstream.body?.cancel().catch(() => undefined);
-    throw new ProxyUpstreamError(
-      502,
-      "Provider redirect was rejected",
-      "upstream_redirect_rejected",
-      upstream.status
-    );
-  }
+  const upstream = await fetchManualProvider(request, deps, targetUrl(request, credentials.baseUrl, projected.search), projected.headers);
+  await rejectProviderRedirect(upstream);
 
   if (!upstream.webSocket) {
-    if (upstream.status === 101) {
-      throw new ProxyUpstreamError(
-        502,
-        "Provider returned an invalid WebSocket handshake",
-        "provider_websocket_handshake_invalid",
-        upstream.status
-      );
-    }
+    if (upstream.status === 101) throw invalidWebSocketHandshake(upstream.status);
     return transparentResponse(upstream, request, options, deps);
   }
   if (upstream.status !== 101) {
     upstream.webSocket.close(1011, "Invalid upstream handshake");
-    throw new ProxyUpstreamError(
-      502,
-      "Provider returned an invalid WebSocket handshake",
-      "provider_websocket_handshake_invalid",
-      upstream.status
-    );
+    throw invalidWebSocketHandshake(upstream.status);
   }
 
   const runtime = options.runtime ?? workersWebSocketRuntime();
@@ -298,7 +279,7 @@ function classifyUpstreamFetchError(request: Request, error: unknown): ProxyUpst
     return new ProxyUpstreamError(499, "Client aborted request", "client_request_aborted");
   }
   const err = error instanceof Error ? error : null;
-  const cause = err && "cause" in err && err.cause instanceof Error ? err.cause : null;
+  const cause = errorCause(err);
   console.error(JSON.stringify({
     event: "provider_upstream_transport_error",
     error_name: err?.name ?? "unknown",
@@ -508,70 +489,17 @@ function observeUsageTap(
     try {
       if (observation.transport !== "http_other") {
         usage = await observeCodexResponse(stream, observation, options.now ?? deps.now, startedAt, signal);
-        observation.usage_captured = usage?.usage !== null && usage?.usage !== undefined;
-        observation.observation_status = "ok";
-        observation.observation_error_code = null;
+        noteObservedUsage(observation, usage);
       } else {
         await stream.cancel().catch(() => undefined);
         observation.observation_status = "skipped";
       }
     } catch (error) {
-      observation.observation_status = "error";
-      if (error instanceof ResponseObservationError) {
-        observation.observation_error_code = error.code;
-        observation.observation_stage = error.stage;
-      } else {
-        observation.observation_error_code = "response_observation_parse_failed";
-        observation.observation_stage = "response_parse";
-      }
+      noteObservationParseFailure(observation, error);
       await stream.cancel().catch(() => undefined);
     }
     return { usage, observation: { ...observation } };
   })();
-}
-
-class ResponseObservationTap {
-  readonly stream: ReadableStream<Uint8Array>;
-  private controller: ReadableStreamDefaultController<Uint8Array> | null = null;
-  private stopped = false;
-
-  constructor() {
-    this.stream = new ReadableStream<Uint8Array>({
-      start: (controller) => {
-        this.controller = controller;
-      },
-      cancel: () => {
-        this.stopped = true;
-      }
-    }, new ByteLengthQueuingStrategy({ highWaterMark: MAX_RESPONSE_OBSERVATION_LAG_BYTES }));
-  }
-
-  push(chunk: Uint8Array): void {
-    if (this.stopped || !this.controller) return;
-    if ((this.controller.desiredSize ?? 0) < chunk.byteLength) {
-      this.fail(new ResponseObservationError("response_observation_limit", "response_body"));
-      return;
-    }
-    this.controller.enqueue(chunk);
-  }
-
-  end(): void {
-    if (this.stopped || !this.controller) return;
-    this.stopped = true;
-    this.controller.close();
-  }
-
-  stop(): void {
-    if (this.stopped || !this.controller) return;
-    this.stopped = true;
-    this.controller.close();
-  }
-
-  fail(error: unknown): void {
-    if (this.stopped || !this.controller) return;
-    this.stopped = true;
-    this.controller.error(error);
-  }
 }
 
 function teeCompletionOnly(
@@ -667,7 +595,7 @@ function filteredHeaders(incoming: Headers, denylist: ReadonlySet<string>, reque
   return headers;
 }
 
-function connectionHeaderNames(value: string | null): Set<string> {
+export function connectionHeaderNames(value: string | null): Set<string> {
   return new Set(
     (value ?? "")
       .split(",")

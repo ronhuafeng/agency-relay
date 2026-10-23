@@ -1,5 +1,6 @@
 import { parseUsageQuery, MAX_USAGE_RANGE_DAYS } from "./usage-query";
 import { isRuntimeControlPath, runtimeControlResponse } from "../runtime/control";
+import { invalidRuntimeOperation } from "../runtime/installations";
 import {revokeRuntimeClient,readRuntimeForm,mutateRuntimeInstallation} from "../runtime/console";
 import {runtimeMemberHref} from "./ui/pages/runtime";
 
@@ -10,14 +11,14 @@ import { memberHref } from "./member-href";
 /**
  * Admin CLI + dashboard routing (K3 boundary).
  */
-import { DASHBOARD_PAGE_SIZE } from "./inventory";
+import { isDashboardPageToken } from "./dashboard-page";
 import { requireOperator, verifyConsoleAccess, type AdminIdentity } from "../auth/authenticate";
 import { routeConsoleLogin } from "../auth/feishu-login";
 import { readTokenResult } from "../auth/token-result";
 import { clearConsoleSessionCookie } from "../auth/console-session";
 import { consoleErrorMessage } from "./ui/messages";
 import { credentialStatusResponse, credentialEventsResponse } from "./credential-status";
-import type { ConsolePrincipal } from "../auth/principal";
+import { userRole, userStatus, type ConsolePrincipal } from "../auth/principal";
 import {
   issueMemberKey,
   listMemberKeys,
@@ -52,6 +53,7 @@ import {
   issueReplacementApiKey,
   logoutCodexCredential,
   logoutGrokCredential,
+  assertGrokCapability,
   refreshCodexCredential,
   setCodexAdmission,
   refreshGrokCredential,
@@ -71,6 +73,7 @@ import { PRODUCT_ACCESS } from "./client-setup";
 import { readCodexAccountSnapshot, unavailableCodexAccountSnapshot } from "../codex/account";
 import {
   cleanupRequestAudit,
+  requestAuditRetentionDays,
   getCodexAuth,
   getUser,
   getApiKeyById,
@@ -84,10 +87,13 @@ import {
   type SurfaceCredentialSelection
 } from "../auth/bindings";
 import { assertConsoleBrowserWrite } from "./browser-write";
-import { HttpError, jsonResponse } from "../errors";
+import { bytesToHex } from "../crypto";
+import { firstString, isConfirmValue, isRecord } from "../records";
+import { HttpError, adminAuthRequired, adminRequired, adminRouteNotFound, codexAuthNotFound, invalidConsoleReturn, jsonObjectRequired, jsonResponse, methodNotAllowed, requiredTrimmedString, serviceNotFound, subscriptionNotFound, userNotFound } from "../errors";
 import {
   CODEX_API_HOSTNAME,
   EXECUTION_PLAN_SET_VERSION,
+  isChatgptProductionSlot,
   listExecutionPlans
 } from "../plans/execution-plans";
 import { assertCodexEgressBaseUrl } from "../proxy/origin";
@@ -105,11 +111,11 @@ import {
   listOrganizationCreditDefaults,
   listSurfaceCreditStates,
   XAI_SHARED_PROVIDER_AUTHORITY,
-  type CreditSurfaceId
+  type CreditSurfaceId,
+  type SurfaceCreditState
 } from "../auth/credits";
 
 type JsonObject = Record<string, unknown>;
-const MAX_REQUEST_AUDIT_RETENTION_DAYS = 3650;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 interface RequestAuditCleanupResult {
@@ -141,7 +147,7 @@ export async function routeAdmin(request: Request, env: Env, url: URL, deps: App
     const response = await credentialStatusResponse(env, admin.userId, new Date(requestContext.startedAt));
     const current = await verifyConsoleAccess(request, env, deps.now());
     if (!current || current.role !== "admin" || current.id !== admin.userId || current.sessionEpoch !== admin.sessionEpoch) {
-      throw new HttpError(403, "Console authority changed", "authentication_error", "console_identity_changed");
+      throw consoleAuthorityChanged();
     }
     return response;
   }
@@ -192,7 +198,7 @@ export async function routeAdmin(request: Request, env: Env, url: URL, deps: App
   const userIdentityMatch = /^\/admin\/users\/([^/]+)$/.exec(url.pathname);
   if (userIdentityMatch && request.method === "GET") {
     const user = await getUser(env, decodeURIComponent(userIdentityMatch[1]!));
-    if (!user) throw new HttpError(404, "User not found", "invalid_request_error", "user_not_found");
+    if (!user) throw userNotFound();
     return jsonResponse({ user: { ...publicService(user), email: user.email, canonical_email: user.canonical_email } }, { headers: { "Cache-Control": "no-store" } });
   }
 
@@ -205,7 +211,7 @@ export async function routeAdmin(request: Request, env: Env, url: URL, deps: App
     const id = decodeURIComponent(ownerMatch[1]!);
     if (request.method === "GET") {
       const user = await getUser(env,id);
-      if (!user || user.account_kind !== "service") throw new HttpError(404,"Service not found","invalid_request_error","service_not_found");
+      if (!user || user.account_kind !== "service") throw serviceNotFound();
       return jsonResponse({owner:await readServiceOwner(env,id)}, {headers:{"Cache-Control":"no-store"}});
     }
     if (request.method === "POST") {
@@ -225,7 +231,7 @@ export async function routeAdmin(request: Request, env: Env, url: URL, deps: App
       const body = await readJsonObject(request);
       const user = serviceMatch[2] === "name"
         ? await renameServiceAccount(operator, id, body.display_name)
-        : await classifyServiceAccount(operator, id, { display_name: body.display_name, expected_updated_at: requiredStringField(body, "expected_updated_at") });
+        : await classifyServiceAccount(operator, id, { display_name: body.display_name, expected_updated_at: requiredTrimmedString(body, "expected_updated_at") });
       return jsonResponse({ user: publicService(user) });
     }
   }
@@ -292,7 +298,7 @@ export async function routeAdmin(request: Request, env: Env, url: URL, deps: App
       const removed = await removeSurfaceCreditPolicy(operator, { user_id: userId, surface });
       return jsonResponse({ deleted: removed.deleted, state: publicCreditState(removed.state) });
     }
-    throw new HttpError(405, "Method not allowed", "invalid_request_error", "method_not_allowed");
+    throw methodNotAllowed();
   }
 
   const creditDefaultMatch = /^\/admin\/credit-defaults(?:\/(codex|grok|xai))?$/.exec(url.pathname);
@@ -319,7 +325,7 @@ export async function routeAdmin(request: Request, env: Env, url: URL, deps: App
 
   if (url.pathname === "/admin/codex-auths" && request.method === "POST") {
     const body = await readJsonObject(request);
-    const auth = await createCodexCredentialAccount(operator, { label: requiredStringField(body, "label") });
+    const auth = await createCodexCredentialAccount(operator, { label: requiredTrimmedString(body, "label") });
     return jsonResponse({ auth: publicCodexAuth(auth) }, { status: 201 });
   }
 
@@ -330,7 +336,7 @@ export async function routeAdmin(request: Request, env: Env, url: URL, deps: App
     if (!action && request.method === "GET") {
       const auth = await getCodexAuth(env, authId);
       if (!auth) {
-        throw new HttpError(404, "ChatGPT Credential Account not found", "invalid_request_error", "codex_auth_not_found");
+        throw codexAuthNotFound();
       }
       return jsonResponse(
         { auth: publicCodexAuth(auth) },
@@ -379,12 +385,7 @@ export async function routeAdmin(request: Request, env: Env, url: URL, deps: App
     }
 
     if (action === "oauth/start" && request.method === "POST") {
-      let body: JsonObject = {};
-      try {
-        body = await readJsonObject(request);
-      } catch {
-        body = {};
-      }
+      const body = await optionalOAuthStartBody(request);
       return jsonResponse(await beginCodexCredentialOAuth(operator, authId, nullableStringField(body, "redirect_uri")));
     }
 
@@ -404,7 +405,7 @@ export async function routeAdmin(request: Request, env: Env, url: URL, deps: App
         }
       }, { status: 201 });
     }
-    throw new HttpError(405, "Method not allowed", "invalid_request_error", "method_not_allowed");
+    throw methodNotAllowed();
   }
 
   const keyBindingsMatch = /^\/admin\/keys\/([^/]+)\/credential-bindings(?:\/(codex|grok|xai))?$/.exec(url.pathname);
@@ -419,11 +420,11 @@ export async function routeAdmin(request: Request, env: Env, url: URL, deps: App
       const binding = await setApiKeyCredentialBinding(operator, {
         api_key_id: keyId,
         surface_grant: `surface:${surfaceId}:production` as SurfaceCredentialSelection["surface_grant"],
-        credential_account_id: requiredStringField(body, "credential_account_id")
+        credential_account_id: requiredTrimmedString(body, "credential_account_id")
       });
       return jsonResponse({ binding });
     }
-    throw new HttpError(405, "Method not allowed", "invalid_request_error", "method_not_allowed");
+    throw methodNotAllowed();
   }
 
   if (url.pathname === "/admin/usage" && request.method === "GET") {
@@ -471,9 +472,9 @@ export async function routeAdmin(request: Request, env: Env, url: URL, deps: App
   if (url.pathname === "/admin/subscriptions" && request.method === "POST") {
     const body = await readJsonObject(request);
     const account = await createGrokSubscription(operator, {
-      capability_source: requiredStringField(body, "capability_source") as CapabilitySource,
-      environment: requiredStringField(body, "environment") as SubscriptionEnvironment,
-      label: requiredStringField(body, "label"),
+      capability_source: requiredTrimmedString(body, "capability_source") as CapabilitySource,
+      environment: requiredTrimmedString(body, "environment") as SubscriptionEnvironment,
+      label: requiredTrimmedString(body, "label"),
       provider_account_ref: nullableStringField(body, "provider_account_ref") ?? null
     });
     return jsonResponse({ account: publicSubscriptionAccount(account) }, { status: 201 });
@@ -491,7 +492,7 @@ export async function routeAdmin(request: Request, env: Env, url: URL, deps: App
     }
 
     if (!account) {
-      throw new HttpError(404, "Subscription Account not found", "invalid_request_error", "subscription_not_found");
+      throw subscriptionNotFound();
     }
 
     if (!action && request.method === "GET") {
@@ -502,12 +503,7 @@ export async function routeAdmin(request: Request, env: Env, url: URL, deps: App
       if (account.capability_source !== "grok") {
         throw new HttpError(400, "OAuth start is only for Grok accounts", "invalid_request_error", "invalid_capability_source");
       }
-      let body: JsonObject = {};
-      try {
-        body = await readJsonObject(request);
-      } catch {
-        body = {};
-      }
+      const body = await optionalOAuthStartBody(request);
       return jsonResponse(await beginGrokCredentialOAuth(operator, accountId, nullableStringField(body, "redirect_uri")));
     }
 
@@ -562,7 +558,7 @@ export async function routeAdmin(request: Request, env: Env, url: URL, deps: App
     }
   }
 
-  throw new HttpError(404, "Admin route not found", "invalid_request_error", "not_found");
+  throw adminRouteNotFound();
 }
 
 export function isAdminSurface(request: Request, url: URL, env: Env): boolean {
@@ -622,14 +618,14 @@ async function ownKeyResponse(
       // Public, owner-scoped submission identity; the existing key PK is the
       // atomic at-most-once boundary. No plaintext or separate receipt is stored.
       const hash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`${principal.id}\0${body.submission_id}`));
-      issuanceId = `key_ui_${Array.from(new Uint8Array(hash), value => value.toString(16).padStart(2, "0")).join("")}`;
+      issuanceId = `key_ui_${bytesToHex(new Uint8Array(hash))}`;
       rejectMemberCredentialChoice(body, Boolean(service));
       const canonical = JSON.stringify({ actor: principal.id, ...(service ? {service:service.id} : {}), action: url.pathname,
         name: typeof body.name === "string" ? body.name.trim() : body.name ?? null,
         surfaces: memberStringList(body, "surfaces").concat(memberStringList(body, "scopes"), formProductScopes(body)).sort(),
         expires_at: typeof body.expires_at === "string" ? body.expires_at.trim() : null });
       const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(canonical));
-      fingerprint = Array.from(new Uint8Array(digest), value => value.toString(16).padStart(2, "0")).join("");
+      fingerprint = bytesToHex(new Uint8Array(digest));
       const replay = await memberSubmissionReplay(env, principal, actor.requestId ?? "", issuanceId, fingerprint, service);
       if (replay) return replay;
     }
@@ -724,7 +720,7 @@ async function ownKeyOperation(request: Request, env: Env, url: URL, principal: 
     if (wantsHtml(request)) return memberMutationPage({principal,service, requestId: actor.requestId ?? "", keyId, message: result.already_revoked ? "密钥原本已撤销，本次没有再次变更。" : "密钥已撤销。之后的新认证将被拒绝，既有流和外部任务不受此承诺覆盖。"});
     return jsonResponse(result, privateJson);
   }
-  throw new HttpError(404, "Admin route not found", "invalid_request_error", "not_found");
+  throw adminRouteNotFound();
 }
 
 function memberKey(key: PublicApiKey & { token?: string }): PublicApiKey {
@@ -780,8 +776,8 @@ async function readOwnBody(request: Request): Promise<JsonObject> {
   const text = await request.text();
   if (!text.trim()) return {};
   const parsed = JSON.parse(text) as unknown;
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-    throw new HttpError(400, "JSON object required", "invalid_request_error", "invalid_json");
+  if (!isRecord(parsed)) {
+    throw jsonObjectRequired();
   }
   return parsed as JsonObject;
 }
@@ -824,10 +820,14 @@ function memberKeyActionReturn(pathname: string): string | undefined {
 
 /** An empty acknowledgement cannot carry fresh identity UI. Recheck the exact
  * active session after model reads, before permitting the retained private DOM. */
+function consoleAuthorityChanged(): HttpError {
+  return new HttpError(403, "Console authority changed", "authentication_error", "console_identity_changed");
+}
+
 async function assertUnchangedReadAuthority(request: Request, env: Env, id: string | null | undefined, email: string | null | undefined, role: string, epoch: number | undefined, now: Date): Promise<void> {
   const current = await verifyConsoleAccess(request, env, now);
   if (!current || current.id !== id || current.email !== email || current.role !== role || current.sessionEpoch !== epoch) {
-    throw new HttpError(403, "Console authority changed", "authentication_error", "console_identity_changed");
+    throw consoleAuthorityChanged();
   }
 }
 
@@ -840,7 +840,7 @@ async function authorizeConsole(
 ): Promise<AdminIdentity | Response> {
   if (url.hostname === CODEX_API_HOSTNAME) return requireOperator(request, env);
   if (url.hostname !== env.ADMIN_DASHBOARD_HOST) {
-    throw new HttpError(404, "Admin route not found", "invalid_request_error", "not_found");
+    throw adminRouteNotFound();
   }
   assertConsoleBrowserWrite(request, env, url);
   const principal = await verifyConsoleAccess(request, env, new Date(requestContext.startedAt));
@@ -848,7 +848,7 @@ async function authorizeConsole(
     const accept = request.headers.get("Accept") ?? "";
     if (request.method === "GET" && (request.headers.get("Sec-Fetch-Dest") === "document" || accept.includes("text/html"))) {
       if ((["/", "/admin", "/admin/"].includes(url.pathname) || /^\/me\/service-accounts\/[^/]+$/.test(url.pathname)) && !consoleReturnTarget(url.pathname + url.search)) {
-        throw new HttpError(400, "Invalid console return target", "invalid_request_error", "invalid_console_return");
+        throw invalidConsoleReturn();
       }
       return new Response(null, {
         status: 302,
@@ -870,7 +870,7 @@ async function authorizeConsole(
       const client=/^\/me\/ui\/runtime-clients\/[a-f0-9-]{36}\/revoke$/.test(url.pathname);
       if(installation||client)return consoleLifecycleOutcome({rejected:true,href:"/login",returnTarget:installation?`/admin?view=runtime&installation=${installation[1]}`:runtimeMemberHref(),label:"重新登录",cookie:clearConsoleSessionCookie(),message:"登录已失效，这次工具服务操作没有执行。重新登录后查看当前状态。"});
     }
-    throw new HttpError(403, "Admin authentication required", "authentication_error", "admin_auth_required");
+    throw adminAuthRequired();
   }
   if (url.pathname === "/me/service-accounts" && request.method === "GET") return jsonResponse({services:await listDelegatedServices(env,principal)}, {headers:{"Cache-Control":"no-store"}});
   const delegated = /^\/me\/service-accounts\/([^/]+)(.*)$/.exec(url.pathname);
@@ -911,7 +911,7 @@ async function authorizeConsole(
   if (isOwnConsolePath(url.pathname, request.method)) {
     const client=/^\/me\/ui\/runtime-clients\/([a-f0-9-]{36})\/revoke$/.exec(url.pathname);
     if(client) {
-      if(url.search)throw new HttpError(400,"Invalid Runtime operation.","invalid_request_error","runtime_invalid_operation");
+      if(url.search)throw invalidRuntimeOperation();
       let installation:string|undefined;
       try {installation=await revokeRuntimeClient(request,env,client[1]!);}
       catch(error) {
@@ -953,7 +953,7 @@ async function authorizeConsole(
     if (wantsHtml(request) && request.method === "POST" && (url.pathname.startsWith("/admin/ui/users") || url.pathname.startsWith("/admin/ui/services"))) {
       return consoleLifecycleOutcome({ rejected: true, href: "/admin?view=keys", label: "打开我的密钥", message: "你当前没有管理员权限，这次管理操作没有执行。个人密钥仍可在我的密钥中管理。" });
     }
-    throw new HttpError(403, "Admin authentication required", "authentication_error", "admin_required");
+    throw adminRequired();
   }
   return {
     kind: "console",
@@ -1007,21 +1007,13 @@ async function commitLifecycle(
   body: JsonObject
 ): Promise<unknown> {
   if (action === "role") {
-    const role = requiredStringField(body, "role");
-    if (role !== "admin" && role !== "user") {
-      throw new HttpError(400, "Role must be admin or user", "invalid_request_error", "invalid_role");
-    }
-    return setUserRole(operator, userId, role);
+    return setUserRole(operator, userId, userRole(requiredTrimmedString(body, "role")));
   }
   if (action === "status") {
-    const status = requiredStringField(body, "status");
-    if (status !== "active" && status !== "disabled") {
-      throw new HttpError(400, "Status must be active or disabled", "invalid_request_error", "invalid_status");
-    }
-    return setUserStatus(operator, userId, status);
+    return setUserStatus(operator, userId, userStatus(requiredTrimmedString(body, "status")));
   }
-  if (action === "email") return changeUserEmail(operator, userId, requiredStringField(body, "email"));
-  throw new HttpError(404, "Admin route not found", "invalid_request_error", "not_found");
+  if (action === "email") return changeUserEmail(operator, userId, requiredTrimmedString(body, "email"));
+  throw adminRouteNotFound();
 }
 
 function ownerInput(body: JsonObject): {owner_user_id:string|null;expected_revision:number} {
@@ -1056,17 +1048,17 @@ async function routeDashboardUiMutation(
   admin: AdminIdentity
 ): Promise<Response> {
   if (request.method !== "POST") {
-    throw new HttpError(405, "Method not allowed", "invalid_request_error", "method_not_allowed");
+    throw methodNotAllowed();
   }
   // Dashboard writes require the console session, not the operator bearer.
   if (admin.kind !== "console") {
-    throw new HttpError(403, "Admin authentication required", "authentication_error", "admin_auth_required");
+    throw adminAuthRequired();
   }
 
   const operator = operatorMutationContext(env, deps, admin, requestContext);
   const runtime=/^\/admin\/ui\/runtime-installations\/([a-z][a-z0-9-]{0,63})$/.exec(url.pathname);
   if(runtime) {
-    if(url.search)throw new HttpError(400,"Invalid Runtime operation.","invalid_request_error","runtime_invalid_operation");
+    if(url.search)throw invalidRuntimeOperation();
     const body=await readRuntimeForm(request);
     let flash:DashboardMutationFlash;
     let status=200;
@@ -1097,7 +1089,7 @@ async function routeDashboardUiMutation(
       let flash: DashboardMutationFlash;
       let result: unknown;
       if (grant) {
-        const id = requiredStringField(body, "credential_account_id");
+        const id = requiredTrimmedString(body, "credential_account_id");
         await commitCredentialDefault(env, credentialActorValue, {surface_grant: grant, credential_account_id: id}, operator.now);
         result = {ok:true, surface_grant:grant};
         flash = {kind:"credential_default",surface_grant:grant,account_id:id};
@@ -1106,7 +1098,7 @@ async function routeDashboardUiMutation(
           if (!["codex","grok","xai"].includes(value)) throw new HttpError(400,"Invalid surface","invalid_request_error","invalid_surface");
           return `surface:${value}:production` as OrganizationSurface;
         });
-        const migration = await migrateCredentialBindings(env, credentialActorValue, {kind:provider!,account_id:accountId!,replacement_account_id:requiredStringField(body,"replacement_account_id"),key_ids:stringArrayField(body,"key_ids") ?? [],default_surfaces:defaults}, operator.now);
+        const migration = await migrateCredentialBindings(env, credentialActorValue, {kind:provider!,account_id:accountId!,replacement_account_id:requiredTrimmedString(body,"replacement_account_id"),key_ids:stringArrayField(body,"key_ids") ?? [],default_surfaces:defaults}, operator.now);
         result = migration;
         flash = {kind:"credential_migrated",provider:provider!,account_id:accountId!,bindings:migration.migrated_bindings,defaults:migration.migrated_defaults};
       } else {
@@ -1117,13 +1109,13 @@ async function routeDashboardUiMutation(
         flash = {kind:"credential_cleanup",provider:provider!,account_id:accountId!,token_cleanup:completion.token_cleanup};
       }
       if (!wantsHtml(request)) return jsonResponse(result);
-      return dashboardAfterMutation(env,url,admin,deps,requestContext,flash,200,undefined,stringField(body,"return_range"),stringField(body,"return_q"),stringField(body,"return_page"));
+      return dashboardAfterMutation(env,url,admin,deps,requestContext,flash,200,undefined,...mutationReturn(body));
     } catch (error) {
       if (retirementTask?.[3] === "cleanup" && error instanceof HttpError && error.status === 403 && wantsHtml(request)) {
         return consoleUnknownOutcome(`/admin?view=credentials&account=${encodeURIComponent(`${provider}:${accountId}`)}`);
       }
-      if (!(error instanceof HttpError) || ![400,409,422].includes(error.status) || !wantsHtml(request)) throw error;
-      return dashboardAfterMutation(env,url,admin,deps,requestContext,{kind:"credential_task_error",provider,account_id:accountId,surface_grant:grant,message:consoleErrorMessage(error.code ?? null)},error.status,undefined,stringField(body,"return_range"),stringField(body,"return_q"),stringField(body,"return_page"));
+      assertHtmlMutationError(error, request, [400, 409, 422]);
+      return dashboardAfterMutation(env,url,admin,deps,requestContext,{kind:"credential_task_error",provider,account_id:accountId,surface_grant:grant,message:consoleErrorMessage(error.code ?? null)},error.status,undefined,...mutationReturn(body));
     }
   }
 
@@ -1137,7 +1129,7 @@ async function routeDashboardUiMutation(
       if (error instanceof HttpError && error.status === 403 && wantsHtml(request)) {
         return consoleLifecycleOutcome({ rejected: true, href: "/login", label: "重新登录", message: "你的登录身份或管理员权限已改变，这次人员创建没有执行。请重新登录并查看当前状态。" });
       }
-      if (!(error instanceof HttpError) || ![400, 409].includes(error.status) || !wantsHtml(request)) throw error;
+      assertHtmlMutationError(error, request, [400, 409]);
       return dashboardAfterMutation(env, url, admin, deps, requestContext, {
         kind: "user_create_error", email, message: consoleErrorMessage(error.code ?? null)
       }, error.status);
@@ -1153,7 +1145,7 @@ async function routeDashboardUiMutation(
       if (!wantsHtml(request)) return jsonResponse({owner,credentials_unchanged:true});
       return dashboardAfterMutation(env,url,admin,deps,requestContext,{kind:"service_owner_changed",user_id:id},200,stringField(body,"person_return"));
     } catch (error) {
-      if (!(error instanceof HttpError) || ![400,403,409].includes(error.status) || !wantsHtml(request)) throw error;
+      assertHtmlMutationError(error, request, [400, 403, 409]);
       return dashboardAfterMutation(env,url,admin,deps,requestContext,{kind:"service_error",user_id:id,action:"owner",display_name:"",message:consoleErrorMessage(error.code ?? null)},error.status,stringField(body,"person_return"));
     }
   }
@@ -1166,12 +1158,12 @@ async function routeDashboardUiMutation(
       if (action === "classify") requireConfirmation(body, "Classify legacy service");
       const user = action === "create" ? await createServiceAccount(operator, displayName)
         : action === "rename" ? await renameServiceAccount(operator, id!, displayName)
-        : await classifyServiceAccount(operator, id!, { display_name: displayName, expected_updated_at: requiredStringField(body, "expected_updated_at") });
+        : await classifyServiceAccount(operator, id!, { display_name: displayName, expected_updated_at: requiredTrimmedString(body, "expected_updated_at") });
       if (!wantsHtml(request)) return jsonResponse({ user: publicService(user) }, { status: action === "create" ? 201 : 200 });
       return dashboardAfterMutation(env, url, admin, deps, requestContext, { kind: "service_changed", user_id: user.id, action, display_name: user.display_name! }, 200, stringField(body, "person_return"));
     } catch (error) {
       if (error instanceof HttpError && error.status === 403 && wantsHtml(request)) return consoleLifecycleOutcome({ rejected: true, href: "/login", label: "重新登录", message: "管理员身份已改变，这次服务账号操作没有执行。请重新登录后查看当前状态。" });
-      if (!(error instanceof HttpError) || ![400, 409].includes(error.status) || !wantsHtml(request)) throw error;
+      assertHtmlMutationError(error, request, [400, 409]);
       return dashboardAfterMutation(env, url, admin, deps, requestContext, { kind: "service_error", user_id: id, action, display_name: displayName, message: consoleErrorMessage(error.code ?? null) }, error.status, stringField(body, "person_return"));
     }
   }
@@ -1180,7 +1172,7 @@ async function routeDashboardUiMutation(
   if (createKey) {
     const scopes = stringArrayField(body, "scopes") ?? formProductScopes(body);
     const created = await issueApiKey(operator, {
-      user_id: requiredStringField(body, "user_id"),
+      user_id: requiredTrimmedString(body, "user_id"),
       name: typeof body.name === "string" ? body.name : "",
       scopes,
       expires_at: dashboardKeyExpiry(body),
@@ -1237,7 +1229,7 @@ async function routeDashboardUiMutation(
     const result = await setApiKeyCredentialBinding(operator, {
       api_key_id: keyId,
       surface_grant: `surface:${surface}:production` as SurfaceCredentialSelection["surface_grant"],
-      credential_account_id: requiredStringField(body, "credential_account_id")
+      credential_account_id: requiredTrimmedString(body, "credential_account_id")
     });
     if (wantsHtml(request)) {
       return dashboardAfterMutation(env, url, admin, deps, requestContext, {
@@ -1274,17 +1266,15 @@ async function routeDashboardUiMutation(
     let flash: DashboardMutationFlash;
     try {
       if (action === "role") {
-        const role = requiredStringField(body, "role");
-        if (role !== "admin" && role !== "user") throw new HttpError(400, "Role must be admin or user", "invalid_request_error", "invalid_role");
+        const role = userRole(requiredTrimmedString(body, "role"));
         result = await setUserRole(operator, userId, role);
         flash = { kind: "user_role", user_id: userId, role };
       } else if (action === "email") {
-        const changed = await changeUserEmail(operator, userId, requiredStringField(body, "email"));
+        const changed = await changeUserEmail(operator, userId, requiredTrimmedString(body, "email"));
         result = changed;
         flash = { kind: "user_email", user_id: userId, email: changed.email, previous_email: changed.previous_email };
       } else {
-        const status = requiredStringField(body, "status");
-        if (status !== "active" && status !== "disabled") throw new HttpError(400, "Status must be active or disabled", "invalid_request_error", "invalid_status");
+        const status = userStatus(requiredTrimmedString(body, "status"));
         const changed = await setUserStatus(operator, userId, status);
         result = changed;
         flash = { kind: "user_status", user_id: userId, email: changed.email, status };
@@ -1293,7 +1283,7 @@ async function routeDashboardUiMutation(
       if (error instanceof HttpError && error.status === 403 && wantsHtml(request)) {
         return consoleLifecycleOutcome({ rejected: true, href: "/login", label: "重新登录", message: "你的登录身份或管理员权限已改变，这次管理操作没有执行。请重新登录并查看当前状态。" });
       }
-      if (!(error instanceof HttpError) || ![400, 409].includes(error.status) || !wantsHtml(request)) throw error;
+      assertHtmlMutationError(error, request, [400, 409]);
       return dashboardAfterMutation(env, url, admin, deps, requestContext, {
         kind: "user_lifecycle_error", user_id: userId, action, email: stringField(body, "email") ?? "", message: consoleErrorMessage(error.code ?? null)
       }, error.status, returnUrl);
@@ -1319,7 +1309,7 @@ async function routeDashboardUiMutation(
       if (!wantsHtml(request)) return jsonResponse({defaults});
       return dashboardAfterMutation(env,url,admin,deps,requestContext,{kind:"credit_default",defaults});
     } catch (error) {
-      if (!(error instanceof HttpError) || ![400,409].includes(error.status) || !wantsHtml(request)) throw error;
+      assertHtmlMutationError(error, request, [400, 409]);
       return dashboardAfterMutation(env,url,admin,deps,requestContext,{kind:"credit_default_error",message:consoleErrorMessage(error.code ?? null)},error.status);
     }
   }
@@ -1343,21 +1333,20 @@ async function routeDashboardUiMutation(
     const userId = decodeURIComponent(userCreditMatch[1]);
     const surface = userCreditMatch[2] as CreditSurfaceId;
     const email = (await getUser(env, userId))?.email ?? null;
+    const creditPolicyPage = (state: Pick<SurfaceCreditState, "mode" | "monthly_allowance" | "source">) => dashboardAfterMutation(env, url, admin, deps, requestContext, {
+      kind: "credit_policy",
+      user_id: userId,
+      email,
+      surface,
+      mode: state.mode,
+      monthly_allowance: state.monthly_allowance,
+      source: state.source
+    });
     const action = stringField(body, "action") ?? "set";
     if (action === "inherit") {
       requireConfirmation(body, "Credit removal");
       const removed = await removeSurfaceCreditPolicy(operator, { user_id: userId, surface });
-      if (wantsHtml(request)) {
-        return dashboardAfterMutation(env, url, admin, deps, requestContext, {
-          kind: "credit_policy",
-          user_id: userId,
-          email,
-          surface,
-          mode: removed.state.mode,
-          monthly_allowance: removed.state.monthly_allowance,
-          source: removed.state.source
-        });
-      }
+      if (wantsHtml(request)) return creditPolicyPage(removed.state);
       return jsonResponse({ deleted: removed.deleted, state: publicCreditState(removed.state) });
     }
     requireConfirmation(body, "Credit change");
@@ -1366,44 +1355,34 @@ async function routeDashboardUiMutation(
       surface,
       ...creditPolicyField(body)
     });
-    if (wantsHtml(request)) {
-      return dashboardAfterMutation(env, url, admin, deps, requestContext, {
-        kind: "credit_policy",
-        user_id: userId,
-        email,
-        surface,
-        mode: state.mode,
-        monthly_allowance: state.monthly_allowance,
-        source: state.source
-      });
-    }
+    if (wantsHtml(request)) return creditPolicyPage(state);
     return jsonResponse({ kind: "surface_credit_state", state: publicCreditState(state) });
   }
 
   // Dashboard credentials: account creation, OAuth, and refresh only.
   if (url.pathname === "/admin/ui/codex-auths") {
-    const auth = await createCodexCredentialAccount(operator, { label: requiredStringField(body, "label") });
+    const auth = await createCodexCredentialAccount(operator, { label: requiredTrimmedString(body, "label") });
     if (wantsHtml(request)) {
       return dashboardAfterMutation(env, url, admin, deps, requestContext, {
         kind: "codex_created",
         auth_id: auth.id
-      }, 200, undefined, stringField(body, "return_range"), stringField(body, "return_q"), stringField(body, "return_page"));
+      }, 200, undefined, ...mutationReturn(body));
     }
     return jsonResponse({ auth: publicCodexAuth(auth) }, { status: 201 });
   }
 
   if (url.pathname === "/admin/ui/subscriptions") {
     const account = await createGrokSubscription(operator, {
-      capability_source: requiredStringField(body, "capability_source") as CapabilitySource,
-      environment: requiredStringField(body, "environment") as SubscriptionEnvironment,
-      label: requiredStringField(body, "label"),
+      capability_source: requiredTrimmedString(body, "capability_source") as CapabilitySource,
+      environment: requiredTrimmedString(body, "environment") as SubscriptionEnvironment,
+      label: requiredTrimmedString(body, "label"),
       provider_account_ref: null
     });
     if (wantsHtml(request)) {
       return dashboardAfterMutation(env, url, admin, deps, requestContext, {
         kind: "grok_created",
         account_id: account.id
-      }, 200, undefined, stringField(body, "return_range"), stringField(body, "return_q"), stringField(body, "return_page"));
+      }, 200, undefined, ...mutationReturn(body));
     }
     return jsonResponse({ account: publicSubscriptionAccount(account) }, { status: 201 });
   }
@@ -1417,7 +1396,7 @@ async function routeDashboardUiMutation(
     if (wantsHtml(request)) {
       return dashboardAfterMutation(env, url, admin, deps, requestContext, {
         kind: "codex_admission", auth_id: auth.id, admission_state: auth.admission_state
-      }, 200, undefined, stringField(body, "return_range"), stringField(body, "return_q"), stringField(body, "return_page"));
+      }, 200, undefined, ...mutationReturn(body));
     }
     return jsonResponse({ auth: publicCodexAuth(auth) }, { headers: { "Cache-Control": "no-store" } });
   }
@@ -1432,7 +1411,7 @@ async function routeDashboardUiMutation(
         session_id: result.session_id,
         authorize_url: result.authorize_url,
         redirect_uri: result.redirect_uri
-      }, 200, undefined, stringField(body, "return_range"), stringField(body, "return_q"), stringField(body, "return_page"));
+      }, 200, undefined, ...mutationReturn(body));
     }
     return jsonResponse(result);
   }
@@ -1450,7 +1429,7 @@ async function routeDashboardUiMutation(
       return dashboardAfterMutation(env, url, admin, deps, requestContext, {
         kind: "codex_imported",
         auth_id: result.auth_id
-      }, 200, undefined, stringField(body, "return_range"), stringField(body, "return_q"), stringField(body, "return_page"));
+      }, 200, undefined, ...mutationReturn(body));
     }
     return jsonResponse(result, { status: 201 });
   }
@@ -1468,13 +1447,13 @@ async function routeDashboardUiMutation(
       ].includes(error.code ?? "")) throw error;
       return dashboardAfterMutation(env, url, admin, deps, requestContext, {
         kind: "codex_refresh_error", auth_id: authId, message: consoleErrorMessage(error.code ?? null)
-      }, error.status, undefined, stringField(body, "return_range"), stringField(body, "return_q"), stringField(body, "return_page"));
+      }, error.status, undefined, ...mutationReturn(body));
     }
     if (wantsHtml(request)) {
       return dashboardAfterMutation(env, url, admin, deps, requestContext, {
         kind: "codex_refreshed",
         auth_id: result.auth_id
-      }, 200, undefined, stringField(body, "return_range"), stringField(body, "return_q"), stringField(body, "return_page"));
+      }, 200, undefined, ...mutationReturn(body));
     }
     return jsonResponse(result);
   }
@@ -1491,7 +1470,7 @@ async function routeDashboardUiMutation(
     if (wantsHtml(request)) {
       return dashboardAfterMutation(env, url, admin, deps, requestContext, {
         kind: "credential_disconnected", provider:"codex", account_id:result.auth_id, token_cleanup:result.token_cleanup
-      }, 200, undefined, stringField(body, "return_range"), stringField(body, "return_q"), stringField(body, "return_page"));
+      }, 200, undefined, ...mutationReturn(body));
     }
     return jsonResponse(result);
   }
@@ -1510,7 +1489,7 @@ async function routeDashboardUiMutation(
         session_id: result.session_id,
         authorize_url: result.authorize_url,
         redirect_uri: result.redirect_uri
-      }, 200, undefined, stringField(body, "return_range"), stringField(body, "return_q"), stringField(body, "return_page"));
+      }, 200, undefined, ...mutationReturn(body));
     }
     return jsonResponse(result);
   }
@@ -1532,7 +1511,7 @@ async function routeDashboardUiMutation(
       return dashboardAfterMutation(env, url, admin, deps, requestContext, {
         kind: "grok_imported",
         account_id: result.account_id
-      }, 200, undefined, stringField(body, "return_range"), stringField(body, "return_q"), stringField(body, "return_page"));
+      }, 200, undefined, ...mutationReturn(body));
     }
     return jsonResponse(result, { status: 201 });
   }
@@ -1545,7 +1524,7 @@ async function routeDashboardUiMutation(
       return dashboardAfterMutation(env, url, admin, deps, requestContext, {
         kind: "grok_refreshed",
         account_id: result.account_id
-      }, 200, undefined, stringField(body, "return_range"), stringField(body, "return_q"), stringField(body, "return_page"));
+      }, 200, undefined, ...mutationReturn(body));
     }
     return jsonResponse(result);
   }
@@ -1556,9 +1535,7 @@ async function routeDashboardUiMutation(
     const accountId = decodeURIComponent(grokLogoutMatch[1]!);
     if (!wantsHtml(request)) return jsonResponse(await logoutGrokCredential(operator, accountId));
     const account = await getSubscriptionAccount(env, accountId);
-    if (account && account.capability_source !== "grok") {
-      throw new HttpError(400, "Subscription credential operations support Grok; use ChatGPT import for Codex", "invalid_request_error", "invalid_capability_source");
-    }
+    if (account) assertGrokCapability(account);
     let result: Awaited<ReturnType<typeof disconnectCredential>>;
     try { result = await disconnectCredential(env,credentialActor(operator),{kind:"grok",account_id:accountId},() => env.TOKEN_AUTHORITY.get(env.TOKEN_AUTHORITY.idFromName(`subscription:${accountId}`)).revokeSubscription(),operator.now); }
     catch(error) {
@@ -1567,7 +1544,7 @@ async function routeDashboardUiMutation(
     }
     return dashboardAfterMutation(env, url, admin, deps, requestContext, {
       kind: "credential_disconnected", provider:"grok", account_id:accountId, token_cleanup:result.token_cleanup
-    }, 200, undefined, stringField(body, "return_range"), stringField(body, "return_q"), stringField(body, "return_page"));
+    }, 200, undefined, ...mutationReturn(body));
   }
 
   throw new HttpError(404, "Admin UI route not found", "invalid_request_error", "not_found");
@@ -1600,7 +1577,7 @@ async function dashboardAfterMutation(
     if (account) pageUrl.searchParams.set("account", account);
     if (accountRange && ["today", "7d", "30d", "all"].includes(accountRange)) pageUrl.searchParams.set("range", accountRange);
     if (accountSearch && accountSearch.length <= 256 && !/[\u0000-\u001f\u007f]/.test(accountSearch)) pageUrl.searchParams.set("q", accountSearch.trim());
-    if (account && accountPage && /^[1-9]\d*$/.test(accountPage) && Number.isSafeInteger(Number(accountPage) * DASHBOARD_PAGE_SIZE)) pageUrl.searchParams.set("page", accountPage);
+    if (account && accountPage && isDashboardPageToken(accountPage)) pageUrl.searchParams.set("page", accountPage);
   }
   if (view === "access") {
     const person = "user_id" in flash ? flash.user_id : url.searchParams.get("person");
@@ -1720,14 +1697,13 @@ function formCredentialBindings(body: JsonObject, scopes: readonly string[]): Su
     }
     return {
       surface_grant: scope as SurfaceCredentialSelection["surface_grant"],
-      credential_account_id: requiredStringField(body, `${surface}_credential_account_id`)
+      credential_account_id: requiredTrimmedString(body, `${surface}_credential_account_id`)
     } as SurfaceCredentialSelection;
   });
 }
 
 function isConfirmed(body: JsonObject): boolean {
-  const raw = body.confirm;
-  return raw === true || raw === 1 || raw === "1" || raw === "true" || raw === "on" || raw === "yes";
+  return isConfirmValue(body.confirm);
 }
 
 function requireConfirmation(body: JsonObject, action: string): void {
@@ -1749,6 +1725,10 @@ function operatorMutationContext(
     requestId: requestContext.requestId,
     now: deps.now()
   };
+}
+
+function assertHtmlMutationError(error: unknown, request: Request, statuses: readonly number[]): asserts error is HttpError {
+  if (!(error instanceof HttpError) || !statuses.includes(error.status) || !wantsHtml(request)) throw error;
 }
 
 function wantsHtml(request: Request): boolean {
@@ -1861,7 +1841,7 @@ async function routeAdminReadiness(env: Env, deps: AppDependencies): Promise<Res
     let accountLastSuccess: string | null = null;
     let accountLastFailure: string | null = null;
     const subscription_kind = subscriptionKindForPlan(plan);
-    if (plan.credentialSlot.startsWith("chatgpt")) {
+    if (isChatgptProductionSlot(plan.credentialSlot)) {
       // Official ChatGPT: production Credential Account metadata only.
       const row = codexAuths.find((candidate) => candidate.status === "active") ?? codexAuths[0] ?? null;
       credential = row
@@ -1997,20 +1977,8 @@ function usageQueryGuide() {
 
 
 
-function requestAuditRetentionDays(env: Env): number {
-  const raw = env.REQUEST_AUDIT_RETENTION_DAYS;
-  if (!/^[1-9]\d*$/.test(raw)) {
-    throw new HttpError(500, "REQUEST_AUDIT_RETENTION_DAYS must be an integer from 1 to 3650", "server_error", "invalid_request_audit_retention_days");
-  }
-  const parsed = Number(raw);
-  if (!Number.isSafeInteger(parsed) || parsed > MAX_REQUEST_AUDIT_RETENTION_DAYS) {
-    throw new HttpError(500, "REQUEST_AUDIT_RETENTION_DAYS must be an integer from 1 to 3650", "server_error", "invalid_request_audit_retention_days");
-  }
-  return parsed;
-}
-
 async function runRequestAuditCleanup(env: Env, deps: AppDependencies): Promise<RequestAuditCleanupResult> {
-  const retentionDays = requestAuditRetentionDays(env);
+  const retentionDays = requestAuditRetentionDays(env.REQUEST_AUDIT_RETENTION_DAYS);
   const cutoff = new Date(deps.now().getTime() - retentionDays * DAY_MS).toISOString();
   const deleted = await cleanupRequestAudit(env, cutoff);
   return {
@@ -2020,6 +1988,15 @@ async function runRequestAuditCleanup(env: Env, deps: AppDependencies): Promise<
   };
 }
 
+/** OAuth start accepts an empty or invalid body. Other admin JSON routes do not. */
+async function optionalOAuthStartBody(request: Request): Promise<JsonObject> {
+  try {
+    return await readJsonObject(request);
+  } catch {
+    return {};
+  }
+}
+
 async function readJsonObject(request: Request): Promise<JsonObject> {
   let parsed: unknown;
   try {
@@ -2027,7 +2004,7 @@ async function readJsonObject(request: Request): Promise<JsonObject> {
   } catch {
     throw new HttpError(400, "Request body must be valid JSON", "invalid_request_error", "invalid_json");
   }
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+  if (!isRecord(parsed)) {
     throw new HttpError(400, "Request body must be a JSON object", "invalid_request_error", "invalid_json_object");
   }
   return parsed as JsonObject;
@@ -2054,8 +2031,11 @@ function publicCodexAuth(row: CodexAuthRow | null) {
 }
 
 function stringField(body: JsonObject, field: string): string | undefined {
-  const value = body[field];
-  return typeof value === "string" && value.trim() ? value.trim() : undefined;
+  return firstString(body[field]) || undefined;
+}
+
+function mutationReturn(body: JsonObject): [string | undefined, string | undefined, string | undefined] {
+  return [stringField(body, "return_range"), stringField(body, "return_q"), stringField(body, "return_page")];
 }
 
 function dashboardKeyExpiry(body: JsonObject): string | null | undefined {
@@ -2087,14 +2067,6 @@ function nullableStringField(body: JsonObject, field: string): string | null | u
     return value.trim();
   }
   return undefined;
-}
-
-function requiredStringField(body: JsonObject, field: string): string {
-  const value = body[field];
-  if (typeof value !== "string" || !value.trim()) {
-    throw new HttpError(400, `${field} is required`, "invalid_request_error", `missing_${field}`);
-  }
-  return value.trim();
 }
 
 function creditPolicyField(body: JsonObject): { mode: "limited" | "unlimited" | "disabled"; monthly_allowance: number | null } {
@@ -2144,11 +2116,11 @@ function credentialBindingsField(body: JsonObject): SurfaceCredentialSelection[]
     throw new HttpError(400, "credential_bindings must be an array", "invalid_request_error", "invalid_credential_bindings");
   }
   return value.map((item) => {
-    if (!item || typeof item !== "object" || Array.isArray(item)) {
+    if (!isRecord(item)) {
       throw new HttpError(400, "credential_bindings contains an invalid item", "invalid_request_error", "invalid_credential_bindings");
     }
     const object = item as JsonObject;
-    const surfaceGrant = requiredStringField(object, "surface_grant");
+    const surfaceGrant = requiredTrimmedString(object, "surface_grant");
     if (surfaceGrant !== "surface:codex:production"
       && surfaceGrant !== "surface:grok:production"
       && surfaceGrant !== "surface:xai:production") {
@@ -2156,7 +2128,7 @@ function credentialBindingsField(body: JsonObject): SurfaceCredentialSelection[]
     }
     return {
       surface_grant: surfaceGrant,
-      credential_account_id: requiredStringField(object, "credential_account_id")
+      credential_account_id: requiredTrimmedString(object, "credential_account_id")
     } as SurfaceCredentialSelection;
   });
 }

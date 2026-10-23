@@ -18,7 +18,7 @@ import { listSubscriptionAccounts, publicSubscriptionAccount } from "../auth/sub
 import { dashboardInventoryCounts, dashboardPeoplePage, dashboardKeyPage, dashboardPersonKey, dashboardAccessKeys, dashboardKeyOwners, dashboardKeyBindings, dashboardAccountKeys, type DashboardPage, type DashboardKey, type DashboardAccessKey } from "./inventory";
 import { DASHBOARD_PEOPLE_PAGE_SIZE } from "./ui/href";
 import { listOrganizationCreditDefaults, listSurfaceCreditStates, type SurfaceCreditState } from "../auth/credits";
-import { defaultCredentialMetadataUsable, previewCredentialRetirement, type RetirementPreview } from "../auth/credential-defaults";
+import { defaultCredentialMetadataUsable, ORGANIZATION_DEFAULT_ACCOUNT_COLUMNS, previewCredentialRetirement, type RetirementPreview } from "../auth/credential-defaults";
 import {credentialActor} from "../auth/credential-defaults";
 import {readRuntimeAdmin,type RuntimeAdminModel} from "../runtime/console";
 
@@ -442,7 +442,7 @@ export async function loadDashboard(input: AdminDashboardInput, base: AdminDashb
 async function readIssuanceDefaults(env: Env): Promise<AdminDashboardCredentialsModel["issuanceDefaults"]> {
   try {
     const result = await env.DB.prepare(
-      `SELECT surface_grant, codex_auth_id, subscription_account_id
+      `SELECT ${ORGANIZATION_DEFAULT_ACCOUNT_COLUMNS}
        FROM organization_surface_credential_defaults`
     ).all<{ surface_grant: string; codex_auth_id: string | null; subscription_account_id: string | null }>();
     return (result.results ?? []).map((row) => ({

@@ -1,6 +1,7 @@
 import {DurableObject} from "cloudflare:workers";
 import OAuth2Server from "@node-oauth/oauth2-server";
-import {hmacSha256Hex,timingSafeEqualHex} from "../crypto";
+import {runtimeOAuthMaterialHash,timingSafeEqualHex} from "../crypto";
+import {headerMediaType} from "../records";
 import {readConsoleSessionPrincipalByHash} from "../auth/console-session";
 import type {ConsolePrincipal} from "../auth/principal";
 import {readRuntimeAuthority,readRuntimeAuthorityRevision,readRuntimeMemberInstallations,type RuntimeAuthority,type RuntimeMemberInstallation} from "./installations";
@@ -113,7 +114,7 @@ export class RuntimeOAuth extends DurableObject<Env> {
         ||query.scope!==RUNTIME_SCOPE||query.code_challenge_method!=="S256"||! /^[A-Za-z0-9_-]{43}$/.test(query.code_challenge??"")
         ||!query.state||query.state.length>512||/[^\x21-\x7e]/.test(query.state))return invalid();
       if(!this.attempt(`authorization:${client.id}`,30,MINUTE))return invalid(429);
-      const principal=session?await this.bounded(readConsoleSessionPrincipalByHash(this.env,session),deadline):null;
+      const principal=await this.consolePrincipal(session,deadline);
       const authority=principal?await this.bounded(readRuntimeAuthority(this.env,principal.id,installation.id,new Date(),{hash:session!,email:principal.email,epoch:principal.sessionEpoch}),deadline):null;
       const revision=principal?authority?.authority_revision:await this.bounded(readRuntimeAuthorityRevision(this.env,installation.id),deadline);
       if(revision==null)return invalid(403,"access_denied");
@@ -132,7 +133,7 @@ export class RuntimeOAuth extends DurableObject<Env> {
       if(!stored)return invalid();
       const pending=JSON.parse(stored.data) as Pending;
       if(!timingSafeEqualHex(pending.binding,binding))return invalid(403,"access_denied");
-      const principal=session?await this.bounded(readConsoleSessionPrincipalByHash(this.env,session),deadline):null;
+      const principal=await this.consolePrincipal(session,deadline);
       if(!principal)return {status:303,body:{},location:`/login?return=${encodeURIComponent(`/runtime/consent/${id}`)}`};
       if(pending.principal&&(principal.id!==pending.principal.id||principal.email!==pending.principal.email||principal.sessionEpoch!==pending.principal.sessionEpoch))return invalid(403,"access_denied");
       const authority=await this.bounded(readRuntimeAuthority(this.env,principal.id,pending.installation,new Date(),{hash:session!,email:principal.email,epoch:principal.sessionEpoch}),deadline);
@@ -176,7 +177,7 @@ export class RuntimeOAuth extends DurableObject<Env> {
       const form=new URLSearchParams(encoded);
       const client=this.client(form.getAll("client_id").length===1?form.get("client_id")!:"");
       if(client&&!this.attempt(`token:${client.id}`,30,MINUTE))return invalid(429);
-      if(hasAuthorization||contentType?.split(";",1)[0]?.trim()!=="application/x-www-form-urlencoded")return invalid();
+      if(hasAuthorization||headerMediaType(contentType)!=="application/x-www-form-urlencoded")return invalid();
       const allowed=["grant_type","client_id","code","redirect_uri","code_verifier","refresh_token","resource","scope"];
       if([...form].some(([key,value])=>!allowed.includes(key)||form.getAll(key).length!==1||value.length>2048))return invalid();
       const body=Object.fromEntries(form);
@@ -253,7 +254,7 @@ export class RuntimeOAuth extends DurableObject<Env> {
 
   async clientConsents(session:string|null,revokeId?:string):Promise<OAuthReply> {
     return this.gate(async(deadline)=>{
-      const principal=session?await this.bounded(readConsoleSessionPrincipalByHash(this.env,session),deadline):null;
+      const principal=await this.consolePrincipal(session,deadline);
       if(!principal)return invalid(401,"access_denied");
       if(revokeId!==undefined) {
         const row=this.ctx.storage.sql.exec<{id:string}>("SELECT id FROM consents WHERE id=? AND subject=?",revokeId,principal.id).toArray()[0];
@@ -272,7 +273,7 @@ export class RuntimeOAuth extends DurableObject<Env> {
 
   async memberData(session:string|null):Promise<RuntimeMemberReply> {
     return this.gate<RuntimeMemberReply>(async(deadline)=>{
-      const principal=session?await this.bounded(readConsoleSessionPrincipalByHash(this.env,session),deadline):null;
+      const principal=await this.consolePrincipal(session,deadline);
       if(!principal)return {status:401,body:{error:"access_denied"}};
       const installations=await this.bounded(readRuntimeMemberInstallations(this.env,principal.id),deadline);
       const rows=this.ctx.storage.sql.exec<{id:string;client_id:string;client_name:string;installation:string;resource:string;scope:string;authority_revision:number;access_revision:number;created:number;deadline:number}>(`
@@ -345,7 +346,7 @@ export class RuntimeOAuth extends DurableObject<Env> {
 
   private client(id:string):RegisteredClient|null {return this.ctx.storage.sql.exec<RegisteredClient>("SELECT * FROM clients WHERE id=? AND expires>?",id,Date.now()).toArray()[0]??null;}
   private currentConsent(id:string):Consent|null {return this.ctx.storage.sql.exec<Consent>("SELECT * FROM consents WHERE id=? AND revoked=0 AND deadline>?",id,Date.now()).toArray()[0]??null;}
-  private hash(value:string):Promise<string> {return hmacSha256Hex(this.env.API_KEY_HASH_PEPPER,`runtime-oauth\0${value}`);}
+  private hash(value:string):Promise<string> {return runtimeOAuthMaterialHash(this.env.API_KEY_HASH_PEPPER,value);}
   private attempt(bucket:string,limit:number,window:number):boolean {
     this.ctx.storage.sql.exec("DELETE FROM rate_windows WHERE bucket IN (SELECT bucket FROM rate_windows WHERE expires<=? LIMIT 256)",Date.now());
     const period=Math.floor(Date.now()/window);
@@ -360,6 +361,10 @@ export class RuntimeOAuth extends DurableObject<Env> {
       console.error(JSON.stringify({event:"runtime_oauth_authority_unavailable"}));return failure;
     }});
   }
+  private consolePrincipal(session:string|null,deadline:number):Promise<ConsolePrincipal|null> {
+    return session?this.bounded(readConsoleSessionPrincipalByHash(this.env,session),deadline):Promise.resolve(null);
+  }
+
   private async bounded<T>(work:Promise<T>,deadline:number):Promise<T> {
     let timer:ReturnType<typeof setTimeout>|undefined;
     try {

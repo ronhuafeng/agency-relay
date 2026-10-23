@@ -1,7 +1,7 @@
 import { listMemberKeys, type PublicApiKey } from "../auth/api-keys";
 import { keyIsLive } from "../auth/key-state";
 import { listSurfaceCreditStates, type SurfaceCreditState } from "../auth/credits";
-import { replacementCredentialMetadataUsable, defaultCredentialMetadataUsable, type OrganizationSurface } from "../auth/credential-defaults";
+import { replacementCredentialMetadataUsable, defaultCredentialMetadataUsable, ORGANIZATION_DEFAULT_ACCOUNT_COLUMNS, type OrganizationSurface } from "../auth/credential-defaults";
 import { assertSlotAccountMetadata, type SlotAccountMetadata } from "../auth/slots";
 import { listExecutionPlans } from "../plans/execution-plans";
 import { queryClientVerification, type KeyClientVerificationRow } from "../db";
@@ -54,7 +54,7 @@ export async function readMemberAccess(env: Env, userId: string, now: Date): Pro
   const [inventory, quotas, defaults, bindings] = await Promise.all([
     read(() => listMemberKeys(env, userId, now)),
     read(() => listSurfaceCreditStates(env, now, userId)),
-    read(async () => (await env.DB.prepare("SELECT surface_grant, codex_auth_id, subscription_account_id FROM organization_surface_credential_defaults").all<DefaultRow>()).results),
+    read(async () => (await env.DB.prepare(`SELECT ${ORGANIZATION_DEFAULT_ACCOUNT_COLUMNS} FROM organization_surface_credential_defaults`).all<DefaultRow>()).results),
     read(async () => (await env.DB.prepare(`SELECT b.api_key_id, b.surface_grant, b.codex_auth_id, b.subscription_account_id
       FROM api_key_surface_credentials AS b JOIN api_keys AS k ON k.id = b.api_key_id WHERE k.user_id = ?`).bind(userId).all<BindingRow>()).results)
   ]);

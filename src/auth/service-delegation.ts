@@ -1,24 +1,29 @@
+import { d1ChangeCount, OPERATOR_MUTATION_AUDIT_COLUMNS } from "../db";
 import { generateId, nowIso } from "../crypto";
-import { HttpError } from "../errors";
+import { HttpError, serviceNotFound } from "../errors";
 import type { ConsolePrincipal, LifecycleActor } from "./principal";
 import { organizationDomain } from "./principal";
 import { keyActorAuthority } from "./key-authority";
 import { serviceAdminAuthorityBindings, serviceAdminAuthoritySql } from "./service-accounts";
 
 export interface ServiceContext { id: string; display_name: string; status: string }
+/** ServiceContext columns when the users table is aliased as service. */
+export const SERVICE_CONTEXT_COLUMNS = "service.id, service.display_name, service.status";
 export interface ServiceOwner { owner_user_id: string | null; owner_email: string | null; owner_status: string | null; revision: number }
-const absent = () => new HttpError(404, "Service not found", "invalid_request_error", "service_not_found");
+function ownerUnchanged(): HttpError {
+  return new HttpError(409, "Owner assignment was not changed. Review current administrator, service, owner and revision.", "invalid_request_error", "service_owner_changed");
+}
 export async function delegatedService(env: Env, principal: ConsolePrincipal, id: string): Promise<ServiceContext> {
   const guard = keyActorAuthority({kind: "access", userId: principal.id, email: principal.email, sessionEpoch: principal.sessionEpoch, role: principal.role, subject: null, requestId: null, delegatedServiceId: id}, id);
   const service = await env.DB.prepare(`SELECT id, display_name, status FROM users WHERE id = ? AND account_kind = 'service' AND ${guard.sql}`)
     .bind(id, ...guard.values).first<ServiceContext>();
-  if (!service) throw absent();
+  if (!service) throw serviceNotFound();
   return service;
 }
 export async function listDelegatedServices(env: Env, principal: ConsolePrincipal): Promise<ServiceContext[]> {
   // This is the assigned service list, even for admins; independent admin access
   // remains available from People without dumping the organization into /me.
-  const result = await env.DB.prepare(`SELECT service.id, service.display_name, service.status FROM service_account_owners AS d
+  const result = await env.DB.prepare(`SELECT ${SERVICE_CONTEXT_COLUMNS} FROM service_account_owners AS d
     JOIN users AS service ON service.id = d.service_user_id JOIN users AS actor ON actor.id = d.owner_user_id
     WHERE actor.id = ? AND actor.status = 'active' AND actor.account_kind = 'human' AND actor.login_capable = 1
       AND actor.canonical_email = ? AND actor.console_session_epoch = ? AND service.account_kind = 'service'
@@ -38,7 +43,7 @@ export async function commitServiceOwner(env: Env, actor: LifecycleActor, id: st
   const previous = await readServiceOwner(env,id);
   // Bind the audit snapshot to the reviewed version. The committing predicate
   // below then rejects any intervening transfer, including a guessed next version.
-  if (previous.revision !== input.expected_revision) throw new HttpError(409, "Owner assignment was not changed. Review current administrator, service, owner and revision.", "invalid_request_error", "service_owner_changed");
+  if (previous.revision !== input.expected_revision) throw ownerUnchanged();
   const at = nowIso(now);
   const results = await env.DB.batch([
     env.DB.prepare(`INSERT INTO service_account_owners (service_user_id, owner_user_id, revision, updated_at)
@@ -52,11 +57,11 @@ export async function commitServiceOwner(env: Env, actor: LifecycleActor, id: st
         revision = excluded.revision, updated_at = excluded.updated_at`)
       .bind(id, input.owner_user_id, input.expected_revision, at, id, id, input.expected_revision,
         input.owner_user_id, input.owner_user_id, organizationDomain(env) ?? "", ...serviceAdminAuthorityBindings(env, actor)),
-    env.DB.prepare(`INSERT INTO operator_mutation_audit (id,at,actor_kind,actor_email,actor_subject,actor_user_id,actor_role,action,target_type,target_id,result,request_id,meta,created_at)
+    env.DB.prepare(`INSERT INTO operator_mutation_audit (${OPERATOR_MUTATION_AUDIT_COLUMNS})
       SELECT ?,?,?,?,?,?,?,'service.owner.change','user',?,'ok',?,?,? WHERE changes() = 1`)
       .bind(generateId("oma"), at, actor.kind, actor.email, actor.subject, actor.userId, actor.role, id, actor.requestId,
         JSON.stringify({previous_owner_user_id:previous.owner_user_id,owner_user_id: input.owner_user_id, previous_revision: input.expected_revision, revision: input.expected_revision + 1, credentials_unchanged: true}), at)
   ]);
-  if (results[1]?.meta.changes !== 1) throw new HttpError(409, "Owner assignment was not changed. Review current administrator, service, owner and revision.", "invalid_request_error", "service_owner_changed");
+  if (d1ChangeCount(results[1]) !== 1) throw ownerUnchanged();
   return {owner_user_id: input.owner_user_id, owner_email: null, owner_status: null, revision: input.expected_revision + 1};
 }

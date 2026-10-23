@@ -1,6 +1,6 @@
 import { retainConsoleActor, endConsoleRuntime, recordConsoleOutcome, hasUnknownConsoleOutcome } from "./authority";
 import type { TaskController } from "./navigation";
-import { readConsoleRejection } from "../ui/messages";
+import { consoleErrorCode, readConsoleRejection } from "../ui/messages";
 import { consoleLoginTarget, consoleReturnTarget } from "../return-target";
 function writable(target: EventTarget | null): HTMLFormElement | null {
   if (!(target instanceof HTMLFormElement) || target.method !== "post" || target.matches("[data-local-config-sync]")) return null;
@@ -89,7 +89,7 @@ export function initializeMutations(navigation: TaskController): () => void {
         const value: unknown = await response.json(); if (disposed) return; const message = readConsoleRejection(value);
         if (message) {
           recordConsoleOutcome("rejected");
-          const code = value && typeof value === "object" && "error" in value && value.error && typeof value.error === "object" && "code" in value.error ? value.error.code : null;
+          const code = consoleErrorCode(value);
           if ([401, 403].includes(response.status) && ["admin_auth_required", "admin_required", "console_identity_changed"].includes(String(code))) {
             document.dispatchEvent(new CustomEvent("console:actor-changed", { detail: { outcome: "rejected", changed: false, reason: "authority" } }));
             return;

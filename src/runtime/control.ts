@@ -1,7 +1,9 @@
 import {credentialActor} from "../auth/credential-defaults";
 import type {OperatorMutationContext} from "../admin/operator-mutations";
 import {HttpError,jsonResponse} from "../errors";
-import {changeRuntimeInstallation,configureRuntimeInstallation,readRuntimeAccess,readRuntimeInstallation,readRuntimeOperation,setRuntimeAccess} from "./installations";
+import {copyBytes} from "../proxy/byte-stream";
+import {headerMediaType,isRecord} from "../records";
+import {changeRuntimeInstallation,configureRuntimeInstallation,invalidRuntimeOperation,readRuntimeAccess,readRuntimeInstallation,readRuntimeOperation,setRuntimeAccess} from "./installations";
 import {runtimeInstallations} from "./profiles";
 
 const PREFIX="/admin/runtime-installations";
@@ -32,8 +34,8 @@ export async function runtimeControlResponse(request:Request,env:Env,url:URL,ope
     const body=await readBody(request);
     if(subject) {
       keys(body,["state","expectedRevision","expiresAt"]);
-      if(body.state!=="granted"&&body.state!=="revoked")throw invalid();
-      if(body.expiresAt!==null&&typeof body.expiresAt!=="string")throw invalid();
+      if(body.state!=="granted"&&body.state!=="revoked")throw invalidRuntimeOperation();
+      if(body.expiresAt!==null&&typeof body.expiresAt!=="string")throw invalidRuntimeOperation();
       return respond(await setRuntimeAccess(env,actor,id!,decodeURIComponent(subject),{state:body.state,expectedRevision:body.expectedRevision as number,expiresAt:body.expiresAt},operator.now));
     }
     if(body.action==="configure") {
@@ -51,7 +53,7 @@ export async function runtimeControlResponse(request:Request,env:Env,url:URL,ope
       return respond(await changeRuntimeInstallation(env,actor,id!,{...common,action:"rename",label:body.label as string},operator.now));
     }
     keys(body,allowed);
-    if(body.action!=="enable"&&body.action!=="disable"&&body.action!=="retire"&&body.action!=="recover")throw invalid();
+    if(body.action!=="enable"&&body.action!=="disable"&&body.action!=="retire"&&body.action!=="recover")throw invalidRuntimeOperation();
     return respond(await changeRuntimeInstallation(env,actor,id!,{...common,action:body.action},operator.now));
   } catch(error) {
     if(error instanceof HttpError)throw error;
@@ -60,18 +62,17 @@ export async function runtimeControlResponse(request:Request,env:Env,url:URL,ope
   }
 }
 
-function invalid(){return new HttpError(400,"Invalid Runtime operation.","invalid_request_error","runtime_invalid_operation");}
 function method(){return new HttpError(405,"Method not allowed.","invalid_request_error","method_not_allowed");}
-function keys(body:Record<string,unknown>,allowed:string[]) {if(Object.keys(body).some(key=>!allowed.includes(key)))throw invalid();}
+function keys(body:Record<string,unknown>,allowed:string[]) {if(Object.keys(body).some(key=>!allowed.includes(key)))throw invalidRuntimeOperation();}
 async function readBody(request:Request):Promise<Record<string,unknown>> {
-  if(request.headers.get("Content-Type")?.split(";",1)[0]?.trim()!=="application/json")throw invalid();
-  const reader=request.body?.getReader();if(!reader)throw invalid();
+  if(headerMediaType(request.headers.get("Content-Type"))!=="application/json")throw invalidRuntimeOperation();
+  const reader=request.body?.getReader();if(!reader)throw invalidRuntimeOperation();
   const chunks:Uint8Array[]=[];let size=0;
   try {
-    for(;;){const chunk=await reader.read();if(chunk.done)break;size+=chunk.value.byteLength;if(size>8192){await reader.cancel();throw invalid();}chunks.push(chunk.value);}
-    const bytes=new Uint8Array(size);let offset=0;for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.byteLength;}
+    for(;;){const chunk=await reader.read();if(chunk.done)break;size+=chunk.value.byteLength;if(size>8192){await reader.cancel();throw invalidRuntimeOperation();}chunks.push(chunk.value);}
+    const bytes=copyBytes(chunks,size);
     const parsed:unknown=JSON.parse(new TextDecoder("utf-8",{fatal:true}).decode(bytes));
-    if(!parsed||typeof parsed!=="object"||Array.isArray(parsed))throw invalid();
+    if(!isRecord(parsed))throw invalidRuntimeOperation();
     return parsed as Record<string,unknown>;
-  } catch {throw invalid();} finally {reader.releaseLock();}
+  } catch {throw invalidRuntimeOperation();} finally {reader.releaseLock();}
 }

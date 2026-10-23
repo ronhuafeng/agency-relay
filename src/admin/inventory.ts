@@ -1,14 +1,14 @@
 import type { ApiKeyRow, UserRow } from "../types";
-import type { ApiKeySurfaceCredentialRow } from "../auth/bindings";
+import { API_KEY_SURFACE_CREDENTIAL_COLUMNS, type ApiKeySurfaceCredentialRow } from "../auth/bindings";
+import { DASHBOARD_PAGE_SIZE } from "./dashboard-page";
 import { DASHBOARD_PEOPLE_PAGE_SIZE, DASHBOARD_PEOPLE_PAGE_SIZES } from "./ui/href";
-
-export const DASHBOARD_PAGE_SIZE = 40;
 export type DashboardKey = Pick<ApiKeyRow, "id" | "user_id" | "key_prefix" | "status" | "scopes" | "expires_at" | "last_used_at" | "created_at"> & { readonly name?: string | null };
 export type DashboardAccessKey = Pick<ApiKeyRow, "user_id" | "scopes" | "expires_at">;
 export interface DashboardPage<T> { rows: T[]; page: number; hasNext: boolean }
 export type DashboardAccountKey = DashboardKey & { user_status: string | null; user_email: string | null; bound_grants: string[] };
 
 const slots = (ids: readonly string[]) => ids.length ? ids.map(() => "?").join(",") : "NULL";
+const USER_ROW_COLUMNS = "id, email, canonical_email, role, status, login_capable, account_kind, display_name, created_at, updated_at";
 const pageResult = <T>(rows: T[], page: number): DashboardPage<T> => ({ rows: rows.slice(0, DASHBOARD_PAGE_SIZE), page, hasNext: rows.length > DASHBOARD_PAGE_SIZE });
 
 export async function dashboardInventoryCounts(env: Env): Promise<{ userCount: number; keyCount: number }> {
@@ -26,7 +26,7 @@ export async function dashboardPeoplePage(env: Env, search: string, page: number
     : kind === "legacy_unresolved" ? "account_kind = 'legacy_unresolved'" : null;
   if (!filter || !DASHBOARD_PEOPLE_PAGE_SIZES.some(size => size === pageSize)) throw new Error("Invalid people inventory query");
   const result = await env.DB.prepare(
-    `SELECT id, email, canonical_email, role, status, login_capable, account_kind, display_name, created_at, updated_at FROM users
+    `SELECT ${USER_ROW_COLUMNS} FROM users
      WHERE ${filter} AND (instr(lower(id), lower(?)) > 0 OR instr(lower(COALESCE(email, '')), lower(?)) > 0 OR instr(lower(COALESCE(display_name, '')), lower(?)) > 0)
      ORDER BY created_at DESC, id ASC LIMIT ? OFFSET ?`
   ).bind(search, search, search, pageSize + 1, (page - 1) * pageSize).all<UserRow>();
@@ -71,14 +71,14 @@ export async function dashboardAccessKeys(env: Env, userIds: readonly string[]):
 
 export async function dashboardKeyOwners(env: Env, userIds: readonly string[]): Promise<UserRow[]> {
   const result = await env.DB.prepare(
-    `SELECT id, email, canonical_email, role, status, login_capable, account_kind, display_name, created_at, updated_at FROM users WHERE id IN (${slots(userIds)})`
+    `SELECT ${USER_ROW_COLUMNS} FROM users WHERE id IN (${slots(userIds)})`
   ).bind(...userIds).all<UserRow>();
   return result.results;
 }
 
 export async function dashboardKeyBindings(env: Env, keyIds: readonly string[]): Promise<ApiKeySurfaceCredentialRow[]> {
   const result = await env.DB.prepare(
-    `SELECT api_key_id, surface_grant, codex_auth_id, subscription_account_id, created_at, updated_at
+    `SELECT ${API_KEY_SURFACE_CREDENTIAL_COLUMNS}
      FROM api_key_surface_credentials WHERE api_key_id IN (${slots(keyIds)}) ORDER BY api_key_id, surface_grant`
   ).bind(...keyIds).all<ApiKeySurfaceCredentialRow>();
   return result.results;

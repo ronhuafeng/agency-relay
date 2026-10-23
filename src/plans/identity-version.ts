@@ -1,4 +1,5 @@
-import { HttpError } from "../errors";
+import { errorMessage, HttpError } from "../errors";
+import { cancelUnreadBody } from "../proxy/byte-stream";
 import type { UpstreamClientIdentity } from "./execution-plans";
 import type { AppDependencies } from "../types";
 import {
@@ -74,7 +75,7 @@ async function adoptChannel(
     console.error(JSON.stringify({
       event: "identity_version_channel_failed",
       identity,
-      error: error instanceof Error ? error.message : "unknown"
+      error: errorMessage(error)
     }));
     return "kept";
   }
@@ -95,7 +96,7 @@ async function readCodexStableVersion(fetchImpl: AppDependencies["fetch"]): Prom
     }
   });
   if (!response.ok) {
-    await response.body?.cancel().catch(() => undefined);
+    await cancelUnreadBody(response);
     return null;
   }
   const release = await response.json() as {
@@ -112,7 +113,7 @@ async function readCodexStableVersion(fetchImpl: AppDependencies["fetch"]): Prom
 async function readGrokStableVersion(fetchImpl: AppDependencies["fetch"]): Promise<string | null> {
   const response = await fetchImpl(GROK_STABLE_CHANNEL_URL);
   if (!response.ok) {
-    await response.body?.cancel().catch(() => undefined);
+    await cancelUnreadBody(response);
     return null;
   }
   const version = (await response.text()).trim();

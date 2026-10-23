@@ -6,9 +6,8 @@ import { Table,TableHeader,TableBody,TableRow,TableHead,TableCell } from "../com
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "../components/tabs";
 import { useEnhanced } from "../use-enhanced";
-import { RoutesIsland } from "../islands";
 import { initializeVisibleRowFilters } from "../../client/filters";
-import { profileForSurfaceGrant } from "../../../plans/execution-plans";
+import { isChatgptProductionSlot, profileForSurfaceGrant } from "../../../plans/execution-plans";
 
 export interface RouteRow {
   readonly id: string;
@@ -38,7 +37,7 @@ function grantLabel(grant: string): string {
 }
 
 function slotLabel(slot: string): string {
-  if (slot === "chatgpt_production") return "ChatGPT";
+  if (isChatgptProductionSlot(slot)) return "ChatGPT";
   if (slot === "grok_production") return "Grok";
   return "未记录账号";
 }
@@ -78,7 +77,6 @@ function RouteList({ hostname, routes, hostIndex, tabbed = false }: { readonly h
 export function readRoutes(value: unknown): readonly RouteRow[] | null {
   return Array.isArray(value) && value.every(row => row && ["id", "hostname", "method", "path", "grant", "slot"].every(field => typeof row[field] === "string") && ["last_success_at", "last_failure_at"].every(field => row[field] === null || typeof row[field] === "string")) ? value : null;
 }
-export function RoutesPage({routes}: {readonly routes: readonly RouteRow[]}) { return <RoutesIsland routes={routes}/>; }
 export function RoutesView({ routes }: { readonly routes: readonly RouteRow[] }) {
   const enhanced = useEnhanced();
   const [selected, setSelected] = useState(""); const root = useRef<HTMLElement | null>(null);

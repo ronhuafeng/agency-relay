@@ -11,7 +11,6 @@ import { TEST_IDENTITY_VERSION } from "../support/identity-version";
 const credentials: ProxyUpstreamCredentials = {
   baseUrl: "https://cli-chat-proxy.grok.com",
   accessToken: "provider-grok-secret",
-  authStyle: "bearer",
   upstreamClientIdentity: "none",
   fallbackIdentityVersion: null
 };

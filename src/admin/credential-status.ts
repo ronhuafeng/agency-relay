@@ -1,6 +1,6 @@
 import { HttpError, jsonResponse } from "../errors";
 import { consoleCookieToken } from "../auth/console-session";
-import { hmacSha256Hex } from "../crypto";
+import { bytesToHex, hmacSha256Hex } from "../crypto";
 import { credentialEvents } from "./credential-notifications";
 import { operatorHintForState, projectStoredState, humanStatusLabel, statusToneForState } from "./auth-management";
 
@@ -16,7 +16,7 @@ export async function credentialStatusResponse(env: Env, actorId: string, now: D
     return { key: row.key, state, admissionState: row.admission_state, statusLabel: humanStatusLabel(state), tone: statusToneForState(state), hint: operatorHintForState(state), expiresAt: row.expires_at, lastRefreshAt: row.last_refresh_at };
   });
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify(accounts)));
-  const revision = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, "0")).join("");
+  const revision = bytesToHex(new Uint8Array(digest));
   return jsonResponse({ actorId, accounts, revision }, { headers: { "Cache-Control": "no-store" } });
 }
 

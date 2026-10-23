@@ -1,5 +1,6 @@
-import { addSecondsIso, base64UrlEncode, generateId, nowIso } from "../crypto";
+import { addSecondsIso, base64UrlEncode, generateId, nowIso, pkceChallengeS256 } from "../crypto";
 import { HttpError } from "../errors";
+import { deleteOAuthPendingSession, insertOAuthPendingSession, requireOAuthPendingSession } from "../db";
 import type { SubscriptionCredential, SubscriptionCredentialMaterial } from "../auth/subscription-accounts";
 import type { AppDependencies } from "../types";
 
@@ -84,12 +85,16 @@ export async function beginGrokOAuth(
   const verifierStored = clientId === GROK_OAUTH_DEFAULT_CLIENT_ID
     ? codeVerifier
     : `cid:${clientId}|${codeVerifier}`;
-  await env.DB.prepare(
-    `INSERT INTO oauth_pending_sessions
-       (id, provider, state, code_verifier, redirect_uri,
-        credential_account_id, created_at, expires_at)
-     VALUES (?, 'grok', ?, ?, ?, ?, ?, ?)`
-  ).bind(id, state, verifierStored, redirectUri, options.credential_account_id, nowIso(now), expires_at).run();
+  await insertOAuthPendingSession(env, {
+    id,
+    provider: "grok",
+    state,
+    codeVerifier: verifierStored,
+    redirectUri,
+    credentialAccountId: options.credential_account_id,
+    createdAt: nowIso(now),
+    expiresAt: expires_at
+  });
   return {
     id,
     state,
@@ -113,39 +118,7 @@ export async function completeGrokOAuth(
   credentialAccountId: string,
   now = new Date()
 ): Promise<SubscriptionCredentialMaterial & { oidc_issuer: string; oidc_client_id: string }> {
-  const fromCallback = parseOAuthCallback(input.callback_url);
-  const code = (input.code ?? fromCallback.code)?.trim();
-  const state = (input.state ?? fromCallback.state)?.trim();
-  if (!code || !state) {
-    throw new HttpError(400, "OAuth code and state are required (or pass callback_url)", "invalid_request_error", "missing_oauth_code");
-  }
-
-  const pending = await env.DB.prepare(
-    `SELECT id, state, code_verifier, redirect_uri, credential_account_id, expires_at
-     FROM oauth_pending_sessions WHERE provider = 'grok' AND state = ? LIMIT 1`
-  ).bind(state).first<{
-    id: string;
-    state: string;
-    code_verifier: string;
-    redirect_uri: string;
-    credential_account_id: string | null;
-    expires_at: string;
-  }>();
-
-  if (!pending) {
-    throw new HttpError(400, "OAuth session not found or expired", "invalid_request_error", "oauth_session_not_found");
-  }
-  if (Date.parse(pending.expires_at) <= now.getTime()) {
-    await env.DB.prepare("DELETE FROM oauth_pending_sessions WHERE id = ?").bind(pending.id).run();
-    throw new HttpError(400, "OAuth session expired; start again", "invalid_request_error", "oauth_session_expired");
-  }
-  if (input.session_id && input.session_id !== pending.id) {
-    throw new HttpError(400, "OAuth session_id does not match state", "invalid_request_error", "oauth_session_mismatch");
-  }
-  if (pending.credential_account_id !== credentialAccountId) {
-    throw new HttpError(400, "OAuth session belongs to another Credential Account", "invalid_request_error", "oauth_account_mismatch");
-  }
-
+  const pending = await requireOAuthPendingSession(env, "grok", input, credentialAccountId, now);
   let clientId = GROK_OAUTH_DEFAULT_CLIENT_ID;
   let codeVerifier = pending.code_verifier;
   if (codeVerifier.startsWith("cid:")) {
@@ -159,7 +132,7 @@ export async function completeGrokOAuth(
   const body = new URLSearchParams({
     grant_type: "authorization_code",
     client_id: clientId,
-    code,
+    code: pending.code,
     redirect_uri: pending.redirect_uri,
     code_verifier: codeVerifier
   });
@@ -178,7 +151,7 @@ export async function completeGrokOAuth(
     throw new HttpError(502, "Grok OAuth code exchange failed", "upstream_error", "grok_oauth_exchange_failed");
   }
   const raw = await response.text();
-  await env.DB.prepare("DELETE FROM oauth_pending_sessions WHERE id = ?").bind(pending.id).run();
+  await deleteOAuthPendingSession(env, pending.id);
   let parsed: OidcTokenResponse;
   try {
     parsed = JSON.parse(raw) as OidcTokenResponse;
@@ -333,30 +306,3 @@ function transientRefreshFailure(): HttpError {
   );
 }
 
-async function pkceChallengeS256(verifier: string): Promise<string> {
-  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier));
-  return base64UrlEncode(new Uint8Array(digest));
-}
-
-function parseOAuthCallback(callbackUrl?: string | null): { code?: string; state?: string } {
-  if (!callbackUrl?.trim()) {
-    return {};
-  }
-  try {
-    const url = new URL(callbackUrl.trim());
-    return {
-      code: url.searchParams.get("code") ?? undefined,
-      state: url.searchParams.get("state") ?? undefined
-    };
-  } catch {
-    try {
-      const params = new URLSearchParams(callbackUrl.includes("?") ? callbackUrl.split("?")[1] : callbackUrl);
-      return {
-        code: params.get("code") ?? undefined,
-        state: params.get("state") ?? undefined
-      };
-    } catch {
-      return {};
-    }
-  }
-}

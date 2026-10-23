@@ -1,6 +1,6 @@
 import {plansForHostname} from "../plans/execution-plans";
 import {runtimeInstallations,RUNTIME_SCOPE} from "./profiles";
-import {base64UrlEncode,hmacSha256Hex} from "../crypto";
+import {base64UrlEncode,runtimeOAuthMaterialHash} from "../crypto";
 import {runtimeBrowserSessionHash as browserSessionHash} from "./member";
 import {assertConsoleBrowserWrite} from "../admin/browser-write";
 import {consoleDocument} from "../admin/console-shell";
@@ -8,6 +8,9 @@ import {RuntimeConsent,RuntimeConsentFailure} from "../admin/ui/pages/runtime-co
 import {createElement} from "react";
 import type {RuntimeAdmission} from "./oauth";
 import {HttpError} from "../errors";
+import {httpOnlyLaxCookie} from "../auth/console-session";
+import {copyBytes} from "../proxy/byte-stream";
+import {headerMediaType,isRecord} from "../records";
 
 const BINDING_COOKIE="__Host-runtime-transaction";
 const CONSENT_PATH=/^\/runtime\/consent\/[a-f0-9-]{36}$/;
@@ -40,9 +43,9 @@ export async function runtimeAuthorizationResponse(request:Request,env:Env):Prom
     if(url.pathname==="/runtime/register"&&request.method==="POST"&&!url.search) {
       if(!env.RUNTIME_OAUTH)return protocolResponse({error:"temporarily_unavailable"},503);
       if(!await env.RUNTIME_OAUTH.getByName("organization").protocolAttempt("registration"))return protocolResponse({error:"invalid_request"},429);
-      if(request.headers.get("Content-Type")?.split(";",1)[0]?.trim()!=="application/json")return protocolResponse({error:"invalid_request"},400);
+      if(headerMediaType(request.headers.get("Content-Type"))!=="application/json")return protocolResponse({error:"invalid_request"},400);
       const input:unknown=JSON.parse(await readOAuthBody(request));
-      if(!input||typeof input!=="object"||Array.isArray(input))return protocolResponse({error:"invalid_request"},400);
+      if(!isRecord(input))return protocolResponse({error:"invalid_request"},400);
       const reply=await env.RUNTIME_OAUTH.getByName("organization").register(input as Record<string,unknown>);
       return protocolResponse(reply.body,reply.status);
     }
@@ -51,7 +54,7 @@ export async function runtimeAuthorizationResponse(request:Request,env:Env):Prom
       const binding=base64UrlEncode(crypto.getRandomValues(new Uint8Array(32)));
       const reply=await env.RUNTIME_OAUTH.getByName("organization").begin(query,await oauthHash(env,binding),await browserSessionHash(env,request));
       if(!reply.location)return protocolResponse(reply.body,reply.status);
-      return new Response(null,{status:303,headers:{Location:reply.location,"Set-Cookie":`${BINDING_COOKIE}=${binding}; HttpOnly; Secure; Path=/; SameSite=Lax; Max-Age=600`,"Cache-Control":"no-store","Referrer-Policy":"no-referrer"}});
+      return new Response(null,{status:303,headers:{Location:reply.location,"Set-Cookie":httpOnlyLaxCookie(BINDING_COOKIE, binding, 600),"Cache-Control":"no-store","Referrer-Policy":"no-referrer"}});
     }
     if(CONSENT_PATH.test(url.pathname)&&!url.search&&(request.method==="GET"||request.method==="POST")) {
       if(request.method==="POST")assertConsoleBrowserWrite(request,env,url);
@@ -59,7 +62,7 @@ export async function runtimeAuthorizationResponse(request:Request,env:Env):Prom
       if(!binding)return consentFailure(403);
       let decision:"allow"|"deny"|undefined;
       if(request.method==="POST") {
-        if(request.headers.get("Content-Type")?.split(";",1)[0]?.trim()!=="application/x-www-form-urlencoded")return protocolResponse({error:"invalid_request"},400);
+        if(headerMediaType(request.headers.get("Content-Type"))!=="application/x-www-form-urlencoded")return protocolResponse({error:"invalid_request"},400);
         const form=uniqueFields(new URLSearchParams(await readOAuthBody(request)),["decision"]);
         if(form.decision!=="allow"&&form.decision!=="deny")return protocolResponse({error:"invalid_request"},400);
         decision=form.decision;
@@ -154,7 +157,7 @@ async function readOAuthBody(request:Request):Promise<string> {
       const chunk=await Promise.race([reader.read(),timeout]);
       if(chunk.done)break;size+=chunk.value.byteLength;if(size>8192)throw new OAuthInputError();chunks.push(chunk.value);
     }
-    const bytes=new Uint8Array(size);let offset=0;for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.byteLength;}
+    const bytes=copyBytes(chunks,size);
     return new TextDecoder("utf-8",{fatal:true}).decode(bytes);
   } catch {await reader.cancel();throw new OAuthInputError();} finally {if(timer!==undefined)clearTimeout(timer);reader.releaseLock();}
 }
@@ -171,4 +174,4 @@ function cookie(request:Request,name:string):string|null {
   const values=(request.headers.get("Cookie")??"").split(";").map(part=>part.trim()).filter(part=>part.startsWith(`${name}=`));
   return values.length===1?values[0]!.slice(name.length+1):null;
 }
-function oauthHash(env:Env,value:string):Promise<string> {return hmacSha256Hex(env.API_KEY_HASH_PEPPER,`runtime-oauth\0${value}`);}
+function oauthHash(env:Env,value:string):Promise<string> {return runtimeOAuthMaterialHash(env.API_KEY_HASH_PEPPER,value);}

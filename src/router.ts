@@ -3,8 +3,8 @@
  * K3: admin / execute-codex / execute-grok live in separate modules (no plugin registry).
  */
 import { authenticateEndUser } from "./auth/authenticate";
-import { cleanupRequestAudit, cleanupVideoJobs } from "./db";
-import { HttpError, jsonResponse } from "./errors";
+import { cleanupRequestAudit, cleanupVideoJobs, requestAuditRetentionDays } from "./db";
+import { errorMessage, HttpError, jsonResponse, routeNotFound } from "./errors";
 import { adoptIdentityVersions, IDENTITY_VERSION_CRON } from "./plans/identity-version";
 import { executeCodexPlan } from "./codex/execute";
 import { executeGrokPlan } from "./grok/execute";
@@ -12,6 +12,7 @@ import { codexIngressRequest } from "./plans/codex-ingress";
 import {
   CODEX_API_HOSTNAME,
   matchExecutionPlan,
+  pathnameMatches,
   plansForHostname,
   type ExecutionPlan
 } from "./plans/execution-plans";
@@ -61,7 +62,7 @@ export async function handleRequest(
     // Current invariant: host → auth → exact plan match; unknown hosts fail before auth.
     const hostPlans = plansForHostname(url.hostname);
     if (!hostPlans) {
-      throw new HttpError(404, "Route not found", "invalid_request_error", "not_found");
+      throw routeNotFound();
     }
     surfaceProbe = hostPlans[0]!;
     const auth = await authenticateEndUser(request, env, ctx, {
@@ -71,21 +72,14 @@ export async function handleRequest(
 
     const matched = matchExecutionPlan(request, hostPlans);
     if (!matched) {
-      const pathKnown = hostPlans.some((p) => {
-        const path = typeof p.pathname === "string" ? p.pathname : null;
-        return path === url.pathname || (p.pathname instanceof RegExp && p.pathname.test(url.pathname));
-      });
+      const pathKnown = hostPlans.some((plan) => pathnameMatches(plan.pathname, url.pathname));
       return await routeProfilePolicyRejection(
         request,
         auth,
-        { id: surfaceProbe.id, protocol: surfaceProbe.protocol },
+        { id: surfaceProbe.id },
         pathKnown ? "method_not_allowed" : "path_not_allowed",
         pathKnown ? 405 : 404,
-        pathKnown ? [...new Set(hostPlans.filter((p) => {
-          return typeof p.pathname === "string"
-            ? p.pathname === url.pathname
-            : p.pathname.test(url.pathname);
-        }).map((p) => p.method))].join(", ") : undefined
+        pathKnown ? [...new Set(hostPlans.filter((plan) => pathnameMatches(plan.pathname, url.pathname)).map((plan) => plan.method))].join(", ") : undefined
       );
     }
     plan = matched;
@@ -95,7 +89,7 @@ export async function handleRequest(
       return await routeProfilePolicyRejection(
         request,
         auth,
-        { id: plan.id, protocol: plan.protocol },
+        { id: plan.id },
         "query_credential_not_allowed",
         400
       );
@@ -117,8 +111,7 @@ export async function handleRequest(
 
     return await executeGrokPlan(request, env, ctx, deps, requestContext, auth, plan);
   } catch (error) {
-    const protoSource = plan ?? surfaceProbe;
-    return renderPlanError(protoSource?.protocol ?? "openai/codex", error, requestContext.requestId);
+    return renderPlanError(error, requestContext.requestId);
   }
 }
 
@@ -142,7 +135,7 @@ export function handleScheduled(
         console.error(JSON.stringify({
           trigger: "scheduled_identity_version_failed",
           cron: controller.cron,
-          error: error instanceof Error ? error.message : "unknown"
+          error: errorMessage(error)
         }));
       });
     ctx.waitUntil(adoption);
@@ -164,7 +157,7 @@ export function handleScheduled(
       console.error(JSON.stringify({
         trigger: "scheduled_retention_cleanup_failed",
         cron: controller.cron,
-        error: error instanceof Error ? error.message : "unknown"
+        error: errorMessage(error)
       }));
     });
   ctx.waitUntil(cleanup);
@@ -188,7 +181,7 @@ async function runRetentionCleanup(
   retention_days: number;
   cutoff: string;
 }> {
-  const retentionDays = configuredRetentionDays(env);
+  const retentionDays = requestAuditRetentionDays(env.REQUEST_AUDIT_RETENTION_DAYS);
   const cutoff = new Date(deps.now().getTime() - retentionDays * 24 * 60 * 60 * 1000).toISOString();
   const [requestAuditDeleted, videoJobsDeleted] = await Promise.all([
     cleanupRequestAudit(env, cutoff),
@@ -202,14 +195,3 @@ async function runRetentionCleanup(
   };
 }
 
-function configuredRetentionDays(env: Env): number {
-  const raw = env.REQUEST_AUDIT_RETENTION_DAYS;
-  if (!/^[1-9]\d*$/.test(raw)) {
-    throw new HttpError(500, "REQUEST_AUDIT_RETENTION_DAYS must be an integer from 1 to 3650", "server_error", "invalid_request_audit_retention_days");
-  }
-  const parsed = Number(raw);
-  if (parsed > 3650) {
-    throw new HttpError(500, "REQUEST_AUDIT_RETENTION_DAYS must be an integer from 1 to 3650", "server_error", "invalid_request_audit_retention_days");
-  }
-  return parsed;
-}

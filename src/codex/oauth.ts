@@ -1,5 +1,6 @@
-import { addSecondsIso, base64UrlDecode, base64UrlEncode, generateId, nowIso } from "../crypto";
+import { addSecondsIso, base64UrlDecode, bytesToHex, generateId, nowIso, pkceChallengeS256 } from "../crypto";
 import { HttpError } from "../errors";
+import { deleteOAuthPendingSession, insertOAuthPendingSession, requireOAuthPendingSession } from "../db";
 import type { AppDependencies, CodexToken } from "../types";
 
 /** OpenAI / Codex CLI OAuth (aligned with CRS / sub2api). */
@@ -62,12 +63,16 @@ export async function beginCodexOAuth(
   const authorize_url = `${CODEX_OAUTH_AUTHORIZE_URL}?${params.toString()}`;
   const id = generateId("oauth");
   const expires_at = new Date(now.getTime() + CODEX_OAUTH_PENDING_TTL_MS).toISOString();
-  await env.DB.prepare(
-    `INSERT INTO oauth_pending_sessions
-       (id, provider, state, code_verifier, redirect_uri,
-        credential_account_id, created_at, expires_at)
-     VALUES (?, 'codex', ?, ?, ?, ?, ?, ?)`
-  ).bind(id, state, codeVerifier, redirectUri, options.credential_account_id, nowIso(now), expires_at).run();
+  await insertOAuthPendingSession(env, {
+    id,
+    provider: "codex",
+    state,
+    codeVerifier,
+    redirectUri,
+    credentialAccountId: options.credential_account_id,
+    createdAt: nowIso(now),
+    expiresAt: expires_at
+  });
   return { id, state, code_verifier: codeVerifier, redirect_uri: redirectUri, authorize_url, expires_at };
 }
 
@@ -83,60 +88,21 @@ export async function completeCodexOAuth(
   authId: string,
   now = new Date()
 ): Promise<CodexToken> {
-  const fromCallback = parseOAuthCallback(input.callback_url);
-  const code = (input.code ?? fromCallback.code)?.trim();
-  const state = (input.state ?? fromCallback.state)?.trim();
-  if (!code || !state) {
-    throw new HttpError(400, "OAuth code and state are required (or pass callback_url)", "invalid_request_error", "missing_oauth_code");
-  }
-
-  const pending = await env.DB.prepare(
-    `SELECT id, state, code_verifier, redirect_uri, credential_account_id, expires_at
-     FROM oauth_pending_sessions WHERE provider = 'codex' AND state = ? LIMIT 1`
-  ).bind(state).first<{
-    id: string;
-    state: string;
-    code_verifier: string;
-    redirect_uri: string;
-    credential_account_id: string | null;
-    expires_at: string;
-  }>();
-
-  if (!pending) {
-    throw new HttpError(400, "OAuth session not found or expired", "invalid_request_error", "oauth_session_not_found");
-  }
-  if (Date.parse(pending.expires_at) <= now.getTime()) {
-    await env.DB.prepare("DELETE FROM oauth_pending_sessions WHERE id = ?").bind(pending.id).run();
-    throw new HttpError(400, "OAuth session expired; start again", "invalid_request_error", "oauth_session_expired");
-  }
-  if (input.session_id && input.session_id !== pending.id) {
-    throw new HttpError(400, "OAuth session_id does not match state", "invalid_request_error", "oauth_session_mismatch");
-  }
-  if (pending.credential_account_id !== authId) {
-    throw new HttpError(400, "OAuth session belongs to another Credential Account", "invalid_request_error", "oauth_account_mismatch");
-  }
-
+  const pending = await requireOAuthPendingSession(env, "codex", input, authId, now);
   const body = new URLSearchParams({
     grant_type: "authorization_code",
     client_id: env.CODEX_CLIENT_ID,
-    code,
+    code: pending.code,
     redirect_uri: pending.redirect_uri,
     code_verifier: pending.code_verifier
   });
-  const response = await deps.fetch(env.CODEX_OAUTH_TOKEN_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-      Accept: "application/json"
-    },
-    body
-  });
-  const raw = await response.text();
-  await env.DB.prepare("DELETE FROM oauth_pending_sessions WHERE id = ?").bind(pending.id).run();
-  if (!response.ok) {
+  const exchanged = await postCodexOAuthToken(env, deps, body);
+  const raw = exchanged.raw;
+  await deleteOAuthPendingSession(env, pending.id);
+  if (!exchanged.ok) {
     throw new HttpError(
       502,
-      `Codex OAuth code exchange failed with status ${response.status}: ${trimForError(raw)}`,
+      `Codex OAuth code exchange failed with status ${exchanged.status}: ${trimForError(raw)}`,
       "upstream_error",
       "codex_oauth_exchange_failed"
     );
@@ -166,19 +132,11 @@ export async function refreshCodexToken(
     scope: "openid profile email"
   });
 
-  const response = await deps.fetch(env.CODEX_OAUTH_TOKEN_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-      Accept: "application/json"
-    },
-    body
-  });
-
-  const raw = await response.text();
-  if (!response.ok) {
+  const exchanged = await postCodexOAuthToken(env, deps, body);
+  const raw = exchanged.raw;
+  if (!exchanged.ok) {
     const code = refreshErrorCode(raw);
-    if (response.status === 401 || (code !== undefined && PERMANENT_REFRESH_ERRORS.includes(code))) {
+    if (exchanged.status === 401 || (code !== undefined && PERMANENT_REFRESH_ERRORS.includes(code))) {
       throw new HttpError(401, "ChatGPT Credential Account requires administrator reauthorization", "authentication_error", "reauth_required");
     }
     throw new HttpError(502, "Codex token refresh failed", "upstream_error", "codex_token_refresh_failed");
@@ -206,6 +164,18 @@ export function codexTokenFromOAuthResponse(authId: string, parsed: OAuthTokenRe
     status: "active",
     last_refresh_at: nowIso(now)
   };
+}
+
+async function postCodexOAuthToken(env: Env, deps: AppDependencies, body: URLSearchParams): Promise<{ ok: boolean; status: number; raw: string }> {
+  const response = await deps.fetch(env.CODEX_OAUTH_TOKEN_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      Accept: "application/json"
+    },
+    body
+  });
+  return { ok: response.ok, status: response.status, raw: await response.text() };
 }
 
 function parseJwtClaims(idToken?: string): { email?: string; account_id?: string } {
@@ -271,35 +241,4 @@ function trimForError(raw: string): string {
   return trimmed.length > 500 ? `${trimmed.slice(0, 500)}...` : trimmed;
 }
 
-async function pkceChallengeS256(verifier: string): Promise<string> {
-  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier));
-  return base64UrlEncode(new Uint8Array(digest));
-}
 
-function bytesToHex(bytes: Uint8Array): string {
-  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
-}
-
-function parseOAuthCallback(callbackUrl?: string | null): { code?: string; state?: string } {
-  if (!callbackUrl?.trim()) {
-    return {};
-  }
-  try {
-    const url = new URL(callbackUrl.trim());
-    return {
-      code: url.searchParams.get("code") ?? undefined,
-      state: url.searchParams.get("state") ?? undefined
-    };
-  } catch {
-    // Also accept raw query strings
-    try {
-      const params = new URLSearchParams(callbackUrl.includes("?") ? callbackUrl.split("?")[1] : callbackUrl);
-      return {
-        code: params.get("code") ?? undefined,
-        state: params.get("state") ?? undefined
-      };
-    } catch {
-      return {};
-    }
-  }
-}

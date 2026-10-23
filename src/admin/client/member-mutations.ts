@@ -2,7 +2,7 @@ import { retainConsoleActor, endConsoleRuntime, recordConsoleOutcome, hasUnknown
 import { memberHref as personalHref } from "../member-href";
 import { consoleLoginTarget } from "../return-target";
 import { buttonVariants } from "../ui/components/button";
-import { readConsoleRejection } from "../ui/messages";
+import { consoleErrorCode, readConsoleRejection } from "../ui/messages";
 
 type Control = HTMLInputElement | HTMLButtonElement | HTMLSelectElement;
 function isControl(value: Element): value is Control {
@@ -125,7 +125,7 @@ export function initializeMemberMutations(): () => void {
           const message = readConsoleRejection(value);
           if (message) {
             recordConsoleOutcome("rejected");
-            const code = value && typeof value === "object" && "error" in value && value.error && typeof value.error === "object" && "code" in value.error ? value.error.code : null;
+            const code = consoleErrorCode(value);
             if (response.status === 404 && code === "service_not_found"
               || response.status === 403 && ["admin_auth_required", "console_identity_changed"].includes(String(code))) {
               document.dispatchEvent(new CustomEvent("console:actor-changed", {detail:{outcome:"rejected",changed:false,reason:"authority"}}));

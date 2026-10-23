@@ -1,4 +1,4 @@
-import type { ServiceContext } from "../auth/service-delegation";
+import { SERVICE_CONTEXT_COLUMNS, type ServiceContext } from "../auth/service-delegation";
 
 export interface ServiceKeyImpact {
   id: string;
@@ -18,7 +18,7 @@ export type AssignedServiceImpact = { known: false } | {
 export async function readAssignedServiceImpact(env: Env, humanId: string): Promise<AssignedServiceImpact> {
   let services: ServiceContext[];
   try {
-    const result = await env.DB.prepare(`SELECT service.id, service.display_name, service.status
+    const result = await env.DB.prepare(`SELECT ${SERVICE_CONTEXT_COLUMNS}
       FROM service_account_owners AS assignment JOIN users AS service ON service.id = assignment.service_user_id
       WHERE assignment.owner_user_id = ? AND service.account_kind = 'service'
       ORDER BY service.display_name, service.id LIMIT 21`).bind(humanId).all<ServiceContext>();

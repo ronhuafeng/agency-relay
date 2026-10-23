@@ -1,14 +1,15 @@
 /** Read-only projection of retained request metadata. Never consult live routing authority. */
 import { executionPlanPresentation, listExecutionPlans, publicExecutionPlanPath } from "../plans/execution-plans";
 import { inventoryUrl } from "./ui/href";
+import { isSafePublicId, isUtcDay } from "./return-target";
+import { nonNegativeIntegerOrNull } from "../records";
 
 export const REQUEST_HISTORY_PAGE_SIZE = 25;
 export const REQUEST_HISTORY_FIELDS = ["record", "audit_from", "audit_to", "audit_plan", "audit_user", "audit_result", "audit_request", "audit_cursor", "audit_direction"] as const;
 const diagnosticUrl = "https://github.com/ronhuafeng/agency-relay/blob/main/docs/operate/debug-transport.md";
 const plans = listExecutionPlans();
 const canonicalPaths = new Set(plans.map(publicExecutionPlanPath));
-const safeId = (value: unknown): string | null => typeof value === "string" && /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/.test(value) && !/^(?:cfwd_|sk-|Bearer)/i.test(value) ? value : null;
-const numberOrNull = (value: unknown): number | null => typeof value === "number" && Number.isSafeInteger(value) && value >= 0 ? value : null;
+const safeId = (value: unknown): string | null => typeof value === "string" && isSafePublicId(value) ? value : null;
 
 export interface RequestHistoryQuery {
   record: string | null;
@@ -33,7 +34,7 @@ export function parseRequestHistoryQuery(url: URL): RequestHistoryQuery {
   }
   const get = (field: string) => url.searchParams.get(field)?.trim() ?? "";
   const from = get("audit_from"), to = get("audit_to"), plan = get("audit_plan"), user = get("audit_user"), result = get("audit_result"), request = get("audit_request"), record = get("record");
-  for (const date of [from, to]) if (date && (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isFinite(Date.parse(date)) || new Date(date).toISOString().slice(0, 10) !== date || date > "9998-12-31")) throw new Error("invalid request history date");
+  for (const date of [from, to]) if (date && !isUtcDay(date)) throw new Error("invalid request history date");
   if (plan && !safeId(plan) || record && !safeId(record) || request && !safeId(request) || user.length > 254 || /[\u0000-\u0020\u007f]/.test(user) || !["", "ok", "error", "unknown"].includes(result)) throw new Error("invalid request history filter");
   const direction = get("audit_direction") || "older";
   if (direction !== "older" && direction !== "newer") throw new Error("invalid request history direction");
@@ -116,7 +117,7 @@ function project(row: StoredRequest, baseUrl: string): RequestHistoryRecord {
     : recognized?.check === "person" && personUrl
       ? { href: personUrl, label: "核对当前人员与服务额度" }
       : { href: diagnosticUrl, label: "查看只读诊断说明" };
-  const upstreamStatus = numberOrNull(row.upstream_status);
+  const upstreamStatus = nonNegativeIntegerOrNull(row.upstream_status);
   return {
     id, href: inventoryUrl(baseUrl, { record: id }, "request-detail"), at: row.created_at, requestId: safeId(row.request_id), plan,
     service: catalog || plan === "codex.historical.responses" ? executionPlanPresentation(plan!).usageLabel : "历史服务（当前目录无标签）",
@@ -126,8 +127,8 @@ function project(row: StoredRequest, baseUrl: string): RequestHistoryRecord {
     credentialId: safeId(row.codex_auth_id) ?? safeId(row.subscription_account_id),
     status: row.status === "ok" || row.status === "error" ? row.status : "unknown",
     upstreamStatus: upstreamStatus !== null && upstreamStatus >= 100 && upstreamStatus <= 599 ? upstreamStatus : null,
-    errorCode: recognized ? row.error_code : null, unrecognizedError: Boolean(row.error_code && !recognized), latencyMs: numberOrNull(row.latency_ms),
-    tokens: numberOrNull(row.total_tokens), inputTokens: numberOrNull(row.input_tokens), cachedTokens: numberOrNull(row.cached_input_tokens), outputTokens: numberOrNull(row.output_tokens), reasoningTokens: numberOrNull(row.reasoning_tokens), costTicks: numberOrNull(row.provider_cost_usd_ticks),
+    errorCode: recognized ? row.error_code : null, unrecognizedError: Boolean(row.error_code && !recognized), latencyMs: nonNegativeIntegerOrNull(row.latency_ms),
+    tokens: nonNegativeIntegerOrNull(row.total_tokens), inputTokens: nonNegativeIntegerOrNull(row.input_tokens), cachedTokens: nonNegativeIntegerOrNull(row.cached_input_tokens), outputTokens: nonNegativeIntegerOrNull(row.output_tokens), reasoningTokens: nonNegativeIntegerOrNull(row.reasoning_tokens), costTicks: nonNegativeIntegerOrNull(row.provider_cost_usd_ticks),
     reason: recognized?.reason ?? (row.error_code ? "错误原因未能安全识别" : row.status === "error" ? "Mini 记录为失败；具体原因未记录" : "没有记录可确认的失败原因"), check
   };
 }

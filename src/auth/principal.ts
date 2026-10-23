@@ -1,6 +1,7 @@
 import { generateId, nowIso } from "../crypto";
+import { d1ChangeCount, OPERATOR_MUTATION_AUDIT_COLUMNS } from "../db";
 import type { UserRow } from "../types";
-import { HttpError } from "../errors";
+import { HttpError, adminAuthRequired, adminRequired, emailConflict, publicInternalError, userInactive, userNotFound } from "../errors";
 
 export interface ConsolePrincipal {
   id: string;
@@ -59,7 +60,7 @@ export async function resolveConsolePrincipal(
 ): Promise<ConsolePrincipal> {
   const canonical = canonicalMailbox(email);
   if (!canonical) {
-    throw new HttpError(403, "Admin authentication required", "authentication_error", "admin_auth_required");
+    throw adminAuthRequired();
   }
   const existing = await findLoginUser(env, canonical);
   if (existing) return activePrincipal(existing);
@@ -74,7 +75,7 @@ export async function resolveConsolePrincipal(
   const created = await findLoginUser(env, canonical);
   if (created) return activePrincipal(created);
   if (await countCanonical(env, canonical) > 0) throw ambiguousIdentity();
-  throw new HttpError(500, "An internal error occurred", "server_error", "internal_error");
+  throw publicInternalError();
 }
 
 /** Human provisioning shares the lifecycle authorization/audit commit boundary. */
@@ -100,17 +101,47 @@ export async function commitHumanUser(env: Env, actor: LifecycleActor, email: un
         const current = await loadUser(env, actor.userId);
         if (!current || current.role !== "admin" || current.status !== "active" || current.login_capable !== 1
           || current.console_session_epoch !== (actor.sessionEpoch ?? 0) || !isOrganizationLoginUser(env, current)) {
-          throw new HttpError(403, "Admin authentication required", "authentication_error", "admin_required");
+          throw adminRequired();
         }
       }
-      throw new HttpError(409, "That email already belongs to another account.", "invalid_request_error", "email_conflict");
+      throw emailConflict();
     }
   } catch (error) {
-    if (isUniqueCanonical(error)) throw new HttpError(409, "That email already belongs to another account.", "invalid_request_error", "email_conflict");
+    if (isUniqueCanonical(error)) throw emailConflict();
     throw error;
   }
   return { id, email: canonical, canonical_email: canonical, role: "user", status: "active", login_capable: 1, account_kind: "human", created_at: at, updated_at: at };
 }
+
+export function userRole(value: string): "admin" | "user" {
+  if (value !== "admin" && value !== "user") {
+    throw new HttpError(400, "Role must be admin or user", "invalid_request_error", "invalid_role");
+  }
+  return value;
+}
+
+export function userStatus(value: string): "active" | "disabled" {
+  if (value !== "active" && value !== "disabled") {
+    throw new HttpError(400, "Status must be active or disabled", "invalid_request_error", "invalid_status");
+  }
+  return value;
+}
+
+const CURRENT_ADMIN_ACTOR_SQL = `(?4 IS NULL OR EXISTS (
+          SELECT 1 FROM users AS actor
+          WHERE actor.id = ?4 AND actor.role = 'admin' AND actor.status = 'active'
+            AND actor.account_kind = 'human' AND actor.login_capable = 1 AND actor.console_session_epoch = ?5
+            AND substr(actor.canonical_email, instr(actor.canonical_email, '@') + 1) = ?9
+        ))`;
+
+const OTHER_ACTIVE_ADMIN_SQL = `EXISTS (
+            SELECT 1 FROM users AS other JOIN json_each(?11) AS candidate
+              ON other.id = json_extract(candidate.value, '$.id')
+              AND other.canonical_email = json_extract(candidate.value, '$.email')
+              AND other.console_session_epoch = json_extract(candidate.value, '$.epoch')
+            WHERE other.id <> users.id AND other.role = 'admin' AND other.status = 'active'
+              AND other.account_kind = 'human' AND other.login_capable = 1
+          )`;
 
 export async function commitUserRole(
   env: Env,
@@ -119,9 +150,7 @@ export async function commitUserRole(
   role: "admin" | "user",
   now = new Date()
 ): Promise<{ id: string; role: "admin" | "user"; previous_role: string }> {
-  if (role !== "admin" && role !== "user") {
-    throw new HttpError(400, "Role must be admin or user", "invalid_request_error", "invalid_role");
-  }
+  userRole(role);
   const existing = await requireTarget(env, userId);
   if (role === "admin" && !isOrganizationLoginUser(env, existing)) throw new HttpError(409, "Only an organization-login-capable human can be an administrator.", "invalid_request_error", "human_identity_required");
   const protectsAdmin = existing.role === "admin" && existing.status === "active" && isOrganizationLoginUser(env, existing);
@@ -132,25 +161,13 @@ export async function commitUserRole(
       SET role = ?1, updated_at = ?2
       WHERE id = ?3 AND role = ?6 AND status = ?7 AND console_session_epoch = ?8
         AND (?1 <> 'admin' OR (account_kind = 'human' AND login_capable = 1))
-        AND (?4 IS NULL OR EXISTS (
-          SELECT 1 FROM users AS actor
-          WHERE actor.id = ?4 AND actor.role = 'admin' AND actor.status = 'active'
-            AND actor.account_kind = 'human' AND actor.login_capable = 1 AND actor.console_session_epoch = ?5
-            AND substr(actor.canonical_email, instr(actor.canonical_email, '@') + 1) = ?9
-        ))
+        AND ${CURRENT_ADMIN_ACTOR_SQL}
         AND (
           ?1 = 'admin'
           OR role <> 'admin'
           OR status <> 'active'
           OR ?10 = 0
-          OR EXISTS (
-            SELECT 1 FROM users AS other JOIN json_each(?11) AS candidate
-              ON other.id = json_extract(candidate.value, '$.id')
-              AND other.canonical_email = json_extract(candidate.value, '$.email')
-              AND other.console_session_epoch = json_extract(candidate.value, '$.epoch')
-            WHERE other.id <> users.id AND other.role = 'admin' AND other.status = 'active'
-              AND other.account_kind = 'human' AND other.login_capable = 1
-          )
+          OR ${OTHER_ACTIVE_ADMIN_SQL}
         )`,
     updateBindings: [role, at, userId, actor.userId, actor.sessionEpoch ?? 0, existing.role, existing.status, existing.console_session_epoch, organizationDomain(env) ?? "", protectsAdmin ? 1 : 0, JSON.stringify(candidates)],
     action: role === "admin" ? "user.promote" : "user.demote",
@@ -169,9 +186,7 @@ export async function commitUserStatus(
   status: "active" | "disabled",
   now = new Date()
 ): Promise<{ id: string; email: string | null; status: "active" | "disabled"; previous_status: string }> {
-  if (status !== "active" && status !== "disabled") {
-    throw new HttpError(400, "Status must be active or disabled", "invalid_request_error", "invalid_status");
-  }
+  userStatus(status);
   const existing = await requireTarget(env, userId);
   const protectsAdmin = existing.role === "admin" && existing.status === "active" && isOrganizationLoginUser(env, existing);
   const candidates = status === "disabled" && protectsAdmin ? await verifiedAdminCandidates(env) : [];
@@ -181,25 +196,13 @@ export async function commitUserStatus(
       SET status = ?1, updated_at = ?2,
           console_session_epoch = console_session_epoch + CASE WHEN ?1 = 'disabled' THEN 1 ELSE 0 END
       WHERE id = ?3 AND role = ?6 AND status = ?7 AND console_session_epoch = ?8
-        AND (?4 IS NULL OR EXISTS (
-          SELECT 1 FROM users AS actor
-          WHERE actor.id = ?4 AND actor.role = 'admin' AND actor.status = 'active'
-            AND actor.account_kind = 'human' AND actor.login_capable = 1 AND actor.console_session_epoch = ?5
-            AND substr(actor.canonical_email, instr(actor.canonical_email, '@') + 1) = ?9
-        ))
+        AND ${CURRENT_ADMIN_ACTOR_SQL}
         AND (
           ?1 = 'active'
           OR role <> 'admin'
           OR status <> 'active'
           OR ?10 = 0
-          OR EXISTS (
-            SELECT 1 FROM users AS other JOIN json_each(?11) AS candidate
-              ON other.id = json_extract(candidate.value, '$.id')
-              AND other.canonical_email = json_extract(candidate.value, '$.email')
-              AND other.console_session_epoch = json_extract(candidate.value, '$.epoch')
-            WHERE other.id <> users.id AND other.role = 'admin' AND other.status = 'active'
-              AND other.account_kind = 'human' AND other.login_capable = 1
-          )
+          OR ${OTHER_ACTIVE_ADMIN_SQL}
         )`,
     updateBindings: [status, at, userId, actor.userId, actor.sessionEpoch ?? 0, existing.role, existing.status, existing.console_session_epoch, organizationDomain(env) ?? "", protectsAdmin ? 1 : 0, JSON.stringify(candidates)],
     action: status === "active" ? "user.enable" : "user.disable",
@@ -245,7 +248,7 @@ export async function commitUserEmail(
     if (!committed) await rejectLifecycle(env, actor, userId, "email", canonical);
   } catch (error) {
     if (isUniqueCanonical(error)) {
-      throw new HttpError(409, "That email already belongs to another account.", "invalid_request_error", "email_conflict");
+      throw emailConflict();
     }
     throw error;
   }
@@ -273,8 +276,7 @@ async function commitLifecycle(
     env.DB.prepare(statement.update).bind(...statement.updateBindings),
     env.DB.prepare(
       `INSERT INTO operator_mutation_audit (
-         id, at, actor_kind, actor_email, actor_subject, actor_user_id, actor_role,
-         action, target_type, target_id, result, request_id, meta, created_at
+         ${OPERATOR_MUTATION_AUDIT_COLUMNS}
        )
        SELECT ?, ?, ?, ?, ?, ?, ?, ?, 'user', ?, 'ok', ?, ?, ?
        WHERE changes() = 1`
@@ -293,7 +295,7 @@ async function commitLifecycle(
       at
     )
   ]);
-  return changedRows(results[1]) === 1;
+  return d1ChangeCount(results[1]) === 1;
 }
 
 async function provisionLoginUser(
@@ -314,8 +316,7 @@ async function provisionLoginUser(
     ).bind(id, email, email, at, at, email),
     env.DB.prepare(
       `INSERT INTO operator_mutation_audit (
-         id, at, actor_kind, actor_email, actor_subject, actor_user_id, actor_role,
-         action, target_type, target_id, result, request_id, meta, created_at
+         ${OPERATOR_MUTATION_AUDIT_COLUMNS}
        )
        SELECT ?, ?, 'access', ?, ?, ?, 'user', 'user.jit', 'user', ?, 'ok', ?, ?, ?
        WHERE changes() = 1`
@@ -344,12 +345,12 @@ async function rejectLifecycle(
     const actorRow = await loadUser(env, actor.userId);
     if (!actorRow || actorRow.role !== "admin" || actorRow.status !== "active" || actorRow.login_capable !== 1
       || actorRow.console_session_epoch !== (actor.sessionEpoch ?? 0) || !isOrganizationLoginUser(env, actorRow)) {
-      throw new HttpError(403, "Admin authentication required", "authentication_error", "admin_required");
+      throw adminRequired();
     }
   }
   const target = await loadUser(env, userId);
   if (!target) {
-    throw new HttpError(404, "User not found", "invalid_request_error", "user_not_found");
+    throw userNotFound();
   }
   if ((op === "demote" || op === "disable") && target.role === "admin" && target.status === "active" && isOrganizationLoginUser(env, target)) {
     if (await countActiveAdmins(env) < 2) {
@@ -357,7 +358,7 @@ async function rejectLifecycle(
     }
   }
   if (op === "email" && email && await env.DB.prepare("SELECT 1 FROM users WHERE canonical_email = ? AND id <> ? LIMIT 1").bind(email, userId).first()) {
-    throw new HttpError(409, "That email already belongs to another account.", "invalid_request_error", "email_conflict");
+    throw emailConflict();
   }
   throw new HttpError(409, "The account change was rejected.", "invalid_request_error", "lifecycle_rejected");
 }
@@ -365,10 +366,10 @@ async function rejectLifecycle(
 function activePrincipal(user: StoredUser): ConsolePrincipal {
   if (user.account_kind !== "human") throw ambiguousIdentity();
   if (user.status !== "active") {
-    throw new HttpError(403, "User is not active", "authentication_error", "user_inactive");
+    throw userInactive();
   }
   if (user.role !== "admin" && user.role !== "user") {
-    throw new HttpError(403, "Admin authentication required", "authentication_error", "admin_auth_required");
+    throw adminAuthRequired();
   }
   return {
     id: user.id,
@@ -385,21 +386,21 @@ function ambiguousIdentity(): HttpError {
 
 async function requireTarget(env: Env, userId: string): Promise<StoredUser> {
   const user = await loadUser(env, userId);
-  if (!user) throw new HttpError(404, "User not found", "invalid_request_error", "user_not_found");
+  if (!user) throw userNotFound();
   return user;
 }
 
+const STORED_USER_COLUMNS = "id, email, canonical_email, role, status, login_capable, account_kind, console_session_epoch, created_at, updated_at";
+
 async function findLoginUser(env: Env, email: string): Promise<StoredUser | null> {
   return env.DB.prepare(
-    `SELECT id, email, canonical_email, role, status, login_capable, account_kind, console_session_epoch, created_at, updated_at
-     FROM users WHERE canonical_email = ? AND login_capable = 1 AND account_kind = 'human'`
+    `SELECT ${STORED_USER_COLUMNS} FROM users WHERE canonical_email = ? AND login_capable = 1 AND account_kind = 'human'`
   ).bind(email).first<StoredUser>();
 }
 
 async function loadUser(env: Env, id: string): Promise<StoredUser | null> {
   return env.DB.prepare(
-    `SELECT id, email, canonical_email, role, status, login_capable, account_kind, console_session_epoch, created_at, updated_at
-     FROM users WHERE id = ?`
+    `SELECT ${STORED_USER_COLUMNS} FROM users WHERE id = ?`
   ).bind(id).first<StoredUser>();
 }
 
@@ -423,12 +424,6 @@ async function verifiedAdminCandidates(env: Env): Promise<Array<{ id: string; em
 
 async function countActiveAdmins(env: Env): Promise<number> {
   return (await verifiedAdminCandidates(env)).length;
-}
-
-function changedRows(result: unknown): number {
-  if (!result || typeof result !== "object" || !("meta" in result)) return 0;
-  const changes = (result as { meta?: { changes?: number } }).meta?.changes;
-  return typeof changes === "number" ? changes : 0;
 }
 
 function isUniqueCanonical(error: unknown): boolean {

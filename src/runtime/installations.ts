@@ -1,14 +1,21 @@
 import { generateId } from "../crypto";
+import { d1ChangeCount, OPERATOR_MUTATION_AUDIT_COLUMNS } from "../db";
 import { HttpError } from "../errors";
 import { isOrganizationLoginUser, organizationDomain, type LifecycleActor } from "../auth/principal";
 import { serviceAdminAuthorityBindings, serviceAdminAuthoritySql } from "../auth/service-accounts";
-import { requireRuntimeInstallation, runtimeInstallations, RUNTIME_PROFILES } from "./profiles";
+import { requireRuntimeInstallation, runtimeInstallations, RUNTIME_PROFILES, type RuntimeInstallationDeclaration } from "./profiles";
 
 interface InstallationRow {
   id:string; resource:string; profile:string; profile_revision:number; label:string;
   state:"disabled"|"enabled"|"retired"; revision:number; authority_revision:number;
   credential_ref:string|null; credential_revision:number|null; operation_id:string|null;
   phase:"ready"|"writing"|"cleaning"; created_at:string; updated_at:string;
+}
+
+function declarationMismatch(row: {resource: string; profile: string; profile_revision: number}, declared: RuntimeInstallationDeclaration): void {
+  if (row.resource !== declared.resource || row.profile !== declared.profile || row.profile_revision !== RUNTIME_PROFILES[declared.profile].revision) {
+    throw new HttpError(503, "Runtime declaration does not match stored authority.", "server_error", "runtime_declaration_changed");
+  }
 }
 
 function changed(): HttpError {
@@ -23,7 +30,7 @@ async function assertAdmin(env:Env,actor:LifecycleActor):Promise<void> {
 
 function audit(env:Env,actor:LifecycleActor,id:string,action:string,at:string,meta:Record<string,unknown>):D1PreparedStatement {
   return env.DB.prepare(`INSERT INTO operator_mutation_audit
-    (id,at,actor_kind,actor_email,actor_subject,actor_user_id,actor_role,action,target_type,target_id,result,request_id,meta,created_at)
+    (${OPERATOR_MUTATION_AUDIT_COLUMNS})
     SELECT ?,?,?,?,?,?,?,?,'runtime_installation',?,'ok',?,?,? WHERE changes() = 1`)
     .bind(generateId("oma"),at,actor.kind,actor.email,actor.subject,actor.userId,actor.role,action,id,actor.requestId,JSON.stringify(meta),at);
 }
@@ -31,9 +38,7 @@ function audit(env:Env,actor:LifecycleActor,id:string,action:string,at:string,me
 async function rowFor(env:Env,id:string):Promise<InstallationRow|null> {
   const declared=requireRuntimeInstallation(env,id);
   const row=await env.DB.prepare("SELECT * FROM runtime_installations WHERE id = ?").bind(id).first<InstallationRow>();
-  if (row && (row.resource!==declared.resource || row.profile!==declared.profile || row.profile_revision!==RUNTIME_PROFILES[declared.profile].revision)) {
-    throw new HttpError(503,"Runtime declaration does not match stored authority.","server_error","runtime_declaration_changed");
-  }
+  if (row) declarationMismatch(row, declared);
   return row;
 }
 
@@ -52,7 +57,7 @@ type InstallationChange = {expectedRevision:number;operationId:string} & (
   | {action:"enable"|"disable"|"retire"|"recover"}
 );
 
-function invalid():HttpError {
+export function invalidRuntimeOperation(): HttpError {
   return new HttpError(400,"Invalid Runtime operation.","invalid_request_error","runtime_invalid_operation");
 }
 
@@ -62,7 +67,7 @@ async function update(env:Env,actor:LifecycleActor,id:string,revision:number,set
       .bind(...values,at,id,revision,...serviceAdminAuthorityBindings(env,actor)),
     audit(env,actor,id,action,at,{operation_id:operationId,expected_revision:revision})
   ]);
-  if(results[1]?.meta.changes!==1) throw changed();
+  if(d1ChangeCount(results[1])!==1) throw changed();
 }
 
 async function finishCleanup(env:Env,actor:LifecycleActor,row:InstallationRow,at:string) {
@@ -78,7 +83,7 @@ async function finishCleanup(env:Env,actor:LifecycleActor,row:InstallationRow,at
 /** Owns the cross-store sequence. Callers never commit a secret binding or retry
  * an unknown write themselves. A pending phase denies admission. */
 export async function changeRuntimeInstallation(env:Env,actor:LifecycleActor,id:string,input:InstallationChange,now=new Date()) {
-  if(!Number.isSafeInteger(input.expectedRevision)||input.expectedRevision<1||typeof input.operationId!=="string"||!/^[A-Za-z0-9_-]{1,96}$/.test(input.operationId)) throw invalid();
+  if(!Number.isSafeInteger(input.expectedRevision)||input.expectedRevision<1||typeof input.operationId!=="string"||!/^[A-Za-z0-9_-]{1,96}$/.test(input.operationId)) throw invalidRuntimeOperation();
   await assertAdmin(env,actor);
   const row=await rowFor(env,id); const at=now.toISOString();
   if(!row||row.revision!==input.expectedRevision) throw changed();
@@ -89,7 +94,7 @@ export async function changeRuntimeInstallation(env:Env,actor:LifecycleActor,id:
     if(input.operationId!==row.operation_id) throw changed();
     await finishCleanup(env,actor,row,at);
   } else if(input.action==="supply") {
-    if((input.authority!=="same"&&input.authority!=="rebind")||typeof input.material!=="string"||!/^[\x21-\x7e]{1,4096}$/.test(input.material)) throw invalid();
+    if((input.authority!=="same"&&input.authority!=="rebind")||typeof input.material!=="string"||!/^[\x21-\x7e]{1,4096}$/.test(input.material)) throw invalidRuntimeOperation();
     if(row.state==="retired"||row.phase!=="ready"||(input.authority==="same"&&!row.credential_ref)) throw changed();
     const revision=row.revision+1; const ref=generateId("rtc");
     await update(env,actor,id,row.revision,"revision=?,authority_revision=authority_revision+?,operation_id=?,phase='writing'",
@@ -111,7 +116,7 @@ export async function changeRuntimeInstallation(env:Env,actor:LifecycleActor,id:
     await update(env,actor,id,row.revision,"state='enabled',revision=revision+1,operation_id=?",[input.operationId],
       "state='disabled' AND phase='ready' AND credential_ref IS NOT NULL","runtime.enable",input.operationId,at);
   } else if(input.action==="rename") {
-    if(typeof input.label!=="string"||!input.label.trim()||input.label.length>64||/[\u0000-\u001f\u007f]/.test(input.label)) throw invalid();
+    if(typeof input.label!=="string"||!input.label.trim()||input.label.length>64||/[\u0000-\u001f\u007f]/.test(input.label)) throw invalidRuntimeOperation();
     await update(env,actor,id,row.revision,"label=?,revision=revision+1,operation_id=?",[input.label.trim(),input.operationId],
       "state<>'retired' AND phase='ready'","runtime.rename",input.operationId,at);
   } else throw changed();
@@ -121,7 +126,7 @@ export async function changeRuntimeInstallation(env:Env,actor:LifecycleActor,id:
 export async function setRuntimeAccess(env:Env,actor:LifecycleActor,id:string,subject:string,input:{state:"granted"|"revoked";expectedRevision:number;expiresAt:string|null},now=new Date()) {
   const declared=requireRuntimeInstallation(env,id); const at=now.toISOString();
   if(!Number.isSafeInteger(input.expectedRevision)||input.expectedRevision<0||!["granted","revoked"].includes(input.state)
-    ||(input.expiresAt!==null&&(!Number.isFinite(Date.parse(input.expiresAt))||new Date(input.expiresAt).toISOString()!==input.expiresAt||input.expiresAt<=at))) throw invalid();
+    ||(input.expiresAt!==null&&(!Number.isFinite(Date.parse(input.expiresAt))||new Date(input.expiresAt).toISOString()!==input.expiresAt||input.expiresAt<=at))) throw invalidRuntimeOperation();
   await assertAdmin(env,actor);
   const target=await env.DB.prepare("SELECT canonical_email,account_kind,login_capable,status FROM users WHERE id=?").bind(subject)
     .first<{canonical_email:string|null;account_kind:string;login_capable:number;status:string}>();
@@ -136,7 +141,7 @@ export async function setRuntimeAccess(env:Env,actor:LifecycleActor,id:string,su
       .bind(id,subject,input.state,input.expiresAt,at,id,declared.resource,declared.profile,subject,input.state,target.canonical_email,organizationDomain(env)??"",id,subject,input.expectedRevision,...serviceAdminAuthorityBindings(env,actor)),
     audit(env,actor,id,"runtime.access."+input.state,at,{user_id:subject,revision:input.expectedRevision+1})
   ]);
-  if(results[1]?.meta.changes!==1) throw changed();
+  if(d1ChangeCount(results[1])!==1) throw changed();
   return readRuntimeAccess(env,actor,id,subject);
 }
 
@@ -167,7 +172,7 @@ export async function configureRuntimeInstallation(env:Env,actor:LifecycleActor,
         AND ${serviceAdminAuthoritySql}`).bind(id,declared.resource,declared.profile,RUNTIME_PROFILES[declared.profile].revision,declared.label,at,at,id,declared.resource,...serviceAdminAuthorityBindings(env,actor)),
     audit(env,actor,id,"runtime.configure",at,{profile:declared.profile})
   ]);
-  if(results[1]?.meta.changes!==1) throw changed();
+  if(d1ChangeCount(results[1])!==1) throw changed();
   return readRuntimeInstallation(env,actor,id);
 }
 
@@ -234,8 +239,7 @@ export async function readRuntimeMemberInstallations(env:Env,subject:string,now=
   if(rows.results.length>16)throw new HttpError(503,"Runtime state is unavailable.","server_error","runtime_state_unavailable");
   return rows.results.map(row=>{
     const declaration=declared.find(candidate=>candidate.id===row.id)!;
-    if(row.resource!==declaration.resource||row.profile!==declaration.profile||row.profile_revision!==RUNTIME_PROFILES[declaration.profile].revision)
-      throw new HttpError(503,"Runtime declaration does not match stored authority.","server_error","runtime_declaration_changed");
+    declarationMismatch(row, declaration);
     return {id:row.id,label:row.label,resource:row.resource,state:row.state,phase:row.phase,
       credential_ready:Boolean(row.credential_ready),authority_revision:row.authority_revision,
       access_revision:row.access_revision,access_expires_at:row.access_expires_at};

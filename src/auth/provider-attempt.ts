@@ -7,7 +7,7 @@
 import { generateId } from "../crypto";
 import { resolveCredentialSlot } from "./slots";
 import { commitProviderAttemptAccounting } from "../db";
-import { publicExecutionPlanPath, type ExecutionPlan } from "../plans/execution-plans";
+import { isChatgptProductionSlot, publicExecutionPlanPath, type ExecutionPlan } from "../plans/execution-plans";
 import { planAuditFields } from "../plans/audit";
 import { stampSubscriptionProviderAttempt } from "./subscription-accounts";
 import { consumeExecutionPlanCredits } from "./credits";
@@ -151,7 +151,7 @@ async function commitTerminalOutcome(
 ): Promise<ProviderAttemptCommitResult> {
   const completedAt = input.now();
   const accountingAt = new Date(input.requestContext.startedAt);
-  const codexAuthId = input.plan.credentialSlot.startsWith("chatgpt")
+  const codexAuthId = isChatgptProductionSlot(input.plan.credentialSlot)
     ? input.physicalAccountId ?? null
     : null;
   const usage = input.plan.usageObserver === "responses"
@@ -190,7 +190,7 @@ async function commitTerminalOutcome(
   }
 
   const accountId = input.physicalAccountId;
-  if (!accountId || input.plan.credentialSlot.startsWith("chatgpt")) {
+  if (!accountId || isChatgptProductionSlot(input.plan.credentialSlot)) {
     return { accountingCommitted, subscriptionStamped: null };
   }
 

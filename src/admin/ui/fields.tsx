@@ -8,6 +8,16 @@ import { Icon } from "./icon";
 import { useId } from "react";
 import { Field as FieldPrimitive, FieldLabel } from "./components/field";
 
+export function ReturnFields({ range, query, page }: { readonly range: string; readonly query: string; readonly page: string }) {
+  return (
+    <>
+      <input type="hidden" name="return_range" value={range} />
+      <input type="hidden" name="return_q" value={query} />
+      <input type="hidden" name="return_page" value={page} />
+    </>
+  );
+}
+
 export function ConfirmationFallback({ message }: { readonly message: string }) {
   const id = useId();
   const enhanced = useEnhanced();
