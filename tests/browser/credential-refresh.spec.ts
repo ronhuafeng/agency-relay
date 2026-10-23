@@ -14,7 +14,7 @@ test("a rejected Codex refresh shows reconnect status and the failure immediatel
   await expect(page.getByRole("button", { name: "重新连接", exact: true })).toBeVisible();
   // Native POST keeps its action address; the rendered page owns the read URL.
   const readUrl = new URL((await page.locator("main#content").getAttribute("data-dashboard-url"))!, page.url());
-  expect(readUrl.searchParams.get("range")).toBe("30d");
+  expect(readUrl.searchParams.get("range")).toBeNull();
   expect(readUrl.searchParams.get("q")).toBe("Synthetic");
   expect(worker.requests.filter(request => request.method === "POST")).toHaveLength(1);
 });

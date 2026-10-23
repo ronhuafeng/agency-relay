@@ -26,7 +26,7 @@ test("a credential notification updates the open exact detail while retaining it
   await expect(detail.getByRole("button", {name: "重新连接", exact: true})).toBeVisible();
   const current = detail.locator("[data-credential-read-current]"); await expect(current).toBeVisible();
   const readUrl = new URL((await current.getAttribute("href"))!, worker.origin);
-  expect(readUrl.searchParams.get("account")).toBe("codex:fixture-codex"); expect(readUrl.searchParams.get("q")).toBe("Synthetic"); expect(readUrl.searchParams.get("range")).toBe("30d");
+  expect(readUrl.searchParams.get("account")).toBe("codex:fixture-codex"); expect(readUrl.searchParams.get("q")).toBe("Synthetic"); expect(readUrl.searchParams.get("range")).toBeNull();
   await expect(draft).toHaveValue("unfinished search"); await expect(draft).toBeFocused();
   expect(await page.evaluate(() => {
     const task = (window as unknown as {credentialTask: {main: Element; detail: Element; field: Element}}).credentialTask;
@@ -98,7 +98,7 @@ test("a restored connection offers a current exact GET for newly available contr
   await expect(detail.locator("[data-credential-read-current]")).toBeVisible();
   await detail.locator("[data-credential-read-current]").click();
   await expect(page.locator("[data-credential-refresh] button")).toBeEnabled();
-  const current = new URL(page.url()); expect(current.searchParams.get("account")).toBe("codex:fixture-codex"); expect(current.searchParams.get("range")).toBe("30d"); expect(current.searchParams.get("q")).toBe("Synthetic");
+  const current = new URL(page.url()); expect(current.searchParams.get("account")).toBe("codex:fixture-codex"); expect(current.searchParams.get("range")).toBeNull(); expect(current.searchParams.get("q")).toBe("Synthetic");
   expect(worker.requests.filter(request => request.method !== "GET")).toHaveLength(0);
 });
 

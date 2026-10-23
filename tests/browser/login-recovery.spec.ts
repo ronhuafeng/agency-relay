@@ -5,7 +5,7 @@ for (const identity of ['member', 'admin'] as const) {
     test.use({identity});
     test('expired session retains exact target through Mini login and mocked IdP callback', async ({page, worker}) => {
       worker.expireSessions(); worker.loginAs(identity);
-      const target = identity === 'member' ? '/admin?area=me&view=setup&key=member-key#content' : '/admin?view=access&person=other&range=30d#credits';
+      const target = identity === 'member' ? '/admin?area=me&view=setup&key=member-key#content' : '/admin?view=access&person=other#credits';
       await page.goto(target);
       await expect.poll(() => page.evaluate(() => location.pathname === '/login')).toBe(true);
       await page.getByRole('button', {name: '使用飞书继续'}).click({noWaitAfter: true});
@@ -52,7 +52,7 @@ for (const identity of ['admin', 'member'] as const) test.describe(`${identity} 
     const key = service ? `${service}-setup-new` : null;
     const target = service
       ? `/me/service-accounts/${service}?view=keys&key=${key}#member-key-inventory`
-      : '/admin?view=access&range=30d&person=other&q=other#person-status';
+      : '/admin?view=access&person=other&q=other#person-status';
     await page.goto(service ? target : target.split('#')[0]);
     await expect(page.locator('[data-confirmation-fallback]:not([hidden])')).toHaveCount(0);
     if (!service) await page.goto(target);

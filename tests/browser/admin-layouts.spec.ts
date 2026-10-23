@@ -120,7 +120,7 @@ for(const script of [true,false]) test.describe(`administrator local configurati
     const current=new URL(page.url());
     expect(current.searchParams.get('view')).toBe('setup');
     expect(current.searchParams.get('task')).toBe(script ? null : 'sync-configuration');
-    expect(current.searchParams.get('range')).toBe('30d');
+    expect(current.searchParams.get('range')).toBeNull();
     expect(current.searchParams.get('q')).toBe('member');
     expect(current.searchParams.get('page')).toBe('2');
     expect(current.searchParams.get('person')).toBe('member');

@@ -48,7 +48,7 @@ test.describe('native role/email results', () => {
     await expect(page.locator('[data-person-detail]')).toHaveAttribute('data-person-detail', 'other');
     const current = new URL(await page.locator('main').getAttribute('data-dashboard-url') ?? '', ORIGIN);
     expect(current.searchParams.get('q')).toBe('other');
-    expect(current.searchParams.get('range')).toBe('30d');
+    expect(current.searchParams.get('range')).toBeNull();
     expect(worker.person('renamed@example.test')?.id).toBe('other');
   });
 });

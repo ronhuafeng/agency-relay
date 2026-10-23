@@ -16,7 +16,7 @@ for (const identity of ['member', 'admin'] as const) test.describe(`${identity} 
         notRestored.splice(0, notRestored.length, ...event.notRestoredExplanations.slice(0, 16).map(({type, reason}) => ({type, reason})));
       });
     }
-    const target = identity === 'admin' ? '/admin?view=access&range=7d&person=other' : '/admin?area=me&view=keys&key=member-key';
+    const target = identity === 'admin' ? '/admin?view=access&person=other' : '/admin?area=me&view=keys&key=member-key';
     await page.goto(target);
     await expect(page.locator(identity === 'admin' ? '[data-person-detail]' : '[data-member-view=keys]')).toBeVisible();
     await expect(page.locator('[data-confirmation-fallback]:not([hidden])')).toHaveCount(0);

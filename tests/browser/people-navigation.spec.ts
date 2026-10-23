@@ -39,7 +39,7 @@ test('native category reads keep the current collection until commit and preserv
   const current = new URL(page.url());
   expect(current.searchParams.get('person')).toBe('admin');
   expect(current.searchParams.get('page_size')).toBe('10');
-  expect(current.searchParams.get('range')).toBe('30d');
+  expect(current.searchParams.get('range')).toBeNull();
   expect(current.searchParams.has('page')).toBe(false);
   expect(await page.evaluate(() => Boolean((window as unknown as {peopleDocumentRetained?:boolean}).peopleDocumentRetained))).toBe(false);
   await kinds.getByRole('link', {name:'服务账号',exact:true}).click();
@@ -80,7 +80,7 @@ test('chosen page size survives resize and native search while document departur
   await expect(page.getByRole('combobox',{name:'每页',exact:true})).toHaveValue('40');
   const current = new URL(page.url());
   expect(current.searchParams.get('person')).toBe('admin');
-  expect(current.searchParams.get('range')).toBe('30d');
+  expect(current.searchParams.get('range')).toBeNull();
   expect(current.searchParams.has('page')).toBe(false);
   await create.getByRole('button',{name:'添加成员',exact:true}).click();
   await expect(page.locator('#add-person input[name=email]')).toHaveValue('');
@@ -118,7 +118,7 @@ test.describe('native people search and pagination', () => {
     expect(current.searchParams.get('page_size')).toBe('20');
     expect(current.searchParams.get('q')).toBe('example');
     expect(current.searchParams.get('person')).toBe('admin');
-    expect(current.searchParams.get('range')).toBe('30d');
+    expect(current.searchParams.get('range')).toBeNull();
     expect(current.searchParams.has('page')).toBe(false);
     await expect(page.locator('[data-person-detail=admin]')).toBeVisible();
     expect(worker.requests.every(request=>request.method==='GET')).toBe(true);

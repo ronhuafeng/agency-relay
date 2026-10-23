@@ -38,11 +38,16 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       # A step timeout fails this check. Job timeout-minutes would only cancel it.
-      - name: Install the lockfile's browser and pinned-font inputs
-        timeout-minutes: 15
+      # Ubuntu dependencies can still be downloading after fifteen minutes.
+      # Give provisioning its own budget without changing browser test limits.
+      - name: Install browser system dependencies and reference fonts
+        timeout-minutes: 45
         run: |
-          pnpm exec playwright install --with-deps ${{ matrix.project }}
+          pnpm exec playwright install-deps ${{ matrix.project }}
           sudo apt-get install -y fonts-noto-cjk
+      - name: Install the lockfile's browser
+        timeout-minutes: 15
+        run: pnpm exec playwright install ${{ matrix.project }}
       - timeout-minutes: 15
         run: pnpm run console:check
       - id: browser
