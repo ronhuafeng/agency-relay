@@ -52,7 +52,7 @@ export function consoleReturnTarget(value: string): string | null {
     && (!query.has('client') || ['codex','grok','xai'].includes(query.get('client')!))
     && (!query.has('installation')||/^[a-z][a-z0-9-]{0,63}$/.test(query.get('installation')!))
     && (!query.has('key') || Boolean(query.get('key')?.trim()))
-    && (!query.has('range') || ['7d', '30d'].includes(query.get('range')!));
+    && (!query.has('range') || ['1d', '7d', '30d'].includes(query.get('range')!));
   if (service || query.has('area') || ['home', 'keys', 'quota'].includes(view)) return personal() ? value : null;
   if (personal()) return value;
   const fields = Object.hasOwn(adminFields, view) ? adminFields[view] : undefined;
@@ -61,7 +61,7 @@ export function consoleReturnTarget(value: string): string | null {
   if(query.has('installation')&&!/^[a-z][a-z0-9-]{0,63}$/.test(query.get('installation')!))return null;
   if(view==='runtime'&&(query.has('q')||query.has('page'))&&!query.has('installation'))return null;
   if (query.has('page_size') && !DASHBOARD_PEOPLE_PAGE_SIZES.some(size => String(size) === query.get('page_size'))) return null;
-  if (query.has('range') && !(['overview', 'usage'].includes(view) ? ['7d', '30d'] : ['today', '7d', '30d', 'all']).includes(query.get('range')!)) return null;
+  if (query.has('range') && !(['overview', 'usage'].includes(view) ? ['1d', '7d', '30d'] : ['today', '7d', '30d', 'all']).includes(query.get('range')!)) return null;
   for (const field of ['person', 'key', 'plan', 'model']) if (query.has(field) && !query.get(field)?.trim()) return null;
   for (const field of ['q', 'key_q']) if ((query.get(field)?.length ?? 0) > 256) return null;
   for (const field of ['page', 'key_page']) if (query.has(field) && !isDashboardPageToken(query.get(field)!)) return null;

@@ -82,7 +82,7 @@ describe("organization Home usage projection", () => {
     expect(metric(video, "上游计量金额")).toBeUndefined();
     expect(metric(home.document.querySelector('[data-trend-capability="image_generation"]')!, "输出")).toBe("未记录 · 覆盖 0/2");
     const rangeLinks = [...home.document.querySelectorAll('#usage-trends a[data-dashboard-link]')];
-    expect(rangeLinks.map(link => new URL(link.getAttribute("href")!, "https://console.invalid").searchParams.get("view"))).toEqual(["overview", "overview"]);
+    expect(rangeLinks.map(link => new URL(link.getAttribute("href")!, "https://console.invalid").searchParams.get("view"))).toEqual(["overview", "overview", "overview"]);
     expect(rangeLinks.find(link => link.getAttribute("aria-current") === "true")?.textContent).toBe(range === "7d" ? "7 天" : "30 天");
     expect(fixture.fetchCalls).toHaveLength(0);
   });
@@ -95,7 +95,7 @@ describe("organization Home usage projection", () => {
     expect(document.querySelector("[data-trend-empty]")).not.toBeNull();
     expect(document.querySelector("#usage-trends .usage-bar-plot")).toBeNull();
     expect(document.querySelector("[data-trend-plan]")).toBeNull();
-    expect(document.querySelectorAll('#usage-trends nav[aria-label="UTC 时间范围"] a')).toHaveLength(2);
+    expect(document.querySelectorAll('#usage-trends nav[aria-label="UTC 时间范围"] a')).toHaveLength(3);
     expect(document.querySelector("[data-home-usage=unavailable]")).toBeNull();
   });
 

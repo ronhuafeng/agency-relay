@@ -30,8 +30,8 @@ export function readUsageComparison(value: unknown): UsageComparisonControl | nu
 function readComparisonRange(value: object): UsageSeriesControl["range"] | null | undefined {
   if (!("range" in value) || value.range === undefined) return undefined;
   const item = value.range;
-  if (!item || typeof item !== "object" || !("key" in item) || (item.key !== "7d" && item.key !== "30d") || !("href7" in item) || typeof item.href7 !== "string" || !("href30" in item) || typeof item.href30 !== "string") return null;
-  return {key: item.key, href7: item.href7, href30: item.href30};
+  if (!item || typeof item !== "object" || !("key" in item) || (item.key !== "1d" && item.key !== "7d" && item.key !== "30d") || !("href1" in item) || typeof item.href1 !== "string" || !("href7" in item) || typeof item.href7 !== "string" || !("href30" in item) || typeof item.href30 !== "string") return null;
+  return {key: item.key, href1: item.href1, href7: item.href7, href30: item.href30};
 }
 function readComparisonDays(value: object): UsageComparisonControl["days"] | null {
   if (!("days" in value) || value.days === undefined) return [];
@@ -80,7 +80,7 @@ export function UsageComparison({control}: {readonly control: UsageComparisonCon
     <div className="usage-chart-legend" aria-label="显示的服务">{control.series.map(series => <div key={series.id} className={compatible.includes(series) ? "usage-legend-item" : "sr-only"} data-trend-plan={series.plan} data-trend-capability={series.capability}>
       {compatible.includes(series) ? <Button type="button" variant="ghost" disabled={!enhanced} aria-pressed={!hidden.includes(series.id)} onClick={() => setHidden(hidden.includes(series.id) ? hidden.filter(id => id !== series.id) : [...hidden, series.id])}><svg viewBox="0 0 12 12" className="usage-series-swatch" aria-hidden="true"><rect width="12" height="12" data-series-color={colors.get(series.id)}/></svg>{series.title}</Button> : <span>{series.title}</span>}
       <dl className="sr-only usage-metrics">{series.metrics.map(metric => <div key={metric.label}><dt>{metric.label}</dt><dd>{metric.value}</dd></div>)}</dl>
-    </div>)}{control.range ? <nav className="ranges usage-legend-range" aria-label="UTC 时间范围"><a href={control.range.href7} data-dashboard-link="" aria-current={control.range.key === "7d" ? "true" : undefined}>7 天</a><a href={control.range.href30} data-dashboard-link="" aria-current={control.range.key === "30d" ? "true" : undefined}>30 天</a></nav> : null}</div>
+    </div>)}{control.range ? <nav className="ranges usage-legend-range" aria-label="UTC 时间范围"><a href={control.range.href1} data-dashboard-link="" aria-current={control.range.key === "1d" ? "true" : undefined}>1 天</a><a href={control.range.href7} data-dashboard-link="" aria-current={control.range.key === "7d" ? "true" : undefined}>7 天</a><a href={control.range.href30} data-dashboard-link="" aria-current={control.range.key === "30d" ? "true" : undefined}>30 天</a></nav> : null}</div>
     <p className="usage-chart-context">{metricLabels[metric]} · UTC</p>
     {days.length && visible.length ? <div className="usage-chart-frame">
       <div className="usage-chart-y" aria-hidden="true">{ticks.map(tick => <span key={tick}>{formatNumber(tick)}</span>)}</div>

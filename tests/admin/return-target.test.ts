@@ -28,7 +28,7 @@ it('retains only the opaque Runtime consent return, never OAuth parameters or ca
 });
 
 it.each([
-  '/', '/admin', '/admin/', '/admin?view=overview&range=7d', '/admin?view=overview&range=30d#usage-trends', '/admin?view=access&kind=service&q=build#people-list', '/admin?area=me&view=usage&range=7d', '/admin?area=me&view=usage&range=30d#content',
+  '/', '/admin', '/admin/', '/admin?view=overview&range=7d', '/admin?view=overview&range=30d#usage-trends', '/admin?view=access&kind=service&q=build#people-list', '/admin?view=overview&range=1d', '/admin?area=me&view=usage&range=1d', '/admin?area=me&view=usage&range=7d', '/admin?area=me&view=usage&range=30d#content',
   '/?view=usage&range=30d', '/admin?view=access&person=member&q=example%40test&range=all#credits',
   '/admin?view=access&task=add-service', '/admin?view=credentials&account=codex%3Atest&page=2',
   ...['10','20','40'].map(size => `/admin?view=access&kind=admin&q=operator&page=2&page_size=${size}#people-list`),

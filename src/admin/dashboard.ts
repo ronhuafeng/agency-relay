@@ -78,7 +78,7 @@ export async function adminDashboardResponse(input: AdminDashboardInput): Promis
       return renderErrorResponse({
         status: 400,
         title: "页面参数不正确",
-        message: ["overview", "usage"].includes(input.url.searchParams.get("view") ?? "overview") ? "概览和用量页面请选择最近 7 天或 30 天，并检查筛选参数。其他日期可通过用量 API 查询。" : "请使用有效的页面。时间范围可以是今天、7 天、30 天或全部。",
+        message: ["overview", "usage"].includes(input.url.searchParams.get("view") ?? "overview") ? "概览和用量页面请选择最近 1 天、7 天或 30 天，并检查筛选参数。其他日期可通过用量 API 查询。" : "请使用有效的页面。时间范围可以是今天、7 天、30 天或全部。",
         requestId: input.requestId,
         retryUrl: input.url.pathname,
         retryLabel: "打开默认页面",
@@ -185,7 +185,7 @@ function parseDashboardRange(url: URL, now: Date): DashboardRange {
         if (url.searchParams.has(page)) params.set(api, url.searchParams.get(page)!);
       }
       parseUsageQuery(new URL(`https://usage.invalid/?${params}`));
-      return {key: trend.key, title: trend.key === "7d" ? "7 天" : "30 天", label: `${trend.from} 至 ${trend.to} UTC`,
+      return {key: trend.key, title: trend.key === "1d" ? "1 天" : trend.key === "7d" ? "7 天" : "30 天", label: `${trend.from} 至 ${trend.to} UTC`,
         emptyLabel: `${trend.from} 至 ${trend.to} UTC 没有用量记录`, mode: "range", day: null, from: trend.from, to: trend.to,
         rawUsageUrl: `/admin/usage?${params}`};
     } catch { throw new DashboardInputError("invalid usage query"); }

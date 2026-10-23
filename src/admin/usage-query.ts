@@ -121,7 +121,7 @@ function requiredUsageLimit(url: URL): number {
 }
 
 export interface UsageTrendRange {
-  key: "7d" | "30d";
+  key: "1d" | "7d" | "30d";
   from: string;
   to: string;
   days: string[];
@@ -131,13 +131,13 @@ export interface UsageTrendRange {
 /** Finite page ranges reuse the API's exact UTC date parser before any DB read. */
 export function parseUsageTrendRange(url: URL, now: Date): UsageTrendRange {
   if (["scope", "day", "from", "to"].some(field => url.searchParams.has(field))) {
-    throw new HttpError(400, "Choose range=7d or range=30d for the usage page; use the usage API for explicit dates.", "invalid_request_error", "invalid_usage_filters");
+    throw new HttpError(400, "Choose range=1d, range=7d, or range=30d for the usage page; use the usage API for explicit dates.", "invalid_request_error", "invalid_usage_filters");
   }
   const key = url.searchParams.get("range") ?? "7d";
-  if (url.searchParams.getAll("range").length > 1 || (key !== "7d" && key !== "30d")) {
-    throw new HttpError(400, "Choose range=7d or range=30d", "invalid_request_error", "invalid_usage_range");
+  if (url.searchParams.getAll("range").length > 1 || (key !== "1d" && key !== "7d" && key !== "30d")) {
+    throw new HttpError(400, "Choose range=1d, range=7d, or range=30d", "invalid_request_error", "invalid_usage_range");
   }
-  const count = key === "7d" ? 7 : 30;
+  const count = key === "1d" ? 1 : key === "7d" ? 7 : 30;
   const to = utcDay(now);
   const from = utcDay(new Date(Date.parse(`${to}T00:00:00Z`) - (count - 1) * DAY_MS));
   const validated = parseUsageQuery(new URL(`https://usage.invalid/?from=${from}&to=${to}&limit=100`));

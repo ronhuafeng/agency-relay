@@ -217,7 +217,7 @@ it('resumes a failed eligible login at the same safe target and rejects expired 
   expect((await callback(f, next)).headers.get('Location')).toBe(`${HOST}/login?error=expired`);
 });
 
-it.each(['7d','30d'])('returns a personal usage range exactly after login: %s', async range => {
+it.each(['1d','7d','30d'])('returns a personal usage range exactly after login: %s', async range => {
   const f = makeFixture(); const target = `/admin?area=me&view=usage&range=${range}#content`;
   const state = await start(f,target);
   installFeishu(f,{email:'viewer@example.com',enterprise_email:'',tenant_key:'tenant-a'});

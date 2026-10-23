@@ -41,6 +41,7 @@ describe("exact bounded usage dates", () => {
     expect(() => parseUsageQuery(url("scope=all"))).toThrow();
   });
   it("uses inclusive UTC days across month, leap day and year boundaries", () => {
+    expect(parseUsageTrendRange(url("range=1d"), new Date("2026-06-24T12:00:00Z"))).toMatchObject({key: "1d", from: "2026-06-24", to: "2026-06-24", days: ["2026-06-24"]});
     expect(parseUsageTrendRange(url("range=7d"), new Date("2024-03-01T00:00:00Z"))).toMatchObject({from: "2024-02-24", to: "2024-03-01", days: ["2024-02-24", "2024-02-25", "2024-02-26", "2024-02-27", "2024-02-28", "2024-02-29", "2024-03-01"]});
     expect(parseUsageTrendRange(url("range=30d"), new Date("2026-01-01T23:59:59Z"))).toMatchObject({from: "2025-12-03", to: "2026-01-01"});
     for (const query of ["range=all", "range=today", "range=90d", "range=7d&range=30d", "range=7d&day=2026-06-24", "scope=all"]) expect(() => parseUsageTrendRange(url(query), now)).toThrow();

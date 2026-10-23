@@ -5,7 +5,7 @@ export interface UsageSeriesControl {
   readonly capability?: string;
   readonly title: string;
   readonly costHelp?: string;
-  readonly range?: {readonly key: "7d" | "30d"; readonly href7: string; readonly href30: string};
+  readonly range?: {readonly key: "1d" | "7d" | "30d"; readonly href1: string; readonly href7: string; readonly href30: string};
   readonly metrics: readonly {readonly label: string; readonly value: string}[];
   readonly columns: readonly string[];
   readonly rows: readonly {readonly day: string; readonly current: boolean; readonly count: number; readonly failure: number; readonly tokens?: number | null; readonly values: readonly string[]}[];
@@ -30,9 +30,9 @@ export function readUsageSeries(value: unknown): UsageSeriesControl | null {
   let range: UsageSeriesControl["range"];
   if ("range" in value && value.range !== undefined) {
     const item = value.range;
-    if (!item || typeof item !== "object" || !("key" in item) || (item.key !== "7d" && item.key !== "30d")
-      || !("href7" in item) || typeof item.href7 !== "string" || !("href30" in item) || typeof item.href30 !== "string") return null;
-    range = {key: item.key, href7: item.href7, href30: item.href30};
+    if (!item || typeof item !== "object" || !("key" in item) || (item.key !== "1d" && item.key !== "7d" && item.key !== "30d")
+      || !("href1" in item) || typeof item.href1 !== "string" || !("href7" in item) || typeof item.href7 !== "string" || !("href30" in item) || typeof item.href30 !== "string") return null;
+    range = {key: item.key, href1: item.href1, href7: item.href7, href30: item.href30};
   }
   if ("costHelp" in value && value.costHelp !== undefined && typeof value.costHelp !== "string") return null;
   return {id: value.id, plan: value.plan, title: value.title, costHelp: "costHelp" in value ? value.costHelp as string : undefined, capability: "capability" in value ? value.capability as string : undefined, range, metrics, columns: value.columns, rows};

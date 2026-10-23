@@ -18,5 +18,5 @@ export function accountDashboardUrl(currentUrl: string, account: string): string
 }
 
 export function viewHref(view: string, range: string): string {
-  return `/admin?view=${view}&range=${["overview", "usage"].includes(view) && !["7d", "30d"].includes(range) ? "7d" : range}`;
+  return `/admin?view=${view}&range=${["overview", "usage"].includes(view) && !["1d", "7d", "30d"].includes(range) ? "7d" : range}`;
 }
