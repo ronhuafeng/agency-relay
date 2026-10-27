@@ -61,11 +61,16 @@ A timeout or missing task result is not evidence that ChatGPT credentials are wr
 
 ## Codex egress operations
 
-Retain the existing egress deployment contract. Resolve the node, SSH identity,
-Tunnel and active artifact directory from the operator's private configuration
-and authoritative infrastructure readback. Re-branding the repository does not
-move the node or change the configured Worker-facing origin. A hostname is not a
-region assertion.
+The production Codex egress node is accessed through the operator's SSH alias
+`egress-sg`. Use that alias for maintenance; resolve its address and SSH identity
+from the operator's private configuration, not a hardcoded IP or key path.
+
+The Worker-facing origin and the SSH node are separate identities. A hostname
+containing `us-west1-a` does not establish that traffic reaches the SSH host
+`egress-us-west1-a`. Do not select a maintenance target from the origin's name.
+Before an update, read back the Tunnel connector, local service and active
+artifact directory on `egress-sg`. Re-branding the repository does not move the
+node or change the configured Worker-facing origin.
 
 Use release-identified directories, with `current` selecting the active release.
 Runtime files are `server.mjs`, `node-transport-adapter.mjs`,
@@ -77,6 +82,21 @@ service configuration. `.env` and `.tunnel-token` in the service directory are
 service-user-only. Worker and shim `CODEX_EGRESS_SECRET` must agree. Use the
 operator's configured SSH identity, not a hardcoded private-key path. Egress
 changes require `pnpm run egress:test` and release-identified artifacts.
+
+For a `cloudflared` security update, follow the [official update guide](https://developers.cloudflare.com/tunnel/guides/update-cloudflared/)
+and preserve the installation method: use the same package manager for managed
+packages, or the official updater for a standalone binary. Select a release that
+includes the required security fixes and verify the downloaded artifact before
+restarting `cloudflared-codex.service`. A connector-only update does not require a
+shim restart or a Worker deployment. Stopping a connector can interrupt active
+SSE requests; do not promise connection continuity from replica count alone.
+
+After restart, verify the running process executable's version, both services'
+active/enabled state, Tunnel `/ready`, local shim `/healthz`, and the configured
+public egress `/healthz`. Health checks prove reachability, not a completed
+Provider task. Record the exact release and readback evidence in the maintenance
+commit or owning issue, not a separate current-version ledger. Do not silently
+restore a version excluded by the security advisory if recovery is needed.
 
 ## Rollback
 
