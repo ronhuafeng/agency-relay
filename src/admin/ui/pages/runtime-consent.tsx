@@ -20,7 +20,7 @@ export function RuntimeConsent({client_name,resource,scope,action,email}:{readon
 export function RuntimeConsentFailure({status}:{readonly status:number}) {
   return <section className="gate"><h1>本次授权未完成</h1>
     <p className="lede">{status===503?"目前无法确认服务权限。":status===403?"本次授权的身份或权限已变更。":"本次授权已过期或无效。"}</p>
-    <p>请回到客户端重新开始授权。不会自动重试、切换账号或恢复旧权限。</p>
+    <p>请回到客户端重新开始授权。不会自动重试、切换上游账号或恢复旧权限。</p>
     <Button asChild variant="outline"><a href="/">返回 Agency Relay</a></Button>
   </section>;
 }

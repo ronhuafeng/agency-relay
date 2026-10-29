@@ -27,7 +27,7 @@ for (const scenario of [
     if (scenario.identity === "member") expect((await page.locator('main').textContent())?.includes('other-private-model')).toBe(false);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
     await expect(page.locator('.usage-comparison table')).toHaveCount(0);
-    await expect(page.getByRole('table', {name: '按人员和服务的用量'})).toHaveCount(1);
+    await expect(page.getByRole('table', {name: '按账号和服务的用量'})).toHaveCount(1);
     await expect(page.getByRole('combobox', {name: '柱状图布局'})).toHaveCount(0);
     await expect(page.getByRole('combobox', {name: '比较指标'})).toHaveCount(0);
     const bars = page.locator('[data-chart-day="2026-06-24"] .usage-chart-bar');

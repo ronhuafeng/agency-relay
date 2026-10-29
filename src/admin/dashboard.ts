@@ -102,7 +102,7 @@ export async function adminDashboardResponse(input: AdminDashboardInput): Promis
   const base = {
     appEnabled: input.url.hostname === input.env.ADMIN_DASHBOARD_HOST,
     canonicalUrl: `${input.url.pathname}?view=${view}${view === "overview" || view === "usage" ? `&range=${range.key}` : ""}${view==="runtime"&&input.url.searchParams.has("installation")?`&installation=${encodeURIComponent(input.url.searchParams.get("installation")!)}`:""}${requestedPerson === null ? "" : `&person=${encodeURIComponent(requestedPerson)}`}${task ? `&task=${task}` : ""}${requestedKey === null ? "" : `&key=${encodeURIComponent(requestedKey)}`}${requestedAccount === null ? "" : `&account=${encodeURIComponent(requestedAccount)}`}${inventoryQuery.size ? `&${inventoryQuery}` : ""}`,
-    documentTitle: `${requestedAccount !== null ? "连接详情" : task === "add-account" ? "连接上游账号" : task === "sync-configuration" ? "生成配置文件" : requestedKey !== null ? view === "setup" ? "客户端配置" : "密钥详情" : task === "give-access" ? "创建密钥" : task === "add-person" ? "添加成员" : dashboardViewTitle(view)} · Agency Relay 控制台`,
+    documentTitle: `${requestedAccount !== null ? "连接详情" : task === "add-account" ? "添加上游连接" : task === "sync-configuration" ? "生成配置文件" : requestedKey !== null ? view === "setup" ? "客户端配置" : "密钥详情" : task === "give-access" ? "创建密钥" : task === "add-person" ? "添加成员" : dashboardViewTitle(view)} · Agency Relay 控制台`,
     operatorId: input.identity.userId ?? null,
     operatorLabel: input.identity.email ?? "已登录的管理员",
     nowMs: input.now.getTime(),
@@ -242,7 +242,7 @@ export function dashboardPersonReturnUrl(raw: string | undefined, action: URL, u
 /** A committed self-change must not reread a page the actor can no longer access. */
 export function consoleLifecycleOutcome(input: { message: string; href: "/login" | "/admin?view=keys"; returnTarget?: string; label: string; cookie?: string; rejected?: boolean; title?:string }): Response {
   const nonce = randomNonce();
-  const title = input.rejected ? "操作未执行" : input.title??"人员已更新";
+  const title = input.rejected ? "操作未执行" : input.title??"账号已更新";
   const href = input.href === "/login" && input.returnTarget ? consoleLoginHref(input.returnTarget) : input.href;
   const response = htmlResponse(consoleDocument({ title: `${title} · Agency Relay`, nonce,
     main: createElement("section", { "data-console-terminal-result": "", "data-console-next": href, role: "status" },

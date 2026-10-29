@@ -49,7 +49,7 @@ it("renews an expired raw-active key without reviving it, then deduplicates repl
     const row=f.db.sqlite.prepare("SELECT id,family_id FROM api_keys").get() as {id:string;family_id:string};
     f.db.sqlite.prepare("UPDATE api_keys SET expires_at=? WHERE id=?").run(new Date(f.now.getTime()-1).toISOString(),row.id);
     const body={submission_id:submission(),expires_at:new Date(f.now.getTime()+30*86400000).toISOString()};
-    const result=await f.post(`/me/ui/keys/${row.id}/replace`,body);expect(result.status).toBe(200);const text=await result.text();expect(text.includes("不会因为这次续发恢复有效")).toBe(true);expect(text.includes("仍可认证")).toBe(false);
+    const result=await f.post(`/me/ui/keys/${row.id}/replace`,body);expect(result.status).toBe(200);const text=await result.text();expect(text.includes("不会因为这次更换恢复有效")).toBe(true);expect(text.includes("仍可认证")).toBe(false);
     f.db.sqlite.prepare("UPDATE api_keys SET status='revoked' WHERE id=?").run(row.id);
     const replay=await f.post(`/me/ui/keys/${row.id}/replace`,body);expect(replay.status).toBe(200);expect((await replay.text()).includes("data-one-time-key")).toBe(false);
     expect(f.db.sqlite.prepare("SELECT COUNT(*) AS count FROM api_keys WHERE family_id=?").get(row.family_id)).toEqual({count:2});

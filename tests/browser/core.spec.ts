@@ -409,7 +409,7 @@ test.describe('native administrator issuance recovery',()=>{
     const rejected=await response;
     expect(rejected.status()).toBe(400);
     expect(rejected.headers()['content-type']).toContain('text/html');
-    await expect(page.getByRole('heading',{name:'密钥没有换发',exact:true})).toBeVisible();
+    await expect(page.getByRole('heading',{name:'密钥没有更换',exact:true})).toBeVisible();
     expect(worker.countKeys()).toBe(1);
     await form.getByLabel('到期时间（UTC，可选）').fill('2026-07-24T12:00');
     await openNativeConfirmation(form);

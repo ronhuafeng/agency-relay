@@ -35,8 +35,8 @@ describe("typed console controls", () => {
   });
   it("identifies both provider choices before script enhancement", () => {
     document.body.innerHTML = renderToString(createElement(AddAccountView, {control: {query: "", page: "1"}}));
-    const chatgpt = element('form[aria-label="添加 ChatGPT 账号"]', HTMLFormElement);
-    const grok = element('form[aria-label="添加 Grok 账号"]', HTMLFormElement);
+    const chatgpt = element('form[aria-label="添加 ChatGPT 连接"]', HTMLFormElement);
+    const grok = element('form[aria-label="添加 Grok 连接"]', HTMLFormElement);
     expect(document.body.innerHTML).not.toContain('name="return_range"');
     expect(chatgpt.querySelector('h3')?.textContent).toBe("ChatGPT");
     expect(grok.querySelector('h3')?.textContent).toBe("Grok");

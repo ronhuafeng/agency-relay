@@ -369,7 +369,7 @@ describe("Dashboard", () => {
     expect(pausedDetail).toContain('data-access-client="xai" data-access-state="none"');
     const setup = await render("setup&person=Morgan&key=morgan-valid");
     const keyRow = setup.match(/<li[^>]*data-setup-key-id="morgan-valid"[\s\S]*?<\/li>/)?.[0];
-    expect(keyRow).toContain("已暂停 — 人员已停用");
+    expect(keyRow).toContain("已暂停 — 账号已停用");
     expect(setup).toContain("请求已接受 2026-07-28 10:00 UTC");
     expect(setup).not.toContain('data-setup-key-id="morgan-revoked"');
   });
@@ -392,7 +392,7 @@ describe("Dashboard", () => {
     expect(selected).toContain(`data-dashboard-url="/admin?view=access&amp;person=${encodeURIComponent(person)}&amp;task=give-access"`);
     expect(new JSDOM(selected).window.document.querySelector("a[data-discard-draft]")?.getAttribute("href")).toBe(`/admin?view=access&person=${encodeURIComponent(person)}#keys`);
     const missing = await render("https://admin.example.test/admin?view=access&person=missing&task=give-access");
-    expect(missing).toContain('未显示人员');
+    expect(missing).toContain('未显示账号');
     expect(missing).not.toContain('name="user_id"');
     expect(missing).not.toContain('data-action="credit-set"');
   });
@@ -609,7 +609,7 @@ describe("Dashboard", () => {
     expect(document.querySelector('.site-header [data-dashboard-refresh]')).toBeNull();
     expect(document.querySelector('main')?.getAttribute('data-console-read-url')).toBe('/admin?view=overview&range=7d');
     expect(document.querySelector('[data-panel="attention"]')).toBeNull();
-    const connect = [...document.querySelectorAll('main a')].filter(link=>link.textContent === '连接账号');
+    const connect = [...document.querySelectorAll('main a')].filter(link=>link.textContent === '添加上游连接');
     expect(connect).toHaveLength(1);
     expect(connect[0]?.getAttribute("href")).toBe("/admin?view=credentials&task=add-account");
     expect(document.querySelector("main")?.textContent).not.toContain("下一步");
@@ -718,7 +718,7 @@ describe("Dashboard", () => {
       loadCodexAccount: async () => softFailAccount
     })).text();
     const document = new JSDOM(html).window.document;
-    const connect = [...document.querySelectorAll('main a')].filter(link=>link.textContent === '连接账号');
+    const connect = [...document.querySelectorAll('main a')].filter(link=>link.textContent === '添加上游连接');
     expect(connect).toHaveLength(1);
     expect(connect[0]?.getAttribute("href")).toBe("/admin?view=credentials&task=add-account");
     expect(document.querySelector('[data-panel="attention"]')).toBeNull();
@@ -751,7 +751,7 @@ describe("Dashboard", () => {
       expect(card).toContain(`action="${path}/refresh"`);
       expect(card).toContain(`action="${path}/oauth/start"`);
       expect(card).toContain(`action="${path}/logout"`);
-      expect(card).toContain("这会替换当前的账号连接。");
+      expect(card).toContain("这会替换当前的上游连接。");
       expect(card).not.toContain("即将过期");
     }
     const home = await render("overview");
@@ -899,12 +899,12 @@ describe("Dashboard", () => {
     const env = emptyEnv();
     for (const [view, markers] of [
       ["surfaces", ['data-view-role="routes"', "data-surfaces-grouped"]],
-      ["credentials", ['data-view-role="accounts"', 'class="account-list"', "添加上游账号"]],
+      ["credentials", ['data-view-role="accounts"', 'class="account-list"', "添加上游连接"]],
       [
         "access",
         [
           'data-view-role="people"',
-          'aria-label="人员和客户端访问"',
+          'aria-label="账号和客户端访问"',
           'data-empty="none"',
           'task=add-person'
         ]
@@ -962,7 +962,7 @@ describe("Dashboard", () => {
     expect([...catalog.querySelectorAll('th')].map(node => node.textContent)).toContain('最近结果');
     expect(codex.querySelector('button[popovertarget]')?.getAttribute('aria-label')).toBe('请求与授权详情');
     expect(codex.querySelector('[popover]')?.getAttribute('popover')).toBe('auto');
-    expect([...codex.querySelectorAll('dt')].map(node => node.textContent)).toEqual(['最近失败', '最近成功', '需要的授权', '使用的上游账号']);
+    expect([...codex.querySelectorAll('dt')].map(node => node.textContent)).toEqual(['最近失败', '最近成功', '需要的授权', '使用的上游连接']);
     expect(codex.querySelector('[popover]')?.textContent).toContain('ChatGPT');
     expect(catalog.querySelector('input[type="search"]')?.getAttribute('placeholder')).toBe('本页：过滤路由');
     expect(catalog.textContent).toContain('只搜索当前列表');
@@ -1044,7 +1044,7 @@ describe("Dashboard", () => {
     expect(html).toContain('href="?view=surfaces"');
     expect(html).toContain("查看路由");
     expect(html).toContain("通过已连接的 ChatGPT 使用 Codex CLI。");
-    expect(html).toContain("包含 Grok Build，以及有限的 xAI 能力。文件和视频仍绑定账号所有者。");
+    expect(html).toContain("包含 Grok Build，以及有限的 xAI 能力。文件和视频仍绑定上游账号所有者。");
     expect(html).toContain("可以操作组织共享的 xAI API 资源。只授予值得信任的人员。");
     expect(html).toContain("api.trustedtunnel.app");
     expect(html.match(/name="clients"/g)).toHaveLength(3);

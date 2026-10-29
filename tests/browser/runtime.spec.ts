@@ -111,18 +111,18 @@ test("uncertain credential write clears input and recovers without repeating sup
   await expect(accessConfirmation).toContainText("https://design.example.test/google-stitch");
   await accessConfirmation.getByRole("button",{name:"取消",exact:true}).click();
   expect(await f.db.prepare("SELECT state FROM runtime_installation_access WHERE installation_id='design' AND user_id='other'").first()).toBeNull();
-  await page.getByText("更换同一账号的凭据",{exact:true}).click();
+  await page.getByText("更换同一上游账号的凭据",{exact:true}).click();
   const form=page.locator('form:has(input[name="authority"][value="same"])');
   await form.locator('input[name="material"]').fill("synthetic-replacement-not-for-production");
   const held=worker.hold({method:"POST",path:"/admin/ui/runtime-installations/design"});
   let nativePost=false;
   page.on("request",request=>{if(request.method()==="POST"&&new URL(request.url()).pathname==="/admin/ui/runtime-installations/design")nativePost=request.isNavigationRequest();});
   try {
-    await form.getByRole("button",{name:"更换同一账号凭据",exact:true}).click();
+    await form.getByRole("button",{name:"更换同一上游账号凭据",exact:true}).click();
     const credentialConfirmation=page.getByRole("alertdialog");
     await expect(credentialConfirmation).toContainText("Design");
     await expect(credentialConfirmation).toContainText("https://design.example.test/google-stitch");
-    await credentialConfirmation.getByRole("button",{name:"更换同一账号凭据",exact:true}).click();
+    await credentialConfirmation.getByRole("button",{name:"更换同一上游账号凭据",exact:true}).click();
     await held.entered;
     expect(nativePost).toBe(false);
     expect(await page.evaluate(()=>document.querySelector<HTMLInputElement>('input[name="material"]')?.value==="")).toBe(true);

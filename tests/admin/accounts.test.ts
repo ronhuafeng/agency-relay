@@ -76,7 +76,7 @@ describe("account linked access", () => {
 
   it.each([
     [{}, "有效"], [{ status: "revoked" }, "已撤销"], [{ expires: "2026-09-12T12:00:00.000Z" }, "已过期"],
-    [{ personStatus: "disabled" }, "已暂停 — 人员已停用"],
+    [{ personStatus: "disabled" }, "已暂停 — 账号已停用"],
     [{ rawScopes: "surface:grok:production" }, "Grok — 未授予"],
     [{ grants: ["surface:grok:production"], bound: ["surface:grok:production", "surface:xai:production"] }, "xAI API — 未授予"]
   ] as const)("keeps access state explicit: %j", async (input, label) => {
@@ -249,7 +249,7 @@ describe("exact account tasks", () => {
     const f = fixture();
     const { response, html } = await f.render(`&account=${encodeURIComponent(key)}`);
     expect(response.status).toBe(200);
-    expect(html).toContain("没有这个账号");
+    expect(html).toContain("没有这个连接");
     expect(detail(html)).not.toContain('method="post"');
     expect(f.load).not.toHaveBeenCalled();
   });
@@ -265,7 +265,7 @@ describe("exact account tasks", () => {
   it("keeps creation separate and native without provider reads", async () => {
     const f = fixture();
     const { html } = await f.render("&task=add-account");
-    expect(detail(html)).toContain('<h2>添加上游账号</h2>');
+    expect(detail(html)).toContain('<h2>添加上游连接</h2>');
     expect(detail(html)).toContain('action="/admin/ui/codex-auths"');
     expect(detail(html)).toContain('action="/admin/ui/subscriptions"');
     expect(detail(html)).not.toContain('name="return_range"');
@@ -344,7 +344,7 @@ describe("ChatGPT admission presentation", () => {
     form.querySelector<HTMLInputElement>('[data-confirmation-fallback] input')!.checked = true;
     expect(form.checkValidity()).toBe(true);
     expect(form.dataset.confirmation).toContain("Same label（collision）");
-    expect(form.dataset.confirmation).toContain("不会自动切换账号");
+    expect(form.dataset.confirmation).toContain("不会自动切换连接");
     expect(form.dataset.confirmation).toContain("已接受的请求或外部任务不会因此取消");
     expect(document.querySelector<HTMLButtonElement>('[data-action="refresh-codex"] button')?.disabled).toBe(false);
     const unavailable = fixture("FROM organization_surface_credential_defaults AS d");
@@ -357,7 +357,7 @@ describe("ChatGPT admission presentation", () => {
     const f = fixture();
     const {html} = await f.render("&account=codex%3Acollision", {kind:"codex_admission",auth_id:"collision",admission_state:"enabled"});
     const document = new JSDOM(html).window.document;
-    expect(document.querySelector('[data-mutation-flash="codex_admission"]')?.textContent).toContain("请求准入已恢复");
+    expect(document.querySelector('[data-mutation-flash="codex_admission"]')?.textContent).toContain("恢复接收请求");
     expect(document.querySelector('[data-mutation-flash="codex_admission"] a')?.getAttribute("href")).toBe("/admin?view=credentials&account=codex%3Acollision");
     expect(f.load).not.toHaveBeenCalled();
   });

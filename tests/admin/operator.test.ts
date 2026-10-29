@@ -99,7 +99,7 @@ describe("admin pages, accounts, and audit", () => {
     const credentials = await admin(fixture, "https://admin.example.test/admin?view=credentials", { method: "GET" });
     expect(credentials.status).toBe(200);
     const credentialsBody = await credentials.text();
-    expect(credentialsBody).toContain("添加上游账号");
+    expect(credentialsBody).toContain("添加上游连接");
     expect(credentialsBody).toContain("ChatGPT");
     expect(credentialsBody).toContain("Grok");
     expect(credentialsBody).not.toContain("ADMIN_SECRET");
@@ -108,7 +108,7 @@ describe("admin pages, accounts, and audit", () => {
     const access = await admin(fixture, "https://admin.example.test/admin?view=access", { method: "GET" });
     expect(access.status).toBe(200);
     const accessBody = await access.text();
-    expect(accessBody).toContain("人员");
+    expect(accessBody).toContain("成员与服务");
     expect(accessBody).toContain('data-view-role="people"');
     expect(accessBody).toContain('task=add-person');
     expect(accessBody).not.toContain('data-keys-table="true"');
@@ -489,7 +489,7 @@ describe("admin pages, accounts, and audit", () => {
     const nextHtml = await nextPage.text();
     expect(nextHtml).not.toContain('data-one-time-key="true"');
     expect(nextHtml).not.toContain('data-created-token="true"');
-    expect(nextHtml).toContain("换发密钥并下载配置包");
+    expect(nextHtml).toContain("更换密钥并下载配置包");
     expect(new JSDOM(nextHtml).window.document.querySelector('[data-local-config-sync] fieldset')?.hasAttribute('disabled')).toBe(true);
     expect(nextHtml).toContain('data-client-verification="grok"');
     expect(nextHtml).toContain('data-result="works"');
@@ -615,7 +615,7 @@ describe("admin pages, accounts, and audit", () => {
     expect(response.status).toBe(200);
     const html=await response.text();
     expect(html.includes('data-replacement-overlap="false"')).toBe(true);
-    expect(html.includes("不会因为这次续发恢复有效")).toBe(true);
+    expect(html.includes("不会因为这次更换恢复有效")).toBe(true);
     expect(html.includes("在到期或撤销前仍然有效")).toBe(false);
     expect(fixture.db.apiKeys.get(key.key.id)?.expires_at).toBe("2020-01-01T00:00:00Z");
     expect([...fixture.db.apiKeys.values()].filter(candidate=>candidate.user_id===user.user.id)).toHaveLength(2);
@@ -898,7 +898,7 @@ describe("admin pages, accounts, and audit", () => {
     expect(html).toContain('data-action="refresh-codex"');
     expect(html).toContain('data-action="oauth-codex-start"');
     expect(html).toContain('data-action="logout-codex"');
-    expect(html).toContain(">刷新账号<");
+    expect(html).toContain(">刷新连接<");
     expect(html).toContain(">重新连接<");
     expect(html).toContain(">断开<");
     expect(html).toContain("op@example.com");
@@ -932,7 +932,7 @@ describe("admin pages, accounts, and audit", () => {
     expect(logout.status).toBe(200);
     const logoutHtml = await logout.text();
     expect(logoutHtml).toContain('data-mutation-flash="credential_disconnected"');
-    expect(logoutHtml).toContain("连接已断开，令牌清理已确认");
+    expect(logoutHtml).toContain('data-token-cleanup="cleared"');
     expect(fixture.db.codexAuths.get("shared_default")?.status).toBe("revoked");
     expect(fixture.db.operatorMutationAudit.some((row) => row.action === "credential.disconnect")).toBe(true);
   });
@@ -1017,7 +1017,7 @@ describe("admin pages, accounts, and audit", () => {
     const account = [...fixture.db.subscriptionAccounts.values()][0];
     expect(account).toBeDefined();
     expect(html).toContain('data-mutation-flash="grok_created"');
-    expect(html).toContain("已添加 Grok 账号");
+    expect(html).toContain("已添加 Grok 连接");
     expect(html).toContain("控制台暂时打不开");
     expect(html).toContain(`data-dashboard-url="/admin?view=credentials&amp;account=grok%3A${account.id}&amp;q=Other+%26+%E4%B8%AD%E6%96%87&amp;page=2"`);
   });
@@ -1162,7 +1162,7 @@ describe("admin pages, accounts, and audit", () => {
     const activeHtml = await activePage.text();
     expect(activeHtml).toContain('data-mgmt-state="active"');
     expect(activeHtml).toContain('data-action="logout-grok"');
-    expect(activeHtml).toContain(">刷新账号<");
+    expect(activeHtml).toContain(">刷新连接<");
     expect(activeHtml).toContain(">重新连接<");
     // Product, account label, and state remain explicit on the same card.
     const header = new JSDOM(activeHtml).window.document.querySelector(".credential-card-head");
@@ -1185,7 +1185,7 @@ describe("admin pages, accounts, and audit", () => {
     expect(logout.status).toBe(200);
     const logoutHtml = await logout.text();
     expect(logoutHtml).toContain('data-mutation-flash="credential_disconnected"');
-    expect(logoutHtml).toContain("连接已断开，令牌清理已确认");
+    expect(logoutHtml).toContain('data-token-cleanup="cleared"');
     expect(fixture.db.subscriptionAccounts.get(account.id)?.status).toBe("revoked");
     expect(fixture.db.operatorMutationAudit.some((row) => row.action === "credential.disconnect")).toBe(true);
   });

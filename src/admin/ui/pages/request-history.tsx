@@ -49,7 +49,7 @@ function RequestDetail({ row, model }: { readonly row: RequestHistoryRecord; rea
         <Fact label="请求方法（记录）">未记录</Fact>
         <Fact label="当前目录方法">{row.catalogMethod ?? "当前目录无此项"}（当前标签，非历史快照）</Fact>
         <Fact label="服务名称">{row.service}（当前目录标签）</Fact>
-        <Fact label="人员标识（记录）">{row.userId ?? "未记录"}</Fact>
+        <Fact label="账号标识（记录）">{row.userId ?? "未记录"}</Fact>
         <Fact label="当前邮箱">{row.currentEmail ?? "对象已删除或标签不可用"}（非历史快照）</Fact>
         <Fact label="密钥标识（记录）">{row.keyId ?? "未记录"}</Fact>
         <Fact label="当前密钥名称">{row.currentKeyName ?? "对象已删除或标签不可用"}（非历史快照）</Fact>

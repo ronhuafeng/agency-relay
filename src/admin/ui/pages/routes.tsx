@@ -39,7 +39,7 @@ function grantLabel(grant: string): string {
 function slotLabel(slot: string): string {
   if (isChatgptProductionSlot(slot)) return "ChatGPT";
   if (slot === "grok_production") return "Grok";
-  return "未记录账号";
+  return "未记录连接";
 }
 
 function RouteList({ hostname, routes, hostIndex, tabbed = false }: { readonly hostname: string; readonly routes: readonly RouteRow[]; readonly hostIndex: number; readonly tabbed?: boolean }) {
@@ -62,7 +62,7 @@ function RouteList({ hostname, routes, hostIndex, tabbed = false }: { readonly h
                     <div><dt>最近失败</dt><dd><time dateTime={route.last_failure_at ?? undefined} title={route.last_failure_at ?? undefined}>{formatOperatorInstantOrDash(route.last_failure_at)}</time></dd></div>
                     <div><dt>最近成功</dt><dd><time dateTime={route.last_success_at ?? undefined} title={route.last_success_at ?? undefined}>{formatOperatorInstantOrDash(route.last_success_at)}</time></dd></div>
                     <div><dt>需要的授权</dt><dd>{grantLabel(route.grant)}</dd></div>
-                    <div><dt>使用的上游账号</dt><dd>{slotLabel(route.slot)}</dd></div>
+                    <div><dt>使用的上游连接</dt><dd>{slotLabel(route.slot)}</dd></div>
                   </dl>
                 </InfoPopover></TableCell>
               </TableRow>

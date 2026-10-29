@@ -81,7 +81,7 @@ test('route filtering, exact provider selection and Back retain context', async 
   await expect(page.locator('[data-account-detail="grok:fixture-codex"] h2').first()).toContainText('Synthetic Grok shared identifier');
   await expect(page).toHaveURL(/q=shared/);
   await page.goBack();
-  await expect(page.getByRole('searchbox', { name:'搜索账号' })).toHaveValue('shared');
+  await expect(page.getByRole('searchbox', { name:'搜索连接' })).toHaveValue('shared');
   await expect(page.locator('[data-account-key="grok:fixture-codex"] a')).toBeFocused();
 });
 
@@ -149,7 +149,7 @@ test.describe('native narrow administrator details', () => {
     await expect(route.getByText('ChatGPT',{exact:true})).toBeVisible();
     await page.goto('/admin?view=credentials&account=grok%3Afixture-codex&q=shared');
     await page.getByRole('link',{name:'收起连接详情',exact:true}).click();
-    await expect(page.getByRole('searchbox',{name:'搜索账号'})).toHaveValue('shared');
+    await expect(page.getByRole('searchbox',{name:'搜索连接'})).toHaveValue('shared');
     await page.goto('/admin?view=setup&person=member&key=member-key');
     await expect(page.locator('[data-setup-selected-key="member-key"]').getByText('~/.codex/config.toml',{exact:true})).toBeVisible();
     await page.getByRole('link',{name:'收起密钥配置',exact:true}).click();

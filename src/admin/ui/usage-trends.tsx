@@ -77,7 +77,7 @@ export function UsageTrends({model, rangeInToolbar = false, emptyAction, classNa
     <h2 className="sr-only">{model.scopeLabel}</h2>{model.filterLabel ? <p className="usage-filter-context">{model.filterLabel}</p> : null}
     {distinctSeries.length ? <UsageComparisonIsland control={{id: "usage-comparison", range: rangeInToolbar ? undefined : navigation, series: distinctSeries}}/> : <div className="usage-empty-panel">
       {!rangeInToolbar && navigation ? <nav className="ranges" aria-label="UTC 时间范围"><a href={navigation.href1} data-dashboard-link="" aria-current={range.key === "1d" ? "true" : undefined}>1 天</a><a href={navigation.href7} data-dashboard-link="" aria-current={range.key === "7d" ? "true" : undefined}>7 天</a><a href={navigation.href30} data-dashboard-link="" aria-current={range.key === "30d" ? "true" : undefined}>30 天</a></nav> : null}
-      <Empty role="status" data-trend-empty=""><EmptyHeader>{emptyAction ? <EmptyMedia variant="icon"><Icon name="credentials"/></EmptyMedia> : null}<EmptyTitle>{emptyAction ? "连接账号，开始使用" : "暂无用量记录"}</EmptyTitle><EmptyDescription>{emptyAction ? "连接上游账号后，为成员配置密钥。用量会显示在这里。" : `${range.from} 至 ${range.to} UTC 没有用量记录。`}</EmptyDescription></EmptyHeader>{emptyAction ? <EmptyContent>{emptyAction}</EmptyContent> : null}</Empty>
+      <Empty role="status" data-trend-empty=""><EmptyHeader>{emptyAction ? <EmptyMedia variant="icon"><Icon name="credentials"/></EmptyMedia> : null}<EmptyTitle>{emptyAction ? "添加上游连接，开始使用" : "暂无用量记录"}</EmptyTitle><EmptyDescription>{emptyAction ? "添加上游连接后，为成员配置密钥。用量会显示在这里。" : `${range.from} 至 ${range.to} UTC 没有用量记录。`}</EmptyDescription></EmptyHeader>{emptyAction ? <EmptyContent>{emptyAction}</EmptyContent> : null}</Empty>
     </div>}
 
   </section>;
