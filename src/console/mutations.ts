@@ -46,7 +46,7 @@ export async function routeDashboardUiMutation(
     let status=200;
     try {
       await mutateRuntimeInstallation(env,credentialActor(operator),runtime[1]!,body,operator.now);
-      flash={kind:"runtime_changed",installation_id:runtime[1]!,message:"工具服务操作已完成。请核对当前状态；已执行的上游操作和资源不会因此撤回或迁移。"};
+      flash={kind:"runtime_changed",installation_id:runtime[1]!,message:"工具服务已更新。"};
     } catch(error) {
       // Actor/revision rejection can occur after staging across D1 and the DO.
       // Only input validation is known not to have written; all other uncertain

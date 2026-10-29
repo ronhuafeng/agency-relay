@@ -68,7 +68,8 @@ for(const identity of ["admin","member"] as const)for(const script of [true,fals
     f.cookies.set(identity,`__Host-mini-console=${session}`);
     await authenticate(context,worker,identity);
     await page.goto(destination.searchParams.get("return")!);
-    await expect(page.getByRole("heading",{name:identity==="admin"?"Design":"我的工具服务",exact:true})).toBeVisible();
+    if(identity==="admin"){await expect(page.getByRole("region",{name:"Design 管理",exact:true})).toBeVisible();await expect(page.getByRole("textbox",{name:"服务名称",exact:true})).toHaveValue("Design");}
+    else await expect(page.getByRole("heading",{name:"我的工具服务",exact:true})).toBeVisible();
     if(auth)await expect(page.getByRole("table",{name:"已记录的客户端授权"})).toContainText("Synthetic client");
     expect(worker.requests.filter(r=>r.method==="POST"&&(r.path.startsWith("/me/ui/runtime-clients/")||r.path==="/admin/ui/runtime-installations/design")).length).toBe(1);
   });
@@ -104,25 +105,25 @@ test("uncertain credential write clears input and recovers without repeating sup
   const failure=await f.expire("fail-write","true");await failure.body?.cancel();
   await page.goto("/admin?view=runtime&installation=design");
   const member=page.getByRole("table",{name:"成员工具权限"}).getByRole("row").filter({hasText:"other@example.test"});
-  await member.getByRole("button",{name:"授予（不设期限）",exact:true}).click();
+  await member.getByRole("button",{name:"授予权限",exact:true}).click();
   const accessConfirmation=page.getByRole("alertdialog");
   await expect(accessConfirmation).toContainText("other@example.test");
   await expect(accessConfirmation).toContainText("Design");
   await expect(accessConfirmation).toContainText("https://design.example.test/google-stitch");
   await accessConfirmation.getByRole("button",{name:"取消",exact:true}).click();
   expect(await f.db.prepare("SELECT state FROM runtime_installation_access WHERE installation_id='design' AND user_id='other'").first()).toBeNull();
-  await page.getByText("更换同一上游账号的凭据",{exact:true}).click();
+  await page.getByRole("radio",{name:"同一上游账号",exact:true}).check();
   const form=page.locator('form:has(input[name="authority"][value="same"])');
   await form.locator('input[name="material"]').fill("synthetic-replacement-not-for-production");
   const held=worker.hold({method:"POST",path:"/admin/ui/runtime-installations/design"});
   let nativePost=false;
   page.on("request",request=>{if(request.method()==="POST"&&new URL(request.url()).pathname==="/admin/ui/runtime-installations/design")nativePost=request.isNavigationRequest();});
   try {
-    await form.getByRole("button",{name:"更换同一上游账号凭据",exact:true}).click();
+    await form.getByRole("button",{name:"更新凭据",exact:true}).click();
     const credentialConfirmation=page.getByRole("alertdialog");
     await expect(credentialConfirmation).toContainText("Design");
     await expect(credentialConfirmation).toContainText("https://design.example.test/google-stitch");
-    await credentialConfirmation.getByRole("button",{name:"更换同一上游账号凭据",exact:true}).click();
+    await credentialConfirmation.getByRole("button",{name:"更新凭据",exact:true}).click();
     await held.entered;
     expect(nativePost).toBe(false);
     expect(await page.evaluate(()=>document.querySelector<HTMLInputElement>('input[name="material"]')?.value==="")).toBe(true);
@@ -137,8 +138,35 @@ test("uncertain credential write clears input and recovers without repeating sup
   expect(state).toEqual({phase:"writing",state:"enabled"});
   const recover=page.locator('form:has(input[name="action"][value="recover"])');
   await confirm(page,recover,"放弃未确认凭据并停用");
-  await expect(page.getByText("工具服务操作已完成。请核对当前状态；已执行的上游操作和资源不会因此撤回或迁移。",{exact:true})).toBeVisible();
+  await expect(page.getByText("工具服务已更新。",{exact:true})).toBeVisible();
   const final=await f.db.prepare("SELECT phase,state,credential_ref IS NULL AS empty FROM runtime_installations WHERE id='design'").first();
   expect(final).toEqual({phase:"ready",state:"disabled",empty:1});
   expect(worker.requests.filter(r=>r.method==="POST"&&r.path==="/admin/ui/runtime-installations/design").length).toBe(2);
+});
+
+for (const script of [true,false]) test.describe(`Runtime workspace script ${script}`,()=>{
+  test.use({identity:"admin",script,viewport:{width:script?1440:390,height:900},colorScheme:script?"light":"dark"});
+  test("keeps credential authority choices explicit and usable without disclosures",async({page,worker})=>{
+    await page.goto("/admin?view=runtime&installation=design");
+    await expect(page.locator("main details")).toHaveCount(0);
+    const same=page.locator('form:has(input[name="authority"][value="same"])');
+    const rebind=page.locator('form:has(input[name="authority"][value="rebind"])');
+    await expect(same).toBeVisible();await expect(rebind).toBeHidden();
+    await page.getByRole("radio",{name:"绑定新账号",exact:true}).focus();
+    await page.keyboard.press("Space");
+    await expect(rebind).toBeVisible();await expect(same).toBeHidden();
+    await expect(rebind.locator('input[name="material"]')).toHaveAttribute("type","password");
+    await page.keyboard.press("ArrowLeft");
+    await expect(page.getByRole("radio",{name:"同一上游账号",exact:true})).toBeChecked();
+    await expect(same).toBeVisible();await expect(rebind).toBeHidden();
+    expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
+    if(script){
+      const retire=page.getByRole("button",{name:"永久退役服务",exact:true});
+      await retire.click();const dialog=page.getByRole("alertdialog");
+      await expect(dialog).toContainText("不能重新启用");
+      await dialog.getByRole("button",{name:"取消",exact:true}).click();
+      await expect(retire).toBeFocused();
+    }
+    expect(worker.requests.filter(request=>request.method==="POST")).toHaveLength(0);
+  });
 });

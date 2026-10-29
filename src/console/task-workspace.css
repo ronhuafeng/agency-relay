@@ -50,3 +50,65 @@
   .person-detail-head { grid-template-columns:minmax(0,1fr); }
   .person-detail-head>.task-head-actions { justify-content:space-between; }
 }
+
+/* Runtime installations: object selection above the access and configuration workspaces. */
+.runtime-admin-workspace { display:grid; gap:var(--space-5); min-width:0; container:runtime-admin / inline-size; }
+.runtime-installation-picker { display:flex; flex-wrap:wrap; align-items:stretch; gap:var(--space-2); }
+.runtime-installation-choice { display:flex; align-items:center; flex-wrap:wrap; gap:var(--space-2); min-height:var(--control-target); padding:var(--space-2) var(--space-3); border:1px solid var(--border); border-radius:var(--radius); background:var(--card); color:var(--foreground); text-decoration:none; }
+.runtime-installation-choice[aria-current=true] { border-color:var(--ring); background:var(--accent); }
+.runtime-installation-choice .record-subline { flex-basis:100%; }
+.runtime-admin-detail { display:grid; gap:var(--space-4); min-width:0; overflow-wrap:anywhere; }
+.runtime-installation-head { display:flex; align-items:flex-start; justify-content:space-between; flex-wrap:wrap; gap:var(--space-3); }
+.runtime-installation-actions { display:flex; align-items:center; flex-wrap:wrap; gap:var(--space-2); min-width:0; }
+.runtime-installation-actions { justify-content:flex-end; }
+.runtime-admin-detail form { display:grid; gap:var(--space-3); min-width:0; }
+.runtime-installation-facts { display:grid; grid-template-columns:minmax(0,2fr) minmax(180px,1fr); gap:var(--space-4); margin:0; padding-block:var(--space-3); border-block:1px solid var(--border); }
+.runtime-installation-facts dt { margin-bottom:var(--space-1); color:var(--muted-foreground); font:var(--typography-caption); }
+.runtime-installation-facts dd { margin:0; }
+.runtime-installation-facts code { white-space:normal; overflow-wrap:anywhere; }
+.runtime-installation-diagnostics { margin:0; }
+.runtime-admin-columns { display:grid; gap:var(--space-5); align-items:start; min-width:0; }
+.runtime-member-access,.runtime-credential-panel { display:grid; gap:var(--space-4); min-width:0; padding:var(--space-4); border:1px solid var(--border); border-radius:var(--radius); background:var(--card); }
+.runtime-section-head { display:flex; align-items:baseline; justify-content:space-between; flex-wrap:wrap; gap:var(--space-2); }
+.runtime-section-head h3 { margin:0; font:var(--typography-section-title); }
+.runtime-admin-detail .runtime-member-search { display:flex; align-items:flex-end; gap:var(--space-2); }
+.runtime-member-search .radix-field { flex:1; min-width:0; }
+.runtime-member-table { table-layout:fixed; }
+.runtime-member-table th:nth-child(2) { width:24%; }
+.runtime-member-table th:nth-child(3) { width:150px; }
+.runtime-member-table td { overflow-wrap:anywhere; }
+.runtime-member-table td:last-child { text-align:right; }
+.runtime-member-table td:last-child form { justify-items:end; }
+.runtime-member-pagination { display:flex; justify-content:flex-end; gap:var(--space-3); }
+.runtime-member-pagination:empty { display:none; }
+.runtime-configuration { display:grid; gap:var(--space-5); align-items:start; min-width:0; }
+.runtime-credential-panel>p { margin:0; }
+.runtime-retirement { display:grid; gap:var(--space-2); padding:var(--space-4); border-top:1px solid var(--border); }
+.runtime-recovery { display:grid; gap:var(--space-3); padding:var(--space-4); border-left:3px solid var(--warn); background:var(--secondary); }
+.runtime-recovery p { margin:0; }
+.runtime-recovery form { justify-items:start; }
+@container runtime-admin (min-width:960px) {
+  .runtime-admin-columns { grid-template-columns:minmax(0,1fr) 320px; }
+}
+@container runtime-admin (max-width:600px) {
+  .runtime-installation-picker { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); }
+  .runtime-installation-choice { align-content:start; }
+  .runtime-installation-actions { justify-content:flex-start; width:100%; }
+  .runtime-installation-facts { grid-template-columns:minmax(0,1fr); }
+  .runtime-member-access,.runtime-credential-panel { padding:var(--space-3); }
+  .runtime-member-table th:nth-child(2) { width:26%; }
+  .runtime-member-table th:nth-child(3) { width:116px; }
+  .runtime-member-table td:last-child [data-slot=button] { white-space:normal; }
+}
+
+.runtime-admin-detail .runtime-name-form { display:flex; align-items:flex-end; flex-wrap:wrap; gap:var(--space-2); }
+.runtime-name-form .radix-field { min-width:180px; flex:1; }
+.runtime-installation-actions { align-self:flex-end; min-height:var(--control-target); }
+.runtime-credential-editor { display:grid; gap:var(--space-4); min-width:0; }
+.runtime-credential-modes { display:flex; gap:var(--space-1); min-width:0; margin:0; padding:0; border:0; }
+.runtime-credential-modes label { display:flex; align-items:center; flex:1; min-height:var(--control-target); gap:var(--space-2); padding:var(--space-2); border:1px solid var(--border); border-radius:var(--radius); cursor:pointer; font:var(--typography-label); }
+.runtime-credential-modes label:has(input:checked) { background:var(--accent); border-color:var(--ring); }
+.runtime-credential-modes label:focus-within { outline:2px solid var(--ring); outline-offset:2px; }
+.runtime-credential-modes input { accent-color:var(--ring); }
+.runtime-credential-editor:has(input[value=same]:checked)>[data-credential-mode=rebind],
+.runtime-credential-editor:has(input[value=rebind]:checked)>[data-credential-mode=same] { display:none; }
