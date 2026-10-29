@@ -3,7 +3,7 @@
   "name": "mini-proxy-core",
   "main": "src/index.ts",
   "build": {
-    "command": "pnpm run console:build"
+    "command": "pnpm run console:check"
   },
   "compatibility_date": "2026-06-24",
   "compatibility_flags": [

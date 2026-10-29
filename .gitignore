@@ -10,6 +10,13 @@ node_modules/
 
 coverage/
 dist/
+src/admin/generated/console-bootstrap.ts
+src/admin/generated/console-client.ts
+src/admin/generated/console-styles.ts
+src/admin/generated/tokens.css
+worker-configuration.d.ts
+deploy/codex-egress-shim/node-transport-adapter.mjs
+deploy/codex-egress-shim/transport-lifecycle.mjs
 tmp/
 # Local third-party checkouts for reading only; not part of this repo
 reference/

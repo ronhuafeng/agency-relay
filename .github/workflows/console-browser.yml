@@ -37,6 +37,7 @@ jobs:
           node-version: 26
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - run: pnpm run types:generate && pnpm run egress:build
       # A step timeout fails this check. Job timeout-minutes would only cancel it.
       # Ubuntu dependencies can still be downloading after fifteen minutes.
       # Give provisioning its own budget without changing browser test limits.

@@ -17,7 +17,7 @@
     "node": ">=22.0.0"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit && tsc -p tsconfig.client.json --noEmit && pnpm run egress:check && pnpm run console:check",
+    "typecheck": "pnpm run types:generate && pnpm run console:check && pnpm run egress:build && tsc --noEmit && tsc -p tsconfig.client.json --noEmit",
     "types:generate": "wrangler types --include-runtime=false --strict-vars=false",
     "types:check": "wrangler types --check --include-runtime=false --strict-vars=false",
     "test": "vitest run",
