@@ -80,7 +80,7 @@ export function initializeMutations(navigation: TaskController): () => void {
           if (inputError) {
             const recovery = inputError.querySelector<HTMLAnchorElement>("a[data-rejected-read]");
             const readUrl = recovery ? new URL(recovery.getAttribute("href") ?? "",location.href) : null;
-            navigation.notice(inputError.querySelector("p")?.textContent ?? inputError.textContent ?? "请检查填写的内容。", "error", readUrl?.origin === location.origin ? readUrl : null, recovery?.textContent?.trim() || "查看当前状态");
+            navigation.notice(inputError.querySelector("p")?.textContent ?? inputError.textContent ?? "请检查填写的内容。", "error", readUrl?.origin === location.origin ? readUrl : null, recovery?.textContent?.trim() || "查看当前状态", inputError.querySelector<HTMLElement>("[data-error-code]")?.dataset.errorCode);
             focusNotice(); return;
           }
           navigation.showMutationResult(doc, form); recordConsoleOutcome(outcome); return;
@@ -89,7 +89,7 @@ export function initializeMutations(navigation: TaskController): () => void {
         const value: unknown = await response.json(); if (disposed) return; const message = readConsoleRejection(value);
         if (message) {
           recordConsoleOutcome("rejected");
-          const code = consoleErrorCode(value);
+          const code = consoleErrorCode(value); const errorCode = typeof code === "string" ? code : "unknown";
           if ([401, 403].includes(response.status) && ["admin_auth_required", "admin_required", "console_identity_changed"].includes(String(code))) {
             document.dispatchEvent(new CustomEvent("console:actor-changed", { detail: { outcome: "rejected", changed: false, reason: "authority" } }));
             return;
@@ -97,8 +97,8 @@ export function initializeMutations(navigation: TaskController): () => void {
           if ([401, 403].includes(response.status)) {
             blocked.add(form); navigation.discardDraft(form);
             const readUrl = navigation.currentUrl(); readUrl.searchParams.delete("task");
-            navigation.notice(message, "error", readUrl, "查看当前状态");
-          } else navigation.notice(message, "error");
+            navigation.notice(message, "error", readUrl, "查看当前状态", errorCode);
+          } else navigation.notice(message, "error", null, undefined, errorCode);
           focusNotice(); return;
         }
       }

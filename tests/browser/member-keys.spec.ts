@@ -26,7 +26,7 @@ test('a confirmed revoke survives a failed list refresh without a duplicate writ
   await page.getByRole('alertdialog').getByRole('button',{name:'撤销密钥',exact:true}).click();
   await refresh.entered;refresh.release(503);
   await expect(page.locator('[data-member-feedback]')).toContainText('密钥已撤销');
-  await expect(page.locator('[data-member-feedback]')).toContainText('列表还没有刷新');
+  await expect(page.locator('[data-member-feedback][data-refresh="stale"]')).toBeVisible();
   await expect(page.locator('[data-member-feedback]')).not.toContainText('操作结果尚未确认');
   expect(worker.requests.filter(request=>request.method==='POST'&&request.path.endsWith('/revoke'))).toHaveLength(1);
   const recovery=page.locator('[data-member-feedback]').getByRole('link',{name:'查看当前密钥',exact:true});
@@ -158,7 +158,7 @@ test('a stale replacement refuses newly unusable bindings while rename and revok
   await openKeyEditor(page, 'replace');
   await key.getByRole('button',{name:'更换',exact:true}).click();
   await page.getByRole('alertdialog').getByRole('button',{name:'更换',exact:true}).click();
-  await expect(page.locator('[data-member-feedback]')).toContainText('原绑定当前不可用或不完整');
+  await expect(page.locator('[data-member-feedback][data-error-code="replacement_bindings_unavailable"]')).toBeVisible();
   expect(await page.locator('[data-one-time-key]').count()).toBe(0);expect(worker.countKeys()).toBe(1);
   await page.reload();
   await expect(key.locator('[data-replacement-state="binding"]')).toBeVisible();

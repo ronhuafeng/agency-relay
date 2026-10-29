@@ -63,24 +63,24 @@ export type DashboardMutationFlash =
       previous_key_url?: string;
     }
   | { kind: "key_revoked"; key_id: string; key_prefix: string | null; already_revoked: boolean }
-  | { kind: "key_replacement_error"; key_id: string; user_id: string; message: string }
+  | { kind: "key_replacement_error"; key_id: string; user_id: string; message: string; error_code?: string }
   | { kind: "user_status"; user_id: string; email?: string | null; status: string }
   | { kind: "user_role"; user_id: string; role: "admin" | "user" }
   | { kind: "user_email"; user_id: string; email: string; previous_email: string | null }
-  | { kind: "user_lifecycle_error"; user_id: string; action: string; email: string; message: string }
+  | { kind: "user_lifecycle_error"; user_id: string; action: string; email: string; message: string; error_code?: string }
   | { kind: "user_created"; user_id: string; email?: string | null }
   | { kind: "service_owner_changed"; user_id: string }
   | { kind: "service_changed"; user_id: string; action: "create" | "rename" | "classify"; display_name: string }
-  | { kind: "service_error"; user_id?: string; action: string; display_name: string; message: string }
-  | { kind: "user_create_error"; email: string; message: string }
+  | { kind: "service_error"; user_id?: string; action: string; display_name: string; message: string; error_code?: string }
+  | { kind: "user_create_error"; email: string; message: string; error_code?: string }
   | { kind: "credit_default"; defaults: readonly {surface_grant: string; monthly_allowance:number}[] }
-  | { kind: "credit_default_error"; message: string }
+  | { kind: "credit_default_error"; message: string; error_code?: string }
   | { kind: "credit_policy"; user_id: string; email?: string | null; surface: string; mode: "unlimited" | "limited" | "disabled"; monthly_allowance: number | null; source: "personal" | "organization" | "unconfigured" }
   | { kind: "codex_created"; auth_id: string }
   | { kind: "codex_imported"; auth_id: string }
   | { kind: "codex_refreshed"; auth_id: string }
   | { kind: "codex_admission"; auth_id: string; admission_state: "enabled" | "paused" }
-  | { kind: "codex_refresh_error"; auth_id: string; message: string }
+  | { kind: "codex_refresh_error"; auth_id: string; message: string; error_code?: string }
   | { kind: "codex_logged_out"; auth_id: string }
   | { kind: "codex_oauth_started"; auth_id: string; session_id: string; authorize_url: string; redirect_uri: string }
   | { kind: "grok_created"; account_id: string }
@@ -92,7 +92,7 @@ export type DashboardMutationFlash =
   | { kind: "credential_migrated"; provider: "codex" | "grok"; account_id: string; bindings: number; defaults: number }
   | { kind: "credential_disconnected"; provider: "codex" | "grok"; account_id: string; token_cleanup: "cleared" | "failed" }
   | { kind: "credential_cleanup"; provider: "codex" | "grok"; account_id: string; token_cleanup: "cleared" | "failed" }
-  | { kind: "credential_task_error"; provider?: "codex" | "grok"; account_id?: string; surface_grant?: string; message: string }
+  | { kind: "credential_task_error"; provider?: "codex" | "grok"; account_id?: string; surface_grant?: string; message: string; error_code?: string }
   | { kind: "credential_binding"; key_id: string; surface_grant: string };
 
 export interface AdminDashboardInput {

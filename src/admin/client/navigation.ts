@@ -6,7 +6,7 @@ import { consoleErrorCode } from "../ui/messages";
 interface Context { url: string; scroll: number; focusLink: string | null; filters: string[] }
 interface Entry { miniEntry: string; miniDepth: number }
 export interface TaskController {
-  notice(message: string, kind?: string, url?: URL | null, linkLabel?: string): void;
+  notice(message: string, kind?: string, url?: URL | null, linkLabel?: string, errorCode?: string): void;
   currentUrl(): URL;
   discardDraft(form: HTMLFormElement): void;
   setMutationPending(pending: boolean): void;
@@ -90,9 +90,10 @@ export function createTaskController(initialize: (root: ParentNode) => void, dra
     const inset = (header?.getBoundingClientRect().height ?? 0) + (region && !region.hidden ? region.getBoundingClientRect().height + 8 : 0) + 16;
     document.documentElement.style.setProperty("--dashboard-scroll-inset", `${inset}px`);
   };
-  const notice = (message: string, kind = "info", url: URL | null = null, label = "打开页面"): void => {
+  const notice = (message: string, kind = "info", url: URL | null = null, label = "打开页面", errorCode?: string): void => {
     const region = document.querySelector<HTMLElement>("[data-dashboard-notice]"); if (!region) return;
     region.hidden = !message || kind === "loading"; region.dataset.state = kind;
+    if (errorCode) region.dataset.errorCode = errorCode; else delete region.dataset.errorCode;
     setConsoleStatus(kind === "loading" ? message : "", "pending");
     const text = region.querySelector("[data-notice-message]"); if (text) text.textContent = message;
     const link = region.querySelector<HTMLAnchorElement>("a"); if (link) { link.hidden = !url; if (url) { link.href = url.href; link.textContent = label; link.dataset.dashboardLink = ""; link.dataset.taskLink = ""; link.dataset.dashboardRefresh = ""; } }

@@ -16,7 +16,7 @@ import { requireOperator, verifyConsoleAccess, type AdminIdentity } from "../aut
 import { routeConsoleLogin } from "../auth/feishu-login";
 import { readTokenResult } from "../auth/token-result";
 import { clearConsoleSessionCookie } from "../auth/console-session";
-import { consoleErrorMessage } from "./ui/messages";
+import { consoleError } from "./ui/messages";
 import { credentialStatusResponse, credentialEventsResponse } from "./credential-status";
 import { userRole, userStatus, type ConsolePrincipal } from "../auth/principal";
 import {
@@ -643,7 +643,7 @@ async function ownKeyResponse(
     }
     if (wantsHtml(request) && error instanceof HttpError && ([400,403,404,409,422].includes(error.status) || error.code === "credential_default_unavailable")) {
       return memberMutationPage({ principal, service, requestId: actor.requestId ?? "", keyId, status: error.status, rejected: true,
-        message: consoleErrorMessage(error.code ?? null), attemptedName: typeof body.name === "string" ? body.name : undefined });
+        ...consoleError(error.code), attemptedName: typeof body.name === "string" ? body.name : undefined });
     }
     throw error;
   }
@@ -1115,7 +1115,7 @@ async function routeDashboardUiMutation(
         return consoleUnknownOutcome(`/admin?view=credentials&account=${encodeURIComponent(`${provider}:${accountId}`)}`);
       }
       assertHtmlMutationError(error, request, [400, 409, 422]);
-      return dashboardAfterMutation(env,url,admin,deps,requestContext,{kind:"credential_task_error",provider,account_id:accountId,surface_grant:grant,message:consoleErrorMessage(error.code ?? null)},error.status,undefined,...mutationReturn(body));
+      return dashboardAfterMutation(env,url,admin,deps,requestContext,{kind:"credential_task_error",provider,account_id:accountId,surface_grant:grant,...consoleError(error.code)},error.status,undefined,...mutationReturn(body));
     }
   }
 
@@ -1131,7 +1131,7 @@ async function routeDashboardUiMutation(
       }
       assertHtmlMutationError(error, request, [400, 409]);
       return dashboardAfterMutation(env, url, admin, deps, requestContext, {
-        kind: "user_create_error", email, message: consoleErrorMessage(error.code ?? null)
+        kind: "user_create_error", email, ...consoleError(error.code)
       }, error.status);
     }
   }
@@ -1146,7 +1146,7 @@ async function routeDashboardUiMutation(
       return dashboardAfterMutation(env,url,admin,deps,requestContext,{kind:"service_owner_changed",user_id:id},200,stringField(body,"person_return"));
     } catch (error) {
       assertHtmlMutationError(error, request, [400, 403, 409]);
-      return dashboardAfterMutation(env,url,admin,deps,requestContext,{kind:"service_error",user_id:id,action:"owner",display_name:"",message:consoleErrorMessage(error.code ?? null)},error.status,stringField(body,"person_return"));
+      return dashboardAfterMutation(env,url,admin,deps,requestContext,{kind:"service_error",user_id:id,action:"owner",display_name:"",...consoleError(error.code)},error.status,stringField(body,"person_return"));
     }
   }
   const serviceMatch = /^\/admin\/ui\/services(?:\/([^/]+)\/(name|classify))?$/.exec(url.pathname);
@@ -1164,7 +1164,7 @@ async function routeDashboardUiMutation(
     } catch (error) {
       if (error instanceof HttpError && error.status === 403 && wantsHtml(request)) return consoleLifecycleOutcome({ rejected: true, href: "/login", label: "重新登录", message: "管理员身份已改变，这次服务账号操作没有执行。请重新登录后查看当前状态。" });
       assertHtmlMutationError(error, request, [400, 409]);
-      return dashboardAfterMutation(env, url, admin, deps, requestContext, { kind: "service_error", user_id: id, action, display_name: displayName, message: consoleErrorMessage(error.code ?? null) }, error.status, stringField(body, "person_return"));
+      return dashboardAfterMutation(env, url, admin, deps, requestContext, { kind: "service_error", user_id: id, action, display_name: displayName, ...consoleError(error.code) }, error.status, stringField(body, "person_return"));
     }
   }
 
@@ -1203,7 +1203,7 @@ async function routeDashboardUiMutation(
       if (!(error instanceof HttpError) || !wantsHtml(request) || !["invalid_expires_at", "expiry_in_past", "expiry_too_far", "invalid_expires_at_utc", "ambiguous_expiry"].includes(error.code ?? "")) throw error;
       const key = await getApiKeyById(env, keyId);
       if (!key) throw error;
-      return dashboardAfterMutation(env, url, admin, deps, requestContext, {kind:"key_replacement_error", key_id:keyId, user_id:key.user_id, message:consoleErrorMessage(error.code ?? null)}, error.status, stringField(body, "key_return"));
+      return dashboardAfterMutation(env, url, admin, deps, requestContext, {kind:"key_replacement_error", key_id:keyId, user_id:key.user_id, ...consoleError(error.code)}, error.status, stringField(body, "key_return"));
     }
     if (wantsHtml(request)) {
       return dashboardAfterMutation(env, url, admin, deps, requestContext, {
@@ -1285,7 +1285,7 @@ async function routeDashboardUiMutation(
       }
       assertHtmlMutationError(error, request, [400, 409]);
       return dashboardAfterMutation(env, url, admin, deps, requestContext, {
-        kind: "user_lifecycle_error", user_id: userId, action, email: stringField(body, "email") ?? "", message: consoleErrorMessage(error.code ?? null)
+        kind: "user_lifecycle_error", user_id: userId, action, email: stringField(body, "email") ?? "", ...consoleError(error.code)
       }, error.status, returnUrl);
     }
     if (!wantsHtml(request)) return jsonResponse(result);
@@ -1310,7 +1310,7 @@ async function routeDashboardUiMutation(
       return dashboardAfterMutation(env,url,admin,deps,requestContext,{kind:"credit_default",defaults});
     } catch (error) {
       assertHtmlMutationError(error, request, [400, 409]);
-      return dashboardAfterMutation(env,url,admin,deps,requestContext,{kind:"credit_default_error",message:consoleErrorMessage(error.code ?? null)},error.status);
+      return dashboardAfterMutation(env,url,admin,deps,requestContext,{kind:"credit_default_error",...consoleError(error.code)},error.status);
     }
   }
 
@@ -1446,7 +1446,7 @@ async function routeDashboardUiMutation(
         "invalid_token_response", "missing_access_token", "codex_auth_inactive", "credential_lifecycle_changed"
       ].includes(error.code ?? "")) throw error;
       return dashboardAfterMutation(env, url, admin, deps, requestContext, {
-        kind: "codex_refresh_error", auth_id: authId, message: consoleErrorMessage(error.code ?? null)
+        kind: "codex_refresh_error", auth_id: authId, ...consoleError(error.code)
       }, error.status, undefined, ...mutationReturn(body));
     }
     if (wantsHtml(request)) {

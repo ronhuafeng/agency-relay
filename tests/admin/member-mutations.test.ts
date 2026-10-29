@@ -61,7 +61,7 @@ describe("member mutation outcomes", () => {
     const fetch = vi.fn().mockResolvedValueOnce(new Response(JSON.stringify({id:"preview",revoked:true}),{headers:{"Content-Type":"application/json"}}));
     if (failure === "response") fetch.mockResolvedValueOnce(new Response("",{status:503})); else fetch.mockRejectedValueOnce(new Error("lost read"));
     vi.stubGlobal("fetch",fetch); dispose=initializeMemberMutations(); submit(form);
-    await vi.waitFor(()=>expect(document.body.textContent).toContain("密钥已撤销。 列表还没有刷新"));
+    await vi.waitFor(()=>expect(document.querySelector('[data-member-feedback][data-state="success"][data-refresh="stale"]')).not.toBeNull());
     expect(document.body.textContent).not.toContain("操作结果尚未确认");
     expect(element("[data-member-feedback]",HTMLElement).dataset.state).toBe("success");
     const leaving = new Event("beforeunload", {cancelable:true}); window.dispatchEvent(leaving);
@@ -75,7 +75,7 @@ describe("member mutation outcomes", () => {
     const form=element("form",HTMLFormElement);form.action="/me/ui/keys/preview/rename";
     const fetch=vi.fn().mockResolvedValueOnce(new Response(html('<section data-member-result="confirmed" data-member-return="/admin?area=me&view=keys&key=preview"><h1>操作已完成</h1><p>名称已保存。</p></section>'),{headers:{"Content-Type":"text/html"}})).mockResolvedValueOnce(new Response("",{status:503}));
     vi.stubGlobal("fetch",fetch);dispose=initializeMemberMutations();submit(form);
-    await vi.waitFor(()=>expect(document.body.textContent).toContain("名称已保存。 列表还没有刷新"));
+    await vi.waitFor(()=>expect(document.querySelector('[data-member-feedback][data-state="success"][data-refresh="stale"]')).not.toBeNull());
     expect(location.search).toBe("?area=me&view=keys&key=preview");expect(fetch).toHaveBeenCalledTimes(2);
   });
   it("recognizes an expired-session terminal rejection and removes private member content",async()=>{
@@ -87,12 +87,12 @@ describe("member mutation outcomes", () => {
     expect(document.body.textContent).not.toContain('操作结果尚未确认');expect(location.pathname).toBe('/login');
   });
   it.each([
-    [400,"missing_surface_grants","请至少选择一个客户端"],
-    [404,"key_not_found","没有找到这个密钥"],
-    [403,"user_inactive","这个账号已停用"]
-  ])("explains a %i %s object rejection and keeps form values for correction", async (status, code, message) => {
+    [400,"missing_surface_grants"],
+    [404,"key_not_found"],
+    [403,"user_inactive"]
+  ])("explains a %i %s object rejection and keeps form values for correction", async (status, code) => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({error: {message: "Rejected object operation", code}}), {status, headers: {"Content-Type": "application/json"}})));
-    dispose = initializeMemberMutations(); submit(element("form", HTMLFormElement)); await vi.waitFor(() => expect(document.body.textContent).toContain(message)); expect(element("input", HTMLInputElement).value).toBe("测试密钥"); expect(element('button[type=submit]', HTMLButtonElement).disabled).toBe(false);
+    dispose = initializeMemberMutations(); submit(element("form", HTMLFormElement)); await vi.waitFor(() => expect(document.querySelector(`[data-member-feedback][role="alert"][data-error-code="${code}"]`)?.textContent).toBeTruthy()); expect(document.body.textContent).not.toContain("Rejected object operation"); expect(element("input", HTMLInputElement).value).toBe("测试密钥"); expect(element('button[type=submit]', HTMLButtonElement).disabled).toBe(false);
     expect(element("main",HTMLElement).dataset.memberMutationBlocked).not.toBe("true");
   });
   it.each([[404,"service_not_found"],[403,"admin_auth_required"],[403,"console_identity_changed"]])("discards the current scope on a known %i %s authority rejection",async(status,code)=>{

@@ -103,8 +103,8 @@ describe("account linked access", () => {
     expect(switchLink).toBeDefined();
     expect(switchLink).not.toContain("page=");
     const beyond = await f.render("&account=grok%3Acollision&page=3");
-    expect(beyond.html).toContain("这一页没有密钥。");
-    expect(beyond.html).not.toContain("没有密钥使用这个连接。");
+    expect(beyond.html).toContain('data-empty="page"');
+    expect(beyond.html).not.toContain('data-empty="none"');
     expect(beyond.html).toContain("65 个关联密钥");
     expect(f.load).not.toHaveBeenCalled();
   });
@@ -119,7 +119,7 @@ describe("account linked access", () => {
     expect(html).toContain('data-mutation-flash="grok_refreshed"');
     expect(html).toContain("控制台暂时打不开");
     expect(html).not.toContain("0 个关联密钥");
-    expect(html).not.toContain("没有密钥使用这个连接。");
+    expect(html).not.toContain('data-empty="none"');
     expect(f.load).not.toHaveBeenCalled();
   });
 
@@ -172,8 +172,8 @@ describe("exact account tasks", () => {
     expect(new JSDOM(html).window.document.querySelector('#accounts-list form[method="post"]')).toBeNull();
     expect(f.load).not.toHaveBeenCalled();
     if (!count) {
-      expect(html).toContain("没有匹配的账号。");
-      expect(html).not.toContain("还没有账号。");
+      expect(html).toContain('data-empty="filter"');
+      expect(html).not.toContain('data-empty="none"');
     }
   });
 
@@ -192,7 +192,7 @@ describe("exact account tasks", () => {
     expect(detail(add.html).match(/name="return_q" value="Grok"/g)).toHaveLength(2);
     expect(detail(add.html)).toContain('action="/admin/ui/codex-auths"');
     const empty = await f.render("&q=not-present&account=codex%3Acollision");
-    expect(empty.html).toContain("没有匹配的账号。");
+    expect(empty.html).toContain('data-empty="filter"');
     expect(detail(empty.html)).toContain('data-codex-admin="true"');
   });
 

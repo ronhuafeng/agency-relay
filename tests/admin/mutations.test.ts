@@ -66,7 +66,7 @@ describe("bounded mutation outcomes", () => {
     expect(body instanceof URLSearchParams && body.get("confirm")).toBe("1");
     if (!resolve) throw new Error("request missing"); const complete: (response: Response) => void = resolve;
     complete(new Response(JSON.stringify({error: {message: "invalid input"}}), {status: 422, headers: {"Content-Type": "application/json"}}));
-    await vi.waitFor(() => expect(navigation.notice).toHaveBeenCalledWith(expect.stringContaining("没有执行"), "error")); expect(element("button[type=submit]", HTMLButtonElement).disabled).toBe(false);
+    await vi.waitFor(() => expect(navigation.notice).toHaveBeenCalledWith(expect.any(String), "error", null, undefined, "unknown")); expect(element("button[type=submit]", HTMLButtonElement).disabled).toBe(false);
     const leaving = new Event("beforeunload", {cancelable:true}); window.dispatchEvent(leaving);
     expect(leaving.defaultPrevented).toBe(false);
   });
@@ -88,7 +88,7 @@ describe("bounded mutation outcomes", () => {
     try {
       vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json({error: {code, message: "Target rejected"}}, {status: 403})));
       const navigation = start(); submit(element("form", HTMLFormElement));
-      await vi.waitFor(() => expect(navigation.notice).toHaveBeenCalledWith(expect.any(String), "error", new URL(location.href), "查看当前状态"));
+      await vi.waitFor(() => expect(navigation.notice).toHaveBeenCalledWith(expect.any(String), "error", new URL(location.href), "查看当前状态", code));
       expect(changed).not.toHaveBeenCalled(); expect(document.querySelector(".shell")).not.toBeNull();
     } finally { document.removeEventListener("console:actor-changed", changed); }
   });
@@ -103,7 +103,7 @@ describe("bounded mutation outcomes", () => {
       .replace('data-dashboard-view="credentials"','data-dashboard-view="credentials" data-dashboard-mutation="credential_task_error"');
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(html,{status:422,headers:{"Content-Type":"text/html"}})));
     const navigation = start(); submit(element("form", HTMLFormElement));
-    await vi.waitFor(() => expect(navigation.notice).toHaveBeenCalledWith("请检查连接选择。", "error", new URL(target,location.href), label));
+    await vi.waitFor(() => expect(navigation.notice).toHaveBeenCalledWith("请检查连接选择。", "error", new URL(target,location.href), label, undefined));
     expect(navigation.showMutationResult).not.toHaveBeenCalled();
     expect(element("main",HTMLElement).dataset.consoleOutcome).toBe("rejected");
   });

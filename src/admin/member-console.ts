@@ -266,7 +266,7 @@ function label(view: MemberView): string {
 /** Acknowledged writes render without any optional list/quota/default reads. */
 export function memberMutationPage(input: {
   principal: ConsolePrincipal;
-  service?: ServiceContext; requestId: string; message: string;
+  service?: ServiceContext; requestId: string; message: string; error_code?: string;
   keyId?: string; status?: number; rejected?: boolean; attemptedName?: string;
 }): Response {
   const href = memberHref("keys", input.keyId, input.service?.id);
@@ -274,7 +274,7 @@ export function memberMutationPage(input: {
     "data-member-result": input.rejected ? "rejected" : "confirmed", "data-member-return": href,
     role: input.rejected ? "alert" : "status"
   }, createElement("h1", null, `${input.service ? input.service.display_name + " · " : ""}${input.rejected ? "操作未执行" : "操作已完成"}`),
-  createElement("p", null, input.message), input.keyId ? createElement("p", null, "密钥对象：", createElement("code", null, input.keyId)) : null,
+  createElement("p", {"data-error-code": input.error_code}, input.message), input.keyId ? createElement("p", null, "密钥对象：", createElement("code", null, input.keyId)) : null,
   input.attemptedName !== undefined ? createElement("p", null, "填写的名称：", input.attemptedName) : null,
   createElement("a", {href}, "查看当前密钥")), input.principal, "keys", input.service);
 }

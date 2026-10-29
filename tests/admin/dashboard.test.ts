@@ -490,7 +490,7 @@ describe("Dashboard", () => {
     expect(html).toContain(`href="/admin?view=${view}${view === "overview" || view === "usage" ? "&amp;range=7d" : ""}"`);
     expect(html).toContain(">重试<");
     expect(html).not.toContain("Nothing needs attention");
-    expect(html).not.toContain("这个分类下还没有账号。");
+    expect(html).not.toContain("data-empty=");
     expect(html).not.toContain("还没有可用的访问。");
     expect(html).not.toContain('class="view-observed"');
     expect(html).not.toContain("private read failure details");
@@ -905,7 +905,7 @@ describe("Dashboard", () => {
         [
           'data-view-role="people"',
           'aria-label="人员和客户端访问"',
-          '这个分类下还没有账号。',
+          'data-empty="none"',
           'task=add-person'
         ]
       ],

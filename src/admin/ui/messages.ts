@@ -61,6 +61,10 @@ export function consoleErrorMessage(code: string | null): string {
   const message = code && Object.hasOwn(errors, code) ? errors[code] : undefined;
   return message ?? "这次操作没有执行。请检查填写的内容和当前状态，再提交。";
 }
+/** The rendered copy plus a stable code for `data-error-code`; tests assert the code, not the sentence. */
+export function consoleError(code: string | null | undefined): {readonly message: string; readonly error_code: string} {
+  return {message: consoleErrorMessage(code ?? null), error_code: code ?? "unknown"};
+}
 export function consoleErrorCode(value: unknown): unknown {
   return value && typeof value === "object" && "error" in value && value.error && typeof value.error === "object" && "code" in value.error ? value.error.code : null;
 }

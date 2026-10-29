@@ -10,7 +10,7 @@ type CreationKind = "human" | "service";
 export interface PeopleCreateControl {
   readonly returnHref: string;
   readonly initialKind: CreationKind | null;
-  readonly error: { readonly kind: CreationKind; readonly value: string; readonly message: string } | null;
+  readonly error: { readonly kind: CreationKind; readonly value: string; readonly message: string; readonly code?: string } | null;
 }
 
 export function readPeopleCreate(value: unknown): PeopleCreateControl | null {
@@ -48,7 +48,7 @@ function Creation({ kind, control, enhanced, open, onOpenChange }: {
       : <Button asChild variant={service ? "outline" : "default"}><a href={`${control.returnHref}&task=${id}#people-list`}><Icon name="plus"/>{label}</a></Button>}
     <CollapsibleContent forceMount hidden={!open} className="people-create-content" id={id} tabIndex={-1} aria-label={label}>
       <form ref={form} className="board-form people-create-form" method="post" action={service ? "/admin/ui/services" : "/admin/ui/users"} autoComplete="off" data-dashboard-draft={service ? "service" : "person"}>
-        {error ? <p className="form-error" id={`${id}-error`} role="alert" data-mutation-input-error={service ? "" : undefined}>{error.message}</p> : null}
+        {error ? <p className="form-error" id={`${id}-error`} role="alert" data-mutation-input-error={service ? "" : undefined} data-error-code={error.code}>{error.message}</p> : null}
         {service ? <p className="people-create-hint" id={`${id}-hint`}>服务账号不能登录，初始额度均为停用。创建账号不会生成密钥。</p> : null}
         <Field control={{label:service ? "服务名称" : "组织邮箱",name:service ? "display_name" : "email",type:service ? "text" : "email",placeholder:service ? "例如：构建机器人" : undefined,
           required:true,maxLength:service ? 64 : 254,autoComplete:"off",value:error?.value ?? "",autoFocus:!enhanced && open,invalid:Boolean(error),describedBy:[error ? `${id}-error` : null,service ? `${id}-hint` : null].filter(Boolean).join(" ") || undefined}}/>
