@@ -9,7 +9,7 @@ function Facts({items}: {readonly items: readonly (readonly [string, ReactNode])
   return <dl className="data-list">{items.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>;
 }
 function Unavailable({title, className = ""}: {readonly title: string; readonly className?: string}) {
-  return <section className={`account-panel ${className}`} data-upstream-read="unavailable"><div className="panel-head"><h3>{title}</h3><Badge>未读到</Badge></div></section>;
+  return <section className={`account-panel ${className}`} data-upstream-read="unavailable"><div className="panel-head"><h3>{title}</h3><Badge>无法读取</Badge></div></section>;
 }
 function yesNo(value: boolean | null | undefined, yes = "是", no = "否"): string { return value == null ? "未报告" : value ? yes : no; }
 function reportedLabel(value: string | null, labels: Readonly<Record<string, string>>): string {
@@ -82,7 +82,7 @@ function TokenActivity({snapshot}: {readonly snapshot: CodexAccountSnapshot}) {
 function ResetCredits({snapshot}: {readonly snapshot: CodexAccountSnapshot}) {
   if (snapshot.resetCredits.status === "unavailable") {
     const count = snapshot.usage.status === "available" ? snapshot.usage.data.resetCreditAvailableCount : null;
-    return <section className="account-panel reset-panel" data-upstream-read="unavailable"><div className="panel-head"><h3>重置额度</h3><Badge>{count==null?"未读到":"明细未读到"}</Badge></div>{count==null?null:<p className="caption"><strong>{formatNumber(count)} 个可用</strong> · 账号用量记录</p>}</section>;
+    return <section className="account-panel reset-panel" data-upstream-read="unavailable"><div className="panel-head"><h3>重置额度</h3><Badge>{count==null?"无法读取":"明细无法读取"}</Badge></div>{count==null?null:<p className="caption"><strong>{formatNumber(count)} 个可用</strong> · 账号用量记录</p>}</section>;
   }
   const details = snapshot.resetCredits.data;
   return <section className="account-panel reset-panel"><div className="panel-head"><h3>重置额度</h3><span className="meta">{formatNumber(details.availableCount)} 个可用</span></div>
@@ -93,6 +93,6 @@ function ResetCredits({snapshot}: {readonly snapshot: CodexAccountSnapshot}) {
   </section>;
 }
 export function AccountDossier({accountId, snapshot}: {readonly accountId: string; readonly snapshot: CodexAccountSnapshot}) {
-  if ([snapshot.usage,snapshot.profile,snapshot.resetCredits].every(read=>read.status === "unavailable")) return <section className="workspace-section" data-chatgpt-upstream="true" data-account-id={accountId}><h2>上游用量与限制</h2><div data-chatgpt-dossier="true" data-upstream-read="unavailable"><Badge>未读到</Badge><p className="caption">暂时无法读取上游用量与限制。此状态不能说明账号已断开或额度为零。</p></div></section>;
+  if ([snapshot.usage,snapshot.profile,snapshot.resetCredits].every(read=>read.status === "unavailable")) return <section className="workspace-section" data-chatgpt-upstream="true" data-account-id={accountId}><h2>上游用量与限制</h2><div data-chatgpt-dossier="true" data-upstream-read="unavailable"><Badge>无法读取</Badge><p className="caption">暂时无法读取上游用量与限制。此状态不能说明账号已断开或额度为零。</p></div></section>;
   return <section className="workspace-section" data-chatgpt-upstream="true" data-account-id={accountId}><h2>上游用量与限制</h2><div className="account-grid" role="group" aria-label="ChatGPT 限额与额度" data-chatgpt-dossier="true" data-upstream-read={snapshot.usage.status==="unavailable"&&snapshot.profile.status==="unavailable"&&snapshot.resetCredits.status==="unavailable"?"unavailable":undefined}><Limits snapshot={snapshot} /><Credits snapshot={snapshot} /><TokenActivity snapshot={snapshot} /><ResetCredits snapshot={snapshot} /></div></section>;
 }

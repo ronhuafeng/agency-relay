@@ -41,7 +41,7 @@ for (const script of [true, false]) test.describe(`contextual help with script=$
     await page.locator('[data-key-id="member-key"]').getByRole('link', {name:'管理密钥',exact:false}).click();
     if(script) await openKeyEditor(page,'replace');
     const form=page.locator('form[action$="/member-key/replace"]');
-    expect(await form.getAttribute('data-confirmation')).toContain('旧密钥在到期或另行撤销之前仍可认证');
+    expect(await form.getAttribute('data-confirmation')).toContain('旧密钥在到期或被撤销前仍然有效');
     expect(worker.requests.every(request => request.method === 'GET')).toBe(true);
   });
 });

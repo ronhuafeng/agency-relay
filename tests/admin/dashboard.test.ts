@@ -1006,7 +1006,7 @@ describe("Dashboard", () => {
     expect(grok.querySelector('input[name="clients"][value="grok"]')).not.toBeNull();
     expect(xai.getAttribute("data-access-level")).toBe("selected");
     expect(xai.textContent).toContain("指定访问");
-    expect(xai.textContent).toContain("包含上游团队共享资源权限");
+    expect(xai.textContent).toContain("可使用上游团队的共享资源");
     expect(new JSDOM(html).window.document.querySelector('[data-action="give-access"]')?.textContent).not.toContain("surface:xai:production");
   });
 
@@ -1274,8 +1274,8 @@ describe("Dashboard", () => {
     expect(records[0]?.querySelector('.usage-record-measurement')?.textContent).toContain('40');
     const facts = [...doc.querySelectorAll('[data-trend-plan="codex.responses"] .usage-metrics > div')];
     const totals = Object.fromEntries(facts.map(fact => [fact.querySelector("dt")?.textContent, fact.querySelector("dd")?.textContent]));
-    expect(totals["Requests"]).toBe("2");
-    expect(totals["Token"]).toMatch(/^40(?:\s|$)/);
+    expect(totals["请求"]).toBe("2");
+    expect(totals["令牌"]).toMatch(/^40(?:\s|$)/);
     expect(totals["API 费率折算"]).toBeUndefined();
   });
 
@@ -1357,7 +1357,7 @@ describe("Dashboard", () => {
     const html = await response.text();
     const dossier = new JSDOM(html).window.document.querySelector('[data-chatgpt-dossier]')!;
     expect(dossier.getAttribute('data-upstream-read')).toBe('unavailable');
-    expect(dossier.querySelector('[data-slot="badge"]')?.textContent).toBe('未读到');
+    expect(dossier.querySelector('[data-slot="badge"]')?.textContent).toBe('无法读取');
     expect(html).not.toContain("access_token");
   });
 });

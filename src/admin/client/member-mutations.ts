@@ -148,7 +148,7 @@ export function initializeMemberMutations(): () => void {
       if (acknowledged !== null && !document.querySelector('[data-member-feedback][data-state="success"]')) {
         blockDocument();
         blocked.add(form); form.querySelectorAll<HTMLButtonElement>('button[type="submit"]').forEach(button => {button.disabled = true;});
-        feedback(`${acknowledged} 列表未刷新，请只读核对当前密钥，无需再次提交。`, "success", true, href);
+        feedback(`${acknowledged} 列表还没有刷新，请查看当前密钥，不要再次提交。`, "success", true, href);
       }
       if (unknown) {
         blockDocument();

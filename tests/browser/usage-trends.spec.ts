@@ -53,7 +53,7 @@ for (const scenario of [
     await expect(page.locator('[data-trend-plan]')).toHaveCount(1);
     await expect(page.locator('html')).not.toHaveAttribute('data-navigation-probe');
     await expect(page.locator('.usage-record')).toHaveCount(1);
-    await expect(page.locator('[data-trend-plan="codex.responses"] .usage-metrics')).toContainText('Requests2');
+    await expect(page.locator('[data-trend-plan="codex.responses"] .usage-metrics')).toContainText('请求2');
     const exportLink = page.getByRole('link', {name: '导出数据', exact: true});
     // A committed query keeps the export reachable after the search control is left.
     // Focusing that control hides it; the value alone must not.
@@ -76,7 +76,7 @@ for (const scenario of [
     expect(mediaRows).toHaveLength(0);
     await page.getByRole('navigation', {name: 'UTC 时间范围'}).getByRole('link', {name: '30 天', exact: true}).click();
     await expect(page.getByRole('searchbox')).toHaveValue('gpt-5.5');
-    await expect(page.locator('[data-trend-plan="codex.responses"] .usage-metrics')).toContainText('Requests2');
+    await expect(page.locator('[data-trend-plan="codex.responses"] .usage-metrics')).toContainText('请求2');
     await page.getByRole('link', {name: '清除', exact: true}).click();
     await expect(page.getByRole('searchbox')).toHaveValue('');
     await expect(page).toHaveURL(url => !new URL(url).searchParams.has('q'));

@@ -17,10 +17,11 @@ export function ReturnFields({ query, page }: { readonly query: string; readonly
   );
 }
 
-export function ConfirmationFallback({ message }: { readonly message: string }) {
+/** Compact prompts keep the consequence one icon away inside dense rows such as policy tables. */
+export function ConfirmationFallback({ message, compact = false }: { readonly message: string; readonly compact?: boolean }) {
   const id = useId();
   const enhanced = useEnhanced();
-  return <div className="confirmation-prompt"><Label className="confirmation-fallback" data-confirmation-fallback="" title={message}><input type="checkbox" required aria-label={message}/><span>确认</span></Label><InfoPopover id={`confirmation-${id}`} label="操作影响" iconOnly={!enhanced}><p>{message}</p></InfoPopover></div>;
+  return <div className="confirmation-prompt"><Label className="confirmation-fallback" data-confirmation-fallback="" title={message}><input type="checkbox" required aria-label={message}/><span>确认</span></Label><InfoPopover id={`confirmation-${id}`} label="操作影响" iconOnly={compact || !enhanced}><p>{message}</p></InfoPopover></div>;
 }
 
 

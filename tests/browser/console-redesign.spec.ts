@@ -95,7 +95,7 @@ test('administrator service switches stage only the reviewed new-key grants', as
   await grok.click();
   expect(worker.requests.filter(request=>request.method==='POST')).toHaveLength(0);
   await form.getByRole('textbox', {name:'密钥名称',exact:true}).fill('Reviewed workstation');
-  await form.getByRole('combobox', {name:'Codex 账号',exact:true}).selectOption({index:1});
+  await form.getByRole('combobox', {name:'Codex 上游连接',exact:true}).selectOption({index:1});
   expect(await form.evaluate(node=>new FormData(node as HTMLFormElement).getAll('clients'))).toEqual(['codex']);
   const before = worker.keyMetadata().length;
   const result = page.waitForResponse(response=>response.request().method()==='POST' && response.url().endsWith('/admin/ui/keys'));

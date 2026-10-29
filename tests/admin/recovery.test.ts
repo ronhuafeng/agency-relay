@@ -219,8 +219,8 @@ it.each([['member','confirmed'],['admin','confirmed'],['member','unknown']] as c
   submit(document.querySelector('form')!);
   await vi.waitFor(()=>expect(document.querySelector('[data-console-recovery]')).not.toBeNull());
   expect(document.querySelector('.shell,input,[data-one-time-key]')).toBeNull();
-  expect(document.body.textContent).toContain(outcome==='confirmed'?'服务器已确认':'结果尚未确认');
-  expect(document.body.textContent).not.toContain(outcome==='confirmed'?'结果尚未确认':'服务器已确认');
+  expect(document.body.textContent).toContain(outcome==='confirmed'?'刚才的操作已完成':'结果尚未确认');
+  expect(document.body.textContent).not.toContain(outcome==='confirmed'?'结果尚未确认':'刚才的操作已完成');
   expect(fetch).toHaveBeenCalledTimes(1);
 });
 
@@ -290,7 +290,7 @@ it.each(['confirmed', 'rejected'] as const)('retains the documented %s result af
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json({error:{code:'admin_auth_required'}}, {status:403})));
   stop = initializeRecovery(vi.fn()); document.dispatchEvent(new Event('visibilitychange'));
   await vi.waitFor(() => expect(document.querySelector('[data-console-recovery]')).not.toBeNull());
-  expect(document.body.textContent).toContain(outcome === 'confirmed' ? '服务器已确认' : '刚才的操作未执行');
+  expect(document.body.textContent).toContain(outcome === 'confirmed' ? '刚才的操作已完成' : '刚才的操作未执行');
   expect(document.body.textContent).not.toContain('可能尚未确认');
   expect(document.querySelector('[data-console-outcome]')?.getAttribute('data-console-outcome')).toBe(outcome);
 });

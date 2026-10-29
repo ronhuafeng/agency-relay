@@ -74,7 +74,7 @@ function AccountAdmission({ model }: { readonly model: AccountsPageModel }) {
     : ["revoked", "absent"].includes(account.projection.state) ? "连接账号后可更改请求准入，重新连接不会自动解除暂停。"
     : impact.status === "retiring" ? "此账号正在停用，请先核对剩余绑定和默认连接并完成停用。" : null;
   const count = impact ? new Set(impact.live_keys.map(key => key.id)).size : null;
-  const impactText = impact ? `${count} 个未撤销密钥、${impact.live_keys.length} 项绑定使用此账号。${impact.default_surfaces.length ? "当前默认连接保留；暂停期间不能以此默认连接发行新密钥。" : ""}` : "";
+  const impactText = impact ? `${count} 个未撤销密钥、${impact.live_keys.length} 项绑定使用此账号。${impact.default_surfaces.length ? "当前默认连接保留；暂停期间，新密钥不能使用这个默认连接。" : ""}` : "";
   const effect = paused
     ? "只解除管理员设置的暂停，连接、授权与额度检查仍然生效。已断开或失效的凭据不会恢复。"
     : "拒绝此账号的后续上游请求，不会自动切换账号。已接受的请求或外部任务不会因此取消。";
@@ -328,7 +328,7 @@ function LinkedKeys(props: { readonly model: AccountsPageModel; readonly readOnl
 function DefaultAccounts({model}: {readonly model: AccountsPageModel}) {
   return <section data-default-boundary="true" className="account-defaults" aria-label="新密钥默认连接">
     <header className="task-card-head"><div><h2>新密钥默认连接</h2><p className="caption">只影响新密钥，现有绑定保持不变。</p></div><InfoPopover id="issuance-default-help" label="默认连接的影响" iconOnly><p>更改默认只影响新密钥。现有密钥继续使用原绑定，替换密钥复制原绑定。</p><p>Grok 与 xAI API 分别设置。xAI API 委托上游团队共享权限，个人权限不能隔离其资源。</p></InfoPopover></header>
-    {model.issuanceDefaults === null ? <p data-read-state="unavailable" role="alert">新密钥默认连接暂时未读到。</p> : <div data-issuance-defaults="true">{(["codex","grok","xai"] as const).map(surface=>{
+    {model.issuanceDefaults === null ? <p data-read-state="unavailable" role="alert">新密钥默认连接暂时无法读取。</p> : <div data-issuance-defaults="true">{(["codex","grok","xai"] as const).map(surface=>{
       const grant = `surface:${surface}:production`;
       const row = model.issuanceDefaults!.find(row => row.surface_grant === grant);
       const provider = surface === "codex" ? "codex" : "grok";
@@ -343,11 +343,11 @@ function DefaultAccounts({model}: {readonly model: AccountsPageModel}) {
           <ReturnFields query={params.get("q") ?? ""} page={params.get("page") ?? "1"}/>
           <input type="hidden" name="confirm" value="1"/>
           <NativeSelect id={`${formId}-account`} name="credential_account_id" defaultValue={current?.id ?? ""} required disabled={!options.some(account=>account.defaultEligible)}>
-            <NativeSelectOption value="" disabled>{row?.account_id ? "当前连接未读到" : "未设置 · 请选择连接"}</NativeSelectOption>
+            <NativeSelectOption value="" disabled>{row?.account_id ? "当前连接无法读取" : "未设置 · 请选择连接"}</NativeSelectOption>
             {options.map(account => <NativeSelectOption key={account.key} value={account.id} disabled={!account.defaultEligible}>{presentText(account.label)} · {account.projection.statusLabel}{account.projection.admissionState === "paused" ? " · 已暂停" : ""} · {account.id}</NativeSelectOption>)}
           </NativeSelect>
           <ConfirmationFallback message={warning}/>
-          {!options.some(account=>account.defaultEligible) ? <span className="record-subline">请先连接兼容账号</span> : null}
+          {!options.some(account=>account.defaultEligible) ? <span className="record-subline">请先添加并连接一个兼容的上游账号</span> : null}
         </form>
         <Button type="submit" form={formId} variant="outline" aria-label={`保存 ${name} 默认连接`} disabled={!options.some(account=>account.defaultEligible)}>保存</Button></div>;
     })}</div>}
@@ -368,7 +368,7 @@ export function AccountsPage({ model }: { readonly model: AccountsPageModel }) {
     <section aria-label="账号" className="accounts-workspace" data-view-role="accounts" data-credential-admin="true" data-auth-management="lifecycle" data-show-detail={detail ? "true" : "false"}>
       <ObjectWorkspace className="credential-object-workspace" task={<div className="credential-workspace-body">{detail ? (
         <div className="account-detail" id="account-detail" tabIndex={-1} data-account-detail={model.selectedAccountKey ?? ""}>
-          {adding ? <Card className="account-create-task"><header className="task-card-head"><h2>添加账号</h2><TaskClose href={`${parentUrl}#accounts-list`} label="收起添加账号"/></header><AddAccountIsland control={{ query, page }} /></Card> : selected ? (
+          {adding ? <Card className="account-create-task"><header className="task-card-head"><h2>添加上游账号</h2><TaskClose href={`${parentUrl}#accounts-list`} label="收起添加账号"/></header><AddAccountIsland control={{ query, page }} /></Card> : selected ? (
             <>
               <IdentityCard account={selected} linkedTotal={model.linkedKeys ? model.linkedKeys.total : null} query={query} page={page} cancelUrl={accountDashboardUrl(model.canonicalUrl, selected.key)} closeHref={`${parentUrl}#accounts-list`} admission={<AccountAdmission model={model}/>} retirement={<RetirementImpact model={model}/>} disconnectBlock={model.retirement === null ? "请先重新读取停用影响" : model.retirement.live_keys.length > 0 ? "请先处理未撤销密钥绑定" : model.retirement.default_surfaces.length > 0 ? "请先处理默认连接" : null}/>
               <LinkedKeys model={model} readOnly={authorizing}/>

@@ -46,7 +46,7 @@ test('quiet reads retain unchanged content and apply changed SQL data without mo
   worker.advanceClock(300000);
   await page.clock.fastForward(300000);
   await expect.poll(() => page.locator('main').getAttribute('data-console-revision')).not.toBe(unchangedRevision);
-  await expect(page.locator('[data-trend-plan="grok.production.responses"] .usage-metrics')).toContainText('Requests5');
+  await expect(page.locator('[data-trend-plan="grok.production.responses"] .usage-metrics')).toContainText('请求5');
   await expect(page.locator('[data-usage-search]')).toHaveAttribute('data-usage-search', 'grok-observed-zero');
   await expect(page.locator('[data-trend-plan]')).toHaveCount(1);
   expect(usageSearches.every(search => search === 'grok-observed-zero')).toBe(true);
@@ -72,7 +72,7 @@ test('changed ledger data waits while a chart control is focused', async ({page,
   await page.locator('main#content').focus();
   worker.advanceClock(300000);
   await page.clock.fastForward(300000);
-  await expect(page.locator('[data-trend-plan="grok.production.responses"] .usage-metrics')).toContainText('Requests5');
+  await expect(page.locator('[data-trend-plan="grok.production.responses"] .usage-metrics')).toContainText('请求5');
   await expect(page.locator('[data-console-status]')).toBeHidden();
 });
 
@@ -100,7 +100,7 @@ test('changed ledger data waits while keyboard focus is on a compared day bar', 
   await page.locator('main#content').focus();
   worker.advanceClock(300000);
   await page.clock.fastForward(300000);
-  await expect(page.locator('[data-trend-plan="grok.production.responses"] .usage-metrics')).toContainText('Requests5');
+  await expect(page.locator('[data-trend-plan="grok.production.responses"] .usage-metrics')).toContainText('请求5');
   await expect.poll(() => page.locator('main').getAttribute('data-console-revision')).not.toBe(revision);
   await expect(page.locator('main#content')).toBeFocused();
   await expect(page.locator('[data-console-status]')).toBeHidden();

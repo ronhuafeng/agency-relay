@@ -23,7 +23,7 @@ it("does not issue a second secret on native create refresh and rejects changed 
   const f=await fixture();try{
     const body={submission_id:submission(),name:"Work",surfaces:"codex"};
     const first=await f.post("/me/ui/keys",body);expect(first.status).toBe(200);expect((await first.text()).includes('data-one-time-key="true"')).toBe(true);
-    const again=await f.post("/me/ui/keys",body);expect(again.status).toBe(200);const text=await again.text();expect(text.includes("此前已经完成")).toBe(true);expect(text.includes("data-one-time-key")).toBe(false);
+    const again=await f.post("/me/ui/keys",body);expect(again.status).toBe(200);const text=await again.text();expect(text.includes("之前已经完成")).toBe(true);expect(text.includes("data-one-time-key")).toBe(false);
     const changed=await f.post("/me/ui/keys",{...body,name:"Different"});expect(changed.status).toBe(409);expect(await changed.text()).toContain("其他内容");
     expect(f.db.sqlite.prepare("SELECT COUNT(*) AS count FROM api_keys").get()).toEqual({count:1});
     expect(f.db.sqlite.prepare("SELECT COUNT(*) AS count FROM operator_mutation_audit WHERE action='key.create'").get()).toEqual({count:1});

@@ -61,7 +61,7 @@ describe("member mutation outcomes", () => {
     const fetch = vi.fn().mockResolvedValueOnce(new Response(JSON.stringify({id:"preview",revoked:true}),{headers:{"Content-Type":"application/json"}}));
     if (failure === "response") fetch.mockResolvedValueOnce(new Response("",{status:503})); else fetch.mockRejectedValueOnce(new Error("lost read"));
     vi.stubGlobal("fetch",fetch); dispose=initializeMemberMutations(); submit(form);
-    await vi.waitFor(()=>expect(document.body.textContent).toContain("密钥已撤销。 列表未刷新"));
+    await vi.waitFor(()=>expect(document.body.textContent).toContain("密钥已撤销。 列表还没有刷新"));
     expect(document.body.textContent).not.toContain("操作结果尚未确认");
     expect(element("[data-member-feedback]",HTMLElement).dataset.state).toBe("success");
     const leaving = new Event("beforeunload", {cancelable:true}); window.dispatchEvent(leaving);
@@ -75,7 +75,7 @@ describe("member mutation outcomes", () => {
     const form=element("form",HTMLFormElement);form.action="/me/ui/keys/preview/rename";
     const fetch=vi.fn().mockResolvedValueOnce(new Response(html('<section data-member-result="confirmed" data-member-return="/admin?area=me&view=keys&key=preview"><h1>操作已完成</h1><p>名称已保存。</p></section>'),{headers:{"Content-Type":"text/html"}})).mockResolvedValueOnce(new Response("",{status:503}));
     vi.stubGlobal("fetch",fetch);dispose=initializeMemberMutations();submit(form);
-    await vi.waitFor(()=>expect(document.body.textContent).toContain("名称已保存。 列表未刷新"));
+    await vi.waitFor(()=>expect(document.body.textContent).toContain("名称已保存。 列表还没有刷新"));
     expect(location.search).toBe("?area=me&view=keys&key=preview");expect(fetch).toHaveBeenCalledTimes(2);
   });
   it("recognizes an expired-session terminal rejection and removes private member content",async()=>{

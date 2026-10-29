@@ -69,7 +69,7 @@ describe("role-aware console", () => {
     const result=homeDoc.querySelector('[data-surface="codex"] td:last-child')!;
     expect(result.querySelector('time')?.getAttribute('data-tone')).toBe('bad');
     expect(result.querySelector('time')?.getAttribute('datetime')).toBe(at);
-    expect(result.querySelector('time .sr-only')?.textContent).toBe('请求记录失败：');
+    expect(result.querySelector('time .member-task-outcome')?.textContent).toBe('请求记录失败：');
     expect(result.querySelector('strong')).toBeNull();
     expect(homeDoc.querySelector('[data-surface="grok"] td:last-child')?.textContent).toBe('');
     db.sqlite.exec('DROP TABLE request_audit');
@@ -78,7 +78,7 @@ describe("role-aware console", () => {
     }),fixture.env,fixture.ctx,fixture.deps);
     expect(unread.status).toBe(200);
     const unreadDoc=new JSDOM(await unread.text()).window.document;
-    expect(unreadDoc.querySelector('[data-surface="codex"] td:last-child [role="alert"]')?.textContent).toBe('结果未读到');
+    expect(unreadDoc.querySelector('[data-surface="codex"] td:last-child [role="alert"]')?.textContent).toBe('结果无法读取');
   });
 
   it("lets an exhausted member create a key without refilling their allowance", async () => {
@@ -225,8 +225,8 @@ describe("role-aware console", () => {
     const reportHtml = await report.text();
     const reportDoc = new JSDOM(reportHtml).window.document;
     expect(reportDoc.querySelectorAll('.usage-record')).toHaveLength(1);
-    expect(reportDoc.querySelector('.usage-metrics')?.textContent).toContain('Requests2');
-    expect(reportDoc.querySelector('.usage-metrics')?.textContent).toContain('Token10');
+    expect(reportDoc.querySelector('.usage-metrics')?.textContent).toContain('请求2');
+    expect(reportDoc.querySelector('.usage-metrics')?.textContent).toContain('令牌10');
     expect(reportDoc.querySelector('.usage-record')?.textContent).toContain('gpt-5');
     expect(reportDoc.querySelector('.usage-record')?.textContent).not.toContain('未记录令牌用量');
     expect(reportDoc.querySelector('.usage-record [data-cost-basis="api_equivalent"]')).not.toBeNull();
@@ -262,7 +262,7 @@ describe("role-aware console", () => {
     const amount = quotaDoc.querySelector('[data-quota-default="codex"] input[name="codex"]');
     expect(amount?.getAttribute("min")).toBe("0");
     expect(amount?.hasAttribute("required")).toBe(true);
-    expect(quotaDoc.querySelector('.organization-policy-form')?.getAttribute("data-confirmation")).toContain("0 credits 只允许已授权的零消耗操作");
+    expect(quotaDoc.querySelector('.organization-policy-form')?.getAttribute("data-confirmation")).toContain("0 credits 只允许不计额度的操作");
     expect(quotasHtml).not.toContain(">Unlimited<");
     const audit = await admin(fixture, "https://admin.example.test/admin?view=control-audit", { method: "GET" });
     expect(audit.status).toBe(200);

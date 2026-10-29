@@ -81,7 +81,7 @@ export async function memberConsoleResponse(input: {
     if(view==="integrations") {
       try {await assertRuntimePageActor(input);}
       catch {
-        if(input.runtimeRevoked)return consoleLifecycleOutcome({title:"客户端授权已撤销",href:"/login",returnTarget:readUrl,label:"重新登录",message:"撤销已经完成，但当前登录无法确认。请重新登录后只读查看；不要重复提交。"});
+        if(input.runtimeRevoked)return consoleLifecycleOutcome({title:"客户端授权已撤销",href:"/login",returnTarget:readUrl,label:"重新登录",message:"撤销已经完成，但当前登录无法确认。请重新登录后查看当前状态，不要重复提交。"});
         throw consoleAuthorityChanged();
       }
     }
@@ -232,7 +232,7 @@ function html(status: number, requestId: string, body: ReactNode, principal: Con
     role: principal.role,
     current: `${service ? service.display_name : "我的空间"} · ${label(view).replace(service ? "我的" : "服务", "")}`,
     appEnabled: true,
-    main: createElement(MemberScope.Provider, {value:service ?? null}, createElement("div", {"data-member-view": view, "data-service-id":service?.id, "data-service-status":service?.status}, service ? createElement("aside", {"aria-label":"当前服务账号",className:"member-scope-bar"}, createElement(Badge, null, "服务账号"), createElement("strong", null, service.display_name), createElement("code", {className:"caption"}, service.id), createElement("span", {className:"caption"}, "独立密钥与额度"), service.status !== "active" ? createElement("p", null, "已停用，不能发行或更换密钥；仍可撤销已有密钥。只有管理员能重新启用。") : null) : null, body, createElement("p", {hidden: true, "data-request-id": requestId}))),
+    main: createElement(MemberScope.Provider, {value:service ?? null}, createElement("div", {"data-member-view": view, "data-service-id":service?.id, "data-service-status":service?.status}, service ? createElement("aside", {"aria-label":"当前服务账号",className:"member-scope-bar"}, createElement(Badge, null, "服务账号"), createElement("strong", null, service.display_name), createElement("code", {className:"caption"}, service.id), createElement("span", {className:"caption"}, "独立密钥与额度"), service.status !== "active" ? createElement("p", null, "已停用，不能创建或更换密钥；仍可撤销已有密钥。只有管理员能重新启用。") : null) : null, body, createElement("p", {hidden: true, "data-request-id": requestId}))),
     extra: createElement("script", {id: "console-setup-config", type: "application/json", dangerouslySetInnerHTML: {__html: JSON.stringify({templates: buildClientSetupTemplates(), placeholder: CLIENT_SETUP_TOKEN_PLACEHOLDER}).replaceAll("<", "\\u003c")}}),
     confirm: true
   });

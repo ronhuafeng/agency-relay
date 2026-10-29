@@ -104,7 +104,7 @@ describe("account linked access", () => {
     expect(switchLink).not.toContain("page=");
     const beyond = await f.render("&account=grok%3Acollision&page=3");
     expect(beyond.html).toContain("这一页没有密钥。");
-    expect(beyond.html).not.toContain("没有密钥使用这个账号。");
+    expect(beyond.html).not.toContain("没有密钥使用这个连接。");
     expect(beyond.html).toContain("65 个关联密钥");
     expect(f.load).not.toHaveBeenCalled();
   });
@@ -119,7 +119,7 @@ describe("account linked access", () => {
     expect(html).toContain('data-mutation-flash="grok_refreshed"');
     expect(html).toContain("控制台暂时打不开");
     expect(html).not.toContain("0 个关联密钥");
-    expect(html).not.toContain("没有密钥使用这个账号。");
+    expect(html).not.toContain("没有密钥使用这个连接。");
     expect(f.load).not.toHaveBeenCalled();
   });
 
@@ -241,7 +241,7 @@ describe("exact account tasks", () => {
       expect(f.load.mock.calls).toEqual([["collision"]]);
       const dossier = new JSDOM(pane).window.document.querySelector('[data-chatgpt-dossier]')!;
       expect(dossier.getAttribute('data-upstream-read')).toBe('unavailable');
-      expect(dossier.querySelector('[data-slot="badge"]')?.textContent).toBe('未读到');
+      expect(dossier.querySelector('[data-slot="badge"]')?.textContent).toBe('无法读取');
     } else expect(f.load).not.toHaveBeenCalled();
   });
 
@@ -265,7 +265,7 @@ describe("exact account tasks", () => {
   it("keeps creation separate and native without provider reads", async () => {
     const f = fixture();
     const { html } = await f.render("&task=add-account");
-    expect(detail(html)).toContain('<h2>添加账号</h2>');
+    expect(detail(html)).toContain('<h2>添加上游账号</h2>');
     expect(detail(html)).toContain('action="/admin/ui/codex-auths"');
     expect(detail(html)).toContain('action="/admin/ui/subscriptions"');
     expect(detail(html)).not.toContain('name="return_range"');

@@ -53,12 +53,12 @@ function RequestDetail({ row, model }: { readonly row: RequestHistoryRecord; rea
         <Fact label="当前邮箱">{row.currentEmail ?? "对象已删除或标签不可用"}（非历史快照）</Fact>
         <Fact label="密钥标识（记录）">{row.keyId ?? "未记录"}</Fact>
         <Fact label="当前密钥名称">{row.currentKeyName ?? "对象已删除或标签不可用"}（非历史快照）</Fact>
-        <Fact label="Mini 凭据归属标识">{row.credentialId ?? "未记录"}</Fact>
+        <Fact label="上游凭据标识">{row.credentialId ?? "未记录"}</Fact>
         <Fact label="安全错误码">{row.errorCode ?? (row.unrecognizedError ? "未识别，不展示原始值" : "未记录")}</Fact>
         <Fact label="总令牌">{row.tokens === null ? "未记录" : formatNumber(row.tokens)}</Fact>
         <Fact label="输入／缓存令牌">{row.inputTokens === null ? "未记录" : formatNumber(row.inputTokens)} / {row.cachedTokens === null ? "未记录" : formatNumber(row.cachedTokens)}</Fact>
         <Fact label="输出／推理令牌">{row.outputTokens === null ? "未记录" : formatNumber(row.outputTokens)} / {row.reasoningTokens === null ? "未记录" : formatNumber(row.reasoningTokens)}</Fact>
-        <Fact label="提供商金额原始 ticks">{row.costTicks === null ? "未记录" : formatNumber(row.costTicks)}（Provisional；不是账单）</Fact>
+        <Fact label="上游金额原始值（ticks）">{row.costTicks === null ? "未记录" : formatNumber(row.costTicks)}（上游报告值，不是账单）</Fact>
       </dl>
     </InfoPopover><HistoryScope model={model} id="request-detail-scope"/></div>
   </Card>;

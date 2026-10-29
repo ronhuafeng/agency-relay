@@ -40,7 +40,7 @@ test('a confirmed admin write stays masked while identity is pending and is neve
   expect(await page.evaluate(()=>document.documentElement.hasAttribute('data-console-authority-pending') && document.querySelector('.shell')!.getClientRects().length===0)).toBe(true);
   authority.release(403); await expect(page.locator('[data-console-recovery]')).toBeVisible();
   await expect(page.locator('[data-console-recovery] [data-console-outcome]')).toHaveAttribute('data-console-outcome','confirmed');
-  await expect(page.locator('[data-console-recovery]')).toContainText('服务器已确认');
+  await expect(page.locator('[data-console-recovery]')).toContainText('刚才的操作已完成');
   expect(await page.locator('.shell,.identity,[data-ui-props]').count()).toBe(0);
   expect(worker.requests.filter(request=>request.method==='POST'&&request.path==='/admin/ui/users/other/status').length).toBe(1);
   expect(worker.status('other')).toBe('disabled');

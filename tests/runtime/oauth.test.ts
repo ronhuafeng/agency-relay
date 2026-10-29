@@ -343,7 +343,7 @@ it("requires explicit member consent before the library issues a resource-bound 
     // loopback client callback; the actual browser journey proves the latter.
     expect(shown.headers.get("Referrer-Policy")).toBe("same-origin");
     expect(html.includes("Synthetic &lt;client&gt;")&&!html.includes("<client>")).toBe(true);
-    expect(html.includes(RESOURCE)&&html.includes("runtime.use")&&html.includes("Allow")&&html.includes("Deny")).toBe(true);
+    expect(html.includes(RESOURCE)&&html.includes("runtime.use")&&html.includes("允许")&&html.includes("拒绝")).toBe(true);
     const decide=(cookies:string)=>f.runtime.dispatchFetch(target.href,{method:"POST",headers:{Cookie:cookies,Origin:ISSUER,"Content-Type":"application/x-www-form-urlencoded"},body:"decision=allow",redirect:"manual"});
     expect((await decide(f.cookies.get("member")!)).status).toBe(403);
     const allowed=await decide(cookie);

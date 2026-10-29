@@ -127,7 +127,7 @@ it("native issue, rename, replacement and deduplicated results retain the servic
     expect(doc.querySelector('[data-one-time-key] h1')?.textContent).toContain("Nightly automation");
     const key=f.db.sqlite.prepare("SELECT id FROM api_keys WHERE user_id=?").get(f.service.id) as {id:string};
     expect(doc.querySelector('[data-one-time-key]')?.getAttribute('data-member-return')).toBe(f.prefix+`?view=keys&key=${key.id}`);
-    const replay=await f.call(f.prefix+"/ui/keys",{method:"POST",body,html:true});expect(replay.status).toBe(200);const text=await replay.text();expect(text.includes("data-one-time-key")).toBe(false);expect(text.includes("此前已经完成")).toBe(true);expect(new JSDOM(text).window.document.querySelector("h1")?.textContent).toBe("Nightly automation · 操作已完成");
+    const replay=await f.call(f.prefix+"/ui/keys",{method:"POST",body,html:true});expect(replay.status).toBe(200);const text=await replay.text();expect(text.includes("data-one-time-key")).toBe(false);expect(text.includes("之前已经完成")).toBe(true);expect(new JSDOM(text).window.document.querySelector("h1")?.textContent).toBe("Nightly automation · 操作已完成");
     const collision=await f.call("/me/ui/keys",{method:"POST",body,html:true});expect(collision.status).toBe(409);
     const rename=await f.call(f.prefix+`/ui/keys/${key.id}/rename`,{method:"POST",body:{name:"Renamed build"},html:true});expect(rename.status).toBe(200);expect((await rename.text()).includes("Renamed build")).toBe(true);
     const replace=await f.call(f.prefix+`/ui/keys/${key.id}/replace`,{method:"POST",body:{submission_id:`submit_${crypto.randomUUID()}`},html:true});expect(replace.status).toBe(200);expect((await replace.text()).includes("仍可认证")).toBe(true);
@@ -146,7 +146,7 @@ it("requires exact browser origin and allows disabled-service inspection and del
     const page=await f.call(f.prefix+`?view=keys&key=${key.key.id}`,{html:true});expect(page.status).toBe(200);const doc=new JSDOM(await page.text()).window.document;
     expect(doc.querySelector('form[data-member-key-create] button')?.hasAttribute('disabled')).toBe(true);
     expect(doc.querySelector('form[action$="/replace"]')).toBeNull();expect(doc.querySelector('form[action$="/revoke"]')).not.toBeNull();
-    const rejected=await f.call(f.prefix+"/ui/keys",{method:"POST",body:{name:"No",surfaces:"codex",submission_id:`submit_${crypto.randomUUID()}`},html:true});expect(rejected.status).toBe(403);const text=await rejected.text();expect(text.includes("不能发行或更换")).toBe(true);expect(rejected.headers.get("set-cookie")).toBeNull();
+    const rejected=await f.call(f.prefix+"/ui/keys",{method:"POST",body:{name:"No",surfaces:"codex",submission_id:`submit_${crypto.randomUUID()}`},html:true});expect(rejected.status).toBe(403);const text=await rejected.text();expect(text.includes("不能创建或更换")).toBe(true);expect(rejected.headers.get("set-cookie")).toBeNull();
     const revoke=await f.call(f.prefix+"/ui/keys/revoke-all",{method:"POST",body:{},html:true});expect(revoke.status).toBe(200);expect((await revoke.text()).includes("已撤销 1 个密钥")).toBe(true);
     f.db.sqlite.prepare("UPDATE users SET status='active' WHERE id=?").run(f.service.id);
     expect(f.db.sqlite.prepare("SELECT status FROM api_keys WHERE id=?").get(key.key.id)).toEqual({status:"revoked"});
@@ -180,7 +180,7 @@ it("keeps delegated 7/30-day trend navigation, exports and invalid-range recover
       expect(response.status).toBe(200);const text=await response.text();const doc=new JSDOM(text).window.document;
       expect(doc.querySelector('main')?.getAttribute('data-dashboard-url')).toBe(f.prefix+`?view=usage&range=${range}`);
       expect(doc.querySelector('h1')?.textContent).toBe("Nightly automation · 用量");
-      expect(doc.querySelector('[data-trend-plan="codex.responses"] .usage-metrics')?.textContent).toContain(`Requests${requests}`);
+      expect(doc.querySelector('[data-trend-plan="codex.responses"] .usage-metrics')?.textContent).toContain(`请求${requests}`);
       expect(doc.querySelectorAll('[data-daily-plan="codex.responses"]')).toHaveLength(days);
       const hrefs=[...doc.querySelectorAll('nav[aria-label="UTC 时间范围"] a')].map(a=>a.getAttribute('href'));
       expect(hrefs).toEqual([f.prefix+'?view=usage&range=1d',f.prefix+'?view=usage&range=7d',f.prefix+'?view=usage&range=30d']);
@@ -274,7 +274,7 @@ for(const failure of ['services','keys'] as const) it(`human detail preserves ${
     const doc=new JSDOM(await response.text()).window.document;
     const impact=doc.querySelector('[data-assigned-service-impact]')!;
     expect(impact.querySelector('[data-service-impact-state="unknown"]')).not.toBeNull();
-    expect(impact.textContent?.includes('暂时未读到')).toBe(true);
+    expect(impact.textContent?.includes('暂时无法读取')).toBe(true);
     expect(doc.querySelector(`[data-action='user-status']`)).not.toBeNull();
     if(failure==='keys')expect(impact.querySelector(`a[href='${f.prefix}?view=keys']`)).not.toBeNull();
   }finally{f.db.close();}

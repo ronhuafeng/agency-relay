@@ -45,21 +45,21 @@ const XAI_BASE_URL = `https://${xaiProfile.hostname}/v1`;
 const CODEX_HEADER = `# Agency Relay Codex CLI 安装
 # 地址：${CODEX_BASE_URL}
 # 密钥只在这个文件里。不要分享。
-# 如果不能使用：请管理员在控制台「账号」检查 ChatGPT 连接。
+# 如果不能使用：请管理员在控制台「上游连接」检查 ChatGPT 连接。
 # 这个 base_url 只选择已支持的 ChatGPT HTTP 路径。
 `;
 
 const GROK_HEADER = `# Agency Relay Grok Build 安装
 # 地址：${GROK_BASE_URL}
 # 密钥只在这个文件里。不要分享。
-# 如果不能使用：请管理员在控制台「账号」检查 Grok 连接。
+# 如果不能使用：请管理员在控制台「上游连接」检查 Grok 连接。
 `;
 
 const XAI_HEADER = `# Agency Relay xAI API 安装
 # 这是环境变量片段，不是可执行脚本。
 # 把 XAI_BASE_URL 填到客户端的接口地址。客户端不会自动读取这个变量。
 # 密钥只在这个文件里。不要分享。
-# 如果不能使用：请管理员在控制台「账号」检查 Grok 连接。xAI 使用这个 Grok 上游账号，不是单独的 xAI 凭据。
+# 如果不能使用：请管理员在控制台「上游连接」检查 Grok 连接。xAI 使用这个 Grok 上游账号，不是单独的 xAI 凭据。
 `;
 
 export function productAccessFromScopes(scopes: readonly string[]): Record<ProductAccessId, boolean> {

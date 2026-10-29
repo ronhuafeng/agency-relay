@@ -36,11 +36,11 @@ function responseSeries(plan: string, source: readonly UsageDailyPoint[], range:
   return {
     id: `trend-data-${plan}`, plan, title: presentation.usageLabel,
     metrics: [
-      {label: "Requests", value: number(totals.requests)},
-      {label: "Failure", value: number(totals.error_requests)},
-      {label: "Token", value: measured(totals.total_tokens, totals.token_measurements, totals.requests)}
+      {label: "请求", value: number(totals.requests)},
+      {label: "失败", value: number(totals.error_requests)},
+      {label: "令牌", value: measured(totals.total_tokens, totals.token_measurements, totals.requests)}
     ],
-    columns: ["Requests", "Failure", "Token · 覆盖"],
+    columns: ["请求", "失败", "令牌 · 覆盖"],
     rows: rows.map(row => ({day: row.day, current: row.day === range.to, count: row.requests, failure: row.error_requests, tokens: row.token_measurements > 0 ? row.total_tokens : null, values: [number(row.requests), number(row.error_requests), measured(row.total_tokens, row.token_measurements, row.requests)]}))
   };
 }

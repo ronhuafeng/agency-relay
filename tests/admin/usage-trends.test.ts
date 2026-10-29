@@ -63,7 +63,7 @@ describe("daily SQL and honest projections", () => {
     const page = await request("boss@example.com", "/admin?view=usage&range=7d&q=MEMBER%40EXAMPLE.COM");
     expect(page.status).toBe(200);
     const document = doc(await page.text());
-    expect(textFor(document.querySelector('[data-trend-plan]')!, "Requests")).toBe("502");
+    expect(textFor(document.querySelector('[data-trend-plan]')!, "请求")).toBe("502");
     expect(document.querySelectorAll('.usage-record')).toHaveLength(250);
     expect(document.querySelector('input[name="q"]')?.getAttribute('value')).toBe("MEMBER@EXAMPLE.COM");
     const exportUrl = document.querySelector('a[download]')!.getAttribute('href')!;
@@ -105,8 +105,8 @@ describe("daily SQL and honest projections", () => {
     expect(daily.responses).toHaveLength(3);
     const document = doc(renderToStaticMarkup(createElement(UsageTrends, {model: {range: parseUsageTrendRange(url(""), now), daily, scopeLabel: "我的用量"}})));
     const grok = document.querySelector('[data-trend-plan="grok.production.responses"]')!;
-    expect(textFor(grok, "Requests")).toBe("503");
-    expect(textFor(grok, "Token")).toBe("100 · 已记录 252/503 次请求");
+    expect(textFor(grok, "请求")).toBe("503");
+    expect(textFor(grok, "令牌")).toBe("100 · 已记录 252/503 次请求");
     expect(textFor(grok, "上游计量金额")).toBeUndefined();
     expect(document.querySelector("[data-text-plan]")).toBeNull();
     expect(document.querySelectorAll("[data-chart-day]")).toHaveLength(7);
@@ -166,14 +166,14 @@ describe("usage router scope and failure boundaries", () => {
       for (const [name, value] of [["area", "me"], ["view", "usage"], ["range", "7d"]]) {
         expect(search.querySelector(`input[name="${name}"]`)?.getAttribute("value")).toBe(value);
       }
-      expect(textFor(doc(html).querySelector('[data-trend-plan]')!, "Requests")).toBe(requests);
+      expect(textFor(doc(html).querySelector('[data-trend-plan]')!, "请求")).toBe(requests);
       for (const bad of ["day=2026-02-30", "day=2026-06-24&scope=all", "from=2026-06-01", "from=2026-06-25&to=2026-06-01", "from=2000-01-01&to=2026-06-24"]) expect((await request(email, `/me/usage?${bad}`)).status).toBe(400);
     }
     const organization = await request("boss@example.com", "/admin?view=usage&range=7d");
-    expect(textFor(doc(await organization.text()).querySelector('[data-trend-plan]')!, "Requests")).toBe("906");
+    expect(textFor(doc(await organization.text()).querySelector('[data-trend-plan]')!, "请求")).toBe("906");
     const filtered = await request("boss@example.com", `/admin?view=usage&range=7d&person=${member.user.id}&plan=codex.responses`);
     const filteredDoc = doc(await filtered.text());
-    expect(textFor(filteredDoc.querySelector('[data-trend-plan]')!, "Requests")).toBe("2");
+    expect(textFor(filteredDoc.querySelector('[data-trend-plan]')!, "请求")).toBe("2");
     const exportUrl = filteredDoc.querySelector('a[download]')!.getAttribute('href')!;
     const exported = await (await request("boss@example.com", exportUrl)).json() as {totals: {requests: number}};
     expect(exported.totals.requests).toBe(2);

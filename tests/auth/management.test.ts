@@ -272,7 +272,7 @@ describe("account auth-management projection", () => {
     expect(operatorHintForState("authorizing")).toBeNull();
     expect(operatorHintForState("expiring_soon")).toBeNull();
     expect(operatorHintForState("expired")).toBeNull();
-    expect(operatorHintForState("degraded")).toMatch(/刷新账号/);
+    expect(operatorHintForState("degraded")).toMatch(/刷新连接/);
     expect(operatorHintForState("reauth_required")).toMatch(/重新登录/);
   });
 
