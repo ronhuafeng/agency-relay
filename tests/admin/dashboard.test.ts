@@ -359,6 +359,8 @@ describe("Dashboard", () => {
     expect(peopleDocument.querySelector('[data-user-id="Alex"] [data-access-state="granted"] .sr-only')?.textContent).toBe("：密钥有效");
     const paused = peopleDocument.querySelector('[data-user-id="Morgan"]');
     expect(paused?.querySelector('[data-enabled="false"]')?.textContent).toBe("已停用");
+    // A read-only row state is a worded badge, never a colour swatch alone.
+    expect(paused?.querySelector('[data-enabled="false"]')?.getAttribute("data-slot")).toBe("badge");
     expect(paused?.querySelector('[data-access-state="paused"] .sr-only')?.textContent).toBe("：账号已停用");
     expect([...paused!.querySelectorAll('[data-access-state]')].map(badge=>badge.firstChild?.textContent)).toEqual(["Codex"]);
     const activeDetail = await render("access&person=Alex");

@@ -774,7 +774,6 @@ table.member-quota-table [data-slot=progress] { height:6px; margin-top:8px; }
 .people-table .person-link { flex-wrap:nowrap; gap:8px; }
 .people-table .person-identity { flex:1; min-width:0; }
 .people-table .person-identity strong { overflow-wrap:anywhere; }
-.people-table .person-state { white-space:nowrap; }
 .person-identity-actions { display:flex; flex-wrap:wrap; gap:12px; }
 .task-editor { min-width:0; }
 .task-editor [data-slot=collapsible-content] { max-width:560px; }

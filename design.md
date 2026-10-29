@@ -548,7 +548,9 @@ and then use folding to compensate for their volume.
 
 WCAG 2.2 AA is the baseline. Primary touch controls target at least 44 by 44 CSS
 pixels. Use native validation, persistent labels, visible keyboard focus, logical
-reading order and non-color state cues. Popovers and dialogs must fit small and
+reading order and non-color state cues. Read-only record states in rows use
+the badge primitive with a word (for example `已启用` / `已停用`); tone only
+reinforces the word, and a colour swatch alone never carries a state. Popovers and dialogs must fit small and
 magnified viewports. Cancellation returns focus and preserves safe editable work.
 Test semantics in both scripted and native form paths; a decorative component
 must not create an inert action without JavaScript.
