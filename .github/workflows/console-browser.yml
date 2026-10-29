@@ -2,6 +2,10 @@ name: Console browser
 
 on:
   workflow_call:
+    inputs:
+      artifact_id:
+        type: string
+        required: true
 
 permissions:
   contents: read
@@ -34,7 +38,8 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
-          name: candidate-${{ github.sha }}
+          artifact-ids: ${{ inputs.artifact_id }}
+          merge-multiple: true
           path: ${{ runner.temp }}/candidate
       - run: |
           tar -xzf "$RUNNER_TEMP/candidate/candidate.tar.gz"
