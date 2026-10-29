@@ -1,29 +1,22 @@
 import { createServer } from "node:http";
 import { mkdirSync, readFileSync, watch } from "node:fs";
-import { resolve } from "node:path";
-import { execFileSync } from "node:child_process";
-import { pathToFileURL } from "node:url";
-import { build } from "esbuild";
 import { readSnapshot, reportSnapshotColumns } from "./snapshot";
-import { createPreviewFixture, PREVIEW_ORIGIN, scenarios, type Scenario } from "./fixtures";
+import { createPreviewFixture, scenarios, type Scenario } from "./fixtures";
+import { buildPreviewRouter, emulateTheme, forwardPreviewRequest, type PreviewTheme } from "./transport";
 
 const port = Number(process.env.PREVIEW_PORT ?? 4183);
 if (!Number.isInteger(port) || port < 1024 || port > 65535) throw new Error("PREVIEW_PORT must be between 1024 and 65535");
 const localOrigin = `http://127.0.0.1:${port}`;
 let scene: Scenario = "populated";
 let role = "admin";
-let theme = "light";
+let theme: PreviewTheme = "light";
 const preferredEmail = process.env.PREVIEW_ACCOUNT_EMAIL;
 let fixture = await createPreviewFixture(scene, preferredEmail);
 let revision = 0;
-let handleRequest: typeof import("../../src/router").handleRequest;
+let preview: Awaited<ReturnType<typeof buildPreviewRouter>>;
 mkdirSync("tmp/console-preview", { recursive: true });
 async function rebuild() {
-  execFileSync("pnpm", ["run", "console:build"], { stdio: "ignore" });
-  const outfile = resolve("tmp/console-preview/worker.mjs");
-  await build({ entryPoints: ["src/router.ts"], outfile, bundle: true, platform: "node", format: "esm", packages: "external", define: { "process.env.NODE_ENV": '"production"' }, logLevel: "silent" });
-  const module = await import(`${pathToFileURL(outfile).href}?v=${++revision}`) as typeof import("../../src/router");
-  handleRequest = module.handleRequest;
+  preview = await buildPreviewRouter("tmp/console-preview", ++revision);
   if(scene==="runtime") {const next=await createPreviewFixture(scene);const previous=fixture;fixture=next;await previous.close();}
 }
 await rebuild();
@@ -67,38 +60,13 @@ const server = createServer(async (incoming, outgoing) => {
       const input = JSON.parse(body.toString()) as { scene?: Scenario; role?: string; theme?: string; reset?: boolean };
       if (!scenarios.includes(input.scene!) || !["admin", "member"].includes(input.role!) || !["light", "dark", "system"].includes(input.theme!)) { outgoing.writeHead(400).end(); return; }
       if (scene !== input.scene || input.reset) { const next = await createPreviewFixture(input.scene!, preferredEmail); const previous = fixture; fixture = next; scene = input.scene!; await previous.close(); }
-      role = input.role!; theme = input.theme!; outgoing.end("ok"); return;
+      role = input.role!; theme = input.theme as PreviewTheme; outgoing.end("ok"); return;
     }
+    if (url.pathname === "/__preview/primitives" && method === "GET") { outgoing.writeHead(200, { "Content-Type": "text/html; charset=utf-8" }).end(emulateTheme(preview.renderPrimitiveGallery(), theme)); return; }
     // Service worker caching/registration is outside this preview's transport contract.
     if (url.pathname === "/admin/app-worker.js") { outgoing.writeHead(404).end(); return; }
-    const canonical = new URL(url.pathname + url.search, PREVIEW_ORIGIN);
-    const headers = new Headers();
-    for (const [name, value] of Object.entries(incoming.headers)) if (value !== undefined) headers.set(name, Array.isArray(value) ? value.join(", ") : value);
-    headers.set("Host", new URL(PREVIEW_ORIGIN).host);
-    headers.set("Cookie", fixture.cookies.get(role)!);
-    if (headers.get("Origin") === localOrigin) headers.set("Origin", PREVIEW_ORIGIN);
-    const request=new Request(canonical, { method, headers, ...(body.length ? { body } : {}) });
-    const response = fixture.dispatchRequest?await fixture.dispatchRequest(request):await handleRequest(request, fixture.env, { waitUntil: promise => { void promise.catch(() => console.error("Preview background operation failed.")); } }, { now: () => new Date(), fetch: async () => { throw new Error("Provider network is unavailable in local scenarios"); } });
-    const responseHeaders = new Headers(response.headers);
-    responseHeaders.delete("Set-Cookie");
-    const location = responseHeaders.get("Location");
-    if (location?.startsWith(PREVIEW_ORIGIN)) responseHeaders.set("Location", location.replace(PREVIEW_ORIGIN, localOrigin));
-    let content = Buffer.from(await response.arrayBuffer());
-    if (responseHeaders.get("Content-Type")?.includes("text/html")) {
-      // Preview-only framing and theme emulation. The product response stays unchanged.
-      responseHeaders.set("Content-Security-Policy", (responseHeaders.get("Content-Security-Policy") ?? "").replace("frame-ancestors 'none'", "frame-ancestors 'self'"));
-      responseHeaders.set("X-Frame-Options", "SAMEORIGIN");
-      let html = content.toString().replaceAll(PREVIEW_ORIGIN, localOrigin);
-      if (theme !== "system") {
-        html = html.replace('name="color-scheme" content="light dark"', `name="color-scheme" content="${theme}"`)
-          .replaceAll(/color-scheme:\s*light dark/g, `color-scheme:${theme}`)
-          .replaceAll("prefers-color-scheme:dark", theme === "dark" ? "min-width:0px" : "min-width:999999px")
-          .replaceAll("prefers-color-scheme: dark", theme === "dark" ? "min-width:0px" : "min-width:999999px");
-      }
-      content = Buffer.from(html);
-    }
-    responseHeaders.delete("Content-Length");
-    outgoing.writeHead(response.status, Object.fromEntries(responseHeaders)); outgoing.end(content);
+    const response = await forwardPreviewRequest({ url, method, headers: incoming.headers, body, localOrigin, cookie: fixture.cookies.get(role)!, theme, fixture, handleRequest: preview.handleRequest });
+    outgoing.writeHead(response.status, response.headers); outgoing.end(response.content);
   } catch {
     outgoing.writeHead(500, { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" }).end("本地预览加载失败。请重置示例后重试。");
   }

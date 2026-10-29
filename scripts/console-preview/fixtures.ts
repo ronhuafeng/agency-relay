@@ -1,16 +1,17 @@
 import { readSnapshot, importSnapshot } from "./snapshot";
 import { createTestD1 } from "../../tests/support/sqlite-d1";
 import { createConsoleSession, CONSOLE_COOKIE } from "../../src/auth/console-session";
-import {oauthFixture,authorizedTokens,resourceRequest} from "../../tests/runtime/oauth-fixture";
 
 export const PREVIEW_ORIGIN = "https://console.preview.test";
 export const scenarios = ["populated", "empty", "long", "runtime", "snapshot"] as const;
 export type Scenario = typeof scenarios[number];
-interface PreviewFixture {env:Env;cookies:Map<string,string>;dispatchRequest?:(request:Request)=>Promise<Response>;close:()=>void|Promise<void>}
+export interface PreviewFixture {env:Env;cookies:Map<string,string>;dispatchRequest?:(request:Request)=>Promise<Response>;close:()=>void|Promise<void>}
 
 /** Synthetic SQL rows, real migrations and production routes. No remote credentials. */
 export async function createPreviewFixture(scenario: Scenario, preferredEmail?: string):Promise<PreviewFixture> {
   if(scenario==="runtime") {
+    // Miniflare/Wrangler load only for the integrated Runtime scenario.
+    const {oauthFixture,authorizedTokens,resourceRequest}=await import("../../tests/runtime/oauth-fixture");
     const f=await oauthFixture(undefined,{issuer:PREVIEW_ORIGIN});
     try {
       const client=await authorizedTokens(f);

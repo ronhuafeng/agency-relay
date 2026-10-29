@@ -54,6 +54,23 @@ scenario, or resetting data, also affects those tabs on their next request.
 Preserve needed work before reset. This workflow does not prove production
 authentication, deployed provider behavior or completed client work.
 
+## Batch snapshots
+
+`pnpm run console:snapshot` builds once and renders a fixed list of administrator
+and member pages, exact-object URLs and the primitive gallery in light and dark at
+1280 and 390px. It uses the `populated`, `empty` and `long` scenarios, the
+production router, SSR, client and stylesheet, and needs no Wrangler, Miniflare or
+database setup beyond `pnpm install` and the lockfile Chromium. Pass a name fragment,
+for example `pnpm run console:snapshot admin-person`, to refresh only matching
+captures. Screenshots and the first-width HTML go to ignored `tmp/console-snapshots/`.
+Use it for before/after comparison of layout work; the captures are review material,
+not test baselines, and they stay read-only (no writes, workers or network).
+
+The primitive gallery is also served at `/__preview/primitives` in the interactive
+preview. It server-renders component states with the production stylesheet, so it
+shows each primitive's pre-hydration rendering; the components and tokens remain the
+appearance owners.
+
 ## Production metadata as a local scenario
 
 `PREVIEW_ENV_FILE=/absolute/path/to/operator.env pnpm run console:preview:pull`
