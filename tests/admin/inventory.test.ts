@@ -359,7 +359,7 @@ describe("complete dashboard inventories", () => {
     expect(html).toContain('data-access-client="codex" data-access-state="expired"');
     expect(html).toContain('data-access-client="grok" data-access-state="granted"');
     expect(html).toContain('data-access-client="xai" data-access-state="none"');
-    expect(html).toContain("没有匹配的密钥。");
+    expect(html).toContain('data-empty="filter"');
   });
 
   it("keeps Setup inventory read-only and selects an exact key beyond its search and page", async () => {
@@ -526,15 +526,15 @@ describe("complete dashboard inventories", () => {
 
   it("distinguishes no matches, an empty page and an empty inventory with recovery controls", async () => {
     const f = inventoryFixture(false);
-    expect((await f.render("view=access")).html).toContain("这个分类下还没有账号。");
-    expect((await f.render("view=access&q=absent")).html).toContain("没有匹配的账号，试试其他邮箱或名称。");
+    expect((await f.render("view=access")).html).toContain('data-empty="none"');
+    expect((await f.render("view=access&q=absent")).html).toContain('data-empty="filter"');
     const page = await f.render("view=access&page=2");
-    expect(page.html).toContain("这一页没有账号。");
+    expect(page.html).toContain('data-empty="page"');
     expect(page.html).toContain("上一页</a>");
     expect(page.html).not.toContain("Next ");
-    expect((await f.render("view=setup&q=absent")).html).toContain("没有匹配的密钥。");
-    expect((await f.render("view=setup&page=2")).html).toContain("这一页没有密钥。");
-    expect((await f.render("view=setup")).html).toContain("还没有密钥。");
+    expect((await f.render("view=setup&q=absent")).html).toContain('data-empty="filter"');
+    expect((await f.render("view=setup&page=2")).html).toContain('data-empty="page"');
+    expect((await f.render("view=setup")).html).toContain('data-empty="none"');
   });
 
   it.each(["view=access&page=0", "view=access&page=1.5", "view=access&page=9999999999999999", "view=access&q=a&q=b", "view=overview&q=a", "view=access&key_page=2", "view=setup&key_q=a", `view=access&q=${"x".repeat(257)}`, "view=access&q=%00", "view=access&key=key-000", "view=access&person=p&key=", "view=setup&person=p", "view=setup&key=k", "view=setup&person=p&task=sync-configuration", "view=access&person=p&key=k&task=give-access", "view=access&person=p&key=k&key=j"])("rejects invalid inventory query: %s", async query => {
@@ -555,7 +555,7 @@ describe("complete dashboard inventories", () => {
       expect(result.status).toBe(503);
       expect(result.html).toContain("data-dashboard-unavailable");
       expect(result.html).not.toContain("private read failure");
-      expect(result.html).not.toContain("这个分类下还没有账号。");
+      expect(result.html).not.toContain("data-empty=");
     }
   });
 });

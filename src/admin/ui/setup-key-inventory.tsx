@@ -23,10 +23,11 @@ export interface SetupKeyInventoryControl {
   readonly page: number;
 }
 export function SetupKeyChoices({control,showHeading=true}: {readonly control: SetupKeyInventoryControl; readonly showHeading?: boolean}) {
-  const emptyLabel = control.search.value.trim() ? "没有匹配的密钥。" : control.page > 1 ? "这一页没有密钥。" : "还没有密钥。";
+  const empty = control.search.value.trim() ? "filter" : control.page > 1 ? "page" : "none";
+  const emptyLabel = {filter: "没有匹配的密钥。", page: "这一页没有密钥。", none: "还没有密钥。"}[empty];
   return <>{showHeading ? <div className="key-picker-head"><strong>账号与密钥</strong><Badge>{control.choices.length} 个 · 第 {control.page} 页</Badge></div> : null}
     <InventorySearchView control={control.search}/>
-    <ul className="key-picker-choices" aria-label="可配置的密钥">{control.choices.length === 0 ? <li className="empty">{emptyLabel}</li> : control.choices.map(choice => <li key={choice.id} data-setup-key-id={choice.id}>
+    <ul className="key-picker-choices" aria-label="可配置的密钥">{control.choices.length === 0 ? <li className="empty" data-empty={empty}>{emptyLabel}</li> : control.choices.map(choice => <li key={choice.id} data-setup-key-id={choice.id}>
       <TaskLink className="key-picker-choice" href={choice.href} current={choice.id===control.selectedId}>
         <span><strong>{choice.name ? `${choice.owner} · ${choice.name}` : choice.owner}</strong><span>{choice.kind==="service"?<Badge>服务账号</Badge>:null}<code>{choice.prefix}</code><span>{choice.clients}</span></span></span>
         <Badge data-key-state={choice.state}>{choice.status}</Badge>

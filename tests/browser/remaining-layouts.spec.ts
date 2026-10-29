@@ -82,7 +82,7 @@ for(const width of [390,1440])test.describe(`remaining journeys ${width}px`,()=>
     await page.locator('[data-key-id="member-key"]').getByRole('link',{name:'管理密钥',exact:false}).click();
     await expect(page.locator('[data-key-detail="member-key"]')).toBeVisible();
     await page.locator('[data-member-key-close]:visible').click();await expect(page.locator('[data-member-key-row]:not([hidden])')).toHaveCount(0);
-    worker.failMemberRead('inventory');await page.reload();await expect(page.locator('[data-read-state="unknown"]')).toContainText('密钥列表暂时无法读取');
+    worker.failMemberRead('inventory');await page.reload();await expect(page.locator('[data-read-state="unknown"]')).toBeVisible();
     await inspect(page,info,'unknown-inventory','member');worker.failMemberRead(null);
     await page.goto('/admin?area=me&view=keys&key=not-owned');await expect(page.locator('[data-key-detail]:visible')).toHaveCount(0);await expect(page.locator('[data-key-state="missing"]')).toBeVisible();
     await context.clearCookies();await page.goto('/login');await inspect(page,info,'login','unauthenticated');

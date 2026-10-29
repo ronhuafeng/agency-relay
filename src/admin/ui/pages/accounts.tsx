@@ -306,7 +306,7 @@ function LinkedKeys(props: { readonly model: AccountsPageModel; readonly readOnl
     <section id="account-keys" className="workspace-section account-linked-keys">
       <h2>关联的密钥</h2>
       {props.readOnly ? null : <InventoryPages base={props.model.canonicalUrl} page={linked.page.page} hasNext={linked.page.hasNext} field="page" label="关联密钥" anchor="account-keys" />}
-      {linked.page.rows.length === 0 ? <p className="empty">{linked.total ? "这一页没有密钥。" : "没有密钥使用这个账号。"}</p> : (
+      {linked.page.rows.length === 0 ? <p className="empty" data-empty={linked.total ? "page" : "none"}>{linked.total ? "这一页没有密钥。" : "没有密钥使用这个账号。"}</p> : (
         <ul className="linked-key-list" aria-label="关联密钥">
           {linked.page.rows.map((key) => {
             const grants = parseApiKeyScopes(key.scopes);
@@ -388,7 +388,7 @@ export function AccountsPage({ model }: { readonly model: AccountsPageModel }) {
         <fieldset className="oauth-task-controls" disabled={authorizing}><InventorySearchView control={{...inventorySearchControl(model.canonicalUrl, "q", "page", "搜索账号", "accounts-list"),...(authorizing ? {clearHref:null} : {})}} /></fieldset>
         {query ? <p className="inventory-scope">{`${formatNumber(matches.length)} / ${formatNumber(model.accounts.length)} 个账号`}</p> : null}
         <ul className="account-list" aria-label="账号">
-          {matches.length === 0 ? <li><p className="empty">{model.accounts.length ? "没有匹配的账号。" : "还没有账号。"}</p></li> : matches.map((account) => {
+          {matches.length === 0 ? <li><p className="empty" data-empty={model.accounts.length ? "filter" : "none"}>{model.accounts.length ? "没有匹配的账号。" : "还没有账号。"}</p></li> : matches.map((account) => {
             const identity = <><span className="account-identity"><strong>{presentText(account.label)}</strong><small>{account.provider === "codex" ? "ChatGPT" : "Grok"}{account.provider === "codex" ? <span data-credential-admission="" hidden={account.projection.admissionState !== "paused"}> · 已暂停</span> : null}</small></span><Badge data-credential-status="" className={`account-state tone-${statusToneForState(account.projection.state)}`}>{presentText(account.projection.statusLabel)}</Badge></>;
             return (
             <li key={account.key} data-account-key={account.key} data-credential-key={account.key}>

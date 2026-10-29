@@ -38,11 +38,15 @@ export function initializeMemberMutations(): () => void {
     main.dataset.memberMutationBlocked = "true";
     main.querySelectorAll<HTMLButtonElement>("form button").forEach(button => {if (button.type === "submit") button.disabled = true;});
   };
-  const feedback = (message: string, state: "pending" | "error" | "success", focus = false, recoveryHref?: string): void => {
+  /** Stable hooks describe the outcome so tests and styling do not depend on the copy. */
+  const feedback = (message: string, state: "pending" | "error" | "success", focus = false, recoveryHref?: string, hooks: {errorCode?: string; refresh?: "current" | "stale"} = {}): void => {
     const main = document.querySelector<HTMLElement>("main#content"); if (!main) return;
     let notice = main.querySelector<HTMLElement>("[data-member-feedback]");
     if (!notice) { notice = document.createElement("div"); notice.dataset.memberFeedback = ""; main.prepend(notice); }
     notice.className = "member-feedback"; notice.dataset.state = state; notice.setAttribute("role", state === "error" ? "alert" : "status"); notice.setAttribute("aria-live", "polite"); notice.replaceChildren();
+    delete notice.dataset.errorCode; delete notice.dataset.refresh;
+    if (hooks.errorCode) notice.dataset.errorCode = hooks.errorCode;
+    if (hooks.refresh) notice.dataset.refresh = hooks.refresh;
     const text = document.createElement("p"); text.textContent = message; notice.append(text);
     if (state === "pending") {
       const stop = document.createElement("button"); stop.type = "button"; stop.dataset.slot = "button"; stop.className = buttonVariants({variant: "outline"}); stop.textContent = "停止等待"; stop.addEventListener("click", () => pending?.abort(), {signal}); notice.append(stop);
@@ -80,7 +84,7 @@ export function initializeMemberMutations(): () => void {
       if (disposed) return false;
       if (result && !retainConsoleActor(result.document, acknowledged ? "confirmed" : "read")) return false;
       if (!result?.main.querySelector('[data-member-view="keys"]') || result.main.querySelector('[data-read-state="unknown"],[data-read-state="unavailable"]')) return false;
-      show(result, href); recordConsoleOutcome("confirmed"); feedback(`${acknowledged} 当前列表已更新。`, "success", true); return true;
+      show(result, href); recordConsoleOutcome("confirmed"); feedback(`${acknowledged} 当前列表已更新。`, "success", true, undefined, {refresh: "current"}); return true;
     };
     try {
       recordConsoleOutcome("unknown");
@@ -110,7 +114,7 @@ export function initializeMemberMutations(): () => void {
         }
         const outcome = result?.main.querySelector<HTMLElement>("[data-member-result]");
         if (outcome?.dataset.memberResult === "rejected" && [400,403,404,409,422,503].includes(response.status)) {
-          feedback(outcome.querySelector("p")?.textContent ?? "操作未执行，请查看当前状态。", "error", true, href); return;
+          feedback(outcome.querySelector("p")?.textContent ?? "操作未执行，请查看当前状态。", "error", true, href, {errorCode: outcome.querySelector<HTMLElement>("[data-error-code]")?.dataset.errorCode}); return;
         }
         if (response.ok && outcome?.dataset.memberResult === "confirmed" && result) {
           acknowledged = outcome.querySelector("p")?.textContent ?? "操作已完成。";
@@ -131,7 +135,7 @@ export function initializeMemberMutations(): () => void {
               document.dispatchEvent(new CustomEvent("console:actor-changed", {detail:{outcome:"rejected",changed:false,reason:"authority"}}));
               return;
             }
-            feedback(message, "error", true, response.status === 403 ? href : undefined); return;
+            feedback(message, "error", true, response.status === 403 ? href : undefined, {errorCode: typeof code === "string" ? code : "unknown"}); return;
           }
         }
         if (response.ok && confirmedRevocation(value)) {
@@ -148,7 +152,7 @@ export function initializeMemberMutations(): () => void {
       if (acknowledged !== null && !document.querySelector('[data-member-feedback][data-state="success"]')) {
         blockDocument();
         blocked.add(form); form.querySelectorAll<HTMLButtonElement>('button[type="submit"]').forEach(button => {button.disabled = true;});
-        feedback(`${acknowledged} 列表还没有刷新，请查看当前密钥，不要再次提交。`, "success", true, href);
+        feedback(`${acknowledged} 列表还没有刷新，请查看当前密钥，不要再次提交。`, "success", true, href, {refresh: "stale"});
       }
       if (unknown) {
         blockDocument();

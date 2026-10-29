@@ -32,6 +32,16 @@ Bind assertions to the exact user, session, key family, requested surface, immut
 - Concurrency and last-credit cases must prove the allowed final state in SQL, not just a mocked method sequence.
 - Do not assume a zero-row conditional write undoes a batch, or that D1 and TokenAuthority share an atomic transaction.
 
+### Assert copy only where the wording is the contract
+
+A test may pin exact user-facing text only for:
+
+- terms in the [`design.md`](../design.md) UI-copy vocabulary (object, action and state names);
+- accessible names of controls and landmarks that users and assistive technology rely on (`getByRole(..., {name})`);
+- security-relevant messages: one-time secret handling and an unconfirmed result (`结果尚未确认`).
+
+Everything else is free copy. Assert the outcome through a stable hook instead: state, role, object ID or a `data-*` attribute such as `data-action`, `data-mutation-flash`, `data-read-state`, `data-empty`, `data-refresh`, `data-tone`, `data-key-state`, `data-service-blocker` or `data-error-code`. Rejections assert `data-error-code`; [`messages.ts`](../src/admin/ui/messages.ts) stays the single owner of error copy. Add a hook to the owning component when a free-copy outcome has none. A changed sentence outside the list above must not require a test edit.
+
 For UI tests, prefer accessible task-local selectors and visible outcomes. A coincidental matching phrase elsewhere on the page is not evidence. Avoid `first()` as a workaround for an ambiguous owner. Assert pixel dimensions or visual presentation only when the accepted design owns that constraint. Treat loading, stale, unknown, disabled, rejected and successful states as distinct outcomes.
 
 ## Own asynchronous work

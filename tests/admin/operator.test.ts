@@ -169,7 +169,7 @@ describe("admin pages, accounts, and audit", () => {
   it("keeps account status meaningful on Credentials and in access-task choices", async () => {
     const missingFixture = makeFixture();
     const missing = await admin(missingFixture, "https://admin.example.test/admin?view=credentials", { method: "GET" });
-    await expect(missing.text()).resolves.toContain("还没有账号。");
+    await expect(missing.text()).resolves.toContain('data-empty="none"');
 
     const configuredFixture = makeFixture();
     setSharedCodexAuth(configuredFixture, {
@@ -549,7 +549,7 @@ describe("admin pages, accounts, and audit", () => {
     const duplicate = await adminForm(fixture, url, new URLSearchParams({ email: " ALEX@Example.com " }));
     expect(duplicate.status).toBe(409);
     const html = await duplicate.text();
-    expect(new JSDOM(html).window.document.querySelector("[role=alert]")?.textContent).toContain("这个邮箱已属于另一个账号");
+    expect(new JSDOM(html).window.document.querySelector('[role=alert][data-error-code="email_conflict"]')?.textContent).toBeTruthy();
     expect(fixture.db.operatorMutationAudit.filter(row => row.action === "user.create")).toHaveLength(1);
     const crossOrigin = await adminForm(fixture, url, new URLSearchParams({ email: "untrusted@example.com" }), { Origin: "https://untrusted.example.test" });
     expect(crossOrigin.status).toBe(403);

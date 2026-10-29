@@ -128,7 +128,7 @@ export async function adminDashboardResponse(input: AdminDashboardInput): Promis
       error_category: dashboardErrorCategory(error)
     }));
     const notice = input.mutationFlash?.kind === "user_create_error"
-      ? createElement("p", {role: "alert", "data-mutation-input-error": ""}, personInputMessage(input.mutationFlash))
+      ? createElement("p", {role: "alert", "data-mutation-input-error": "", "data-error-code": input.mutationFlash.error_code}, personInputMessage(input.mutationFlash))
       : createElement(MutationNotice, {flash: input.mutationFlash});
     const recovery = createElement(ReadUnavailable, {url: base.canonicalUrl, requestId});
     return htmlResponse(renderDashboardDocument(page, nonce, createElement(Fragment, null, notice, recovery)), 503, nonce, true, input.url.origin);
