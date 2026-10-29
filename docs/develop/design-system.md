@@ -83,6 +83,8 @@ Checks cover only the common supported authoring paths:
 
 - design-bearing CSS values use canonical tokens;
 - authored code does not redefine the generated semantic-token namespace;
+- authored console CSS styles through classes and data hooks, never ID selectors
+  that out-specify primitives;
 - ordinary business/page TSX does not hand-author visual `style` values;
 - Tailwind/CVA does not use literal arbitrary visual values to bypass the token theme;
 - generated runtime/design artifacts are fresh.
