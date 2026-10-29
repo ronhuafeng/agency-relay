@@ -7,7 +7,7 @@ import { Checkbox } from "./components/checkbox";
 import { Switch } from "./components/switch";
 import { RadioGroup, RadioGroupItem } from "./components/radio-group";
 import { useEnhanced } from "./use-enhanced";
-import { ConfirmationFallback, ReturnFields } from "./fields";
+import { ConfirmationFallback, ReturnFields, confirmationAttributes, type Confirmation } from "./fields";
 import { isCreditPolicyMode, type SelectControl, type CreditPolicyControl, type CreditPolicyMode, type AddAccountControl, type CheckControl, type AccessChoiceControl, type MemberKeyFormModel } from "./models";
 
 export function SelectView({ control, onValueChange }: { readonly control: SelectControl; readonly onValueChange?: (value: string) => void }) {
@@ -21,14 +21,17 @@ export function SelectView({ control, onValueChange }: { readonly control: Selec
 
 export function CreditPolicyForm({control, initialMode = control.mode}: {readonly control: CreditPolicyControl; readonly initialMode?: CreditPolicyMode}) {
   const enhanced = useEnhanced(); const [mode,setMode] = useState<CreditPolicyMode>(initialMode); const form = useRef<HTMLFormElement | null>(null);
-  const warning = `更改 ${control.personLabel} 的 ${control.clientLabel} 额度？停用：拒绝所有新请求。0：只允许不计额度的操作。不限：取消每月上限。${control.clientLabel === "xAI API" ? "xAI API 使用上游团队共享资源，个人额度不能隔离这些资源。" : ""}`;
+  const warning: Confirmation = {
+    primary: `更改 ${control.personLabel} 的 ${control.clientLabel} 额度？${control.clientLabel === "xAI API" ? "个人额度不能隔离团队共享资源。" : ""}`,
+    details: "停用：拒绝所有新请求。0：只允许不计额度的操作。不限：取消每月上限。"
+  };
   useEffect(() => {
     const current = form.current; if (!current) return;
     const restore = (): void => {const field = current.elements.namedItem("mode"); if (field instanceof HTMLSelectElement && isCreditPolicyMode(field.value)) setMode(field.value);};
     restore(); current.addEventListener("console:restore", restore); return () => current.removeEventListener("console:restore", restore);
   }, []);
   return (
-    <form ref={form} className="inline-form" method="post" action={control.action} data-action="credit-set" autoComplete="off" data-dashboard-draft="credit" data-confirmation={warning}>
+    <form ref={form} className="inline-form" method="post" action={control.action} data-action="credit-set" autoComplete="off" data-dashboard-draft="credit" {...confirmationAttributes(warning)}>
       <SelectView
         control={{
           id: `${control.id}-mode`,
@@ -63,7 +66,7 @@ export function CreditPolicyForm({control, initialMode = control.mode}: {readonl
         </Label>
       </div>
       <input type="hidden" name="confirm" value="1" />
-      <ConfirmationFallback message={warning} />
+      <ConfirmationFallback message={warning.primary} details={warning.details} />
       <Button type="submit">保存</Button>
     </form>
   );
@@ -71,8 +74,8 @@ export function CreditPolicyForm({control, initialMode = control.mode}: {readonl
 export function CreditPolicySwitch({control,onEnable}: {readonly control: CreditPolicyControl; readonly onEnable: () => void}) {
   const enhanced = useEnhanced();
   if (control.mode === "disabled") return <Switch checked={false} disabled={!enhanced} aria-label={`${control.clientLabel} 请求准入`} onCheckedChange={onEnable}/>;
-  const warning = `停用 ${control.personLabel} 的 ${control.clientLabel} 请求准入？所有新请求都会被拒绝，包括不计额度的操作。密钥不会被撤销。`;
-  return <form className="inline-form" method="post" action={control.action} data-action="credit-set" data-confirmation={warning}><input type="hidden" name="mode" value="disabled"/><input type="hidden" name="confirm" value="1"/><ConfirmationFallback message={warning}/><Switch type="submit" checked aria-label={`${control.clientLabel} 请求准入`} data-confirm-label={`停用 ${control.clientLabel}`} data-variant="destructive"/></form>;
+  const warning: Confirmation = {primary: `停用 ${control.personLabel} 的 ${control.clientLabel} 请求准入？新请求立即被拒绝。`, details: "包括不计额度的操作。密钥不会被撤销。"};
+  return <form className="inline-form" method="post" action={control.action} data-action="credit-set" {...confirmationAttributes(warning)}><input type="hidden" name="mode" value="disabled"/><input type="hidden" name="confirm" value="1"/><ConfirmationFallback message={warning.primary} details={warning.details}/><Switch type="submit" checked aria-label={`${control.clientLabel} 请求准入`} data-confirm-label={`停用 ${control.clientLabel}`} data-variant="destructive"/></form>;
 }
 export function AddAccountView({ control }: { readonly control: AddAccountControl }) {
   const enhanced = useEnhanced();

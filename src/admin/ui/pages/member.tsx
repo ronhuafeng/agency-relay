@@ -81,9 +81,9 @@ function expiryControl(now:Date,id:string):SelectControl {
 }
 function ReturnField({keyId}: {keyId?:string}) {
   const scope = useMemberScope(); const memberHref = scope.href; return <input type="hidden" name="key_return" value={memberHref("keys",keyId)}/>; }
-function ConfirmForm({action,message,submitLabel,keyId,children,quiet=false}: {action:string;message:string;submitLabel:string;keyId?:string;children?:React.ReactNode;quiet?:boolean}) {
+function ConfirmForm({action,message,details,submitLabel,keyId,children,quiet=false}: {action:string;message:string;details?:string;submitLabel:string;keyId?:string;children?:React.ReactNode;quiet?:boolean}) {
   const scope = useMemberScope(); if (scope.service) message = `服务账号 ${scope.service.display_name}（${scope.service.id}）：${message}`;
-  return <form method="post" action={action} data-confirmation={message}><ReturnField keyId={keyId}/>{action.endsWith("replace")?<input type="hidden" name="submission_id" value={generateId("submit")}/>:null}<ConfirmationFallback message={message}/>{children}<Button type="submit" variant={quiet || action.endsWith("replace")?"outline":"destructive"} className={quiet?"quiet-destructive":undefined}>{submitLabel}</Button></form>;
+  return <form method="post" action={action} data-confirmation={message} data-confirmation-details={details}><ReturnField keyId={keyId}/>{action.endsWith("replace")?<input type="hidden" name="submission_id" value={generateId("submit")}/>:null}<ConfirmationFallback message={message} details={details}/>{children}<Button type="submit" variant={quiet || action.endsWith("replace")?"outline":"destructive"} className={quiet?"quiet-destructive":undefined}>{submitLabel}</Button></form>;
 }
 const lifecycleLabels: Record<MemberKeyFact["key"]["lifecycle"]["state"],string> = {active:"有效",expired:"已过期",revoked:"已撤销",paused:"账号已暂停",inactive:"已停用",unknown:"状态未知"};
 function TaskEvidence({item}: {item:MemberKeyFact}) {
@@ -100,7 +100,8 @@ function TaskEvidence({item}: {item:MemberKeyFact}) {
 function KeyDetail({item,now}: {item:MemberKeyFact;now:Date}) {
   const scope = useMemberScope(); const memberHref = scope.href; const key = item.key;
   const hidden = {key_return: memberHref("keys",key.id)};
-  const replaceMessage = key.lifecycle.state === "active" ? `更换 ${key.key_prefix}？将创建一个新密钥替换它。旧密钥在到期或被撤销前仍然有效；确认新密钥可用后，再撤销旧密钥。` : `更换 ${key.key_prefix}？将创建一个新密钥替换它。旧密钥不会恢复有效。`;
+  const replaceMessage = `更换 ${key.key_prefix}？将创建一个新密钥替换它。`;
+  const replaceDetails = key.lifecycle.state === "active" ? "旧密钥在到期或被撤销前仍然有效；确认新密钥可用后，再撤销旧密钥。" : "旧密钥不会恢复有效。";
   return <section className="member-key-detail" data-key-detail={key.id} aria-label={`管理密钥 ${key.name ?? key.key_prefix}`}>
     <header className="person-access-head"><h2>{key.name ?? "未命名密钥"}</h2><Button asChild variant="ghost"><a href={memberHref("keys")} data-member-key-close={key.id}><Icon name="close"/>收起</a></Button></header>
     <dl className="key-facts"><div><dt>创建</dt><dd>{instant(key.created_at)}</dd></div><div><dt>到期</dt><dd>{instant(key.expires_at)}</dd></div><div><dt>最近使用</dt><dd>{instant(key.last_used_at)}</dd></div></dl>
@@ -109,8 +110,8 @@ function KeyDetail({item,now}: {item:MemberKeyFact;now:Date}) {
     <TaskEvidence item={item}/>
     <div className="key-edit-actions">
       <TaskEditorIsland control={{id:`rename-${key.id}`,label:"重命名",action:`${scope.prefix}/ui/keys/${encodeURIComponent(key.id)}/rename`,submitLabel:"保存名称",fields:[{label:"密钥名称",name:"name",value:key.name ?? "",required:true,maxLength:64}],hidden}}/>
-      {item.replacement.allowed && scope.service?.status !== "disabled" ? <TaskEditorIsland control={{id:`replace-${key.id}`,label:"更换密钥",action:`${scope.prefix}/ui/keys/${encodeURIComponent(key.id)}/replace`,submitLabel:"更换",fields:[],select:expiryControl(now,`replace-expiry-${key.id}`),hidden:{...hidden,submission_id:generateId("submit")},confirmation:scope.service ? `服务账号 ${scope.service.display_name}（${scope.service.id}）：${replaceMessage}` : replaceMessage}}/> : key.status === "active" ? <p className="caption" data-replacement-state={item.replacement.reason ?? "unknown"}>{item.replacement.allowed === null ? "更换条件无法读取" : item.replacement.reason === "family" ? "正在更换中：请先撤销新旧密钥中的一个" : item.replacement.reason === "binding" ? "绑定连接需管理员处理" : "当前额度政策不允许更换"}</p> : null}
-      {key.status !== "revoked" ? <ConfirmForm action={`${scope.prefix}/ui/keys/${encodeURIComponent(key.id)}/revoke`} keyId={key.id} message={`撤销 ${key.key_prefix}？后续认证将被拒绝，不能恢复；已开始的请求或外部任务不保证中止。`} submitLabel="撤销密钥" quiet/> : null}
+      {item.replacement.allowed && scope.service?.status !== "disabled" ? <TaskEditorIsland control={{id:`replace-${key.id}`,label:"更换密钥",action:`${scope.prefix}/ui/keys/${encodeURIComponent(key.id)}/replace`,submitLabel:"更换",fields:[],select:expiryControl(now,`replace-expiry-${key.id}`),hidden:{...hidden,submission_id:generateId("submit")},confirmation:scope.service ? `服务账号 ${scope.service.display_name}（${scope.service.id}）：${replaceMessage}` : replaceMessage,confirmationDetails:replaceDetails}}/> : key.status === "active" ? <p className="caption" data-replacement-state={item.replacement.reason ?? "unknown"}>{item.replacement.allowed === null ? "更换条件无法读取" : item.replacement.reason === "family" ? "正在更换中：请先撤销新旧密钥中的一个" : item.replacement.reason === "binding" ? "绑定连接需管理员处理" : "当前额度政策不允许更换"}</p> : null}
+      {key.status !== "revoked" ? <ConfirmForm action={`${scope.prefix}/ui/keys/${encodeURIComponent(key.id)}/revoke`} keyId={key.id} message={`撤销 ${key.key_prefix}？此密钥立即且永久失效。`} details="已开始的请求或外部任务不保证中止。" submitLabel="撤销密钥" quiet/> : null}
     </div>
   </section>;
 }

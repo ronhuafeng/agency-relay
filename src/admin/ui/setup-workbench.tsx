@@ -31,7 +31,7 @@ export interface SetupWorkbenchKey {
   readonly selectedHref: string;
   readonly newKeyHref?: string;
   readonly hideTemplates?: boolean;
-  readonly replacement?: { readonly action: string; readonly returnHref: string; readonly confirmation: string };
+  readonly replacement?: { readonly action: string; readonly returnHref: string; readonly confirmation: string; readonly confirmationDetails: string };
 }
 export interface SetupWorkbenchControl {
   readonly id: string;
@@ -55,7 +55,7 @@ export function readSetupWorkbench(value: unknown): SetupWorkbenchControl | null
     if (!files || key.verifications.some(row => !row || typeof row.client !== "string" || typeof row.text !== "string" || !["works","failed","not-verified"].includes(row.result))) return null;
     if ("replacement" in key && key.replacement !== undefined) {
       const replacement = key.replacement;
-      if (!replacement || typeof replacement !== "object" || !["action","returnHref","confirmation"].every(name => name in replacement && typeof replacement[name as keyof typeof replacement] === "string")) return null;
+      if (!replacement || typeof replacement !== "object" || !["action","returnHref","confirmation","confirmationDetails"].every(name => name in replacement && typeof replacement[name as keyof typeof replacement] === "string")) return null;
     }
     if ("newKeyHref" in key && key.newKeyHref !== undefined && typeof key.newKeyHref !== "string") return null;
     if ("hideTemplates" in key && key.hideTemplates !== undefined && typeof key.hideTemplates !== "boolean") return null;
@@ -123,8 +123,8 @@ export function SetupWorkbenchView({control}: {readonly control: SetupWorkbenchC
     {activeFile ? <SetupFileTargetView key={activeFile.client} file={activeFile} enhanced={enhanced} showTemplate={false}/> : <p className="empty">请选择客户端。</p>}
     {key ? <div className="setup-mode-choices" role="group" aria-label="配置方式"><Button asChild variant={mode === "selected" ? "secondary" : "outline"}><a role="button" onKeyDown={event=>{if(event.key === " "){event.preventDefault();event.currentTarget.click();}}} href={key.selectedHref} aria-pressed={mode === "selected"} onClick={event=>{event.preventDefault();chooseMode("selected");}}>{key.replacement ? "更换密钥" : "所选密钥"}</a></Button><Button asChild variant={mode === "held" ? "secondary" : "outline"}><a role="button" onKeyDown={event=>{if(event.key === " "){event.preventDefault();event.currentTarget.click();}}} href={key.heldHref} aria-pressed={mode === "held"} onClick={event=>{event.preventDefault();chooseMode("held");}}>已有密钥</a></Button></div> : null}
     {key ? <div className="setup-selected-action" hidden={mode !== "selected"}>
-      {key.replacement ? <><p className="caption">更换会创建新密钥，不会自动撤销原密钥。配置包只包含此密钥获准使用的客户端。</p><form className="board-form" method="post" action={key.replacement.action} data-action="create-setup-package" autoComplete="off" data-dashboard-draft="replacement" data-draft-scope="setup" data-confirmation={key.replacement.confirmation}>
-        <ConfirmationFallback message={key.replacement.confirmation}/><input type="hidden" name="confirm" value="1"/><input type="hidden" name="key_return" value={key.replacement.returnHref}/><KeyExpiryField/>
+      {key.replacement ? <><p className="caption">更换会创建新密钥，不会自动撤销原密钥。配置包只包含此密钥获准使用的客户端。</p><form className="board-form" method="post" action={key.replacement.action} data-action="create-setup-package" autoComplete="off" data-dashboard-draft="replacement" data-draft-scope="setup" data-confirmation={key.replacement.confirmation} data-confirmation-details={key.replacement.confirmationDetails}>
+        <ConfirmationFallback message={key.replacement.confirmation} details={key.replacement.confirmationDetails}/><input type="hidden" name="confirm" value="1"/><input type="hidden" name="key_return" value={key.replacement.returnHref}/><KeyExpiryField/>
         <div className="form-footer"><Button type="submit">更换密钥并下载配置包</Button><TaskLink className="action-link" href={key.manageHref}>管理密钥</TaskLink></div>
       </form></> : key.newKeyHref ? <TaskLink className="action-link" href={key.newKeyHref}>创建新密钥</TaskLink> : <p className="caption">旧密钥无法重新显示明文。持有完整密钥时，可切换到“已有密钥”生成配置文件。</p>}
       {!key.replacement ? <TaskLink className="action-link" href={key.manageHref}>管理密钥</TaskLink> : null}

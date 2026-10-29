@@ -22,11 +22,21 @@ export function ReturnFields({ query, page }: { readonly query: string; readonly
  * acknowledgement. Enhanced forms confirm the same text in the dialog on submission;
  * the runtime hides server-rendered prompts and hydrated islands render none.
  */
-export function ConfirmationFallback({ message }: { readonly message: string }) {
+export function ConfirmationFallback({ message, details }: { readonly message: string; readonly details?: string }) {
   const id = useId();
   const enhanced = useEnhanced();
   if (enhanced) return null;
-  return <div className="confirmation-prompt" data-confirmation-prompt=""><Label className="confirmation-fallback" data-confirmation-fallback="" title={message}><input type="checkbox" required aria-label={message}/><span>确认</span></Label><InfoPopover id={`confirmation-${id}`} label="操作影响" iconOnly><p>{message}</p></InfoPopover></div>;
+  return <div className="confirmation-prompt" data-confirmation-prompt=""><Label className="confirmation-fallback" data-confirmation-fallback="" title={message}><input type="checkbox" required aria-label={message}/><span>确认</span></Label><InfoPopover id={`confirmation-${id}`} label="操作影响" iconOnly><p>{message}</p>{details ? <p data-confirmation-details="">{details}</p> : null}</InfoPopover></div>;
+}
+
+/**
+ * A consequential confirmation in two parts: the primary sentence names the object and
+ * its immediate effect; details say what does not change and how to recover. Forms
+ * carry both as data-confirmation and data-confirmation-details for the dialog.
+ */
+export interface Confirmation { readonly primary: string; readonly details?: string }
+export function confirmationAttributes(confirmation: Confirmation): { readonly "data-confirmation": string; readonly "data-confirmation-details"?: string } {
+  return { "data-confirmation": confirmation.primary, "data-confirmation-details": confirmation.details };
 }
 
 

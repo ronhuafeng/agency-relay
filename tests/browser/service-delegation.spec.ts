@@ -86,7 +86,7 @@ test.describe('delegated service management', () => {
       const form = manager.locator(`form[action="/admin/ui/services/${id}/owner"]`);
       await form.getByRole('combobox', {name: '新的管理人'}).selectOption('user:other');
       await form.getByRole('button', {name: '更新管理人', exact: true}).click();
-      await expect(manager.getByRole('alertdialog')).toContainText('仍可进行 API 调用');
+      await expect(manager.getByRole('alertdialog')).toContainText('仍可调用 API');
       await expect(manager.getByRole('alertdialog')).toContainText('other@example.test');
       await manager.getByRole('alertdialog').getByRole('button', {name: '取消', exact: true}).click();
       expect(worker.serviceOwner(id)?.owner_user_id).toBe('member');
@@ -205,8 +205,8 @@ test.describe('service owner review regressions', () => {
     await expect(impact.getByRole('link',{name:'单独撤销或更换',exact:true})).toHaveAttribute('href',prefix+'?view=keys&key='+keyId);
     const form=page.locator('[data-action="user-status"]');
     await form.getByRole('switch',{name:/启用账号/}).click();
-    await expect(page.getByRole('alertdialog')).toContainText('个人 API 鉴权');
-    await expect(page.getByRole('alertdialog')).toContainText('服务账号密钥仍可能用于 API 调用');
+    await expect(page.getByRole('alertdialog')).toContainText('个人密钥停止工作');
+    await expect(page.getByRole('alertdialog')).toContainText('已复制的服务密钥仍可能被使用');
     await page.getByRole('alertdialog').getByRole('button',{name:'取消',exact:true}).click();
     expect(worker.status('member')).toBe('active');expect(worker.keyMetadata(id)[0]?.status).toBe('active');
     await form.getByRole('switch',{name:/启用账号/}).click();

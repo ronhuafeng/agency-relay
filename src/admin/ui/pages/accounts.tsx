@@ -8,7 +8,7 @@ import { formatNumber, formatOperatorInstant, personLabel, presentText } from ".
 import { keyStateLabel } from "../../key-label";
 import { AddAccountIsland } from "../islands";
 import { Button } from "../components/button";
-import { ConfirmationFallback, Field, InventorySearchView, ReturnFields } from "../fields";
+import { ConfirmationFallback, Field, InventorySearchView, ReturnFields, confirmationAttributes, type Confirmation } from "../fields";
 import { TaskLink } from "../chrome";
 import { accountDashboardUrl, inventoryUrl } from "../href";
 import { Icon } from "../icon";
@@ -78,15 +78,18 @@ function AccountAdmission({ model }: { readonly model: AccountsPageModel }) {
   const effect = paused
     ? "只解除管理员设置的暂停，连接、授权与额度检查仍然生效。已断开或失效的凭据不会恢复。"
     : "拒绝此连接的后续上游请求，不会自动切换连接。已接受的请求或外部任务不会因此取消。";
-  const confirmation = `${paused ? "恢复" : "暂停"}接收 ChatGPT · ${account.label}（${account.id}）的请求？${impactText}${effect}连接凭据、密钥、绑定、默认设置、额度与历史用量保留。`;
+  const confirmation: Confirmation = {
+    primary: `${paused ? "恢复" : "暂停"}接收 ChatGPT · ${account.label}（${account.id}）的请求？${paused ? "" : "后续上游请求将被拒绝。"}`,
+    details: `${impactText}${paused ? effect : "不会自动切换连接。已接受的请求或外部任务不会因此取消。"}连接凭据、密钥、绑定、默认设置、额度与历史用量保留。`
+  };
   const params = new URL(model.canonicalUrl, "https://dashboard.invalid").searchParams;
   const controlId = `account-admission-${encodeURIComponent(account.id)}`;
   return <section className="workspace-section" aria-label="ChatGPT 接收请求" data-account-admission="">
-    <form method="post" action={`/admin/ui/codex-auths/${encodeURIComponent(account.id)}/${paused ? "resume" : "pause"}`} data-action={`codex-${paused ? "resume" : "pause"}`} data-credential-admission-form="" data-admission-state={account.projection.admissionState} data-confirmation={confirmation}>
+    <form method="post" action={`/admin/ui/codex-auths/${encodeURIComponent(account.id)}/${paused ? "resume" : "pause"}`} data-action={`codex-${paused ? "resume" : "pause"}`} data-credential-admission-form="" data-admission-state={account.projection.admissionState} {...confirmationAttributes(confirmation)}>
       <ReturnFields query={params.get("q") ?? ""} page={params.get("page") ?? "1"}/>
       <input type="hidden" name="confirm" value="1"/>
       <div className="status-switch-control"><Label htmlFor={controlId}>允许新请求</Label><Badge data-credential-admission="" className="tone-warn" hidden={!paused}>已暂停</Badge><InfoPopover id="account-admission-help" label="暂停接收请求的影响" iconOnly><p data-admission-impact="">{impactText}</p><p>{effect}</p></InfoPopover><Switch id={controlId} type="submit" checked={!paused} disabled={blocked !== null} aria-label={`ChatGPT · ${account.label}：允许新请求`} data-confirm-label={paused ? "恢复接收请求" : "暂停接收请求"}/></div>
-      {blocked ? <p className="caption">{blocked}</p> : <ConfirmationFallback message={confirmation}/>}
+      {blocked ? <p className="caption">{blocked}</p> : <ConfirmationFallback message={confirmation.primary} details={confirmation.details}/>}
       <p className="caption" data-credential-admission-changed="" hidden>是否接收请求已变化，请先查看当前状态，再确认操作。</p>
       <a data-credential-admission-read="" data-dashboard-link="" data-task-link="" href={accountDashboardUrl(model.canonicalUrl, account.key)} hidden={!blocked}>查看当前状态</a>
     </form>
@@ -108,8 +111,8 @@ function RetirementImpact({ model }: { readonly model: AccountsPageModel }) {
     ...retirement.live_keys.find(key => key.id === id)!,
     grants: retirement.live_keys.filter(key => key.id === id).map(key => key.surface_grant)
   }));
-  const migrationWarning = `迁移 ${account.label} 的所选密钥绑定和默认连接？这会改变未来请求的上游身份。服务商持有的文件、响应、任务和历史不会迁移。迁移后还需单独断开旧连接。`;
-  const cleanupWarning = `重试清理 ${account.label} 的旧凭据？此操作不会恢复连接或更改密钥绑定。`;
+  const migrationWarning: Confirmation = {primary: `迁移 ${account.label} 的所选绑定和默认连接？未来请求将改用新的上游身份。`, details: "服务商持有的文件、响应、任务和历史不会迁移。迁移后还需单独断开旧连接。"};
+  const cleanupWarning: Confirmation = {primary: `重试清理 ${account.label} 的旧凭据？`, details: "此操作不会恢复连接或更改密钥绑定。"};
   return (
     <section data-retirement="true" className="account-retirement-strip" aria-label="停用影响">
       {migrating ? <p data-retirement-block="true">{`断开前需处理：${[keys.length ? `${formatNumber(keys.length)} 个未撤销密钥` : "", retirement.default_surfaces.length ? `${retirement.default_surfaces.length} 项默认连接` : ""].filter(Boolean).join("、")}。`}</p> : null}
@@ -119,7 +122,7 @@ function RetirementImpact({ model }: { readonly model: AccountsPageModel }) {
         <section className="credential-migration-task">
           <h3 data-credential-migration-heading="">迁移绑定与默认连接</h3>
           <Button type="button" variant="outline" hidden data-credential-migration-toggle="" aria-controls="credential-migration-fields" aria-expanded="false">迁移绑定与默认连接<Icon name="expand"/></Button>
-          <form id="credential-migration-fields" method="post" action={`${path}/migrate`} data-action="credential-migrate" data-confirmation={migrationWarning} data-confirm-credential="">
+          <form id="credential-migration-fields" method="post" action={`${path}/migrate`} data-action="credential-migrate" {...confirmationAttributes(migrationWarning)} data-confirm-credential="">
             {fields}<input type="hidden" name="confirm" value="1"/>
             <Label htmlFor="retirement-replacement">替代连接</Label>
             <NativeSelect id="retirement-replacement" name="replacement_account_id" defaultValue="" required>
@@ -129,12 +132,12 @@ function RetirementImpact({ model }: { readonly model: AccountsPageModel }) {
             {keys.length ? <fieldset><legend>未撤销密钥及其在此连接的绑定</legend>{keys.map(key => <Label key={key.id} className="credential-migration-choice"><input type="checkbox" name="key_ids[]" value={key.id}/><span><code>{presentText(key.key_prefix)}</code> · {productAccessLabels(key.grants).join(" · ")}<span className="record-subline">{presentText(key.id)}</span></span></Label>)}</fieldset> : null}
             {retirement.default_surfaces.length ? <fieldset><legend>新密钥默认连接</legend>{retirement.default_surfaces.map(surface => <Label key={surface} className="credential-migration-choice"><input type="checkbox" name="default_surfaces[]" value={surface.split(":")[1]}/><span>{productAccessLabels([surface])[0]}</span></Label>)}</fieldset> : null}
             <p>迁移只更改所选绑定和默认连接。文件、响应、任务和历史不会迁移；完成后还需单独断开旧连接。</p>
-            <ConfirmationFallback message={migrationWarning}/>
+            <ConfirmationFallback message={migrationWarning.primary} details={migrationWarning.details}/>
             <Button type="submit">迁移所选项目</Button>
           </form>
         </section>
       ) : <span className="caption">暂无可替换连接</span> : null}
-      {retirement.status === "revoked" ? <form className="credential-cleanup-task" method="post" action={`${path}/cleanup`} data-action="credential-cleanup" data-confirmation={cleanupWarning}>{fields}<input type="hidden" name="confirm" value="1"/><p>连接已断开。如上次旧凭据清理未确认，可继续清理。</p><ConfirmationFallback message={cleanupWarning}/><Button type="submit" variant="outline">重试清理</Button></form> : null}
+      {retirement.status === "revoked" ? <form className="credential-cleanup-task" method="post" action={`${path}/cleanup`} data-action="credential-cleanup" {...confirmationAttributes(cleanupWarning)}>{fields}<input type="hidden" name="confirm" value="1"/><p>连接已断开。如上次旧凭据清理未确认，可继续清理。</p><ConfirmationFallback message={cleanupWarning.primary} details={cleanupWarning.details}/><Button type="submit" variant="outline">重试清理</Button></form> : null}
     </section>
   );
 }
@@ -337,16 +340,16 @@ function DefaultAccounts({model}: {readonly model: AccountsPageModel}) {
       const name = surface === "grok" ? "Grok" : surface === "xai" ? "xAI API" : "Codex";
       const params = new URL(model.canonicalUrl, "https://dashboard.invalid").searchParams;
       const formId = `default-${surface}`;
-      const warning = `更改 ${name} 的新密钥默认连接？现有密钥保持原绑定，替换密钥复制原绑定。${surface === "xai" ? "xAI API 委托上游团队共享权限，个人权限不能隔离资源。" : ""}`;
+      const warning: Confirmation = {primary: `更改 ${name} 的新密钥默认连接？${surface === "xai" ? "新密钥将使用团队共享资源。" : ""}`, details: `现有密钥保持原绑定，更换的密钥复制原绑定。${surface === "xai" ? "个人权限不能隔离团队共享资源。" : ""}`};
       return <div className="credential-default-row" key={surface} data-default-surface={surface === "codex" ? "chatgpt" : surface}><Label htmlFor={`${formId}-account`}>{name}<span className="sr-only"> 新密钥默认连接</span></Label>
-        <form id={formId} className="credential-default-form" method="post" action={`/admin/ui/credential-defaults/${surface}`} data-action="credential-default" data-confirmation={warning} data-confirm-credential="">
+        <form id={formId} className="credential-default-form" method="post" action={`/admin/ui/credential-defaults/${surface}`} data-action="credential-default" {...confirmationAttributes(warning)} data-confirm-credential="">
           <ReturnFields query={params.get("q") ?? ""} page={params.get("page") ?? "1"}/>
           <input type="hidden" name="confirm" value="1"/>
           <NativeSelect id={`${formId}-account`} name="credential_account_id" defaultValue={current?.id ?? ""} required disabled={!options.some(account=>account.defaultEligible)}>
             <NativeSelectOption value="" disabled>{row?.account_id ? "当前连接无法读取" : "未设置 · 请选择连接"}</NativeSelectOption>
             {options.map(account => <NativeSelectOption key={account.key} value={account.id} disabled={!account.defaultEligible}>{presentText(account.label)} · {account.projection.statusLabel}{account.projection.admissionState === "paused" ? " · 已暂停" : ""} · {account.id}</NativeSelectOption>)}
           </NativeSelect>
-          <ConfirmationFallback message={warning}/>
+          <ConfirmationFallback message={warning.primary} details={warning.details}/>
           {!options.some(account=>account.defaultEligible) ? <span className="record-subline">请先添加一个兼容的上游连接</span> : null}
         </form>
         <Button type="submit" form={formId} variant="outline" aria-label={`保存 ${name} 默认连接`} disabled={!options.some(account=>account.defaultEligible)}>保存</Button></div>;

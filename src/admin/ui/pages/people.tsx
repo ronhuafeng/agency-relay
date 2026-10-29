@@ -14,7 +14,7 @@ import { NativeSelect } from "../components/native-select";
 import { Card } from "../components/card";
 import { InfoPopover } from "../components/info-popover";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/table";
-import { Field, KeyExpiryField, ConfirmationFallback, InventorySearchView } from "../fields";
+import { Field, KeyExpiryField, ConfirmationFallback, InventorySearchView, confirmationAttributes, type Confirmation } from "../fields";
 import { clientAccess } from "../person-access";
 import { TaskEditorIsland, PeopleCreateIsland } from "../islands";
 import { ClientAccessOption } from "../access-options";
@@ -34,7 +34,10 @@ function ServiceIdentity({model, personUrl}: {readonly model: AdminDashboardAcce
   const error = model.mutationFlash?.kind === "service_error" && model.mutationFlash.action === "rename" ? model.mutationFlash : null;
   const owner = model.serviceOwner;
   const assignableOwner = (model.serviceOwnerCandidates ?? []).some(candidate => candidate.id === owner?.owner_user_id);
-  const warning = `更改服务账号 ${user.display_name}（${user.id}）的管理人？原分配的控制台管理权将移除，新分配只授予这个服务的密钥管理及额度、用量读取权。密钥保持不变：原管理人可能已复制密钥，仍可进行 API 调用，直到密钥到期或另行撤销。不会自动停用服务或轮换密钥。`;
+  const warning: Confirmation = {
+    primary: `更改「${user.display_name}」的管理人？原管理人立即失去控制台管理权。`,
+    details: "新管理人只获得这个服务的密钥管理及额度、用量读取权。密钥不变：原管理人可能已复制的密钥在到期或撤销前仍可调用 API。不会自动停用服务或更换密钥。"
+  };
   return <section className="workspace-section" id="identity" tabIndex={-1} aria-label="服务账号身份"><h2>服务账号</h2>
     <dl className="person-access-summary"><div><dt>账号 ID</dt><dd><code>{user.id}</code></dd></div></dl>
     <form className="board-form" method="post" action={`/admin/ui/services/${encodeURIComponent(user.id)}/name`} autoComplete="off" data-dashboard-draft="service-name" data-draft-scope={user.id}>
@@ -45,7 +48,7 @@ function ServiceIdentity({model, personUrl}: {readonly model: AdminDashboardAcce
       {owner ? <dl className="person-access-summary"><div><dt>当前管理人</dt><dd>{owner.owner_user_id ? owner.owner_email ?? owner.owner_user_id : "未分配"}{owner.owner_user_id && owner.owner_status !== "active" ? <Badge>成员已停用</Badge> : null}</dd></div></dl> : null}
       {model.serviceOwnerKeys ? <InfoPopover id={`service-owner-keys-${user.id}`} label="交接时保留的密钥"><ul>{model.serviceOwnerKeys.map(key => <li key={key.id}><strong>{key.name ?? "未命名密钥"}</strong> · <code>{key.key_prefix}</code> · {key.status === "active" ? "未撤销" : key.status === "revoked" ? "已撤销" : "状态未识别"} · {key.expires_at ? `到期 ${formatOperatorInstantOrDash(key.expires_at)}` : "未设到期"}</li>)}</ul><p>更改管理人不会撤销这些密钥。<a href={memberHref("keys",undefined,user.id)}>管理服务密钥</a></p></InfoPopover> : null}
       {!owner || !model.serviceOwnerCandidates || !model.serviceOwnerKeys ? <p role="alert" data-service-owner-state="unknown">管理人或交接影响暂时无法读取，不代表未分配或没有密钥。<a href={model.canonicalUrl}>重新读取</a></p> :
-      <form className="board-form" method="post" action={`/admin/ui/services/${encodeURIComponent(user.id)}/owner`} data-confirmation={warning} data-confirm-service-owner="">
+      <form className="board-form" method="post" action={`/admin/ui/services/${encodeURIComponent(user.id)}/owner`} {...confirmationAttributes(warning)} data-confirm-service-owner="">
         <label htmlFor={`service-owner-${user.id}`}>新的管理人</label>
         <NativeSelect id={`service-owner-${user.id}`} name="owner_selection" required defaultValue={assignableOwner ? `user:${owner!.owner_user_id!}` : ""}>
           <option value="" disabled>请选择管理人或明确移除分配</option>
@@ -53,7 +56,7 @@ function ServiceIdentity({model, personUrl}: {readonly model: AdminDashboardAcce
           {(model.serviceOwnerCandidates ?? []).map(candidate => <option key={candidate.id} value={`user:${candidate.id}`}>{candidate.canonical_email}</option>)}
         </NativeSelect>
         <input type="hidden" name="expected_revision" value={owner?.revision ?? 0}/><input type="hidden" name="person_return" value={personUrl}/><input type="hidden" name="confirm" value="1"/>
-        <ConfirmationFallback message={warning}/><Button type="submit" variant="outline">更新管理人</Button>
+        <ConfirmationFallback message={warning.primary} details={warning.details}/><Button type="submit" variant="outline">更新管理人</Button>
       </form>}
       <p><a href={memberHref("keys",undefined,user.id)}>管理服务密钥</a> · <a href={memberHref("quota",undefined,user.id)}>查看服务额度</a> · <a href={memberHref("usage",undefined,user.id)}>查看服务用量</a></p>
     </section>
@@ -63,12 +66,15 @@ function ClassifyService({model, personUrl}: {readonly model: AdminDashboardAcce
   const user = model.selectedUser!;
   if (user.account_kind !== "legacy_unresolved" || user.login_capable !== 0 || user.role !== "user" || user.email !== null || user.canonical_email !== null) return null;
   const error = model.mutationFlash?.kind === "service_error" ? model.mutationFlash : null;
-  const warning = `确认历史账号 ${user.id} 是项目或自动化使用的服务账号？已有密钥、到期时间、绑定、额度、消耗和历史均保留，不会套用新账号的停用额度。此操作不能将服务账号转回成员。`;
+  const warning: Confirmation = {
+    primary: `把 ${user.id} 确认为服务账号？此操作不能撤回。`,
+    details: "已有密钥、到期时间、绑定、额度、消耗和历史均保留，不会套用新账号的停用额度。服务账号不能转回成员。"
+  };
   return <section className="workspace-section" aria-label="确认历史账号用途"><h2>确认历史账号用途</h2>
-    <form className="board-form" method="post" action={`/admin/ui/services/${encodeURIComponent(user.id)}/classify`} data-confirmation={warning} autoComplete="off" data-dashboard-draft="service-classify" data-draft-scope={user.id}>
+    <form className="board-form" method="post" action={`/admin/ui/services/${encodeURIComponent(user.id)}/classify`} {...confirmationAttributes(warning)} autoComplete="off" data-dashboard-draft="service-classify" data-draft-scope={user.id}>
       <Field control={{label: "服务名称", name: "display_name", required: true, maxLength: 64, autoComplete: "off", value: error?.display_name ?? "", invalid: Boolean(error)}} />
       <input type="hidden" name="expected_updated_at" value={user.updated_at} /><input type="hidden" name="person_return" value={personUrl} /><input type="hidden" name="confirm" value="1" />
-      <ConfirmationFallback message={warning} /><Button type="submit" variant="outline">确认为服务账号</Button>
+      <ConfirmationFallback message={warning.primary} details={warning.details} /><Button type="submit" variant="outline">确认为服务账号</Button>
     </form>
   </section>;
 }
@@ -102,12 +108,12 @@ function PersonIdentity({model, personUrl}: {readonly model: AdminDashboardAcces
   if (user.account_kind === "service") return <ServiceIdentity model={model} personUrl={personUrl} />;
   const role = user.role === "admin" ? "user" : "admin";
   const roleLabel = role === "admin" ? "设为管理员" : "设为普通成员";
-  const roleWarning = `${roleLabel}：${personLabel(user)}？管理员可以管理组织成员、额度和上游连接。个人密钥与额度不会随角色改变。`;
-  const emailWarning = `迁移 ${personLabel(user)} 的登录邮箱？确认下方新邮箱无误。旧浏览器会话将全部失效，需用新邮箱重新登录。账号 ID、密钥、额度和历史保留；此前复制的密钥不会自动撤销。`;
+  const roleWarning: Confirmation = {primary: `${roleLabel}：${personLabel(user)}？${role === "admin" ? "管理员可以管理组织成员、额度和上游连接。" : "此人立即失去组织管理权。"}`, details: "个人密钥与额度不会随角色改变。"};
+  const emailWarning: Confirmation = {primary: `迁移 ${personLabel(user)} 的登录邮箱？旧会话立即失效。`, details: "需用新邮箱重新登录。账号 ID、密钥、额度和历史保留；此前复制的密钥不会自动撤销。"};
   const error = model.mutationFlash?.kind === "user_lifecycle_error" && model.mutationFlash.action === "email" ? model.mutationFlash : null;
   return <section className="workspace-section person-identity-actions" id="identity" tabIndex={-1} aria-label="身份设置">
-    {user.login_capable !== 1 ? <Badge>尚不能登录</Badge> : <TaskEditorIsland control={{id:`role-${user.id}`,label:"更改角色",action:`/admin/ui/users/${encodeURIComponent(user.id)}/role`,submitLabel:roleLabel,fields:[],hidden:{role,confirm:"1",person_return:personUrl},confirmation:roleWarning}}/>}
-    <TaskEditorIsland control={{id:`email-${user.id}`,label:"更改登录邮箱",action:`/admin/ui/users/${encodeURIComponent(user.id)}/email`,submitLabel:"迁移邮箱",fields:[{label:"新的组织邮箱",name:"email",type:"email",required:true,maxLength:254,autoComplete:"off",value:error?.email ?? "",invalid:Boolean(error)}],hidden:{confirm:"1",person_return:personUrl},confirmation:emailWarning,confirmEmail:true,draftKind:"person",draftScope:user.id}}/>
+    {user.login_capable !== 1 ? <Badge>尚不能登录</Badge> : <TaskEditorIsland control={{id:`role-${user.id}`,label:"更改角色",action:`/admin/ui/users/${encodeURIComponent(user.id)}/role`,submitLabel:roleLabel,fields:[],hidden:{role,confirm:"1",person_return:personUrl},confirmation:roleWarning.primary,confirmationDetails:roleWarning.details}}/>}
+    <TaskEditorIsland control={{id:`email-${user.id}`,label:"更改登录邮箱",action:`/admin/ui/users/${encodeURIComponent(user.id)}/email`,submitLabel:"迁移邮箱",fields:[{label:"新的组织邮箱",name:"email",type:"email",required:true,maxLength:254,autoComplete:"off",value:error?.email ?? "",invalid:Boolean(error)}],hidden:{confirm:"1",person_return:personUrl},confirmation:emailWarning.primary,confirmationDetails:emailWarning.details,confirmEmail:true,draftKind:"person",draftScope:user.id}}/>
     <ClassifyService model={model} personUrl={personUrl}/>
   </section>;
 }
@@ -131,9 +137,13 @@ function AssignedServices({model, personUrl}: {readonly model: AdminDashboardAcc
 }
 function PersonDetail({model, giving, personUrl}: {readonly model: AdminDashboardAccessModel; readonly giving: boolean; readonly personUrl: string}) {
   const user = model.selectedUser; if (!user) return null;
-  const next = user.status === "active" ? "disabled" : "active"; const name = personLabel(user); const warning = user.account_kind === "service" ? next === "disabled" ? `停用服务账号 ${name}（${user.id}）？后续 API 鉴权将被拒绝，但不保证中止已经开始的请求或外部任务。` : `启用服务账号 ${name}（${user.id}）？未撤销且未过期的密钥恢复原有访问，额度限制仍然有效。已撤销密钥不会恢复。` : next === "disabled" ? `停用 ${name}？此人的后续控制台和个人 API 鉴权将被拒绝，现有浏览器会话失效。服务账号及其密钥保持不变：已复制的服务账号密钥仍可能用于 API 调用，请另行核对并选择撤销或更换。不会移出飞书，也不保证中止已开始的请求或外部任务。` : `启用 ${name}？未撤销且未过期的密钥恢复原有访问，额度限制仍然有效。旧控制台会话不会恢复，需要重新登录。`;
+  const next = user.status === "active" ? "disabled" : "active"; const name = personLabel(user); const warning: Confirmation = user.account_kind === "service"
+    ? next === "disabled" ? {primary: `停用服务账号 ${name}（${user.id}）？后续 API 鉴权立即被拒绝。`, details: "不保证中止已经开始的请求或外部任务。"}
+      : {primary: `启用服务账号 ${name}（${user.id}）？有效密钥恢复原有访问。`, details: "额度限制仍然有效。已撤销的密钥不会恢复。"}
+    : next === "disabled" ? {primary: `停用 ${name}？此人立即无法登录，个人密钥停止工作。`, details: "服务账号及其密钥不受影响，已复制的服务密钥仍可能被使用，请另行核对并撤销或更换；不会移出飞书；已开始的请求或外部任务不保证中止。"}
+      : {primary: `启用 ${name}？有效密钥恢复原有访问。`, details: "额度限制仍然有效。旧控制台会话不会恢复，需要重新登录。"};
   return <><header className="person-detail-head"><div className="person-detail-identity"><div className="person-title"><h2>{user.account_kind === "legacy_unresolved" ? "待确认账号" : name}</h2><Badge>{user.account_kind === "service" ? "服务账号" : user.account_kind === "legacy_unresolved" ? "待确认" : user.role === "admin" ? "管理员" : "成员"}</Badge></div></div>
-    <div className="task-head-actions"><form className="inline-form person-status-form" id="person-status" aria-label="账号访问状态" method="post" action={`/admin/ui/users/${encodeURIComponent(user.id)}/status`} data-action="user-status" data-confirmation={warning}><ConfirmationFallback message={warning} /><input type="hidden" name="person_return" value={personUrl} /><input type="hidden" name="status" value={next} /><input type="hidden" name="confirm" value="1" /><StatusSwitch enabled={user.status === "active"} label={name} /></form><TaskClose href={inventoryUrl(personUrl, {person:null,key_q:null,key_page:null}, "people-list")} label="收起账号详情"/></div>
+    <div className="task-head-actions"><form className="inline-form person-status-form" id="person-status" aria-label="账号访问状态" method="post" action={`/admin/ui/users/${encodeURIComponent(user.id)}/status`} data-action="user-status" {...confirmationAttributes(warning)}><ConfirmationFallback message={warning.primary} details={warning.details} /><input type="hidden" name="person_return" value={personUrl} /><input type="hidden" name="status" value={next} /><input type="hidden" name="confirm" value="1" /><StatusSwitch enabled={user.status === "active"} label={name} /></form><TaskClose href={inventoryUrl(personUrl, {person:null,key_q:null,key_page:null}, "people-list")} label="收起账号详情"/></div>
     </header>
     <nav className="section-links" aria-label="账号内容"><a href="#keys">密钥</a><a href="#credits">额度</a><a href="#identity">{user.account_kind === "service" ? "身份与管理人" : "身份与权限"}</a>{model.assignedServiceImpact && (!model.assignedServiceImpact.known || model.assignedServiceImpact.services.length > 0) ? <a href="#assigned-services">管理的服务</a> : null}</nav>
     <section className="workspace-section"><div className="person-access-head"><h2>密钥</h2>{giving ? null : <Button asChild><TaskLink href={inventoryUrl(personUrl,{task:"give-access"},"give-access")}><Icon name="plus"/>创建密钥</TaskLink></Button>}</div>

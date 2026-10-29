@@ -66,7 +66,9 @@
 [data-slot=alert-dialog-footer] { justify-content:flex-start; gap:8px; }
 [data-slot=alert-dialog-title] { font-size:20px; font-weight:650; letter-spacing:-.03em; line-height:1.3; }
 [data-slot=alert-dialog-description] { color:var(--foreground); font-size:14px; line-height:1.5; }
-[data-slot=alert-dialog-description][data-tone=bad] { color:var(--destructive); }
+[data-slot=alert-dialog-description] p { margin:0; }
+[data-slot=alert-dialog-description][data-tone=bad]>p:first-child { color:var(--destructive); }
+[data-slot=alert-dialog-description] .confirmation-details { margin-top:var(--space-2); color:var(--muted-foreground); font-size:13px; }
 [data-slot=alert-dialog-header] { gap:8px; }
 :is([data-slot=button],[data-variant][data-size]:not([data-slot=switch]))[data-variant=default]:hover:not(:disabled) { background:color-mix(in srgb, var(--primary) 86%, var(--foreground)); }
 :is([data-slot=button],[data-variant][data-size]:not([data-slot=switch]))[data-variant=destructive]:hover:not(:disabled) { background:color-mix(in srgb, var(--destructive) 86%, var(--foreground)); }
