@@ -431,8 +431,10 @@ editable control. Do not move every removed paragraph into a new help button.
 Avoid generic process headings such as “Operation instructions and confirmation”.
 Name the user's object or action. Explain unfamiliar consequences at the point of
 decision, once: enhanced forms confirm on submission; native forms expose the
-same consequence beside their required acknowledgement. Do not retain a second
-instruction panel when the confirmation dialog already owns that decision.
+same consequence beside their required acknowledgement. Enhanced forms explain
+consequences in the confirmation dialog; do not add a separate help button for the
+same text, and do not retain a second instruction panel when the confirmation
+dialog already owns that decision.
 Help gives short, actionable installation or recovery steps, not internal design
 rules or an inventory of everything that might fail.
 

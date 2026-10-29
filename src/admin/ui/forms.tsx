@@ -72,7 +72,7 @@ export function CreditPolicySwitch({control,onEnable}: {readonly control: Credit
   const enhanced = useEnhanced();
   if (control.mode === "disabled") return <Switch checked={false} disabled={!enhanced} aria-label={`${control.clientLabel} 请求准入`} onCheckedChange={onEnable}/>;
   const warning = `停用 ${control.personLabel} 的 ${control.clientLabel} 请求准入？所有新请求都会被拒绝，包括不计额度的操作。密钥不会被撤销。`;
-  return <form className="inline-form" method="post" action={control.action} data-action="credit-set" data-confirmation={warning}><input type="hidden" name="mode" value="disabled"/><input type="hidden" name="confirm" value="1"/><ConfirmationFallback message={warning} compact/><Switch type="submit" checked aria-label={`${control.clientLabel} 请求准入`} data-confirm-label={`停用 ${control.clientLabel}`} data-variant="destructive"/></form>;
+  return <form className="inline-form" method="post" action={control.action} data-action="credit-set" data-confirmation={warning}><input type="hidden" name="mode" value="disabled"/><input type="hidden" name="confirm" value="1"/><ConfirmationFallback message={warning}/><Switch type="submit" checked aria-label={`${control.clientLabel} 请求准入`} data-confirm-label={`停用 ${control.clientLabel}`} data-variant="destructive"/></form>;
 }
 export function AddAccountView({ control }: { readonly control: AddAccountControl }) {
   const enhanced = useEnhanced();

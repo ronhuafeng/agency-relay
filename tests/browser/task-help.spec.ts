@@ -118,3 +118,29 @@ test.describe('member service configuration context',()=>{
   expect(worker.requests.every(request=>request.method==='GET')).toBe(true);
  });
 });
+
+for (const script of [true, false]) test.describe(`confirmation consequence help with script=${script}`, () => {
+  test.use({script, viewport: {width: 1280, height: 900}});
+  test('shows the consequence once: in the dialog when enhanced, beside the acknowledgement when native', async ({page}) => {
+    await page.goto('/admin?view=access&person=member');
+    const status = page.locator('form[data-action="user-status"]');
+    const consequence = await status.getAttribute('data-confirmation');
+    expect(consequence).toBeTruthy();
+    const prompts = page.locator('main form[data-confirmation] [data-confirmation-prompt]');
+    if (script) {
+      await expect(page.locator('main [data-confirmation-prompt]:visible')).toHaveCount(0);
+      await expect(page.locator('main').getByRole('button', {name: '操作影响', exact: true})).toHaveCount(0);
+      await status.getByRole('switch').click();
+      const dialog = page.getByRole('alertdialog');
+      await expect(dialog).toContainText(consequence!);
+      await dialog.getByRole('button', {name: '取消', exact: true}).click();
+      await expect(dialog).toHaveCount(0);
+    } else {
+      expect(await prompts.count()).toBeGreaterThan(0);
+      const prompt = status.locator('[data-confirmation-prompt]');
+      await expect(prompt.getByRole('checkbox')).toBeVisible();
+      await prompt.getByRole('button', {name: '操作影响', exact: true}).click();
+      await expect(prompt.getByRole('complementary', {name: '操作影响'})).toContainText(consequence!);
+    }
+  });
+});
