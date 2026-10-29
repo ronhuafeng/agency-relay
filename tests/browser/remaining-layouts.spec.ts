@@ -202,3 +202,29 @@ for(const [width,zoom] of [[320,1],[390,1],[1200,1],[1440,1],[1440,2]] as const)
     expect(worker.requests.filter(request=>request.method==='POST')).toHaveLength(0);
   });
 });
+for(const {width,zoom} of [{width:390,zoom:1},{width:768,zoom:1},{width:1024,zoom:1},{width:1280,zoom:1},{width:1600,zoom:1},{width:1280,zoom:2}])test.describe(`person service comparison ${width}px at ${zoom}x`,()=>{
+  test.use({viewport:{width,height:900}});
+  test('shows every service cap, use, remainder, admission and edit control without clipping or per-character wrapping',async({page})=>{
+    await page.goto('/admin?view=access&person=member');
+    if(zoom!==1)await page.evaluate(value=>{document.documentElement.style.zoom=String(value);},zoom);
+    const result=await page.locator('.person-detail').evaluate(pane=>{
+      const box=pane.getBoundingClientRect();const table=pane.querySelector('.person-credit-table')!;
+      const region=table.closest('.table-scroll,[data-slot=table-container]') as HTMLElement|null;
+      const rows=[...table.querySelectorAll('tr[data-credit-surface]')].map(row=>{
+        const inside=(element:Element|null)=>{if(!element)return false;const r=element.getBoundingClientRect();return r.width>0&&r.left>=box.left-1&&r.right<=box.right+1;};
+        const name=row.querySelector('td:first-child>strong')!;
+        return {surface:row.getAttribute('data-credit-surface'),cells:['td:nth-child(3)','td:nth-child(4)','td:nth-child(5)'].every(selector=>inside(row.querySelector(selector))),
+          admission:inside(row.querySelector('[role=switch]')),edit:inside(row.querySelector('.credit-policy-disclosure summary')),
+          nameLines:new Set([...name.getClientRects()].map(rect=>Math.round(rect.top))).size};
+      });
+      return {rows,stacked:getComputedStyle(table.querySelector('thead')!).position==='absolute',scrolls:region?region.scrollWidth>region.clientWidth+1:false};
+    });
+    expect(result.rows.map(row=>row.surface)).toEqual(['codex','grok','xai']);
+    for(const row of result.rows){expect(row.cells&&row.admission&&row.edit,row.surface!).toBe(true);expect(row.nameLines,row.surface!).toBe(1);}
+    // The primary comparison never needs horizontal scrolling.
+    expect(result.scrolls).toBe(false);
+    if(width===1600&&zoom===1)expect(result.stacked).toBe(false);
+    // At 1280px the selected-person pane is about 650px wide, so services compare as cards.
+    if(width===1280||width===390)expect(result.stacked).toBe(true);
+  });
+});
