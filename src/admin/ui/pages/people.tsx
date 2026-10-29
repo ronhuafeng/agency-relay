@@ -126,7 +126,7 @@ function AssignedServices({model, personUrl}: {readonly model: AdminDashboardAcc
 
     {!impact.known ? <p role="alert" data-service-impact-state="unknown">服务分配暂时无法读取，不代表没有服务账号。<a href={personUrl}>重新读取账号详情</a></p> : <>
       {impact.services.length === 0 ? <p>当前没有分配的服务账号。</p> : <ul>{impact.services.map(service => <li key={service.id}>
-        <h4>{service.display_name} · <code>{service.id}</code></h4><p>服务状态：{service.status === "active" ? "启用" : "停用"}；停用管理人不会改变此状态。</p>
+        <h4>{service.display_name} · <code>{service.id}</code></h4><p>服务状态：<Badge data-tone={service.status === "active" ? "ok" : undefined}>{service.status === "active" ? "已启用" : "已停用"}</Badge>；停用管理人不会改变此状态。</p>
         <p><a href={memberHref("keys",undefined,service.id)}>单独管理服务密钥：{service.display_name}</a> · <a href={inventoryUrl(personUrl,{person:service.id,key:null})}>查看服务与管理人分配</a></p>
         {service.keys === null ? <p role="alert" data-service-impact-state="unknown">这个服务的密钥元数据暂时无法读取，不代表没有密钥。请打开服务密钥页面核对。</p> : service.keys.length === 0 ? <p>当前没有密钥。</p> : <ul>{service.keys.map(key => <li key={key.id}><code>{key.key_prefix}</code> · {key.name ?? "未命名"} · 存储状态 {key.status} · 到期 {key.expires_at ?? "无到期时间"} · <a href={memberHref("keys",key.id,service.id)}>单独撤销或更换</a></li>)}</ul>}
         {service.moreKeys ? <p>仅显示前 10 个密钥；请打开该服务的密钥页面检查其余密钥。</p> : null}
@@ -165,7 +165,7 @@ function PeopleRow({model, user, selected, href}: {
       <span className="person-identity"><strong>{name}</strong>{unresolved || user.account_kind === "service" ? <small title={user.id}>{user.id}</small> : null}</span>
     </TaskLink></TableCell>
     <TableCell data-label="密钥授权"><span className="person-access-list">{marks.length === 0 ? <span className="meta">无服务密钥</span> : marks.map(({client, label, state}) => <Badge key={client} className="person-access" data-access-state={state}>{label}<span className="sr-only">：{stateLabels[state]}</span>{state === "expired" || state === "paused" ? <span aria-hidden="true">{state === "expired" ? " · 已过期" : " · 已暂停"}</span> : null}</Badge>)}</span></TableCell>
-    <TableCell data-label="状态"><span className="person-state" data-enabled={user.status === "active"}>{user.status === "active" ? "已启用" : "已停用"}</span></TableCell>
+    <TableCell data-label="状态"><Badge className="person-state" data-enabled={user.status === "active"} data-tone={user.status === "active" ? "ok" : undefined}>{user.status === "active" ? "已启用" : "已停用"}</Badge></TableCell>
     <TableCell className="people-row-arrow"><Button asChild variant="ghost" size="icon"><TaskLink href={href} ariaLabel={`查看 ${name} 的访问管理`}><Icon name="arrow" /></TaskLink></Button></TableCell>
   </TableRow>;
 }
