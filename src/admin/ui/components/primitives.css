@@ -113,3 +113,10 @@
 [data-slot=sidebar-group-label] { transition-property: margin, opacity; }
 [data-slot=sidebar-menu-button] { transition-property: width, height, padding; }
 [data-slot=tooltip-arrow] { translate: 0 calc(-50% - 2px); }
+/* ConfirmationFallback: the native acknowledgement and its consequence help share one
+   row sized by their own controls. Enhanced forms hide the whole prompt because the
+   confirmation dialog owns the consequence, so neither mode reserves space for the other. */
+.confirmation-prompt { display:inline-flex; flex-flow:row nowrap; align-items:center; gap:var(--space-1); flex:0 0 auto; max-width:100%; min-height:var(--control-target); }
+.confirmation-prompt[hidden] { display:none; }
+.confirmation-prompt>label.confirmation-fallback { flex:0 1 auto; width:auto; max-width:none; min-width:0; align-items:center; }
+.confirmation-prompt>.info-popover { flex:none; }

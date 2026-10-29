@@ -12,11 +12,13 @@ import { buildPreviewRouter, forwardPreviewRequest, type PreviewTheme } from "./
  * scenarios, without Wrangler, Miniflare or an operator database. Output is ignored
  * under tmp/ and is review material, not a test baseline or shared evidence.
  */
-const outdir = "tmp/console-snapshots";
+const outdir = process.argv.includes("--native") ? "tmp/console-snapshots-native" : "tmp/console-snapshots";
 const themes = ["light", "dark"] as const satisfies readonly PreviewTheme[];
 const widths = [1280, 390] as const;
 const scenes = ["populated", "empty", "long"] as const satisfies readonly Scenario[];
 const filter = process.argv.slice(2).find(arg => !arg.startsWith("--"));
+// --native renders without JavaScript, the no-script fallback of every form.
+const native = process.argv.includes("--native");
 
 interface Target { readonly name: string; readonly role: "admin" | "member" | "gallery"; readonly url: string; readonly scenes: readonly Scenario[] }
 const targets: readonly Target[] = [
@@ -68,7 +70,7 @@ try {
         for (const nextTheme of themes) {
           theme = nextTheme;
           for (const width of widths) {
-            const context = await browser.newContext({ viewport: { width, height: 900 }, colorScheme: nextTheme, serviceWorkers: "block" });
+            const context = await browser.newContext({ viewport: { width, height: 900 }, colorScheme: nextTheme, serviceWorkers: "block", javaScriptEnabled: !native });
             // The synthetic origin must not reach the network.
             await context.route(url => !url.href.startsWith(localOrigin), route => route.abort());
             const page = await context.newPage();
