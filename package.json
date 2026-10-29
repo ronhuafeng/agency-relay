@@ -34,6 +34,7 @@
     "lint:classes": "eslint src/admin/ui --max-warnings 0",
     "test:browser": "NODE_ENV=production playwright test",
     "console:preview": "NODE_ENV=production tsx scripts/console-preview/server.ts",
+    "console:snapshot": "NODE_ENV=production tsx scripts/console-preview/snapshot-pages.ts",
     "console:preview:pull": "tsx scripts/console-preview/pull-data.ts"
   },
   "devDependencies": {
