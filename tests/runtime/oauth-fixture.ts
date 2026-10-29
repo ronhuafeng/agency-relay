@@ -12,7 +12,7 @@ export const OTHER_RESOURCE="https://design.example.test/catalog";
 
 /** Actual Worker/D1 and production DO owner with test-only clock/expiry controls.
  * The external MCP service is synthetic; production owns every auth/path check. */
-export async function oauthFixture(persist?:string,options:{upstream?:(request:Request)=>Promise<Response>;controlledTimers?:boolean;issuer?:string}={}) {
+export async function oauthFixture(persist?:string,options:{upstream?:(request:Request)=>Promise<Response>;immediateUpstream?:{body:number[]|null;headers:Record<string,string>};controlledTimers?:boolean;issuer?:string}={}) {
   const issuer=options.issuer??ISSUER;
   const compiled=await build({
     stdin:{resolveDir:process.cwd(),sourcefile:"runtime-oauth-fixture.ts",contents:`
@@ -124,7 +124,12 @@ export async function oauthFixture(persist?:string,options:{upstream?:(request:R
           if(key==='prepare')return sql=>{if(sql==='SELECT * FROM runtime_installations WHERE id = ?')throw new Error('Synthetic installation view unavailable');return db.prepare(sql);};
           const value=Reflect.get(db,key);return typeof value==='function'?value.bind(db):value;
         }})}:env;
-        const response=await handleRequest(request,requestEnv,ctx,{fetch:(input,init)=>env.SYNTHETIC_UPSTREAM.fetch(new Request(input,init)),now:()=>new Date()});
+        // In-isolate bytes distinguish definite framing from service-binding
+        // delivery, whose stream readiness depends on the runtime scheduler.
+        const immediate=${JSON.stringify(options.immediateUpstream??null)};
+        const response=await handleRequest(request,requestEnv,ctx,{fetch:(input,init)=>immediate
+          ? Promise.resolve(new Response(immediate.body===null?null:new Uint8Array(immediate.body),{headers:immediate.headers}))
+          : env.SYNTHETIC_UPSTREAM.fetch(new Request(input,init)),now:()=>new Date()});
         relayContentLength=response.headers.get('Content-Length');
         return response;
       }};`},

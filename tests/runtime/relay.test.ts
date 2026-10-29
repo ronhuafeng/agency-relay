@@ -141,7 +141,20 @@ it("closes opaque SSE before terminal recording and retains only scoped transpor
   }finally{await f.expire("release-terminal");await f.dispose();}
 },20000);
 
-it("frames a completed short body with its exact length and leaves an open body streaming",async()=>{
+it.each([{payload:null,expected:"0"},{payload:[7,8,9],expected:"3"}])("frames an already available Worker body as $expected bytes, not the upstream length",async({payload,expected})=>{
+  const f=await oauthFixture(undefined,{immediateUpstream:{body:payload,headers:{"Content-Type":"application/octet-stream","Content-Length":"999"}}});
+  try{
+    const a=await authorizedTokens(f);
+    const response=await f.runtime.dispatchFetch(RESOURCE,{method:"POST",headers:{Authorization:`Bearer ${a.tokens.access_token}`},body:"{}"});
+    expect(response.status).toBe(200);
+    const framed=await (await f.expire("relay-framing")).json() as {contentLength:string|null};
+    expect(framed.contentLength).toBe(expected);
+    expect(Array.from(new Uint8Array(await response.arrayBuffer()))).toEqual(payload??[]);
+    await vi.waitFor(async()=>expect((await inventory(f)).leases).toBe(0));
+  }finally{await f.dispose();}
+},20000);
+
+it("preserves service-bound response bytes and leaves an open body streaming",async()=>{
   const payload=new TextEncoder().encode('{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2025-11-25"}}');
   const longer=new Uint8Array(65537);
   longer.set(payload);
@@ -164,16 +177,24 @@ it("frames a completed short body with its exact length and leaves an open body 
     const send=()=>f.runtime.dispatchFetch(RESOURCE,{method:"POST",headers:{Authorization:`Bearer ${a.tokens.access_token}`,"Content-Type":"application/json"},body:"{}"});
     const framedLength=async()=>(await (await f.expire("relay-framing")).json() as {contentLength:string|null}).contentLength;
     const initialize=await send();
-    expect(await framedLength()).toBe(String(payload.byteLength));
+    // A closed Node-side body can still require asynchronous delivery inside
+    // workerd. Either framing is valid; an asserted length must be exact.
+    expect([null,String(payload.byteLength)]).toContain(await framedLength());
     const body=new Uint8Array(await initialize.arrayBuffer());
     expect(initialize.status).toBe(200);
     const length=initialize.headers.get("content-length");
     expect(length===null||length===String(payload.byteLength)).toBe(true);
     expect(length===String(payload.byteLength)||initialize.headers.get("transfer-encoding")==="chunked").toBe(true);
     expect(Buffer.from(body).equals(payload)).toBe(true);
+    await vi.waitFor(async()=>{
+      const state=await inventory(f);
+      expect(state.leases).toBe(0);
+      expect(state.activity[0]?.terminal).toBe("completed");
+      expect(state.activity[0]?.response_bytes_observed).toBe(payload.byteLength);
+    });
     mode="empty";
     const initialized=await send();
-    expect(await framedLength()).toBe("0");
+    expect([null,"0"]).toContain(await framedLength());
     expect(initialized.status).toBe(202);
     expect(initialized.headers.get("content-length")==="0"||initialized.headers.get("transfer-encoding")==="chunked").toBe(true);
     expect(await initialized.text()).toBe("");
