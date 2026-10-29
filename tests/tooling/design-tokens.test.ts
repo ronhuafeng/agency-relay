@@ -6,6 +6,11 @@ import { describe, expect, it } from "vitest";
 import { projectDesignTokens } from "../../scripts/design-tokens";
 
 describe("DTCG console projection", () => {
+  it("builds runtime tokens without a document input or document projection", async () => {
+    const runtime = await projectDesignTokens();
+    expect(runtime.css).toContain("--background:");
+    expect(runtime).not.toHaveProperty("designMd");
+  });
   it("projects the shared palette into the runtime theme and design.md", async () => {
     const source = readFileSync("design.md", "utf8");
     const projected = await projectDesignTokens(source);
