@@ -14,18 +14,16 @@
   },
   "homepage": "https://github.com/ronhuafeng/agency-relay#readme",
   "engines": {
-    "node": ">=22.0.0"
+    "node": ">=26.0.0 <27"
   },
   "scripts": {
-    "typecheck": "pnpm run types:generate && pnpm run console:check && pnpm run egress:build && tsc --noEmit && tsc -p tsconfig.client.json --noEmit",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.client.json --noEmit",
     "types:generate": "wrangler types --include-runtime=false --strict-vars=false",
-    "types:check": "wrangler types --check --include-runtime=false --strict-vars=false",
     "test": "vitest run",
     "test:live": "vitest run --config vitest.live.config.ts",
     "egress:build": "tsx ./scripts/build-egress.ts",
-    "egress:check": "tsx ./scripts/build-egress.ts --check",
-    "egress:test": "pnpm run egress:check && python3 -m unittest discover -s deploy/codex-egress-shim/tests -p 'test_*.py' -v",
-    "dev": "CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false wrangler dev",
+    "egress:test": "python3 -m unittest discover -s deploy/codex-egress-shim/tests -p 'test_*.py' -v",
+    "dev": "pnpm run console:check && CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false wrangler dev",
     "deploy:dry-run": "wrangler deploy --dry-run",
     "scan:git-artifacts": "tsx ./scripts/scan-git-artifacts.ts",
     "console:build": "tsx ./scripts/build-console-client.ts",

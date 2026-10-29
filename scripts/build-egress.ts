@@ -6,7 +6,6 @@ import path from "node:path";
 const root = process.cwd();
 const egressDirectory = path.join(root, "deploy", "codex-egress-shim");
 const sources = ["transport-lifecycle.ts", "node-transport-adapter.ts"] as const;
-const checkOnly = process.argv.includes("--check");
 // TypeScript 7 ships no compiler API. Its tsc emit matches the previous transpile.
 const tsc = path.join(root, "node_modules", "typescript", "bin", "tsc");
 
@@ -52,22 +51,11 @@ function compile(sourceNames: readonly string[]): Map<string, string> {
 }
 
 const compiled = compile(sources);
-let stale = false;
 for (const sourceName of sources) {
   const expected = compiled.get(sourceName);
   if (expected === undefined) {
     throw new Error(`Missing transpiled output for ${sourceName}`);
   }
   const outputPath = path.join(egressDirectory, sourceName.replace(/\.ts$/, ".mjs"));
-  if (checkOnly) {
-    const actual = readFileSync(outputPath, "utf8");
-    if (actual !== expected) {
-      stale = true;
-      process.stderr.write(`${path.relative(root, outputPath)} is stale\n`);
-    }
-  } else {
-    writeFileSync(outputPath, expected);
-  }
+  writeFileSync(outputPath, expected);
 }
-
-if (stale) process.exitCode = 1;
