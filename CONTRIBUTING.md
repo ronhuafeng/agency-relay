@@ -16,6 +16,14 @@ file ownership. `control/mutation-audit.ts` owns mutation audit writes.
 `usage/queries.ts` owns read projections. Import these owners directly, without a
 global database facade. Root `types.ts` retains shared request/dependency contracts.
 
+Grok's `execute.ts` selects the declared flow and observer. `provider-transport.ts`
+owns admitted forwarding, bounded control responses and terminal reporting;
+`file-control.ts` and `video-control.ts` own their resource flows.
+`file-ownership.ts` supplies the shared file-identity checks used by file, video
+and image operations. `image-observation.ts` owns bounded streaming metadata
+observation, not request conversion. None of these implementations imports the
+dispatch entrypoint.
+
 ```bash
 pnpm install --frozen-lockfile
 pnpm run types:generate
