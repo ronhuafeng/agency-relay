@@ -22,13 +22,16 @@ The repository path `design.md` is the single agent-facing design
 contract. “DESIGN.md” elsewhere refers to the external format/specification, not
 a second file; do not create an uppercase duplicate.
 
-`pnpm run console:build` and `pnpm run console:check` generate the shared runtime
-theme and the `design.md` token frontmatter from `tokens/console.resolver.json`.
+`tokens/console.resolver.json` selects the canonical DTCG inputs. One projection
+implementation supplies both runtime tokens and the `design.md` token frontmatter.
+`pnpm run design:update` explicitly updates the frontmatter and preserves reviewed
+prose. `pnpm run design:check` computes the expected projection and fails on drift
+without writing files. Commit reviewed token and document changes together.
 
-Runtime JS/CSS outputs are ignored build inputs, not committed source. The check
-command generates them but only validates `design.md`; it must not silently fix
-the tracked design contract. Use the build command when deliberately updating
-the reviewed token projection.
+`pnpm run console:build` generates ignored runtime JS/CSS, without reading or
+writing `design.md`. Preview and Snapshot use this same runtime build. Design
+consistency is an independent required CI check, not a document repair side effect
+of compilation.
 
 ## Why
 

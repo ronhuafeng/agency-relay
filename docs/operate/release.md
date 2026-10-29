@@ -39,6 +39,39 @@ Keep tests bounded and revoke temporary keys. For the Feishu console, use the de
 
 ## Worker release mechanism
 
+The [CI workflow](../../.github/workflows/ci.yml) builds one candidate per checkout:
+Console runtime assets, binding types, egress modules and the final Worker bundle.
+Its manifest binds file digests to the actual Git SHA and tree. Type, runtime,
+design and browser jobs download and verify that same candidate. Browser fixtures
+still bundle their Node-only test adapter; they do not regenerate Console assets.
+The final Worker bundle also receives a no-bundle local runtime smoke. A PR merge
+checkout is not relabeled as the standalone head SHA.
+
+After all required jobs succeed on a push to `main`, the reusable
+[release workflow](../../.github/workflows/release.yml) automatically uploads that
+same Worker bundle with `--no-bundle`. It does not rebuild or fall back to source.
+Release jobs are serialized and reject a superseded main SHA. Candidate artifacts
+are retained for 30 days; deployed packages and scalar deployment evidence are
+retained as `worker-<SHA>` GitHub Releases. A release archive proves package
+retention and deployment readback, not that later health/readiness checks passed;
+read the linked Actions result as well.
+
+The workflow reads production before upload and again before cutover. It requires
+an identified single-version deployment, no pending or newer D1 migrations, required
+secrets, exact variables/DB bindings, stable Durable Object namespaces and runtime
+flags. Retained historical migration names are not pending migrations. Configuration,
+migration or authored egress changes stop automatic release
+for operator review. It never applies migrations, changes routes, deploys egress,
+rotates credentials or rolls back automatically. The preceding version remains
+the code recovery target only while its schema and authority stay compatible.
+An unknown upload/deployment result requires readback before another write.
+
+Repository Secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` authorize
+Worker version upload/deployment and read-only D1 ledger verification;
+`MINI_ADMIN_SECRET` is used only for operator readiness. PR jobs receive no release
+credentials. Use the existing account-owned, resource-scoped token; do not widen
+its authority to bypass a blocked preflight.
+
 Use one computed Git SHA for artifact identity. Upload a version with message exactly `release $GIT_SHA`, inspect version bindings/secrets-presence/compatibility flags, deploy the intended version to 100% traffic with the same annotation, and read back deployment status.
 
 Full `wrangler deploy` can require access to every routed zone, including the dashboard custom domain. Prefer version upload/deploy for code when appropriate; route changes require an identity authorized for the affected zones. Keep `global_fetch_strictly_public` for the same-zone tunnel path.

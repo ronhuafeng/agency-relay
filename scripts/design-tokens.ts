@@ -242,7 +242,7 @@ export interface DesignTokenProjection {
   };
 }
 
-export async function projectDesignTokens(designMdSource: string, filename = new URL("../tokens/console.resolver.json", import.meta.url)): Promise<DesignTokenProjection> {
+export async function projectDesignTokens(designMdSource = "---\n\n---\n", filename = new URL("../tokens/console.resolver.json", import.meta.url)): Promise<DesignTokenProjection> {
   const parsed = await parse([{ filename, src: readFileSync(filename, "utf8") }], { config });
   if (!parsed.resolver) throw new Error("Console token resolver did not load.");
   const light = parsed.resolver.apply({ theme: "light" });

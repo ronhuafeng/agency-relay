@@ -5,11 +5,14 @@ const workflow = readFileSync(
   new URL("../../.github/workflows/console-browser.yml", import.meta.url),
   "utf8",
 );
+const ci = readFileSync(new URL("../../.github/workflows/ci.yml", import.meta.url), "utf8");
 
 describe("console browser repository admission", () => {
   it("runs for pull requests to main and pushes to main", () => {
-    expect(workflow).toMatch(/pull_request:\n\s+branches: \[main\]/);
-    expect(workflow).toMatch(/push:\n\s+branches: \[main\]/);
+    expect(ci).toMatch(/pull_request:\n\s+branches: \[main\]/);
+    expect(ci).toMatch(/push:\n\s+branches: \[main\]/);
+    expect(ci).toMatch(/browser:\n\s+needs: build\n\s+uses: \.\/\.github\/workflows\/console-browser.yml/);
+    expect(workflow).toContain("workflow_call:");
   });
 
   it("has no changed-path or partial-engine selection path", () => {
