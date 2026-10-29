@@ -12,10 +12,10 @@ coverage/
 dist/
 candidate.json
 candidate.tar.gz
-src/admin/generated/console-bootstrap.ts
-src/admin/generated/console-client.ts
-src/admin/generated/console-styles.ts
-src/admin/generated/tokens.css
+src/console/generated/console-bootstrap.ts
+src/console/generated/console-client.ts
+src/console/generated/console-styles.ts
+src/console/generated/tokens.css
 worker-configuration.d.ts
 deploy/codex-egress-shim/node-transport-adapter.mjs
 deploy/codex-egress-shim/transport-lifecycle.mjs

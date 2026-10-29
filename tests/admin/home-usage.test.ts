@@ -1,6 +1,6 @@
 import { JSDOM } from "jsdom";
 import { describe, expect, it } from "vitest";
-import { adminDashboardResponse } from "../../src/admin/dashboard";
+import { adminDashboardResponse } from "../../src/console/dashboard";
 import type { MediaUsageSummaryRow } from "../../src/usage/types";
 import { makeFixture } from "../router/fixture";
 

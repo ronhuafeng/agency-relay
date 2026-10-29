@@ -3,7 +3,7 @@ import { d1ChangeCount } from "../records";
 import { OPERATOR_MUTATION_AUDIT_COLUMNS } from "../control/mutation-audit";
 import { generateId, nowIso } from "../crypto";
 import { HttpError, codexAuthNotFound } from "../errors";
-import { notifyCredentialChange } from "../admin/credential-notifications";
+import { notifyCredentialChange } from "../control/credential-notifications";
 import type { CodexAuthRow } from "../codex/types";
 import type { CredentialActor } from "./credential-defaults";
 import { assertServiceAdmin, serviceAdminAuthorityBindings, serviceAdminAuthoritySql } from "./service-accounts";

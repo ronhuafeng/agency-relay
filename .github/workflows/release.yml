@@ -86,8 +86,8 @@ jobs:
           if (readiness.kind !== "readiness" || readiness.database !== "available" || readiness.token_authority_binding !== "available") throw Error("Operator readiness contract failed");
           console.log("Operator readiness: HTTP 200; provider task not exercised");
           const {createHash} = await import("node:crypto");
-          const {consoleClientDigest} = await import("./src/admin/generated/console-client.ts");
-          const {consoleStylesDigest} = await import("./src/admin/generated/console-styles.ts");
+          const {consoleClientDigest} = await import("./src/console/generated/console-client.ts");
+          const {consoleStylesDigest} = await import("./src/console/generated/console-styles.ts");
           for (const [extension, digest] of [["js", consoleClientDigest], ["css", consoleStylesDigest]]) {
             const asset = await fetch("https://" + config.vars.ADMIN_DASHBOARD_HOST + "/admin/console-" + digest + "." + extension, {redirect:"error",signal:AbortSignal.timeout(30000)});
             if (!asset.ok || createHash("sha256").update(Buffer.from(await asset.arrayBuffer())).digest("hex") !== digest) throw Error("Deployed Console asset differs from verified candidate");

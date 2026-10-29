@@ -1,5 +1,5 @@
 import {credentialActor} from "../auth/credential-defaults";
-import type {OperatorMutationContext} from "../admin/operator-mutations";
+import type {OperatorMutationContext} from "../control/operator-mutations";
 import {HttpError,jsonResponse} from "../errors";
 import {copyBytes} from "../proxy/byte-stream";
 import {headerMediaType,isRecord} from "../records";

@@ -1,4 +1,4 @@
-import { consoleClientPath } from "../../src/admin/app";
+import { consoleClientPath } from "../../src/console/app";
 import { test, expect, authenticate, openKeyEditor } from './fixtures';
 import { ORIGIN } from './worker';
 

@@ -4,7 +4,7 @@ import { lstatSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const roots = ["src/admin/generated", "dist/worker", "worker-configuration.d.ts", "wrangler.jsonc",
+const roots = ["src/console/generated", "dist/worker", "worker-configuration.d.ts", "wrangler.jsonc",
   "deploy/codex-egress-shim/server.mjs", "deploy/codex-egress-shim/node-transport-adapter.mjs",
   "deploy/codex-egress-shim/transport-lifecycle.mjs", "deploy/codex-egress-shim/egress-protocol.json"];
 export interface Candidate {

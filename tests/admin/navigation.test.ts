@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createTaskController, type TaskController } from "../../src/admin/client/navigation";
-import { createDrafts } from "../../src/admin/client/drafts";
+import { createTaskController, type TaskController } from "../../src/console/client/navigation";
+import { createDrafts } from "../../src/console/client/drafts";
 import { browserLayout, dashboardHtml as pageHtml, element, submit } from "../support/browser-dom";
 function dashboardHtml(view = "access", body = ""): string {
   return pageHtml(view, `${body}<a id="task-account-link" data-dashboard-link data-task-link href="/admin?view=credentials">Open account task</a><a id="task-usage-link" data-dashboard-link data-task-link href="/admin?view=usage">Open related task</a>`);

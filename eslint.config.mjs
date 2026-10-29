@@ -11,14 +11,14 @@ const parserOptions = {
 
 const tailwindSettings = {
   tailwindcss: {
-    cssConfigPath: "src/admin/console.css",
+    cssConfigPath: "src/console/console.css",
     callees: ["cn", "cva"],
   },
 };
 
 export default [
   {
-    files: ["src/admin/ui/**/*.tsx"],
+    files: ["src/console/ui/**/*.tsx"],
     languageOptions: { parser: babelParser, parserOptions },
     plugins: { tailwindcss: eslintPluginTailwindcss, mini: visualStyle },
     settings: tailwindSettings,

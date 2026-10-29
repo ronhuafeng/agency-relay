@@ -1,6 +1,6 @@
 import type { DatabaseSync } from "node:sqlite";
 import { describe, expect, it, onTestFinished } from "vitest";
-import { setApiKeyCredentialBinding, type OperatorMutationContext } from "../../src/admin/operator-mutations";
+import { setApiKeyCredentialBinding, type OperatorMutationContext } from "../../src/control/operator-mutations";
 import { createTestD1 } from "../support/sqlite-d1";
 
 const NOW = new Date("2026-10-06T00:00:00.000Z");

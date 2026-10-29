@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { renderToString } from "react-dom/server";
-import { CopySecretView, DisclosureView } from "../../src/admin/ui/secrets";
+import { CopySecretView, DisclosureView } from "../../src/console/ui/secrets";
 import { element } from "../support/browser-dom";
 
 Object.defineProperty(globalThis, "IS_REACT_ACT_ENVIRONMENT", { configurable: true, value: true });

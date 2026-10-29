@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { readMemberAccess } from "../../src/admin/member-access";
+import { readMemberAccess } from "../../src/console/member-access";
 import { createTestD1 } from "../support/sqlite-d1";
 
 const now = new Date("2026-10-02T00:00:00.000Z");

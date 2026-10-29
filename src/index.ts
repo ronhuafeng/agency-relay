@@ -1,7 +1,7 @@
 import { handleRequest, handleScheduled } from "./router";
 
 export { TokenAuthority } from "./auth/token-authority";
-export { CredentialEvents } from "./admin/credential-events";
+export { CredentialEvents } from "./control/credential-events";
 export { RuntimeCredentials } from "./runtime/credentials";
 export { RuntimeOAuth } from "./runtime/oauth";
 

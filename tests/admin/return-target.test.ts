@@ -1,5 +1,5 @@
 import {expect, it} from 'vitest';
-import {consoleLoginHref, consoleLoginTarget, consoleReturnTarget} from '../../src/admin/return-target';
+import {consoleLoginHref, consoleLoginTarget, consoleReturnTarget} from '../../src/console/return-target';
 
 it.each([
   '/login', '/login?return=%2Fadmin%3Farea%3Dme%26view%3Dintegrations',

@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createDrafts, type Drafts } from "../../src/admin/client/drafts";
+import { createDrafts, type Drafts } from "../../src/console/client/drafts";
 import { element } from "../support/browser-dom";
 let drafts: Drafts | null = null;
 afterEach(() => { drafts?.dispose(); drafts = null; vi.restoreAllMocks(); });

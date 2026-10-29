@@ -4,7 +4,7 @@ import { commitProviderAttemptAccounting } from "../../src/usage/accounting";
 import { queryUsageDaily, queryUsageSummary } from "../../src/usage/queries";
 import { makeFixture } from "../router/fixture";
 import type { CapturedProviderUsage } from "../../src/usage/types";
-import { formatUsdColumn, formatUsdTicks } from "../../src/admin/format";
+import { formatUsdColumn, formatUsdTicks } from "../../src/console/format";
 
 const usage: CapturedProviderUsage = {
   input_tokens: 100, cached_input_tokens: 20, output_tokens: 10,

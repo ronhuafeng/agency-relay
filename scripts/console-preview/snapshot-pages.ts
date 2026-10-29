@@ -2,8 +2,8 @@ import { createServer } from "node:http";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { chromium } from "@playwright/test";
-import { DASHBOARD_VIEW_DEFINITIONS } from "../../src/admin/dashboard-data";
-import { memberHref } from "../../src/admin/member-href";
+import { DASHBOARD_VIEW_DEFINITIONS } from "../../src/console/dashboard-data";
+import { memberHref } from "../../src/console/member-href";
 import { createPreviewFixture, type PreviewFixture, type Scenario } from "./fixtures";
 import { buildPreviewRouter, forwardPreviewRequest, type PreviewTheme } from "./transport";
 

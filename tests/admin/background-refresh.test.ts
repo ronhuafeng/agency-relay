@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { initializeBackgroundRefresh } from "../../src/admin/client/background-refresh";
+import { initializeBackgroundRefresh } from "../../src/console/client/background-refresh";
 import { browserLayout, dashboardHtml, element } from "../support/browser-dom";
 
 let dispose: (() => void) | undefined;

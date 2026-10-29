@@ -6,9 +6,9 @@ import { createTestD1 } from '../support/sqlite-d1';
 import { makeFixture } from '../router/fixture';
 import { createConsoleSession } from '../../src/auth/console-session';
 import { handleRequest } from '../../src/router';
-import { CONSOLE_RETURN_SECTIONS, consoleLoginHref, consoleReturnTarget } from '../../src/admin/return-target';
-import { HomePage, type HomeModel } from '../../src/admin/ui/pages/home';
-import { parseUsageTrendRange } from '../../src/admin/usage-query';
+import { CONSOLE_RETURN_SECTIONS, consoleLoginHref, consoleReturnTarget } from '../../src/console/return-target';
+import { HomePage, type HomeModel } from '../../src/console/ui/pages/home';
+import { parseUsageTrendRange } from '../../src/console/usage-query';
 
 const at = '2026-06-24T12:00:00.000Z';
 function fixture() {

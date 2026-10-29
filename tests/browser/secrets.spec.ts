@@ -12,8 +12,8 @@ import { ORIGIN, type Identity } from './worker';
 // Deliberately invalid, display-only material. These tests never issue a key.
 // Synthetic API outcomes prove the call/UI contract, not an OS clipboard write.
 const displayValue = 'INVALID-DISPLAY-ONLY-' + 'long-placeholder-'.repeat(24);
-let CopySecretIsland: typeof import('../../src/admin/ui/islands').CopySecretIsland;
-let DisclosureIsland: typeof import('../../src/admin/ui/islands').DisclosureIsland;
+let CopySecretIsland: typeof import('../../src/console/ui/islands').CopySecretIsland;
+let DisclosureIsland: typeof import('../../src/console/ui/islands').DisclosureIsland;
 let rendererDirectory: string;
 test.beforeAll(async () => {
   // Match the native Worker fixture: compile actual production SSR instead of
@@ -21,7 +21,7 @@ test.beforeAll(async () => {
   mkdirSync('tmp', { recursive: true });
   rendererDirectory = mkdtempSync(join(process.cwd(), 'tmp/secret-renderer-'));
   const entry = join(rendererDirectory, 'islands.mjs');
-  await build({ entryPoints: ['src/admin/ui/islands.tsx'], outfile: entry, bundle: true, platform: 'node', format: 'esm', packages: 'external',
+  await build({ entryPoints: ['src/console/ui/islands.tsx'], outfile: entry, bundle: true, platform: 'node', format: 'esm', packages: 'external',
     define: { 'process.env.NODE_ENV': '"production"' }, logLevel: 'silent' });
   ({ CopySecretIsland, DisclosureIsland } = await import(pathToFileURL(entry).href));
 });

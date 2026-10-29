@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from "vitest";
-import { afterDocumentParsed } from "../../src/admin/client/document-ready";
+import { afterDocumentParsed } from "../../src/console/client/document-ready";
 
 describe("document-owned enhancement readiness", () => {
   it("does not initialize an incomplete document and starts once after parsing", () => {

@@ -18,7 +18,7 @@ import type { AppDependencies } from "../types";
 import type { CodexAuthRefreshResult, CodexToken, FreshAccessToken } from "../codex/types";
 import type { TokenCiphertext } from "../crypto";
 import { tokenResultFromThrown, type TokenResult } from "./token-result";
-import { notifyCredentialChange } from "../admin/credential-notifications";
+import { notifyCredentialChange } from "../control/credential-notifications";
 
 const TOKEN_STORAGE_KEY = "token";
 const SUBSCRIPTION_STORAGE_KEY = "subscription_credential";

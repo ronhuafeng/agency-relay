@@ -2,9 +2,9 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { JSDOM } from "jsdom";
 import { describe, expect, it } from "vitest";
-import { ConfigurationHelp } from "../../src/admin/ui/task-help";
-import { SetupFilesIsland } from "../../src/admin/ui/islands";
-import { buildClientSetupFiles, CLIENT_SETUP_TOKEN_PLACEHOLDER, PRODUCT_ACCESS } from "../../src/admin/client-setup";
+import { ConfigurationHelp } from "../../src/console/ui/task-help";
+import { SetupFilesIsland } from "../../src/console/ui/islands";
+import { buildClientSetupFiles, CLIENT_SETUP_TOKEN_PLACEHOLDER, PRODUCT_ACCESS } from "../../src/console/client-setup";
 
 describe("contextual task help", () => {
   it("shows shared destinations and placeholder templates without publishing held-key file contents", () => {

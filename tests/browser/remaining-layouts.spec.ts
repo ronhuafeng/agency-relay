@@ -2,7 +2,7 @@ import { writeFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import type { Page, TestInfo } from '@playwright/test';
-import { consoleStyles } from '../../src/admin/generated/console-styles';
+import { consoleStyles } from '../../src/console/generated/console-styles';
 import { test, expect, authenticate, openMemberCreate, openNativeConfirmation } from './fixtures';
 
 const head=execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim();

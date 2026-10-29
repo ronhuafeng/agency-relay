@@ -22,7 +22,7 @@ import {
   renderPlanError,
   routeProfilePolicyRejection
 } from "./proxy/protocol";
-import { isAdminSurface, routeAdmin } from "./admin/http";
+import { isAdminSurface, routeAdmin } from "./control/http";
 import type { AppDependencies, ExecutionDependencies, RequestContext } from "./types";
 import { runtimeAuthorizationResponse } from "./runtime/authorization";
 import {relayRuntimeRequest} from "./runtime/relay";

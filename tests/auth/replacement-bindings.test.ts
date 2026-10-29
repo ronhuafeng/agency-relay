@@ -1,7 +1,7 @@
 import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { expect, it } from "vitest";
-import { readMemberAccess } from "../../src/admin/member-access";
+import { readMemberAccess } from "../../src/console/member-access";
 import { replaceMemberKey, type KeyActor } from "../../src/auth/api-keys";
 import { createTestD1 } from "../support/sqlite-d1";
 

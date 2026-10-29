@@ -2,7 +2,7 @@
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, expect, it } from 'vitest';
-import { ConfirmationFallback } from '../../src/admin/ui/fields';
+import { ConfirmationFallback } from '../../src/console/ui/fields';
 
 afterEach(() => document.body.replaceChildren());
 

@@ -1,7 +1,7 @@
 import { JSDOM } from "jsdom";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
-import { adminDashboardResponse } from "../../src/admin/dashboard";
-import { type DashboardMutationFlash } from "../../src/admin/dashboard-data";
+import { adminDashboardResponse } from "../../src/console/dashboard";
+import { type DashboardMutationFlash } from "../../src/console/dashboard-data";
 import { unavailableCodexAccountSnapshot } from "../../src/codex/account";
 import { createTestD1 } from "../support/sqlite-d1";
 

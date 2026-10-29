@@ -1,8 +1,8 @@
 /** @vitest-environment jsdom */
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { initializeCredentialStatus } from "../../src/admin/client/credential-status";
-import { initializeRecovery } from "../../src/admin/client/recovery";
-import { formatOperatorInstant } from "../../src/admin/format";
+import { initializeCredentialStatus } from "../../src/console/client/credential-status";
+import { initializeRecovery } from "../../src/console/client/recovery";
+import { formatOperatorInstant } from "../../src/console/format";
 import { dashboardHtml, element, submit } from "../support/browser-dom";
 
 class StatusSocket extends EventTarget {

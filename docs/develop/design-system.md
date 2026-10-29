@@ -71,7 +71,7 @@ upstream import/theme capabilities.
 
 ## UI ownership
 
-Local `src/admin/ui/components` code is Agency Relay-owned. shadcn/Radix supplies useful
+Local `src/console/ui/components` code is Agency Relay-owned. shadcn/Radix supplies useful
 anatomy and interaction behavior; its default theme is not Agency Relay's visual authority.
 Normalize imported primitives to canonical tokens and selectively port upstream
 interaction/accessibility fixes.

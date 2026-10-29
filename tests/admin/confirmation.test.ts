@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 import { act } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { mountConsoleDialog } from "../../src/admin/client/main";
+import { mountConsoleDialog } from "../../src/console/client/main";
 import { element, submit } from "../support/browser-dom";
 Object.defineProperty(globalThis, "IS_REACT_ACT_ENVIRONMENT", {configurable: true, value: true});
 let dispose: (() => void) | null = null;

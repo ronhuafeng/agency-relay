@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { consoleClientPath, consoleVersionedClientResponse, consoleStylesheetPath, consoleStylesheetResponse, dashboardAppResponse, dashboardAppWorkerSource } from "../../src/admin/app";
-import { consoleStyles } from "../../src/admin/generated/console-styles";
+import { consoleClientPath, consoleVersionedClientResponse, consoleStylesheetPath, consoleStylesheetResponse, dashboardAppResponse, dashboardAppWorkerSource } from "../../src/console/app";
+import { consoleStyles } from "../../src/console/generated/console-styles";
 
 function workerFixture(fetcher: (request: unknown) => Promise<Response>) {
   const listeners = new Map<string, (event: unknown) => void>();
@@ -24,7 +24,7 @@ function workerFixture(fetcher: (request: unknown) => Promise<Response>) {
 describe("dashboard application resources", () => {
   it("serves public code only at its immutable content digest", async () => {
     const {createHash} = await import("node:crypto");
-    const {consoleClientSource} = await import("../../src/admin/generated/console-client");
+    const {consoleClientSource} = await import("../../src/console/generated/console-client");
     expect(consoleClientPath()).toBe(`/admin/console-${createHash("sha256").update(consoleClientSource).digest("hex")}.js`);
     const response = consoleVersionedClientResponse(consoleClientPath())!;
     expect(response.headers.get("Cache-Control")).toBe("public, max-age=31536000, immutable");

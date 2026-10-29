@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { initializeMemberKeyRows, disposeMemberKeyRows } from "../../src/admin/client/member-key-rows";
+import { initializeMemberKeyRows, disposeMemberKeyRows } from "../../src/console/client/member-key-rows";
 
 function page(collection = "/admin?area=me&view=keys", selected: string | null = null): string {
   return `<main id="content" data-console-read-url="${collection}${selected ? `&key=${selected}` : ""}"><div class="member-key-workspace"><section data-member-key-collection="${collection}">

@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { JSDOM } from "jsdom";
 import { handleRequest } from "../../src/router";
-import { DASHBOARD_APP_PATHS, consoleStylesheetPath, consoleClientPath } from "../../src/admin/app";
-import { memberHref } from "../../src/admin/member-href";
+import { DASHBOARD_APP_PATHS, consoleStylesheetPath, consoleClientPath } from "../../src/console/app";
+import { memberHref } from "../../src/console/member-href";
 import { consoleCookie, makeFixture } from "../router/fixture";
 
 const ORIGIN = "https://admin.example.test";

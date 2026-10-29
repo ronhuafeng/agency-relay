@@ -8,6 +8,13 @@ The accepted design is not automatically deployed behavior. Describe the observe
 
 ## Development and verification
 
+`console/` owns browser presentation, member/admin request handling and HTML form
+adapters. `control/` owns operator HTTP, common mutation orchestration, credential
+control and mutation audit. These source directories are not permission rules:
+public `/admin` and `/me` paths, role checks and write guards retain their meaning.
+The control entrypoint preserves its explicit authentication and dispatch order;
+Console form adapters call the same mutation owner as operator requests.
+
 Persistence and types live with their domain: `auth/access-store.ts` owns user/key
 records, `codex/credential-store.ts` owns Codex metadata, `auth/oauth-pending.ts`
 owns credential OAuth sessions, and `grok/media-store.ts` owns media lifecycle and

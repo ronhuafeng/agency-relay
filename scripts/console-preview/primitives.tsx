@@ -1,16 +1,16 @@
 import type { ReactNode } from "react";
 import { renderToString } from "react-dom/server";
-import { consoleStylesheetPath } from "../../src/admin/app";
-import { Badge } from "../../src/admin/ui/components/badge";
-import { Button } from "../../src/admin/ui/components/button";
-import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "../../src/admin/ui/components/empty";
-import { InfoPopover } from "../../src/admin/ui/components/info-popover";
-import { Input } from "../../src/admin/ui/components/input";
-import { Label } from "../../src/admin/ui/components/label";
-import { Progress } from "../../src/admin/ui/components/progress";
-import { StatusSwitch } from "../../src/admin/ui/components/status-switch";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../src/admin/ui/components/table";
-import { ConfirmationFallback } from "../../src/admin/ui/fields";
+import { consoleStylesheetPath } from "../../src/console/app";
+import { Badge } from "../../src/console/ui/components/badge";
+import { Button } from "../../src/console/ui/components/button";
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "../../src/console/ui/components/empty";
+import { InfoPopover } from "../../src/console/ui/components/info-popover";
+import { Input } from "../../src/console/ui/components/input";
+import { Label } from "../../src/console/ui/components/label";
+import { Progress } from "../../src/console/ui/components/progress";
+import { StatusSwitch } from "../../src/console/ui/components/status-switch";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../src/console/ui/components/table";
+import { ConfirmationFallback } from "../../src/console/ui/fields";
 
 function Specimen({ title, children }: { readonly title: string; readonly children: ReactNode }) {
   return <section className="panel" data-primitive={title} aria-label={title}><div className="panel-head"><h2>{title}</h2></div><div className="view-stack">{children}</div></section>;
