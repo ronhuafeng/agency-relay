@@ -1,5 +1,6 @@
 import { generateId } from "../crypto";
-import { d1ChangeCount, OPERATOR_MUTATION_AUDIT_COLUMNS } from "../db";
+import { d1ChangeCount } from "../records";
+import { OPERATOR_MUTATION_AUDIT_COLUMNS } from "../control/mutation-audit";
 import { HttpError } from "../errors";
 import { isOrganizationLoginUser, organizationDomain, type LifecycleActor } from "../auth/principal";
 import { serviceAdminAuthorityBindings, serviceAdminAuthoritySql } from "../auth/service-accounts";

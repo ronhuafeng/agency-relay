@@ -30,17 +30,13 @@ vi.mock("../../src/auth/authenticate", () => ({
   authenticateEndUser: mocks.authenticateEndUser
 }));
 
-vi.mock("../../src/db", () => ({
-  commitProviderAttemptAccounting: mocks.commitProviderAttemptAccounting,
-  cleanupRequestAudit: vi.fn(),
-  createUser: vi.fn(),
-  d1ChangeCount(result: unknown) {
-    if (!result || typeof result !== "object" || !("meta" in result)) return 0;
-    const changes = (result as { meta?: { changes?: number } }).meta?.changes;
-    return typeof changes === "number" ? changes : 0;
-  },
-  getCodexAuth: mocks.getCodexAuth,
-  queryUsageSummary: vi.fn()
+vi.mock("../../src/usage/accounting", () => ({
+  commitProviderAttemptAccounting: mocks.commitProviderAttemptAccounting
+}));
+
+vi.mock("../../src/codex/credential-store", async (importOriginal) => ({
+  ...await importOriginal<typeof import("../../src/codex/credential-store")>(),
+  getCodexAuth: mocks.getCodexAuth
 }));
 
 import { handleRequest } from "../../src/router";

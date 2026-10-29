@@ -4,7 +4,7 @@
  * Model traffic never bootstraps from Worker Secrets.
  */
 import { credentialAccountId, getApiKeySurfaceCredential } from "./bindings";
-import { getCodexAuth } from "../db";
+import { getCodexAuth } from "../codex/credential-store";
 import { HttpError } from "../errors";
 import {
   getSubscriptionAccount,

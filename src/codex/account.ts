@@ -2,7 +2,8 @@ import { fetchCodexAccountResource } from "./adapter";
 import { cancelUnreadBody } from "../proxy/byte-stream";
 import { asRecord, stringOrNull as stringValue } from "../records";
 import type { CodexAccountEgressPath } from "./adapter";
-import type { AppDependencies, FreshAccessToken } from "../types";
+import type { AppDependencies } from "../types";
+import type { FreshAccessToken } from "./types";
 
 // Protocol baseline: openai/codex@1bbdb32789e1f79932df44941236ea3658f6e965.
 // Sources: backend-client/src/client.rs, backend-client/src/client/rate_limit_resets.rs,

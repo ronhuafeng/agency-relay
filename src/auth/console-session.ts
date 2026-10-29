@@ -1,5 +1,5 @@
 import { organizationDomain, isOrganizationLoginUser, type ConsolePrincipal } from "./principal";
-import { d1ChangeCount } from "../db";
+import { d1ChangeCount } from "../records";
 import { HttpError } from "../errors";
 import { base64UrlEncode, hmacSha256Hex, nowIso, parseIsoMillis } from "../crypto";
 

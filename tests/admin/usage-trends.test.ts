@@ -3,13 +3,13 @@ import { JSDOM } from "jsdom";
 import { renderToStaticMarkup } from "react-dom/server";
 import { createElement } from "react";
 import { parseUsageQuery, parseUsageTrendRange, MAX_USAGE_RANGE_DAYS } from "../../src/admin/usage-query";
-import { queryUsageDaily, queryUsageSummary } from "../../src/db";
+import { queryUsageDaily, queryUsageSummary } from "../../src/usage/queries";
 import { readUsageReport } from "../../src/admin/ui/models";
 import { UsagePage } from "../../src/admin/ui/pages/usage";
 import { UsageTrends } from "../../src/admin/ui/usage-trends";
 import { handleRequest } from "../../src/router";
 import { admin, consoleCookie, createUser, makeFixture } from "../router/fixture";
-import type { MediaUsageSummaryRow } from "../../src/types";
+import type { MediaUsageSummaryRow } from "../../src/usage/types";
 
 const now = new Date("2026-06-24T12:00:00.000Z");
 const url = (query: string) => new URL(`https://console.test/?${query}`);

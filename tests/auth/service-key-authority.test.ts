@@ -1,7 +1,7 @@
 import { expect, it } from "vitest";
 import { commitServiceAccount } from "../../src/auth/service-accounts";
 import { commitIssuedKey, renameMemberKey, revokeKey, type KeyActor } from "../../src/auth/api-keys";
-import { getApiKeyById } from "../../src/db";
+import { getApiKeyById } from "../../src/auth/access-store";
 import { createTestD1 } from "../support/sqlite-d1";
 
 const now = new Date("2026-10-02T12:00:00.000Z");

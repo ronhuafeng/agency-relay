@@ -1,6 +1,6 @@
 import { addSecondsIso, base64UrlEncode, generateId, nowIso, pkceChallengeS256 } from "../crypto";
 import { HttpError } from "../errors";
-import { deleteOAuthPendingSession, insertOAuthPendingSession, requireOAuthPendingSession } from "../db";
+import { deleteOAuthPendingSession, insertOAuthPendingSession, requireOAuthPendingSession } from "../auth/oauth-pending";
 import type { SubscriptionCredential, SubscriptionCredentialMaterial } from "../auth/subscription-accounts";
 import type { AppDependencies } from "../types";
 

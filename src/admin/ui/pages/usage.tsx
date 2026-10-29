@@ -1,7 +1,7 @@
 import { UsageTrends, type UsageTrendsModel } from "../usage-trends";
 import { formatNumber, formatOperatorInstantOrDash, formatUsdColumn, formatUsageSeconds, presentText } from "../../format";
 import { executionPlanPresentation } from "../../../plans/execution-plans";
-import type { MediaUsageSummaryRow, UsageSummaryRow } from "../../../types";
+import type { MediaUsageSummaryRow, UsageSummaryRow } from "../../../usage/types";
 import { UsageReport } from "../usage-report";
 import type { UsageFact, UsageRecord } from "../models";
 import { usageCost } from "../../usage-cost";

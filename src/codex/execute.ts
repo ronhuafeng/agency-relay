@@ -12,12 +12,9 @@ import {
 import { routeNotFound } from "../errors";
 import { publicExecutionPlanPath, type ExecutionPlan } from "../plans/execution-plans";
 import { admitProviderAttempt, type AdmittedProviderAttempt } from "../auth/provider-attempt";
-import type {
-  AuthenticatedUser,
-  CodexTransportObservation,
-  ExecutionDependencies,
-  RequestContext
-} from "../types";
+import type { AuthenticatedUser } from "../auth/types";
+import type { CodexTransportObservation } from "./types";
+import type { ExecutionDependencies, RequestContext } from "../types";
 import { requireFallbackIdentityVersion } from "../plans/identity-version";
 
 const CODEX_SESSION_ID_HEADER = "session-id";

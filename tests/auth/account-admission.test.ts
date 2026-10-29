@@ -12,10 +12,10 @@ import {
 import { resolveCredentialSlot } from "../../src/auth/slots";
 import { TokenAuthority } from "../../src/auth/token-authority";
 import { readTokenResult } from "../../src/auth/token-result";
-import { createCodexAuth, getCodexAuth } from "../../src/db";
+import { createCodexAuth, getCodexAuth } from "../../src/codex/credential-store";
 import { decryptJson, hmacSha256Hex, keyPrefix } from "../../src/crypto";
 import { handleRequest } from "../../src/router";
-import type { TokenCiphertext } from "../../src/types";
+import type { TokenCiphertext } from "../../src/crypto";
 import { createTestD1 } from "../support/sqlite-d1";
 import { seedIdentityVersions } from "../support/identity-version";
 

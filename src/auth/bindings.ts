@@ -1,4 +1,6 @@
-import { ADMINISTRATIVE_TERMINAL_SQL, CODEX_SHARED_PRODUCTION_SQL, d1ChangeCount, GROK_PRODUCTION_SQL, OPERATOR_MUTATION_AUDIT_COLUMNS } from "../db";
+import { ADMINISTRATIVE_TERMINAL_SQL, CODEX_SHARED_PRODUCTION_SQL, GROK_PRODUCTION_SQL } from "./credential-policy";
+import { d1ChangeCount } from "../records";
+import { OPERATOR_MUTATION_AUDIT_COLUMNS } from "../control/mutation-audit";
 import { generateId, nowIso } from "../crypto";
 import { HttpError, adminRequired, userInactive } from "../errors";
 import { sqlSurfaceEntitled, assertIssuanceEntitlement } from "./credits";
@@ -7,7 +9,7 @@ import { keyIsLive } from "./key-state";
 import { replacementCredentialMetadataSql } from "./credential-defaults";
 import { keyActorAuthority, assertKeyActorAuthority } from "./key-authority";
 import type { KeyActor } from "./api-keys";
-import type { ApiKeyRow } from "../types";
+import type { ApiKeyRow } from "./types";
 import type { LifecycleActor } from "./principal";
 import { serviceAdminAuthorityBindings, serviceAdminAuthoritySql } from "./service-accounts";
 

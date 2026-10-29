@@ -8,6 +8,14 @@ The accepted design is not automatically deployed behavior. Describe the observe
 
 ## Development and verification
 
+Persistence and types live with their domain: `auth/access-store.ts` owns user/key
+records, `codex/credential-store.ts` owns Codex metadata, `auth/oauth-pending.ts`
+owns credential OAuth sessions, and `grok/media-store.ts` owns media lifecycle and
+file ownership. `control/mutation-audit.ts` owns mutation audit writes.
+`usage/accounting.ts` keeps request audit and daily usage in one atomic commit;
+`usage/queries.ts` owns read projections. Import these owners directly, without a
+global database facade. Root `types.ts` retains shared request/dependency contracts.
+
 ```bash
 pnpm install --frozen-lockfile
 pnpm run types:generate

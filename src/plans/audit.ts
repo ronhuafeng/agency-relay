@@ -3,7 +3,7 @@
  * K3: keep router thin by housing plan audit helpers outside router.ts.
  */
 import { isChatgptProductionSlot, type ExecutionPlan } from "./execution-plans";
-import type { RouteDecisionAuditFields } from "../db";
+import type { RouteDecisionAuditFields } from "../usage/accounting";
 
 export function planAuditFields(
   plan: ExecutionPlan,

@@ -4,7 +4,7 @@ import { listSurfaceCreditStates, type SurfaceCreditState } from "../auth/credit
 import { replacementCredentialMetadataUsable, defaultCredentialMetadataUsable, ORGANIZATION_DEFAULT_ACCOUNT_COLUMNS, type OrganizationSurface } from "../auth/credential-defaults";
 import { assertSlotAccountMetadata, type SlotAccountMetadata } from "../auth/slots";
 import { listExecutionPlans } from "../plans/execution-plans";
-import { queryClientVerification, type KeyClientVerificationRow } from "../db";
+import { queryClientVerification, type KeyClientVerificationRow } from "../usage/queries";
 
 export type ReadFact<T> = { known: true; value: T } | { known: false };
 export type MemberSurface = "codex" | "grok" | "xai";

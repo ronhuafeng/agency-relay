@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { commitProviderAttemptAccounting, SHARED_CODEX_AUTH_ID } from "../../src/db";
+import { commitProviderAttemptAccounting } from "../../src/usage/accounting";
+import { SHARED_CODEX_AUTH_ID } from "../../src/codex/credential-store";
 import { handleRequest } from "../../src/router";
 import { TEST_IDENTITY_VERSION } from "../support/identity-version";
 import {

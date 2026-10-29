@@ -1,9 +1,10 @@
 import { JSDOM } from "jsdom";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
-import { commitProviderAttemptAccounting, SHARED_CODEX_AUTH_ID } from "../../src/db";
+import { commitProviderAttemptAccounting } from "../../src/usage/accounting";
+import { SHARED_CODEX_AUTH_ID } from "../../src/codex/credential-store";
 import { IDENTITY_VERSION_CRON } from "../../src/plans/identity-version";
 import { handleRequest, handleScheduled } from "../../src/router";
-import type { MediaUsageSummaryRow, MediaUsageSummaryTotals, UsageSummaryRow, UsageSummaryTotals } from "../../src/types";
+import type { MediaUsageSummaryRow, MediaUsageSummaryTotals, UsageSummaryRow, UsageSummaryTotals } from "../../src/usage/types";
 import { scheduledCrons } from "../support/scheduled-crons";
 import {
   admin,

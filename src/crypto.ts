@@ -169,3 +169,9 @@ export function secureJitterMillis(maxExclusive: number): number {
   crypto.getRandomValues(bytes);
   return bytes[0] % maxExclusive;
 }
+
+export interface TokenCiphertext {
+  kid: "v1";
+  iv: string;
+  ciphertext: string;
+}

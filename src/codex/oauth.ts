@@ -1,7 +1,8 @@
 import { addSecondsIso, base64UrlDecode, bytesToHex, generateId, nowIso, pkceChallengeS256 } from "../crypto";
 import { HttpError } from "../errors";
-import { deleteOAuthPendingSession, insertOAuthPendingSession, requireOAuthPendingSession } from "../db";
-import type { AppDependencies, CodexToken } from "../types";
+import { deleteOAuthPendingSession, insertOAuthPendingSession, requireOAuthPendingSession } from "../auth/oauth-pending";
+import type { AppDependencies } from "../types";
+import type { CodexToken } from "./types";
 
 /** OpenAI / Codex CLI OAuth (aligned with CRS / sub2api). */
 export const CODEX_OAUTH_AUTHORIZE_URL = "https://auth.openai.com/oauth/authorize";

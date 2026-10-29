@@ -1,7 +1,7 @@
 import { JSDOM } from "jsdom";
 import { describe, expect, it } from "vitest";
 import { adminDashboardResponse } from "../../src/admin/dashboard";
-import type { MediaUsageSummaryRow } from "../../src/types";
+import type { MediaUsageSummaryRow } from "../../src/usage/types";
 import { makeFixture } from "../router/fixture";
 
 const now = new Date("2026-06-24T12:00:00.000Z");

@@ -74,7 +74,7 @@ selected. No export or additional collection is introduced.
 
 The current write boundary is `commitTerminalOutcome` in
 `src/auth/provider-attempt.ts` → `commitProviderAttemptAccounting` / its explicit
-insert in `src/db.ts`; schema is migration `0020`. The saved timestamp is the
+insert in `src/usage/accounting.ts`; schema is migration `0020`. The saved timestamp is the
 request start, with total elapsed duration when supplied. Per-phase timing,
 terminal-event provenance and observer error detail are logs-only or unavailable
 here. A retained row does not prove every intermediate gate. HTTP 200 does not

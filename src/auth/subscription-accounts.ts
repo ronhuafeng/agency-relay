@@ -4,7 +4,8 @@
  */
 import { generateId, nowIso } from "../crypto";
 import { firstString } from "../records";
-import { ADMINISTRATIVE_TERMINAL_SQL, d1ChangeCount } from "../db";
+import { ADMINISTRATIVE_TERMINAL_SQL } from "./credential-policy";
+import { d1ChangeCount } from "../records";
 import { HttpError, requiredTrimmedString, subscriptionNotFound } from "../errors";
 import {
   assertSupportedGrokOidcIssuer,

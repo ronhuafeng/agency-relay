@@ -3,7 +3,8 @@ import { createBrotliDecompress, createGunzip, createInflate } from "node:zlib";
 import { copyBytes } from "./byte-stream";
 import { isRecord, nonNegativeIntegerOrNull } from "../records";
 import { SseDecoder, SseDecoderError, type SseEvent } from "./sse-decoder";
-import type { CapturedProviderUsage, CapturedResponseUsage, CodexTransportObservation } from "../types";
+import type { CapturedProviderUsage, CapturedResponseUsage } from "../usage/types";
+import type { CodexTransportObservation } from "../codex/types";
 
 type JsonObject = Record<string, unknown>;
 type ObservationErrorCode = Exclude<CodexTransportObservation["observation_error_code"], null>;

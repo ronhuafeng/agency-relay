@@ -1,6 +1,6 @@
 import { bytesToHex } from "../crypto";
 import { errorResponse } from "../errors";
-import type { AuthenticatedUser } from "../types";
+import type { AuthenticatedUser } from "../auth/types";
 
 export type RoutePolicyReason =
   | "method_not_allowed"

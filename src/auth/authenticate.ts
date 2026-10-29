@@ -1,8 +1,8 @@
-import { findEndUserAuthByKeyPrefix, touchApiKey } from "../db";
+import { findEndUserAuthByKeyPrefix, touchApiKey } from "./access-store";
 import { HttpError, adminAuthRequired, invalidApiKey, userInactive } from "../errors";
 import { hmacSha256Hex, keyPrefix, parseIsoMillis, timingSafeEqualHex, timingSafeEqualString } from "../crypto";
 import { ISSUABLE_SURFACE_GRANTS } from "../plans/execution-plans";
-import type { AuthenticatedUser } from "../types";
+import type { AuthenticatedUser } from "./types";
 import { keyIsExpired } from "./key-state";
 import { readConsoleSessionPrincipal } from "./console-session";
 import type { ConsolePrincipal } from "./principal";

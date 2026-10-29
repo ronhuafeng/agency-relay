@@ -1,11 +1,6 @@
 import { DurableObject } from "cloudflare:workers";
 import { decryptJson, encryptJson, nowIso, parseIsoMillis, secureJitterMillis } from "../crypto";
-import {
-  markCodexAuthReauthRequiredIfMutable,
-  projectCodexRefreshIfMutable,
-  readCodexAuthStatus,
-  updateCodexAuthAfterRefresh
-} from "../db";
+import { markCodexAuthReauthRequiredIfMutable, projectCodexRefreshIfMutable, readCodexAuthStatus, updateCodexAuthAfterRefresh } from "../codex/credential-store";
 import { errorMessage, HttpError } from "../errors";
 import { nonNegativeIntegerOrNull } from "../records";
 import { refreshCodexToken } from "../codex/oauth";
@@ -19,7 +14,9 @@ import {
   type FreshSubscriptionCredential,
   type SubscriptionCredential
 } from "./subscription-accounts";
-import type { AppDependencies, CodexAuthRefreshResult, CodexToken, FreshAccessToken, TokenCiphertext } from "../types";
+import type { AppDependencies } from "../types";
+import type { CodexAuthRefreshResult, CodexToken, FreshAccessToken } from "../codex/types";
+import type { TokenCiphertext } from "../crypto";
 import { tokenResultFromThrown, type TokenResult } from "./token-result";
 import { notifyCredentialChange } from "../admin/credential-notifications";
 

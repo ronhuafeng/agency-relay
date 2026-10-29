@@ -6,12 +6,14 @@
  */
 import { generateId } from "../crypto";
 import { resolveCredentialSlot } from "./slots";
-import { commitProviderAttemptAccounting } from "../db";
+import { commitProviderAttemptAccounting } from "../usage/accounting";
 import { isChatgptProductionSlot, publicExecutionPlanPath, type ExecutionPlan } from "../plans/execution-plans";
 import { planAuditFields } from "../plans/audit";
 import { stampSubscriptionProviderAttempt } from "./subscription-accounts";
 import { consumeExecutionPlanCredits } from "./credits";
-import type { AuthenticatedUser, CapturedResponseUsage, RequestContext } from "../types";
+import type { AuthenticatedUser } from "./types";
+import type { CapturedResponseUsage } from "../usage/types";
+import type { RequestContext } from "../types";
 
 export type ProviderResult = "accepted" | "rejected" | "transport_error";
 

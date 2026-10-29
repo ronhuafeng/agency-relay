@@ -1,11 +1,11 @@
 import type { DatabaseSync } from "node:sqlite";
 import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { decryptJson, encryptJson } from "../../src/crypto";
-import { SHARED_CODEX_AUTH_ID } from "../../src/db";
+import { SHARED_CODEX_AUTH_ID } from "../../src/codex/credential-store";
 import { TokenAuthority } from "../../src/auth/token-authority";
 import { readTokenResult, type TokenResult } from "../../src/auth/token-result";
 import type { SubscriptionCredential } from "../../src/auth/subscription-accounts";
-import type { TokenCiphertext } from "../../src/types";
+import type { TokenCiphertext } from "../../src/crypto";
 import { createTestD1, type TestD1 } from "../support/sqlite-d1";
 
 describe("TokenAuthority", () => {

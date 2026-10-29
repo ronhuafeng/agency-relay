@@ -1,5 +1,5 @@
 import { executionPlanPresentation } from "../plans/execution-plans";
-import type { UsageSummaryTotals, MediaUsageSummaryTotals } from "../types";
+import type { UsageSummaryTotals, MediaUsageSummaryTotals } from "../usage/types";
 
 /** Keep reported amounts and API valuation distinct in all Usage views. */
 export function usageCost(plan: string, row: UsageSummaryTotals | MediaUsageSummaryTotals) {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { SHARED_CODEX_AUTH_ID } from "../../src/db";
+import { SHARED_CODEX_AUTH_ID } from "../../src/codex/credential-store";
 import { handleRequest } from "../../src/router";
 import { admin, consoleCookie, makeFixture, seedDashboardAdmin } from "../router/fixture";
 
