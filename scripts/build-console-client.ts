@@ -6,17 +6,11 @@ import { readFileSync, writeFileSync, mkdtempSync, mkdirSync, rmSync } from "nod
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 const buildDirectory = mkdtempSync(join(tmpdir(), "mini-console-"));
-const check = process.argv.includes("--check");
-function output(path: string, contents: string): void {
-  if (check && path === "design.md") {
-    if (readFileSync(path, "utf8") !== contents) throw new Error(`${path} is out of date. Run pnpm console:build.`);
-  } else writeFileSync(path, contents);
-}
+const output = writeFileSync;
 try {
 mkdirSync("src/admin/generated", { recursive: true });
-const tokens = await projectDesignTokens(readFileSync("design.md", "utf8"));
+const tokens = await projectDesignTokens();
 output("src/admin/generated/tokens.css", tokens.css);
-output("design.md", tokens.designMd);
 const outfile = join(buildDirectory, "console.js");
 const built = spawnSync("node_modules/.bin/esbuild", [
   "src/admin/client/main.tsx",

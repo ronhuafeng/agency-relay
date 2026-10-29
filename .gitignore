@@ -10,6 +10,8 @@ node_modules/
 
 coverage/
 dist/
+candidate.json
+candidate.tar.gz
 src/admin/generated/console-bootstrap.ts
 src/admin/generated/console-client.ts
 src/admin/generated/console-styles.ts

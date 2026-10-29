@@ -1,118 +1,138 @@
 name: CI
-
 on:
   push:
-    branches:
-      - main
+    branches: [main]
   pull_request:
-    branches:
-      - main
-
+    branches: [main]
 permissions:
   contents: read
-
+env:
+  WRANGLER_SEND_METRICS: "false"
+  CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV: "false"
 jobs:
+  build:
+    name: Build candidate
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run scan:git-artifacts
+      - name: Build once from the identified checkout
+        run: |
+          pnpm run types:generate
+          pnpm run console:build
+          pnpm run egress:build
+          pnpm exec wrangler deploy --dry-run --outdir dist/worker
+          pnpm exec tsx scripts/candidate-artifact.ts seal
+          tar -czf candidate.tar.gz candidate.json src/admin/generated worker-configuration.d.ts wrangler.jsonc dist/worker deploy/codex-egress-shim/*.mjs deploy/codex-egress-shim/egress-protocol.json
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: candidate-${{ github.sha }}
+          path: candidate.tar.gz
+          if-no-files-found: error
+          retention-days: 30
   source-integrity:
     name: Source integrity
-    runs-on: ubuntu-latest
-
+    needs: build
+    runs-on: ubuntu-24.04
     steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
-
-      - name: Setup Node.js
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .node-version
           cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Scan Git-visible artifacts
-        run: pnpm run scan:git-artifacts
-
-      - name: Generate build inputs from this checkout
-        run: |
-          pnpm run types:generate
-          pnpm run console:check
-          pnpm run egress:build
-
-      - name: Typecheck Worker and console TypeScript
-        run: |
-          pnpm exec tsc --noEmit
-          pnpm exec tsc -p tsconfig.client.json --noEmit
-
+      - run: pnpm install --frozen-lockfile
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: candidate-${{ github.sha }}
+          path: ${{ runner.temp }}/candidate
+      - run: |
+          tar -xzf "$RUNNER_TEMP/candidate/candidate.tar.gz"
+          pnpm exec tsx scripts/candidate-artifact.ts verify
+      - run: pnpm run typecheck
   design-enforcement:
     name: Design enforcement
-    runs-on: ubuntu-latest
-
+    needs: build
+    runs-on: ubuntu-24.04
     steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
-
-      - name: Setup Node.js
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .node-version
           cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Validate generated design projections
-        run: pnpm run console:check
-
-      - name: Enforce authored console CSS contracts
-        run: pnpm run lint:css
-
-      - name: Enforce console class and inline-style policy
-        run: pnpm run lint:classes
-
+      - run: pnpm install --frozen-lockfile
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: candidate-${{ github.sha }}
+          path: ${{ runner.temp }}/candidate
+      - run: |
+          tar -xzf "$RUNNER_TEMP/candidate/candidate.tar.gz"
+          pnpm exec tsx scripts/candidate-artifact.ts verify
+      - run: pnpm run design:check
+      - run: pnpm run lint:css
+      - run: pnpm run lint:classes
   runtime-contracts:
     name: Runtime contracts
-    runs-on: ubuntu-latest
-
+    needs: build
+    runs-on: ubuntu-24.04
     steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
-
-      - name: Setup Node.js
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .node-version
           cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
+      - run: pnpm install --frozen-lockfile
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: candidate-${{ github.sha }}
+          path: ${{ runner.temp }}/candidate
+      - run: |
+          tar -xzf "$RUNNER_TEMP/candidate/candidate.tar.gz"
+          pnpm exec tsx scripts/candidate-artifact.ts verify
       - name: Prepare pinned Codex client for the synthetic OAuth contract
         run: npm install --prefix "$RUNNER_TEMP/runtime-codex" --no-audit --no-fund @openai/codex@0.156.1
-
-      - name: Generate runtime inputs from this checkout
-        run: |
-          pnpm run types:generate
-          pnpm run console:check
-          pnpm run egress:build
-
-      - name: Worker unit and contract tests
-        run: pnpm exec vitest run
+      - run: pnpm exec vitest run
         env:
           CODEX_TEST_BIN: ${{ runner.temp }}/runtime-codex/node_modules/.bin/codex
-
-      - name: Egress shim contracts
-        run: pnpm run egress:test
-
-      - name: Wrangler deploy dry-run
-        run: pnpm run deploy:dry-run
-        env:
-          WRANGLER_SEND_METRICS: "false"
+      - run: pnpm run egress:test
+      - name: Smoke the final bundle without rebuilding
+        run: |
+          pnpm exec wrangler dev dist/worker/index.js --no-bundle --port 18787 --ip 127.0.0.1 > "$RUNNER_TEMP/worker-smoke.log" 2>&1 &
+          smoke_pid=$!
+          trap 'kill "$smoke_pid"; wait "$smoke_pid" || true' EXIT
+          for _ in $(seq 1 30); do
+            if curl --silent --fail http://127.0.0.1:18787/healthz > "$RUNNER_TEMP/health.json"; then break; fi
+            sleep 1
+          done
+          node --input-type=module -e 'import fs from "node:fs"; const result=JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP+"/health.json")); if(result.ok!==true) throw Error("Bundle health failed");'
+          pnpm exec tsx scripts/candidate-artifact.ts verify
+  browser:
+    needs: build
+    uses: ./.github/workflows/console-browser.yml
+  release:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [source-integrity, design-enforcement, runtime-contracts, browser]
+    uses: ./.github/workflows/release.yml
+    permissions:
+      contents: write
+    secrets: inherit

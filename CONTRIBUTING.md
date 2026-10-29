@@ -11,7 +11,8 @@ The accepted design is not automatically deployed behavior. Describe the observe
 ```bash
 pnpm install --frozen-lockfile
 pnpm run types:generate
-pnpm run console:check
+pnpm run design:check
+pnpm run console:build
 pnpm run egress:build
 ```
 
@@ -20,7 +21,9 @@ Preparation generates ignored runtime inputs. `typecheck`, `test` and
 `egress:test` consume those inputs without rebuilding them. After changing a
 generator's source, rerun that generator before its checks. Console preview owns
 its watch/rebuild loop; the Wrangler development command performs initial Console
-generation only.
+generation only. Neither preview nor runtime builds update `design.md`. After
+editing canonical tokens, run `pnpm run design:update`, review the projection,
+then run `pnpm run design:check`.
 
 Use the native commands in `package.json` and [the verification ladder](docs/develop/gates.md). For changed Worker behavior, run the owning static checks and focused Vitest contracts. Exercise D1 concurrency/invariants through SQL-backed tests. Egress behavior uses the owning egress checker/tests. Provider live calls are not a default requirement for local RBAC, email, key or CSRF tests.
 

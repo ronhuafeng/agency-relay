@@ -11,10 +11,10 @@ Select relevant commands; do not run every expensive or paid gate merely because
 ## Design-system local preflight and CI
 
 The [Design System Governance Loop](design-system.md) owns style-system boundaries.
-`pnpm run console:check` validates the DTCG resolver, generates the runtime theme
-and validates the tracked `design.md` frontmatter. Runtime assets are generated
-from the checkout, not compared with committed bundles. A stale design document
-still fails. `pnpm run lint:css`
+`pnpm run design:check` validates the DTCG projection against the tracked
+`design.md` frontmatter without writing it. `pnpm run console:build` generates
+runtime assets from the canonical tokens and source, without updating the document.
+A stale design document still fails CI. `pnpm run lint:css`
 rejects hex colors, ID selectors, redeclared generated tokens, unknown token references, and
 raw or unproven visual aliases, while preserving owned structural geometry.
 `pnpm run lint:classes` rejects arbitrary Tailwind values and
@@ -149,7 +149,7 @@ Stop when the owning uncertainty is resolved. A failure can belong to implementa
 
 ## Local console browser regression
 
-Run `pnpm run console:check`, then `pnpm run test:browser --project=chromium`;
+Run `pnpm run design:check` and `pnpm run console:build`, then `pnpm run test:browser --project=chromium`;
 use `--project=webkit` for the second engine. Install the lockfile browser with
 `pnpm exec playwright install --with-deps chromium webkit`. The fixture needs
 Node 26 (`node:sqlite`), OpenSSL and loopback sockets. Use a task-specific
@@ -244,9 +244,10 @@ no certificate exception or trust change is introduced.
 
 ### CI admission and safe evidence
 
-The [browser workflow](../../.github/workflows/console-browser.yml) is full
-repository-admission evidence: every pull request targeting `main` and every push
-to `main` runs the complete console suite in both Chromium and WebKit. It does
+The [CI workflow](../../.github/workflows/ci.yml) calls the reusable
+[browser workflow](../../.github/workflows/console-browser.yml): every pull request
+targeting `main` and every push to `main` runs the complete console suite in both
+Chromium and WebKit. It does
 not use changed-path selection or a partial-engine shortcut. Local development may
 still run only the engine and scenario needed for the current task.
 

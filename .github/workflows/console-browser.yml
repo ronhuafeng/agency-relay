@@ -1,10 +1,7 @@
 name: Console browser
 
 on:
-  pull_request:
-    branches: [main]
-  push:
-    branches: [main]
+  workflow_call:
 
 permissions:
   contents: read
@@ -35,7 +32,13 @@ jobs:
           node-version-file: .node-version
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm run types:generate && pnpm run egress:build
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: candidate-${{ github.sha }}
+          path: ${{ runner.temp }}/candidate
+      - run: |
+          tar -xzf "$RUNNER_TEMP/candidate/candidate.tar.gz"
+          pnpm exec tsx scripts/candidate-artifact.ts verify
       # A step timeout fails this check. Job timeout-minutes would only cancel it.
       # Ubuntu dependencies can still be downloading after fifteen minutes.
       # Give provisioning its own budget without changing browser test limits.
@@ -47,8 +50,6 @@ jobs:
       - name: Install the lockfile's browser
         timeout-minutes: 15
         run: pnpm exec playwright install ${{ matrix.project }}
-      - timeout-minutes: 15
-        run: pnpm run console:check
       - id: browser
         timeout-minutes: 15
         run: pnpm run test:browser --project=${{ matrix.project }}
@@ -72,7 +73,7 @@ jobs:
           cp tests/performance/weak-network.spec.ts tests/performance/metrics.ts "$RUNNER_TEMP/console-performance-base/tests/performance/"
           cp playwright.performance.config.ts "$RUNNER_TEMP/console-performance-base/"
           cd "$RUNNER_TEMP/console-performance-base"
-          pnpm run console:check
+          pnpm run console:build
       - id: performance_base
         name: Measure bounded weak-network base diagnostics
         if: matrix.project == 'chromium' && github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'console-performance')
@@ -106,7 +107,7 @@ jobs:
           git worktree add --detach "$RUNNER_TEMP/console-preview-base" "$BASE"
           ln -s "$GITHUB_WORKSPACE/node_modules" "$RUNNER_TEMP/console-preview-base/node_modules"
           cd "$RUNNER_TEMP/console-preview-base"
-          pnpm run console:check
+          pnpm run console:build
           pnpm run test:browser tests/browser/visual.spec.ts --project="$PROJECT"
       - id: preview
         name: Prepare bounded display-only review evidence
