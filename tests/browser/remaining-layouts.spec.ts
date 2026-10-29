@@ -202,8 +202,8 @@ for(const [width,zoom] of [[320,1],[390,1],[1200,1],[1440,1],[1440,2]] as const)
     expect(worker.requests.filter(request=>request.method==='POST')).toHaveLength(0);
   });
 });
-for(const {width,zoom} of [{width:390,zoom:1},{width:768,zoom:1},{width:1024,zoom:1},{width:1280,zoom:1},{width:1600,zoom:1},{width:1280,zoom:2}])test.describe(`person service comparison ${width}px at ${zoom}x`,()=>{
-  test.use({viewport:{width,height:900}});
+for(const script of [true,false])for(const {width,zoom} of [{width:320,zoom:1},{width:390,zoom:1},{width:768,zoom:1},{width:1024,zoom:1},{width:1280,zoom:1},{width:1600,zoom:1},{width:1280,zoom:2}])test.describe(`person service comparison ${width}px at ${zoom}x script=${script}`,()=>{
+  test.use({viewport:{width,height:900},script});
   test('shows every service cap, use, remainder, admission and edit control without clipping or per-character wrapping',async({page})=>{
     await page.goto('/admin?view=access&person=member');
     if(zoom!==1)await page.evaluate(value=>{document.documentElement.style.zoom=String(value);},zoom);
@@ -215,16 +215,17 @@ for(const {width,zoom} of [{width:390,zoom:1},{width:768,zoom:1},{width:1024,zoo
         const name=row.querySelector('td:first-child>strong')!;
         return {surface:row.getAttribute('data-credit-surface'),cells:['td:nth-child(3)','td:nth-child(4)','td:nth-child(5)'].every(selector=>inside(row.querySelector(selector))),
           admission:inside(row.querySelector('[role=switch]')),edit:inside(row.querySelector('.credit-policy-disclosure summary')),
+          overlap:(()=>{const a=row.querySelector('td:nth-child(2)')!.getBoundingClientRect(),b=row.querySelector('.credit-policy-controls')!.getBoundingClientRect();return a.left<b.right&&b.left<a.right&&a.top<b.bottom&&b.top<a.bottom;})(),
           nameLines:new Set([...name.getClientRects()].map(rect=>Math.round(rect.top))).size};
       });
       return {rows,stacked:getComputedStyle(table.querySelector('thead')!).position==='absolute',scrolls:region?region.scrollWidth>region.clientWidth+1:false};
     });
     expect(result.rows.map(row=>row.surface)).toEqual(['codex','grok','xai']);
-    for(const row of result.rows){expect(row.cells&&row.admission&&row.edit,row.surface!).toBe(true);expect(row.nameLines,row.surface!).toBe(1);}
+    for(const row of result.rows){expect(row.cells&&row.admission&&row.edit,row.surface!).toBe(true);expect(row.overlap,`${row.surface} key access and controls`).toBe(false);expect(row.nameLines,row.surface!).toBe(1);}
     // The primary comparison never needs horizontal scrolling.
     expect(result.scrolls).toBe(false);
     if(width===1600&&zoom===1)expect(result.stacked).toBe(false);
     // At 1280px the selected-person pane is about 650px wide, so services compare as cards.
-    if(width===1280||width===390)expect(result.stacked).toBe(true);
+    if(width===1280||width<=390)expect(result.stacked).toBe(true);
   });
 });

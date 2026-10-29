@@ -46,7 +46,8 @@ export function dashboardViewTitle(view: DashboardViewKey): string {
 }
 
 export type DashboardMutationFlash =
-  | {kind:"runtime_changed"|"runtime_error";installation_id:string;message:string}
+  | {kind:"runtime_changed";installation_id:string;message:string}
+  | {kind:"runtime_error";installation_id:string;message:string;error_code?:string}
   | { kind: "key_created"; token: string; key_id: string; key_prefix: string; user_id: string; email?: string | null; scopes: string[] }
   | {
       kind: "key_replacement_created";

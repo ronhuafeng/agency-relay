@@ -110,7 +110,7 @@ const SURFACES: readonly SurfaceCapabilitySurface[] = [
     ...PRODUCT_ACCESS.xai,
     accessLevel: "selected",
     badge: "指定访问",
-    promise: "向明确获批的人员提供较完整的 xAI API。",
+    promise: "向明确获批的成员提供较完整的 xAI API。",
     summaryCapabilities: [
       "文本、模型响应与实时",
       "图像、视频与语音",
@@ -118,7 +118,7 @@ const SURFACES: readonly SurfaceCapabilitySurface[] = [
       "模型、音色与分词"
     ],
     authorityLabel: "指定访问",
-    authorityNote: "可以操作组织共享的 xAI API 资源。只授予值得信任的人员。"
+    authorityNote: "可以操作组织共享的 xAI API 资源。只授予值得信任的成员。"
   }
 ];
 

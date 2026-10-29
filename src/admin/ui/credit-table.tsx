@@ -8,7 +8,7 @@ import { Badge } from "./components/badge";
 import { Progress } from "./components/progress";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "./components/table";
 import { Icon } from "./icon";
-import { ConfirmationFallback } from "./fields";
+import { ConfirmationFallback, confirmationAttributes, type Confirmation } from "./fields";
 import { formatNumber } from "../format";
 
 interface CreditTableState {
@@ -30,6 +30,7 @@ function PolicyRow({row}: {readonly row: CreditTableRow}) {
   useLayoutEffect(() => {if (disclosure.current) setEditing(disclosure.current.open);}, []);
   const trigger = useRef<HTMLElement | null>(null);
   const surface = control.id.split("-").at(-1);
+  const inherit: Confirmation = {primary: `去掉 ${control.personLabel} 的个人 ${control.clientLabel} 额度，改用组织默认？`, details: "已用量不会重置。"};
   const cap = !state ? "无法读取" : state.mode === "limited" ? formatNumber(state.monthly_allowance ?? 0) : state.mode === "unlimited" ? "不限" : "已停用";
   return <>
     <TableRow data-credit-user={control.personId} data-credit-surface={surface}>
@@ -42,7 +43,7 @@ function PolicyRow({row}: {readonly row: CreditTableRow}) {
     </TableRow>
     {state ? <TableRow className="credit-editor-row"><TableCell colSpan={6}><div id={`${control.id}-editor`} className="credit-editor" data-credit-editor-state={editing ? "open" : "closed"}>
       <CreditPolicyForm control={control} initialMode={control.mode === "disabled" ? "limited" : control.mode}/>
-      <div className="credit-editor-secondary">{state.source === "personal" ? <form className="inline-form" method="post" action={control.action} data-action="credit-inherit" data-confirmation={`去掉 ${control.personLabel} 的个人 ${control.clientLabel} 额度，改用组织默认？`} data-confirmation-details="已用量不会重置。"><ConfirmationFallback message={`去掉 ${control.personLabel} 的个人 ${control.clientLabel} 额度，改用组织默认？`} details="已用量不会重置。"/><input type="hidden" name="action" value="inherit"/><input type="hidden" name="confirm" value="1"/><Button type="submit" variant="outline">使用组织默认</Button></form> : null}{enhanced ? <Button type="button" variant="ghost" onClick={()=>{setEditing(false);trigger.current?.focus({preventScroll:true});}}>取消</Button> : null}</div>
+      <div className="credit-editor-secondary">{state.source === "personal" ? <form className="inline-form" method="post" action={control.action} data-action="credit-inherit" {...confirmationAttributes(inherit)}><ConfirmationFallback message={inherit.primary} details={inherit.details}/><input type="hidden" name="action" value="inherit"/><input type="hidden" name="confirm" value="1"/><Button type="submit" variant="outline">使用组织默认</Button></form> : null}{enhanced ? <Button type="button" variant="ghost" onClick={()=>{setEditing(false);trigger.current?.focus({preventScroll:true});}}>取消</Button> : null}</div>
     </div></TableCell></TableRow> : null}
   </>;
 }

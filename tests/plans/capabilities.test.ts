@@ -54,7 +54,7 @@ describe("surface capability catalog", () => {
         ],
         authority: [
           "指定访问",
-          "可以操作组织共享的 xAI API 资源。只授予值得信任的人员。"
+          "可以操作组织共享的 xAI API 资源。只授予值得信任的成员。"
         ]
       }
     ]);
