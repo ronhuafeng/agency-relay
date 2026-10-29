@@ -42,7 +42,7 @@ describe("organization Home usage projection", () => {
     const explicit = await open(fixture, "view=overview&range=7d");
     expect(implicit.response.status).toBe(200);
     expect(projection(implicit.document)).toEqual(projection(explicit.document));
-    expect(metric(implicit.document.querySelector('[data-trend-plan="codex.responses"]')!, "Requests")).toBe("1");
+    expect(metric(implicit.document.querySelector('[data-trend-plan="codex.responses"]')!, "请求")).toBe("1");
     expect(implicit.document.querySelector("#usage-trends")?.getAttribute("data-usage-range-label")).toBe("2026-06-18 至 2026-06-24 UTC");
   });
 
@@ -66,16 +66,16 @@ describe("organization Home usage projection", () => {
     expect(projection(home.document)).toEqual(projection(report.document));
     const grok = home.document.querySelector('[data-trend-plan="grok.production.responses"]')!;
     const requests = range === "7d" ? "503" : "511";
-    expect(metric(grok, "Requests")).toBe(requests);
-    expect(metric(grok, "Failure")).toBe("251");
-    expect(metric(grok, "Token")).toBe(`100 · 已记录 252/${requests} 次请求`);
+    expect(metric(grok, "请求")).toBe(requests);
+    expect(metric(grok, "失败")).toBe("251");
+    expect(metric(grok, "令牌")).toBe(`100 · 已记录 252/${requests} 次请求`);
     expect(metric(grok, "上游计量金额")).toBeUndefined();
     expect(home.document.querySelector("[data-text-plan]")).toBeNull();
     expect(home.document.querySelectorAll("#usage-comparison-root [data-chart-day]")).toHaveLength(range === "7d" ? 7 : 30);
     expect(home.document.querySelector(".usage-trend-endpoints")).toBeNull();
     expect(home.document.body.textContent).not.toContain("OpenAI Standard");
     expect(home.document.body.textContent).not.toContain("不是结算账单");
-    expect(metric(home.document.querySelector('[data-trend-plan="xai.production.responses"]')!, "Token")).toBe("未记录 · 覆盖 0/3");
+    expect(metric(home.document.querySelector('[data-trend-plan="xai.production.responses"]')!, "令牌")).toBe("未记录 · 覆盖 0/3");
     const video = home.document.querySelector('[data-trend-capability="video_generation"]')!;
     expect(metric(video, "输出")).toBe("0 · 已记录 1/3 次终态");
     expect(metric(video, "时长")).toBe("1.5 秒 · 已记录 1/3 次终态");
@@ -131,7 +131,7 @@ describe("organization Home usage projection", () => {
     fixture.db.seedUsage({user_id: "usage-owner", day: "2026-06-24", route_profile_id: "codex.responses", response_model: "second", requests: 1});
     const changed = await open(fixture, "view=overview&range=7d", new Date("2026-06-24T12:04:00.000Z"));
     expect(revision(changed.document)).not.toBe(revision(first.document));
-    expect(metric(changed.document.querySelector('[data-trend-plan="codex.responses"]')!, "Requests")).toBe("2");
+    expect(metric(changed.document.querySelector('[data-trend-plan="codex.responses"]')!, "请求")).toBe("2");
   });
 
   it.each(["range=today", "range=all", "range=7d&range=30d", "range=7d&day=2026-06-24"])("rejects %s before trying an unavailable usage read", async query => {

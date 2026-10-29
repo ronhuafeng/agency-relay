@@ -18,9 +18,9 @@ const states = {
   reopen: {title: "请重新打开页面", action: "查看当前页面", icon: ShieldAlert}
 } as const;
 const outcomes = {
-  confirmed: "服务器已确认刚才的操作；请只读核对当前状态，不要重复提交。",
+  confirmed: "刚才的操作已完成。请查看当前状态，不要重复提交。",
   rejected: "刚才的操作未执行。请重新读取当前获准访问的内容。",
-  unknown: "刚才的操作结果尚未确认，可能已经执行。请先只读核对，不要重复提交；离开不会撤销服务器操作。"
+  unknown: "刚才的操作结果尚未确认，可能已经执行。请先查看当前状态，不要重复提交；离开页面不会撤销这次操作。"
 } as const;
 
 /** Public recovery presentation only. Its owner must establish the reason,

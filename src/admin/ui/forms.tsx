@@ -21,7 +21,7 @@ export function SelectView({ control, onValueChange }: { readonly control: Selec
 
 export function CreditPolicyForm({control, initialMode = control.mode}: {readonly control: CreditPolicyControl; readonly initialMode?: CreditPolicyMode}) {
   const enhanced = useEnhanced(); const [mode,setMode] = useState<CreditPolicyMode>(initialMode); const form = useRef<HTMLFormElement | null>(null);
-  const warning = `更改 ${control.personLabel} 的 ${control.clientLabel} 额度？停用拒绝所有新请求；0 额度仍允许已授权的零消耗操作；不限取消月度额度上限。${control.clientLabel === "xAI API" ? "xAI API 使用上游团队共享资源，个人额度不能隔离这些资源。" : ""}`;
+  const warning = `更改 ${control.personLabel} 的 ${control.clientLabel} 额度？停用：拒绝所有新请求。0：只允许不计额度的操作。不限：取消每月上限。${control.clientLabel === "xAI API" ? "xAI API 使用上游团队共享资源，个人额度不能隔离这些资源。" : ""}`;
   useEffect(() => {
     const current = form.current; if (!current) return;
     const restore = (): void => {const field = current.elements.namedItem("mode"); if (field instanceof HTMLSelectElement && isCreditPolicyMode(field.value)) setMode(field.value);};
@@ -33,7 +33,7 @@ export function CreditPolicyForm({control, initialMode = control.mode}: {readonl
         control={{
           id: `${control.id}-mode`,
           name: "mode",
-          label: "策略",
+          label: "额度政策",
           required: true,
           value: initialMode,
           options: [
@@ -71,8 +71,8 @@ export function CreditPolicyForm({control, initialMode = control.mode}: {readonl
 export function CreditPolicySwitch({control,onEnable}: {readonly control: CreditPolicyControl; readonly onEnable: () => void}) {
   const enhanced = useEnhanced();
   if (control.mode === "disabled") return <Switch checked={false} disabled={!enhanced} aria-label={`${control.clientLabel} 请求准入`} onCheckedChange={onEnable}/>;
-  const warning = `停用 ${control.personLabel} 的 ${control.clientLabel} 请求准入？所有新请求将被拒绝，包括零消耗操作。密钥不会撤销。`;
-  return <form className="inline-form" method="post" action={control.action} data-action="credit-set" data-confirmation={warning}><input type="hidden" name="mode" value="disabled"/><input type="hidden" name="confirm" value="1"/><ConfirmationFallback message={warning}/><Switch type="submit" checked aria-label={`${control.clientLabel} 请求准入`} data-confirm-label={`停用 ${control.clientLabel}`} data-variant="destructive"/></form>;
+  const warning = `停用 ${control.personLabel} 的 ${control.clientLabel} 请求准入？所有新请求都会被拒绝，包括不计额度的操作。密钥不会被撤销。`;
+  return <form className="inline-form" method="post" action={control.action} data-action="credit-set" data-confirmation={warning}><input type="hidden" name="mode" value="disabled"/><input type="hidden" name="confirm" value="1"/><ConfirmationFallback message={warning} compact/><Switch type="submit" checked aria-label={`${control.clientLabel} 请求准入`} data-confirm-label={`停用 ${control.clientLabel}`} data-variant="destructive"/></form>;
 }
 export function AddAccountView({ control }: { readonly control: AddAccountControl }) {
   const enhanced = useEnhanced();

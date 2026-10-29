@@ -26,7 +26,7 @@ test('a confirmed revoke survives a failed list refresh without a duplicate writ
   await page.getByRole('alertdialog').getByRole('button',{name:'撤销密钥',exact:true}).click();
   await refresh.entered;refresh.release(503);
   await expect(page.locator('[data-member-feedback]')).toContainText('密钥已撤销');
-  await expect(page.locator('[data-member-feedback]')).toContainText('列表未刷新');
+  await expect(page.locator('[data-member-feedback]')).toContainText('列表还没有刷新');
   await expect(page.locator('[data-member-feedback]')).not.toContainText('操作结果尚未确认');
   expect(worker.requests.filter(request=>request.method==='POST'&&request.path.endsWith('/revoke'))).toHaveLength(1);
   const recovery=page.locator('[data-member-feedback]').getByRole('link',{name:'查看当前密钥',exact:true});

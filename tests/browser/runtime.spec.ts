@@ -91,7 +91,7 @@ test("real consent Allow returns to the native client and records its own author
     await page.goto(pending.target.pathname);
     await expect(page.getByRole("heading",{name:"允许这个客户端使用服务？",exact:true})).toBeVisible();
     await expect(page.locator("main")).toContainText("使用此服务的全部工具");
-    await page.getByRole("button",{name:"允许（Allow）",exact:true}).click();
+    await page.getByRole("button",{name:"允许",exact:true}).click();
     await expect(page.getByRole("heading",{name:"Design",exact:true})).toBeVisible();
     expect(exchanged).toBe(true);
     expect(callbackHasReferrer).toBe(false);

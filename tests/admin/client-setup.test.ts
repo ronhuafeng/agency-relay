@@ -47,7 +47,7 @@ describe("client setup projection", () => {
     );
     // Accounts are administrator-owned; member setup must not imply permission
     // to reconnect provider credentials (experience.md: Administrator Accounts).
-    expect(files.find((file) => file.client === "codex")?.content).toContain("请管理员在控制台「账号」检查 ChatGPT 连接");
+    expect(files.find((file) => file.client === "codex")?.content).toContain("请管理员在控制台「上游连接」检查 ChatGPT 连接");
     const grokConfig = files.find((file) => file.client === "grok")?.content;
     expect(grokConfig).toContain(
       'base_url = "https://grok.trustedtunnel.app/v1"'
@@ -59,7 +59,7 @@ describe("client setup projection", () => {
     expect(grokConfig).toContain('[model.mini-grok-4-7]\nmodel = "grok-4.7"');
     expect(grokConfig).toContain('name = "Agency Relay Grok 4.7"');
     expect(grokConfig).not.toContain("grok-4.6");
-    expect(grokConfig).toContain("请管理员在控制台「账号」检查 Grok 连接");
+    expect(grokConfig).toContain("请管理员在控制台「上游连接」检查 Grok 连接");
     const xaiEnv = files.find((file) => file.client === "xai")?.content;
     expect(xaiEnv).toContain('XAI_API_KEY="cfwd_example"');
     expect(xaiEnv).toContain("xAI 使用这个 Grok 上游账号，不是单独的 xAI 凭据。");

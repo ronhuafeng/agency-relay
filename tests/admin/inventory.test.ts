@@ -145,7 +145,7 @@ describe("complete dashboard inventories", () => {
     expect(doc.querySelector('[data-key-detail="key-000"]')).not.toBeNull();
     const unknown = doc.querySelector('[data-credential-read-state="unknown"]');
     expect(unknown?.textContent).toContain("Codex");
-    expect(unknown?.textContent).toContain("连接列表暂时未读到");
+    expect(unknown?.textContent).toContain("连接列表暂时无法读取");
     expect(unknown?.querySelector("form,select")).toBeNull();
     const recovery = new URL(unknown!.querySelector("a")!.getAttribute("href")!, "https://admin.example.test");
     expect(Object.fromEntries(recovery.searchParams)).toMatchObject({ view: "access", person: "person-000", key: "key-000", q: "absent" });
@@ -172,7 +172,7 @@ describe("complete dashboard inventories", () => {
     const doc = new JSDOM(result.html).window.document;
     const unknown = doc.querySelector('[data-credential-read-state="unknown"]');
     expect(unknown?.textContent).toContain("Codex");
-    expect(unknown?.textContent).not.toContain("没有可用账号");
+    expect(unknown?.textContent).not.toContain("没有可用连接");
     expect(doc.querySelector('[name="codex_credential_account_id"]')).toBeNull();
     expect(doc.querySelector('[name="grok_credential_account_id"] option[value="grok-known"]')?.textContent).toContain("Known Grok");
     expect(doc.querySelector('#give-access form[action="/admin/ui/keys"]')).not.toBeNull();
@@ -193,10 +193,10 @@ describe("complete dashboard inventories", () => {
     const rows = [...doc.querySelectorAll('[data-credit-surface]')];
     expect(rows).toHaveLength(3);
     for (const row of rows) {
-      expect(row.textContent).toContain("未读到");
+      expect(row.textContent).toContain("无法读取");
       expect(row.querySelector('[role="alert"]')?.textContent).toBe("读取失败");
       expect(row.querySelector("form,input,button")).toBeNull();
-      expect(row.querySelector(".credit-used strong")?.textContent).toBe("未读到");
+      expect(row.querySelector(".credit-used strong")?.textContent).toBe("无法读取");
     }
     expect(doc.querySelector('#credits [data-action="credit-set"]')).toBeNull();
   });

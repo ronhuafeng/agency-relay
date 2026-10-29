@@ -83,7 +83,7 @@ describe("administrator credential status metadata", () => {
       { admissionState: "enabled", key: "codex:pending", state: "absent", statusLabel: "未连接", tone: "neutral", hint: null, expiresAt: null, lastRefreshAt: null },
       { admissionState: "enabled", key: "codex:revoked", state: "revoked", statusLabel: "已断开", tone: "neutral", hint: null, expiresAt: null, lastRefreshAt: null },
       { admissionState: "enabled", key: "codex:soon", state: "expiring_soon", statusLabel: "即将过期", tone: "warn", hint: null, expiresAt: "2026-10-06T12:05:00.000Z", lastRefreshAt: null },
-      { admissionState: null, key: "grok:collision", state: "reauth_required", statusLabel: "需要重新连接", tone: "bad", hint: "请重新登录。登录完成前，客户端不能使用这个账号。", expiresAt: null, lastRefreshAt: "2026-10-06T11:25:00.000Z" }
+      { admissionState: null, key: "grok:collision", state: "reauth_required", statusLabel: "需要重新连接", tone: "bad", hint: "请重新登录。登录完成前，客户端不能使用这个连接。", expiresAt: null, lastRefreshAt: "2026-10-06T11:25:00.000Z" }
     ]);
     expect(typeof body.revision).toBe("string");
     const again = await (await f.read()).json() as StatusPayload;

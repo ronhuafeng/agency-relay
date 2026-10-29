@@ -660,7 +660,7 @@ async function memberSubmissionReplay(env: Env, principal: ConsolePrincipal, req
   let matched = false;
   try { matched = key.user_id === (service?.id ?? principal.id) && JSON.parse(audit?.meta ?? "null")?.member_submission_fingerprint === fingerprint; } catch { /* no trusted receipt */ }
   if (!matched) throw new HttpError(409, "This submission identity belongs to a different operation.", "invalid_request_error", "key_submission_mismatch");
-  return memberMutationPage({principal,service,requestId,keyId,message:"这次提交此前已经完成，密钥不会再次发行或重显。当前状态请通过只读页面核对。"});
+  return memberMutationPage({principal,service,requestId,keyId,message:"这次提交之前已经完成，不会再次创建或显示密钥。请查看当前密钥状态。"});
 }
 
 async function ownKeyOperation(request: Request, env: Env, url: URL, principal: ConsolePrincipal,

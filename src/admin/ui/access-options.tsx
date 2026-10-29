@@ -14,9 +14,9 @@ export function accountChoices(model: AdminDashboardAccessModel, client: Client)
 }
 export function ClientAccessOption({access, model}: {readonly access: SurfaceCapabilitySurface; readonly model: AdminDashboardAccessModel}) {
   const accounts = accountChoices(model, access.id);
-  if (accounts === null) return <div className="access-option" data-credential-read-state="unknown"><strong>{access.label}</strong><p role="alert">连接列表暂时未读到。<a href={model.canonicalUrl}>重新读取</a></p></div>;
-  const description = access.id === "xai" ? "包含上游团队共享资源权限" : "";
+  if (accounts === null) return <div className="access-option" data-credential-read-state="unknown"><strong>{access.label}</strong><p role="alert">连接列表暂时无法读取。<a href={model.canonicalUrl}>重新读取</a></p></div>;
+  const description = access.id === "xai" ? "可使用上游团队的共享资源" : "";
   return <div className="access-option"><AccessChoiceIsland choice={{id: access.id, accessLevel: access.accessLevel, label: access.label, badge: access.accessLevel === "selected" ? "指定访问" : null, description}} />
-    <SelectView control={{id: `select-access-${access.id}`, name: `${access.id}_credential_account_id`, label: `${access.label} 账号`, required: false, value: "", options: accounts.length === 0 ? [{value: "", label: "没有可用账号", disabled: true}] : [{value: "", label: "选择账号", disabled: false}, ...accounts.map((account) => ({value: account.id, label: `${account.label} · ${account.status}`, disabled: account.disabled}))]}} />
+    <SelectView control={{id: `select-access-${access.id}`, name: `${access.id}_credential_account_id`, label: `${access.label} 上游连接`, required: false, value: "", options: accounts.length === 0 ? [{value: "", label: "没有可用连接", disabled: true}] : [{value: "", label: "选择连接", disabled: false}, ...accounts.map((account) => ({value: account.id, label: `${account.label} · ${account.status}`, disabled: account.disabled}))]}} />
   </div>;
 }

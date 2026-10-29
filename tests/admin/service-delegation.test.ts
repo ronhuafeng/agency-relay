@@ -146,7 +146,7 @@ it("requires exact browser origin and allows disabled-service inspection and del
     const page=await f.call(f.prefix+`?view=keys&key=${key.key.id}`,{html:true});expect(page.status).toBe(200);const doc=new JSDOM(await page.text()).window.document;
     expect(doc.querySelector('form[data-member-key-create] button')?.hasAttribute('disabled')).toBe(true);
     expect(doc.querySelector('form[action$="/replace"]')).toBeNull();expect(doc.querySelector('form[action$="/revoke"]')).not.toBeNull();
-    const rejected=await f.call(f.prefix+"/ui/keys",{method:"POST",body:{name:"No",surfaces:"codex",submission_id:`submit_${crypto.randomUUID()}`},html:true});expect(rejected.status).toBe(403);const text=await rejected.text();expect(text.includes("不能发行或更换")).toBe(true);expect(rejected.headers.get("set-cookie")).toBeNull();
+    const rejected=await f.call(f.prefix+"/ui/keys",{method:"POST",body:{name:"No",surfaces:"codex",submission_id:`submit_${crypto.randomUUID()}`},html:true});expect(rejected.status).toBe(403);const text=await rejected.text();expect(text.includes("不能创建或更换")).toBe(true);expect(rejected.headers.get("set-cookie")).toBeNull();
     const revoke=await f.call(f.prefix+"/ui/keys/revoke-all",{method:"POST",body:{},html:true});expect(revoke.status).toBe(200);expect((await revoke.text()).includes("已撤销 1 个密钥")).toBe(true);
     f.db.sqlite.prepare("UPDATE users SET status='active' WHERE id=?").run(f.service.id);
     expect(f.db.sqlite.prepare("SELECT status FROM api_keys WHERE id=?").get(key.key.id)).toEqual({status:"revoked"});
@@ -274,7 +274,7 @@ for(const failure of ['services','keys'] as const) it(`human detail preserves ${
     const doc=new JSDOM(await response.text()).window.document;
     const impact=doc.querySelector('[data-assigned-service-impact]')!;
     expect(impact.querySelector('[data-service-impact-state="unknown"]')).not.toBeNull();
-    expect(impact.textContent?.includes('暂时未读到')).toBe(true);
+    expect(impact.textContent?.includes('暂时无法读取')).toBe(true);
     expect(doc.querySelector(`[data-action='user-status']`)).not.toBeNull();
     if(failure==='keys')expect(impact.querySelector(`a[href='${f.prefix}?view=keys']`)).not.toBeNull();
   }finally{f.db.close();}

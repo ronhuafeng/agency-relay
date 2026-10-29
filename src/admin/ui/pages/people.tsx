@@ -44,7 +44,7 @@ function ServiceIdentity({model, personUrl}: {readonly model: AdminDashboardAcce
     <section aria-label="服务管理人"><h3>服务管理人</h3>
       {owner ? <dl className="person-access-summary"><div><dt>当前管理人</dt><dd>{owner.owner_user_id ? owner.owner_email ?? owner.owner_user_id : "未分配"}{owner.owner_user_id && owner.owner_status !== "active" ? <Badge>成员已停用</Badge> : null}</dd></div></dl> : null}
       {model.serviceOwnerKeys ? <InfoPopover id={`service-owner-keys-${user.id}`} label="交接时保留的密钥"><ul>{model.serviceOwnerKeys.map(key => <li key={key.id}><strong>{key.name ?? "未命名密钥"}</strong> · <code>{key.key_prefix}</code> · {key.status === "active" ? "未撤销" : key.status === "revoked" ? "已撤销" : "状态未识别"} · {key.expires_at ? `到期 ${formatOperatorInstantOrDash(key.expires_at)}` : "未设到期"}</li>)}</ul><p>更改管理人不会撤销这些密钥。<a href={memberHref("keys",undefined,user.id)}>管理服务密钥</a></p></InfoPopover> : null}
-      {!owner || !model.serviceOwnerCandidates || !model.serviceOwnerKeys ? <p role="alert" data-service-owner-state="unknown">管理人或交接影响暂时未读到，不能视为未分配或没有密钥。<a href={model.canonicalUrl}>重新读取</a></p> :
+      {!owner || !model.serviceOwnerCandidates || !model.serviceOwnerKeys ? <p role="alert" data-service-owner-state="unknown">管理人或交接影响暂时无法读取，不代表未分配或没有密钥。<a href={model.canonicalUrl}>重新读取</a></p> :
       <form className="board-form" method="post" action={`/admin/ui/services/${encodeURIComponent(user.id)}/owner`} data-confirmation={warning} data-confirm-service-owner="">
         <label htmlFor={`service-owner-${user.id}`}>新的管理人</label>
         <NativeSelect id={`service-owner-${user.id}`} name="owner_selection" required defaultValue={assignableOwner ? `user:${owner!.owner_user_id!}` : ""}>
@@ -79,7 +79,7 @@ function GiveAccess({model, personId, cancelHref}: {readonly model: AdminDashboa
   </form></section><div id="capability-comparison"><CapabilityComparison model={{view: capabilityView, routesHref: "?view=surfaces"}} /></div></>;
 }
 function PersonKeys({model, personId, base}: {readonly model: AdminDashboardAccessModel; readonly personId: string; readonly base: string}) {
-  if (!model.keyPage) return <section className="person-key-inventory" id="keys" tabIndex={-1} aria-label="密钥"><p role="alert">密钥列表暂时未读到，不能视为没有密钥。<a href={model.canonicalUrl}>重新读取</a></p>{model.selectedKeyId !== null ? <KeyDetail model={model}/> : null}</section>;
+  if (!model.keyPage) return <section className="person-key-inventory" id="keys" tabIndex={-1} aria-label="密钥"><p role="alert">密钥列表暂时无法读取，不代表没有密钥。<a href={model.canonicalUrl}>重新读取</a></p>{model.selectedKeyId !== null ? <KeyDetail model={model}/> : null}</section>;
   const keys = model.keys.filter((key) => key.user_id === personId); const search = new URL(model.canonicalUrl, "https://console.invalid").searchParams;
   return <section className="person-key-inventory" id="keys" tabIndex={-1} data-advanced-keys="true" aria-label="密钥">
     {keys.length > 5 || model.keyPage.page > 1 || search.get("key_q") ? <InventorySearchView control={inventorySearchControl(model.canonicalUrl, "key_q", "key_page", "搜索密钥", "keys")} /> : null}
@@ -118,11 +118,11 @@ function AssignedServices({model, personUrl}: {readonly model: AdminDashboardAcc
   return <section className="workspace-section" id="assigned-services" tabIndex={-1} aria-label="服务账号与离职影响" data-assigned-service-impact="">
     <h3>管理的服务账号</h3>
 
-    {!impact.known ? <p role="alert" data-service-impact-state="unknown">服务分配暂时未读到，不能视为没有服务账号。<a href={personUrl}>重新读取人员详情</a></p> : <>
+    {!impact.known ? <p role="alert" data-service-impact-state="unknown">服务分配暂时无法读取，不代表没有服务账号。<a href={personUrl}>重新读取人员详情</a></p> : <>
       {impact.services.length === 0 ? <p>当前没有分配的服务账号。</p> : <ul>{impact.services.map(service => <li key={service.id}>
         <h4>{service.display_name} · <code>{service.id}</code></h4><p>服务状态：{service.status === "active" ? "启用" : "停用"}；停用人员不会改变此状态。</p>
         <p><a href={memberHref("keys",undefined,service.id)}>单独管理服务密钥：{service.display_name}</a> · <a href={inventoryUrl(personUrl,{person:service.id,key:null})}>查看服务与管理人分配</a></p>
-        {service.keys === null ? <p role="alert" data-service-impact-state="unknown">这个服务的密钥元数据暂时未读到，不能视为没有密钥。请打开服务密钥页面核对。</p> : service.keys.length === 0 ? <p>当前没有密钥。</p> : <ul>{service.keys.map(key => <li key={key.id}><code>{key.key_prefix}</code> · {key.name ?? "未命名"} · 存储状态 {key.status} · 到期 {key.expires_at ?? "无到期时间"} · <a href={memberHref("keys",key.id,service.id)}>单独撤销或更换</a></li>)}</ul>}
+        {service.keys === null ? <p role="alert" data-service-impact-state="unknown">这个服务的密钥元数据暂时无法读取，不代表没有密钥。请打开服务密钥页面核对。</p> : service.keys.length === 0 ? <p>当前没有密钥。</p> : <ul>{service.keys.map(key => <li key={key.id}><code>{key.key_prefix}</code> · {key.name ?? "未命名"} · 存储状态 {key.status} · 到期 {key.expires_at ?? "无到期时间"} · <a href={memberHref("keys",key.id,service.id)}>单独撤销或更换</a></li>)}</ul>}
         {service.moreKeys ? <p>仅显示前 10 个密钥；请打开该服务的密钥页面检查其余密钥。</p> : null}
       </li>)}</ul>}
       {impact.moreServices ? <p>仅显示前 20 个当前分配的服务账号，还有更多服务未显示；请继续在人员列表核对服务分配。</p> : null}

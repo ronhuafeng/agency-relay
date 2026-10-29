@@ -25,7 +25,7 @@ for (const failure of ["codex_token_refresh_failed", "missing_access_token"] as 
   const response = page.waitForResponse(response => response.url().includes("/admin/ui/codex-auths/fixture-codex/refresh") && response.request().method() === "POST");
   await page.getByRole("button", { name: "刷新账号", exact: true }).click();
   expect((await response).headers()["content-type"]).toContain("text/html");
-  await expect(page.getByRole("alert")).toContainText("刷新账号失败");
+  await expect(page.getByRole("alert")).toContainText("刷新失败");
   await expect(page.locator('[data-mgmt-state="active"]')).toBeVisible();
   await expect(page.getByRole("button", { name: "刷新账号", exact: true })).toBeEnabled();
   expect(worker.requests.filter(request => request.method === "POST")).toHaveLength(1);

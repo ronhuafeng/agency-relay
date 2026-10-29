@@ -11,8 +11,8 @@ export function RuntimeConsent({client_name,resource,scope,action,email}:{readon
     <p>客户端会使用组织共享的上游账号。工具可能读取或修改共享资源；这不是只读权限。撤销授权可以阻止后续调用，但不能撤回已完成的操作。</p>
     <p>授权最长保留 30 天。退出浏览器不会撤销客户端授权。每次调用仍会检查你的当前权限。</p>
     <form method="post" action={action}>
-      <Button type="submit" name="decision" value="allow">允许（Allow）</Button>
-      <Button type="submit" name="decision" value="deny" variant="outline">拒绝（Deny）</Button>
+      <Button type="submit" name="decision" value="allow">允许</Button>
+      <Button type="submit" name="decision" value="deny" variant="outline">拒绝</Button>
     </form>
   </section>;
 }

@@ -15,14 +15,14 @@ function KeyAccount({model, keyId, grant, client, editable}: {readonly model: Ad
   const binding = model.credentialBindings.find((binding) => binding.api_key_id === keyId && binding.surface_grant === grant);
   const accountId = binding?.codex_auth_id ?? binding?.subscription_account_id ?? ""; const accounts = accountChoices(model, client);
   const label = productAccessLabels([grant])[0] ?? "客户端";
-  if (accounts === null) return <div className="key-account-fact" data-credential-read-state="unknown"><strong>{label}</strong><p role="alert">连接列表暂时未读到。<a href={model.canonicalUrl}>重新读取</a></p></div>;
-  if (!editable) return <div className="key-account-fact"><strong>{label}</strong><span>{accounts.find((account) => account.id === accountId)?.label ?? (accountId ? "账号不可用" : "未选择账号")}</span></div>;
+  if (accounts === null) return <div className="key-account-fact" data-credential-read-state="unknown"><strong>{label}</strong><p role="alert">连接列表暂时无法读取。<a href={model.canonicalUrl}>重新读取</a></p></div>;
+  if (!editable) return <div className="key-account-fact"><strong>{label}</strong><span>{accounts.find((account) => account.id === accountId)?.label ?? (accountId ? "连接不可用" : "未选择连接")}</span></div>;
   const selected = accounts.some((account) => account.id === accountId) ? accountId : "";
   return <form className="inline-form" method="post" action={`/admin/ui/keys/${encodeURIComponent(keyId)}/credential-bindings/${client}${model.selectedPersonId ? `?person=${encodeURIComponent(model.selectedPersonId)}` : ""}`} data-action="credential-binding-set" autoComplete="off" data-dashboard-draft="binding">
     <input type="hidden" name="key_return" value={model.canonicalUrl} />
-    <p className="caption">仅更改密钥 <code>{model.selectedKey?.key_prefix ?? keyId}</code> 的 {label} 上游身份，影响后续请求。其他密钥、服务权限和额度不变；服务商资源与历史不会迁移。</p>
-    <SelectView control={{id: `select-binding-${keyId}-${client}`, name: "credential_account_id", label: `${label} 账号`, required: true, value: selected, options: accounts.length === 0 ? [{value: "", label: "没有可用账号", disabled: true}] : [{value: "", label: "选择账号", disabled: selected.length > 0}, ...accounts.map((account) => ({value: account.id, label: `${account.label} · ${account.status}`, disabled: account.disabled}))]}} />
-    <Button type="submit" variant="outline">使用这个账号</Button>
+    <p className="caption">仅更改密钥 <code>{model.selectedKey?.key_prefix ?? keyId}</code> 的 {label} 上游身份，只影响之后的请求。其他密钥、服务权限和额度不变；上游的资源和历史不会迁移。</p>
+    <SelectView control={{id: `select-binding-${keyId}-${client}`, name: "credential_account_id", label: `${label} 上游连接`, required: true, value: selected, options: accounts.length === 0 ? [{value: "", label: "没有可用连接", disabled: true}] : [{value: "", label: "选择连接", disabled: selected.length > 0}, ...accounts.map((account) => ({value: account.id, label: `${account.label} · ${account.status}`, disabled: account.disabled}))]}} />
+    <Button type="submit" variant="outline">使用这个连接</Button>
   </form>;
 }
 export function KeyDetail({model}: {readonly model: AdminDashboardAccessModel}) {
