@@ -17,7 +17,6 @@
 .person-key-inventory { container:member-workspace / inline-size; min-width:0; }
 .person-key-inventory .key-detail { max-width:none; margin:0; }
 .person-detail .access-choice-grid { grid-template-columns:minmax(0,1fr); }
-.person-detail .person-status-form .confirmation-fallback { max-width:280px; }
 .request-collection { container:request-list / inline-size; min-width:0; }
 .setup-detail>.section-links { margin:0; }
 .configuration-local-task>[data-slot=card] { margin-top:16px; }

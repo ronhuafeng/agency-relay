@@ -62,7 +62,9 @@ and member pages, exact-object URLs and the primitive gallery in light and dark 
 production router, SSR, client and stylesheet, and needs no Wrangler, Miniflare or
 database setup beyond `pnpm install` and the lockfile Chromium. Pass a name fragment,
 for example `pnpm run console:snapshot admin-person`, to refresh only matching
-captures. Screenshots and the first-width HTML go to ignored `tmp/console-snapshots/`.
+captures. Add `--native` to render with JavaScript disabled (the no-script form
+fallbacks) into `tmp/console-snapshots-native/`. Screenshots and the first-width HTML
+go to ignored `tmp/console-snapshots/`.
 Use it for before/after comparison of layout work; the captures are review material,
 not test baselines, and they stay read-only (no writes, workers or network).
 

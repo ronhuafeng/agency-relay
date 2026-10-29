@@ -292,3 +292,27 @@ test.describe('enlarged content', () => {
     expect(worker.requests.filter((request) => request.method === 'POST')).toHaveLength(0);
   });
 });
+
+for (const width of [390, 1280]) test.describe(`native confirmation prompt ${width}px`, () => {
+  test.use({ viewport: { width, height: 900 }, script: false });
+  test('keeps the acknowledgement and its consequence help on one line inside the viewport', async ({ page }) => {
+    for (const url of ['/admin?view=access&person=member', '/admin?view=access&person=member&key=member-key', '/admin?view=credentials&account=codex%3Afixture-codex', '/admin?view=setup&person=member&key=member-key']) {
+      await page.goto(url);
+      const boxes = await page.locator('main [data-confirmation-prompt]').evaluateAll(prompts => prompts.filter(prompt => prompt.checkVisibility()).map(prompt => {
+        const check = prompt.querySelector('input[type=checkbox]')!.getBoundingClientRect();
+        const help = prompt.querySelector('.info-popover button')!.getBoundingClientRect();
+        return { check: { top: check.top, bottom: check.bottom, left: check.left }, help: { top: help.top, bottom: help.bottom, right: help.right }, scrolled: Boolean(prompt.closest('.table-scroll,.table-wrap')) };
+      }));
+      expect(boxes.length, url).toBeGreaterThan(0);
+      for (const { check, help, scrolled } of boxes) {
+        // One line: the checkbox's vertical extent sits within the help button's row.
+        expect(check.top, url).toBeGreaterThanOrEqual(help.top - 1);
+        expect(check.bottom, url).toBeLessThanOrEqual(help.bottom + 1);
+        // Rows of a horizontally scrolling table stay reachable through that region.
+        if (scrolled) continue;
+        expect(check.left, url).toBeGreaterThanOrEqual(0);
+        expect(help.right, url).toBeLessThanOrEqual(width + 1);
+      }
+    }
+  });
+});

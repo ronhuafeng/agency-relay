@@ -150,7 +150,6 @@ form.inventory-page-size { display:flex; align-items:center; flex-wrap:wrap; gap
 .person-credit-policies .inline-form { display:grid; gap:12px; margin:0; }
 .person-credit-policies form[data-action=credit-set] { display:grid; grid-template-columns:minmax(90px,.7fr) minmax(110px,1fr) auto; gap:8px; align-items:end; }
 .person-credit-policies form[data-action=credit-set]>:is([data-slot=button],[data-variant][data-size]:not([data-slot=switch])) { grid-column:3; }
-.person-credit-policies form[data-action=credit-set] .confirmation-fallback { grid-column:1/-1; }
 .person-credit-policies form[data-action=credit-set] .radix-field { min-width:0; font-size:12px; }
 .person-detail #give-access .person-access-summary { display:flex; flex-wrap:wrap; gap:8px 12px; padding-top:12px; }
 .person-key-inventory { display:grid; gap:12px; margin-top:12px; min-width:0; container:member-workspace / inline-size; }
@@ -286,7 +285,6 @@ form.inventory-page-size { display:flex; align-items:center; flex-wrap:wrap; gap
 .organization-policy-value input { text-align:right; font-variant-numeric:tabular-nums; }
 .organization-policy-value>.caption { text-align:right; }
 .quota-column-heading { display:flex; align-items:center; justify-content:space-between; gap:8px; }
-.organization-policy-form .confirmation-fallback { width:100%; }
 .organization-policy-form .draft-state { padding:12px 16px; }
 @container quota-policy (max-width:640px) {
   .organization-policy-row { grid-template-columns:minmax(0,1fr) minmax(180px,220px); gap:var(--space-2) var(--space-4); }
@@ -929,7 +927,6 @@ table.member-quota-table [data-slot=progress] { height:6px; margin-top:8px; }
 @media(max-width:600px) {
   .credit-editor-row .inline-form { display:grid; grid-template-columns:minmax(0,1fr); align-items:start; }
   .credit-editor-row .inline-form>[data-slot=button] { justify-self:start; }
-  .credit-policy-controls label.confirmation-fallback { max-width:160px; white-space:normal; }
 }
 
 /* Native disclosures own the first paint and remain usable without a runtime. */
@@ -944,10 +941,3 @@ summary[data-slot=button]::-webkit-details-marker { display:none; }
 
 .usage-record-inspect { justify-content:flex-start; padding:0; min-height:var(--control-target); height:auto; max-width:100%; white-space:normal; text-align:left; }
 
-/* Native confirmation and enhanced consequence help share one control frame. */
-.confirmation-prompt { display:flex; align-items:center; flex:0 0 auto; width:calc(var(--control-target) * 3); min-height:var(--control-target); }
-.confirmation-prompt>label.confirmation-fallback { flex:1; width:auto; min-width:0; align-items:center; }
-.confirmation-prompt>.info-popover { flex:0 0 auto; width:var(--control-target); }
-.confirmation-prompt>.info-popover>button { width:100%; }
-.confirmation-prompt:has(>label[hidden]) { width:auto; }
-.confirmation-prompt:has(>label[hidden])>.info-popover { width:auto; min-width:var(--control-target); }
