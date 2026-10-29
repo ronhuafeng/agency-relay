@@ -6,7 +6,7 @@ import { formatOperatorInstant, personLabel, presentText } from "../../format";
 import { PRODUCT_ACCESS, productAccessLabels } from "../../client-setup";
 import type { DashboardKey, DashboardPage } from "../../inventory";
 import { executionPlanEvidence, executionPlanPresentation } from "../../../plans/execution-plans";
-import type { KeyClientVerificationRow } from "../../../db";
+import type { KeyClientVerificationRow } from "../../../usage/queries";
 import { DashLink } from "../chrome";
 import { inventoryUrl } from "../href";
 import { Icon } from "../icon";

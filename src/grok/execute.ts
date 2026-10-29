@@ -3,16 +3,7 @@
  */
 import { hmacSha256Hex } from "../crypto";
 import { asRecord, nonNegativeIntegerOrNull } from "../records";
-import {
-  bindXaiFileOwner,
-  createVideoJob,
-  deleteXaiFileOwner,
-  findXaiFileOwner,
-  findVideoJobForUser,
-  observeVideoJob,
-  recordImageMediaUsage,
-  recordUntrackedVideoStart
-} from "../db";
+import { bindXaiFileOwner, createVideoJob, deleteXaiFileOwner, findXaiFileOwner, findVideoJobForUser, observeVideoJob, recordImageMediaUsage, recordUntrackedVideoStart } from "./media-store";
 import { HttpError } from "../errors";
 import { XAI_FILE_ID_PATTERN, XAI_OBJECT_ID, type ExecutionPlan } from "../plans/execution-plans";
 import { copyBytes } from "../proxy/byte-stream";
@@ -30,12 +21,9 @@ import {
   type AdmittedProviderAttempt,
   type ProviderResult
 } from "../auth/provider-attempt";
-import type {
-  AuthenticatedUser,
-  CapturedResponseUsage,
-  ExecutionDependencies,
-  RequestContext
-} from "../types";
+import type { AuthenticatedUser } from "../auth/types";
+import type { CapturedResponseUsage } from "../usage/types";
+import type { ExecutionDependencies, RequestContext } from "../types";
 import { requireFallbackIdentityVersion } from "../plans/identity-version";
 
 export async function executeGrokPlan(

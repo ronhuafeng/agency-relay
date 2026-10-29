@@ -7,7 +7,9 @@ import {
   observeCodexResponse,
   ResponseObservationTap
 } from "./observation";
-import type { AppDependencies, CapturedResponseUsage, CodexTransportObservation } from "../types";
+import type { AppDependencies } from "../types";
+import type { CapturedResponseUsage } from "../usage/types";
+import type { CodexTransportObservation } from "../codex/types";
 import { projectRequiredUpstreamClientIdentity } from "../plans/identity-version";
 import {cancelUnreadBody, clientDrivenStream} from "./byte-stream";
 

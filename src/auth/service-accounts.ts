@@ -1,8 +1,10 @@
 import { generateId, nowIso } from "../crypto";
 import { HttpError, adminRequired, userNotFound } from "../errors";
-import { d1ChangeCount, getUser, OPERATOR_MUTATION_AUDIT_COLUMNS } from "../db";
+import { d1ChangeCount } from "../records";
+import { getUser } from "./access-store";
+import { OPERATOR_MUTATION_AUDIT_COLUMNS } from "../control/mutation-audit";
 import { isOrganizationLoginUser, organizationDomain, type LifecycleActor } from "./principal";
-import type { UserRow } from "../types";
+import type { UserRow } from "./types";
 
 export function normalizeServiceName(value: unknown): string {
   if (typeof value !== "string") throw invalidName();

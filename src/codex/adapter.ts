@@ -12,7 +12,9 @@ import {
 } from "../proxy/observation";
 import type { UpstreamClientIdentity } from "../plans/execution-plans";
 import type { ProviderResult } from "../auth/provider-attempt";
-import type { AppDependencies, CapturedResponseUsage, CodexTransportObservation, FreshAccessToken, RequestContext } from "../types";
+import type { AppDependencies, RequestContext } from "../types";
+import type { CapturedResponseUsage } from "../usage/types";
+import type { CodexTransportObservation, FreshAccessToken } from "./types";
 import { projectRequiredUpstreamClientIdentity } from "../plans/identity-version";
 
 interface ForwardOptions {

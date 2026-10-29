@@ -1,10 +1,12 @@
 import type { DatabaseSync, SQLInputValue } from "node:sqlite";
 import { expect, onTestFinished } from "vitest";
-import { SHARED_CODEX_AUTH_ID } from "../../src/db";
+import { SHARED_CODEX_AUTH_ID } from "../../src/codex/credential-store";
 import { HttpError } from "../../src/errors";
 import { handleRequest } from "../../src/router";
 import { seedIdentityVersions } from "../support/identity-version";
-import type { CodexAuthRefreshResult, CodexToken, ExecutionDependencies, FreshAccessToken, MediaUsageSummaryRow, MediaUsageSummaryTotals, UsageSummaryRow, UsageSummaryTotals } from "../../src/types";
+import type { CodexAuthRefreshResult, CodexToken, FreshAccessToken } from "../../src/codex/types";
+import type { ExecutionDependencies } from "../../src/types";
+import type { MediaUsageSummaryRow, MediaUsageSummaryTotals, UsageSummaryRow, UsageSummaryTotals } from "../../src/usage/types";
 import { codexAccountResponses } from "../fixtures/codex-account";
 import { createTestD1, type TestD1 } from "../support/sqlite-d1";
 

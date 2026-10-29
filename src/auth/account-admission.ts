@@ -1,8 +1,10 @@
-import { CODEX_SHARED_PRODUCTION_SQL, d1ChangeCount, OPERATOR_MUTATION_AUDIT_COLUMNS } from "../db";
+import { CODEX_SHARED_PRODUCTION_SQL } from "./credential-policy";
+import { d1ChangeCount } from "../records";
+import { OPERATOR_MUTATION_AUDIT_COLUMNS } from "../control/mutation-audit";
 import { generateId, nowIso } from "../crypto";
 import { HttpError, codexAuthNotFound } from "../errors";
 import { notifyCredentialChange } from "../admin/credential-notifications";
-import type { CodexAuthRow } from "../types";
+import type { CodexAuthRow } from "../codex/types";
 import type { CredentialActor } from "./credential-defaults";
 import { assertServiceAdmin, serviceAdminAuthorityBindings, serviceAdminAuthoritySql } from "./service-accounts";
 

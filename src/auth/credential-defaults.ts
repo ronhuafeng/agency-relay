@@ -1,5 +1,7 @@
 import { generateId, nowIso } from "../crypto";
-import { CODEX_SHARED_PRODUCTION_SQL, d1ChangeCount, GROK_PRODUCTION_SQL, OPERATOR_MUTATION_AUDIT_COLUMNS } from "../db";
+import { CODEX_SHARED_PRODUCTION_SQL, GROK_PRODUCTION_SQL } from "./credential-policy";
+import { d1ChangeCount } from "../records";
+import { OPERATOR_MUTATION_AUDIT_COLUMNS } from "../control/mutation-audit";
 import { readTokenResult } from "./token-result";
 import { HttpError, adminAuthRequired } from "../errors";
 import type { SurfaceCredentialSelection } from "./bindings";

@@ -45,3 +45,13 @@ export function looksLikeJson(value: string): boolean {
   const trimmed = value.trim();
   return trimmed.startsWith("{") || trimmed.startsWith("[");
 }
+
+export function d1ChangeCount(result: unknown): number {
+  if (!result || typeof result !== "object" || !("meta" in result)) return 0;
+  const changes = (result as { meta?: { changes?: number } }).meta?.changes;
+  return typeof changes === "number" ? changes : 0;
+}
+
+export function nonNegativeIntegerOrZero(value: number | null | undefined): number {
+  return typeof value === "number" && Number.isSafeInteger(value) && value > 0 ? value : 0;
+}

@@ -10,7 +10,7 @@ import { delegatedService, listDelegatedServices, type ServiceContext } from "..
 import { memberHref } from "./member-href";
 import { consoleReturnTarget } from "./return-target";
 import { buildClientSetupFiles, buildClientSetupTemplates, CLIENT_SETUP_TOKEN_PLACEHOLDER } from "./client-setup";
-import { queryUsageDaily, queryMediaUsageSummary, queryUsageSummary } from "../db";
+import { queryUsageDaily, queryMediaUsageSummary, queryUsageSummary } from "../usage/queries";
 import { HttpError, jsonResponse } from "../errors";
 import type { ConsolePrincipal } from "../auth/principal";
 import { Icon, type IconName } from "./ui/icon";

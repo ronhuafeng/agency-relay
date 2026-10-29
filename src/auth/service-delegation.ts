@@ -1,4 +1,5 @@
-import { d1ChangeCount, OPERATOR_MUTATION_AUDIT_COLUMNS } from "../db";
+import { d1ChangeCount } from "../records";
+import { OPERATOR_MUTATION_AUDIT_COLUMNS } from "../control/mutation-audit";
 import { generateId, nowIso } from "../crypto";
 import { HttpError, serviceNotFound } from "../errors";
 import type { ConsolePrincipal, LifecycleActor } from "./principal";

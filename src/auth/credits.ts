@@ -1,6 +1,8 @@
 import { isOrganizationLoginUser, organizationDomain } from "./principal";
 import { generateId, nowIso } from "../crypto";
-import { d1ChangeCount, getUser, OPERATOR_MUTATION_AUDIT_COLUMNS } from "../db";
+import { d1ChangeCount } from "../records";
+import { getUser } from "./access-store";
+import { OPERATOR_MUTATION_AUDIT_COLUMNS } from "../control/mutation-audit";
 import { HttpError, adminRequired, userNotFound } from "../errors";
 import { ISSUABLE_SURFACE_GRANTS, type ExecutionPlan } from "../plans/execution-plans";
 

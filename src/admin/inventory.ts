@@ -1,4 +1,4 @@
-import type { ApiKeyRow, UserRow } from "../types";
+import type { ApiKeyRow, UserRow } from "../auth/types";
 import { API_KEY_SURFACE_CREDENTIAL_COLUMNS, type ApiKeySurfaceCredentialRow } from "../auth/bindings";
 import { DASHBOARD_PAGE_SIZE } from "./dashboard-page";
 import { DASHBOARD_PEOPLE_PAGE_SIZE, DASHBOARD_PEOPLE_PAGE_SIZES } from "./ui/href";

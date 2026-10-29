@@ -4,7 +4,7 @@
  */
 import { HttpError, rejectExpiredAccessToken, requireSessionAccessToken, requireSessionText, sessionExpiry, sessionRecord, sessionRefreshToken, warnMissingSessionRefreshToken } from "../errors";
 import { asRecord, firstString, looksLikeJson } from "../records";
-import type { CodexToken } from "../types";
+import type { CodexToken } from "./types";
 
 export interface ParsedCodexSession {
   access_token: string;

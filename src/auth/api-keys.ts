@@ -11,11 +11,13 @@ import {
   type OrganizationSurface
 } from "./credential-defaults";
 import { generateApiKey, generateId, hmacSha256Hex, nowIso } from "../crypto";
-import { d1ChangeCount, getApiKeyById, getUser, OPERATOR_MUTATION_AUDIT_COLUMNS, operatorMutationAuditStatement, type OperatorMutationAuditInput } from "../db";
+import { d1ChangeCount } from "../records";
+import { getApiKeyById, getUser } from "./access-store";
+import { OPERATOR_MUTATION_AUDIT_COLUMNS, operatorMutationAuditStatement, type OperatorMutationAuditInput } from "../control/mutation-audit";
 import { keyActorAuthority, assertKeyActorAuthority } from "./key-authority";
 import { keyLifecycle, type KeyLifecycle } from "./key-state";
 import { HttpError, keyNotActive, keyNotFound, userInactive, userNotFound } from "../errors";
-import type { ApiKeyRow } from "../types";
+import type { ApiKeyRow } from "./types";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_EXPIRY_DAYS = 90;

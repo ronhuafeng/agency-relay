@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { readCodexAccountSnapshot } from "../../src/codex/account";
-import type { AppDependencies, FreshAccessToken } from "../../src/types";
+import type { AppDependencies } from "../../src/types";
+import type { FreshAccessToken } from "../../src/codex/types";
 import egressProtocol from "../../deploy/codex-egress-shim/egress-protocol.json";
 import {
   CODEX_PROFILE_RESPONSE,

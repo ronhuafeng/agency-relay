@@ -1,4 +1,4 @@
-import type { CapturedResponseUsage } from "../types";
+import type { CapturedResponseUsage } from "./types";
 import { nonNegativeIntegerOrNull } from "../records";
 
 // Standard text-token rates, checked 2026-10-07. This is not subscription spend.

@@ -71,17 +71,9 @@ import {
 } from "./operator-mutations";
 import { PRODUCT_ACCESS } from "./client-setup";
 import { readCodexAccountSnapshot, unavailableCodexAccountSnapshot } from "../codex/account";
-import {
-  cleanupRequestAudit,
-  requestAuditRetentionDays,
-  getCodexAuth,
-  getUser,
-  getApiKeyById,
-  listCodexAuths,
-  queryMediaUsageSummary,
-  queryRequestAttemptState,
-  queryUsageSummary
-} from "../db";
+import { cleanupRequestAudit, requestAuditRetentionDays, queryMediaUsageSummary, queryRequestAttemptState, queryUsageSummary } from "../usage/queries";
+import { getCodexAuth, listCodexAuths } from "../codex/credential-store";
+import { getUser, getApiKeyById } from "../auth/access-store";
 import {
   listApiKeySurfaceCredentials,
   type SurfaceCredentialSelection
@@ -105,7 +97,8 @@ import {
   type CapabilitySource,
   type SubscriptionEnvironment
 } from "../auth/subscription-accounts";
-import type { AppDependencies, CodexAuthRow, RequestContext } from "../types";
+import type { AppDependencies, RequestContext } from "../types";
+import type { CodexAuthRow } from "../codex/types";
 import {
   CREDIT_SURFACE_IDS,
   listOrganizationCreditDefaults,

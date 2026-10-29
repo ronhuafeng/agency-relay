@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { apiEquivalentValue, OPENAI_PRICE_VERSION } from "../../src/usage/api-value";
-import { commitProviderAttemptAccounting, queryUsageDaily, queryUsageSummary } from "../../src/db";
+import { commitProviderAttemptAccounting } from "../../src/usage/accounting";
+import { queryUsageDaily, queryUsageSummary } from "../../src/usage/queries";
 import { makeFixture } from "../router/fixture";
-import type { CapturedProviderUsage } from "../../src/types";
+import type { CapturedProviderUsage } from "../../src/usage/types";
 import { formatUsdColumn, formatUsdTicks } from "../../src/admin/format";
 
 const usage: CapturedProviderUsage = {

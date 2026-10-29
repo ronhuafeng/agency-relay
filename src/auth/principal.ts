@@ -1,6 +1,7 @@
 import { generateId, nowIso } from "../crypto";
-import { d1ChangeCount, OPERATOR_MUTATION_AUDIT_COLUMNS } from "../db";
-import type { UserRow } from "../types";
+import { d1ChangeCount } from "../records";
+import { OPERATOR_MUTATION_AUDIT_COLUMNS } from "../control/mutation-audit";
+import type { UserRow } from "./types";
 import { HttpError, adminAuthRequired, adminRequired, emailConflict, publicInternalError, userInactive, userNotFound } from "../errors";
 
 export interface ConsolePrincipal {

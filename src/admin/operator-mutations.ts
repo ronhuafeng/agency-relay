@@ -43,15 +43,9 @@ import {
   replaceApiKeySurfaceCredential,
   type SurfaceCredentialSelection
 } from "../auth/bindings";
-import {
-  createUser as insertUser,
-  createCodexAuth as insertCodexAuth,
-  getCodexAuth,
-  getApiKeyById,
-  getUser,
-  insertOperatorMutationAudit,
-  type OperatorMutationAuditInput
-} from "../db";
+import { createUser as insertUser, getApiKeyById, getUser } from "../auth/access-store";
+import { createCodexAuth as insertCodexAuth, getCodexAuth } from "../codex/credential-store";
+import { insertOperatorMutationAudit, type OperatorMutationAuditInput } from "../control/mutation-audit";
 import { HttpError, codexAuthNotFound, keyNotActive, keyNotFound, subscriptionNotFound, userNotFound } from "../errors";
 import { parseGrokSessionArtifact } from "../grok/session-import";
 import {
@@ -63,7 +57,9 @@ import {
   type SubscriptionAccountRow,
   type SubscriptionEnvironment
 } from "../auth/subscription-accounts";
-import type { AppDependencies, CodexAuthRow, CodexToken, UserRow } from "../types";
+import type { AppDependencies } from "../types";
+import type { CodexAuthRow, CodexToken } from "../codex/types";
+import type { UserRow } from "../auth/types";
 import {
   assertIssuanceEntitlement,
   clearPersonalCreditPolicy,

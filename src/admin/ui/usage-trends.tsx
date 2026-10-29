@@ -1,6 +1,6 @@
 import { UsageComparisonIsland } from "./islands";
 import type { UsageSeriesControl } from "./usage-series";
-import type { MediaUsageDailyPoint, UsageDailyPoint, UsageDailyResult } from "../../types";
+import type { MediaUsageDailyPoint, UsageDailyPoint, UsageDailyResult } from "../../usage/types";
 import { executionPlanPresentation } from "../../plans/execution-plans";
 import { formatNumber, formatUsdTicks, formatUsageSeconds } from "../format";
 import type { UsageTrendRange } from "../usage-query";

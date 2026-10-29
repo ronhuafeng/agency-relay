@@ -3,7 +3,8 @@
  * K3: admin / execute-codex / execute-grok live in separate modules (no plugin registry).
  */
 import { authenticateEndUser } from "./auth/authenticate";
-import { cleanupRequestAudit, cleanupVideoJobs, requestAuditRetentionDays } from "./db";
+import { cleanupRequestAudit, requestAuditRetentionDays } from "./usage/queries";
+import { cleanupVideoJobs } from "./grok/media-store";
 import { errorMessage, HttpError, jsonResponse, routeNotFound } from "./errors";
 import { adoptIdentityVersions, IDENTITY_VERSION_CRON } from "./plans/identity-version";
 import { executeCodexPlan } from "./codex/execute";

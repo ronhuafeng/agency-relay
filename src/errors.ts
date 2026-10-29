@@ -1,5 +1,5 @@
 import { firstString } from "./records";
-import type { ErrorBody } from "./types";
+
 
 export class HttpError extends Error {
   readonly status: number;
@@ -199,4 +199,13 @@ export function normalizeError(error: unknown): HttpError {
     error_name: "unknown"
   }));
   return publicInternalError();
+}
+
+export interface ErrorBody {
+  error: {
+    message: string;
+    type: string;
+    code?: string;
+    request_id?: string;
+  };
 }

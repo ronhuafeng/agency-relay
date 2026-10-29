@@ -2,7 +2,7 @@ import {admitRuntimeRequest} from "./authorization";
 import {requireRuntimeInstallation,RUNTIME_PROFILES} from "./profiles";
 import {connectionHeaderNames} from "../proxy/adapter";
 import {cancelUnreadBody,clientDrivenStream,ByteStreamError,copyBytes,type ByteStreamEnd} from "../proxy/byte-stream";
-import type {AppDependencies} from "../types";
+import type { AppDependencies } from "../types";
 import type {RuntimeTransportError} from "./oauth";
 
 const CONTENT_HEADERS=new Set(["accept","accept-encoding","accept-language","content-type","content-encoding","content-language"]);

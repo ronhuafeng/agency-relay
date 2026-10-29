@@ -7,7 +7,9 @@ import {
   type CodexProviderTerminalOutcome
 } from "../../src/codex/adapter";
 import { MAX_RESPONSE_OBSERVATION_LAG_BYTES } from "../../src/proxy/observation";
-import type { AppDependencies, CapturedResponseUsage, FreshAccessToken, RequestContext } from "../../src/types";
+import type { AppDependencies, RequestContext } from "../../src/types";
+import type { CapturedResponseUsage } from "../../src/usage/types";
+import type { FreshAccessToken } from "../../src/codex/types";
 import egressProtocol from "../../deploy/codex-egress-shim/egress-protocol.json";
 import { REASONING_SUMMARY_SSE } from "../fixtures/codex-protocol";
 

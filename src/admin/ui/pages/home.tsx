@@ -1,6 +1,6 @@
 import type { AuthManagementProjection, StatusTone } from "../../auth-management";
 import { statusToneForState } from "../../auth-management";
-import type { RequestAttemptStateRow } from "../../../db";
+import type { RequestAttemptStateRow } from "../../../usage/queries";
 import { formatNumber, formatOperatorInstantOrDash, presentText } from "../../format";
 import { executionPlanPresentation } from "../../../plans/execution-plans";
 import { DashLink, Panel, View } from "../chrome";
