@@ -41,7 +41,7 @@ for (const script of [true, false]) test.describe(`contextual help with script=$
     await page.locator('[data-key-id="member-key"]').getByRole('link', {name:'管理密钥',exact:false}).click();
     if(script) await openKeyEditor(page,'replace');
     const form=page.locator('form[action$="/member-key/replace"]');
-    expect(await form.getAttribute('data-confirmation')).toContain('旧密钥在到期或被撤销前仍然有效');
+    expect(await form.getAttribute('data-confirmation-details')).toContain('旧密钥在到期或被撤销前仍然有效');
     expect(worker.requests.every(request => request.method === 'GET')).toBe(true);
   });
 });
@@ -125,7 +125,9 @@ for (const script of [true, false]) test.describe(`confirmation consequence help
     await page.goto('/admin?view=access&person=member');
     const status = page.locator('form[data-action="user-status"]');
     const consequence = await status.getAttribute('data-confirmation');
+    const details = await status.getAttribute('data-confirmation-details');
     expect(consequence).toBeTruthy();
+    expect(details).toBeTruthy();
     const prompts = page.locator('main form[data-confirmation] [data-confirmation-prompt]');
     if (script) {
       await expect(page.locator('main [data-confirmation-prompt]:visible')).toHaveCount(0);
@@ -133,6 +135,7 @@ for (const script of [true, false]) test.describe(`confirmation consequence help
       await status.getByRole('switch').click();
       const dialog = page.getByRole('alertdialog');
       await expect(dialog).toContainText(consequence!);
+      await expect(dialog.locator('[data-confirmation-details]')).toHaveText(details!);
       await dialog.getByRole('button', {name: '取消', exact: true}).click();
       await expect(dialog).toHaveCount(0);
     } else {
@@ -140,7 +143,10 @@ for (const script of [true, false]) test.describe(`confirmation consequence help
       const prompt = status.locator('[data-confirmation-prompt]');
       await expect(prompt.getByRole('checkbox')).toBeVisible();
       await prompt.getByRole('button', {name: '操作影响', exact: true}).click();
-      await expect(prompt.getByRole('complementary', {name: '操作影响'})).toContainText(consequence!);
+      await expect(prompt.getByRole('checkbox')).toHaveAccessibleName(consequence!);
+      const help = prompt.getByRole('complementary', {name: '操作影响'});
+      await expect(help).toContainText(consequence!);
+      await expect(help.locator('[data-confirmation-details]')).toHaveText(details!);
     }
   });
 });

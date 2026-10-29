@@ -16,6 +16,7 @@ export interface TaskEditorControl {
   readonly hidden: Readonly<Record<string, string>>;
   readonly select?: SelectControl;
   readonly confirmation?: string;
+  readonly confirmationDetails?: string;
   readonly confirmEmail?: boolean;
   readonly draftKind?: "person";
   readonly draftScope?: string;
@@ -34,6 +35,7 @@ export function readTaskEditor(value: unknown): TaskEditorControl | null {
     || typeof control.select.name !== "string" || typeof control.select.id !== "string"
     || typeof control.select.label !== "string" || typeof control.select.value !== "string" || typeof control.select.required !== "boolean")) return null;
   if (control.confirmation !== undefined && typeof control.confirmation !== "string"
+    || control.confirmationDetails !== undefined && typeof control.confirmationDetails !== "string"
     || control.confirmEmail !== undefined && typeof control.confirmEmail !== "boolean"
     || control.draftKind !== undefined && control.draftKind !== "person"
     || control.draftScope !== undefined && (typeof control.draftScope !== "string" || !control.draftScope)) return null;
@@ -65,11 +67,11 @@ export function TaskEditorView({control}: {readonly control: TaskEditorControl})
   return <details ref={disclosure} className="task-editor" open={open} onToggle={event => setOpen(event.currentTarget.open)}>
     <Button asChild variant="ghost"><summary ref={trigger} role="button" aria-label={control.label} aria-expanded={enhanced ? open : undefined}><Icon name="edit"/>{control.label}{!open && hasDraft ? <span className="caption" data-task-draft-indicator="" role="status">有未保存的修改</span> : null}</summary></Button>
     <div>
-      <form ref={form} className="board-form task-editor-form" method="post" action={control.action} autoComplete="off" data-dashboard-draft={control.draftKind} data-draft-scope={control.draftScope} data-confirmation={control.confirmation} data-confirm-email={control.confirmEmail ? "" : undefined}>
+      <form ref={form} className="board-form task-editor-form" method="post" action={control.action} autoComplete="off" data-dashboard-draft={control.draftKind} data-draft-scope={control.draftScope} data-confirmation={control.confirmation} data-confirmation-details={control.confirmationDetails} data-confirm-email={control.confirmEmail ? "" : undefined}>
         {Object.entries(control.hidden).map(([name,value]) => <input key={name} type="hidden" name={name} value={value}/>)}
         {control.fields.map(field => <Field key={field.name} control={field}/>)}
         {control.select ? <SelectView control={control.select}/> : null}
-        {control.confirmation ? <ConfirmationFallback message={control.confirmation}/> : null}
+        {control.confirmation ? <ConfirmationFallback message={control.confirmation} details={control.confirmationDetails}/> : null}
         <div className="person-form-actions"><Button type="submit">{control.submitLabel}</Button>{enhanced ? <Button type="button" variant="ghost" onClick={() => {setOpen(false);trigger.current?.focus({preventScroll:true});}}>取消</Button> : null}</div>
       </form>
     </div>

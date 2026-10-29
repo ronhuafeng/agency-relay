@@ -344,8 +344,8 @@ describe("ChatGPT admission presentation", () => {
     form.querySelector<HTMLInputElement>('[data-confirmation-fallback] input')!.checked = true;
     expect(form.checkValidity()).toBe(true);
     expect(form.dataset.confirmation).toContain("Same label（collision）");
-    expect(form.dataset.confirmation).toContain("不会自动切换连接");
-    expect(form.dataset.confirmation).toContain("已接受的请求或外部任务不会因此取消");
+    expect(form.dataset.confirmationDetails).toContain("不会自动切换连接");
+    expect(form.dataset.confirmationDetails).toContain("已接受的请求或外部任务不会因此取消");
     expect(document.querySelector<HTMLButtonElement>('[data-action="refresh-codex"] button')?.disabled).toBe(false);
     const unavailable = fixture("FROM organization_surface_credential_defaults AS d");
     const failed = new JSDOM((await unavailable.render("&account=codex%3Acollision")).html).window.document;

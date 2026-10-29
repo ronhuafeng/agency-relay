@@ -157,7 +157,7 @@ it("admin transfer explicitly warns about unchanged bearers, shows safe affected
   const f=await fixture();try{
     await f.create();const page=await f.call(`/admin?view=access&person=${f.service.id}`,{person:f.admin.id,html:true});expect(page.status).toBe(200);
     const doc=new JSDOM(await page.text()).window.document;const form=doc.querySelector(`form[action$="/${f.service.id}/owner"]`)!;
-    expect(form.getAttribute("data-confirmation")).toContain("仍可进行 API 调用");expect(form.querySelector('input[name=expected_revision]')?.getAttribute('value')).toBe("1");
+    expect(form.getAttribute("data-confirmation-details")).toContain("仍可调用 API");expect(form.querySelector('input[name=expected_revision]')?.getAttribute('value')).toBe("1");
     expect(doc.querySelector('a[href="'+f.prefix+'?view=keys"]')).not.toBeNull();expect(doc.querySelector(`#service-owner-keys-${f.service.id}`)?.textContent).toContain("Build");
     const transfer=await f.call(`/admin/ui/services/${f.service.id}/owner`,{person:f.admin.id,method:"POST",body:{owner_user_id:f.other.id,expected_revision:"1",confirm:"1",person_return:`/admin?view=access&person=${f.service.id}`},html:true});expect(transfer.status).toBe(200);
     const result=await transfer.text();expect(result.includes("密钥没有更改")).toBe(true);expect(result.includes('data-mutation-flash="service_owner_changed"')).toBe(true);
@@ -218,7 +218,7 @@ it("human offboarding shows assigned service key impact and warns that copied se
     const response = await f.call(`/admin?view=access&person=${f.owner.id}`, {person:f.admin.id,html:true});
     expect(response.status).toBe(200); const doc = new JSDOM(await response.text()).window.document;
     const form = doc.querySelector(`form[action='/admin/ui/users/${f.owner.id}/status']`)!;
-    expect(form.getAttribute('data-confirmation')).toContain('服务账号密钥仍可能用于 API 调用');
+    expect(form.getAttribute('data-confirmation-details')).toContain('已复制的服务密钥仍可能被使用');
     const impact = doc.querySelector('[data-assigned-service-impact]');
     expect(impact?.textContent).toContain('Nightly automation'); expect(impact?.textContent).toContain('Build');
     expect(impact?.querySelector(`a[href='${f.prefix}?view=keys&key=${key.key.id}']`)).not.toBeNull();

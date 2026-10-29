@@ -31,6 +31,7 @@ interface PendingConfirmation {
   form: HTMLFormElement;
   submitter: HTMLElement | null;
   message: string;
+  details: string;
   label: string;
   destructive: boolean;
 }
@@ -77,6 +78,7 @@ function ConfirmDialog() {
           + (form.hasAttribute("data-confirm-email") ? ` 新邮箱：${new FormData(form).get("email") ?? ""}` : "")
           + (form.hasAttribute("data-confirm-service-owner") ? ` 新的管理人：${form.querySelector<HTMLSelectElement>('select[name="owner_selection"]')?.selectedOptions[0]?.textContent ?? "未选择"}` : "")
           + (form.hasAttribute("data-confirm-credential") ? ` 选择的连接：${form.querySelector<HTMLSelectElement>('select[name="credential_account_id"],select[name="replacement_account_id"]')?.selectedOptions[0]?.textContent ?? "未选择"}` : ""),
+        details: form.dataset.confirmationDetails ?? "",
         label: submitter?.dataset.confirmLabel || submitter?.textContent?.trim() || "确认",
         destructive: submitter?.dataset.variant === "destructive"
       });
@@ -103,7 +105,8 @@ function ConfirmDialog() {
     }}>
       <AlertDialogHeader>
         <AlertDialogTitle>{pending?.label ?? "确认操作"}</AlertDialogTitle>
-        <AlertDialogDescription data-tone={pending?.destructive ? "bad" : undefined}>{pending?.message}</AlertDialogDescription>
+        {/* The dialog is the on-demand surface: the primary sentence leads and the details stay visible below it. */}
+        <AlertDialogDescription asChild data-tone={pending?.destructive ? "bad" : undefined}><div><p>{pending?.message}</p>{pending?.details ? <p className="confirmation-details" data-confirmation-details="">{pending.details}</p> : null}</div></AlertDialogDescription>
       </AlertDialogHeader>
       <AlertDialogFooter>
         <AlertDialogCancel className="confirmation-cancel" autoFocus>取消</AlertDialogCancel>

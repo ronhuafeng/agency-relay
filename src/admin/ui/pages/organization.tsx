@@ -2,7 +2,7 @@ import type { ControlAuditRow } from "../../control-audit";
 import { CREDIT_SURFACE_IDS } from "../../../auth/credits";
 import { DashLink, VisibleRowFilter } from "../chrome";
 import { Button } from "../components/button";
-import { ConfirmationFallback } from "../fields";
+import { ConfirmationFallback, confirmationAttributes, type Confirmation } from "../fields";
 import { Label } from "../components/label";
 import { InputGroup, InputGroupInput, InputGroupAddon } from "../components/input-group";
 import { formatNumber, formatOperatorInstantOrDash, presentText } from "../../format";
@@ -26,14 +26,17 @@ function surfaceTitle(surface: string): string {
 }
 
 export function QuotasPage({ defaults }: { readonly defaults: readonly QuotaDefault[] }) {
-  const warning = "保存组织默认额度？继承它的账号将使用这些月度上限；个人额度和已用量保持不变，额度按 UTC 月重置。0 credits 只允许不计额度的操作。xAI API 额度大于 0 时，成员可以使用上游团队的共享资源。";
+  const warning: Confirmation = {
+    primary: "保存组织默认额度？继承它的账号立即使用新上限。xAI API 额度大于 0 时可使用团队共享资源。",
+    details: "个人额度和已用量保持不变，额度按 UTC 月重置。0 credits 只允许不计额度的操作。"
+  };
   return (
     <section className="organization-policy-workspace" aria-label="组织额度" data-view-role="quotas">
       <header className="organization-policy-heading">
         <h2>组织默认额度</h2>
         <p>设置成员与服务账号的每月额度。使用个人额度的账号不受影响。</p>
       </header>
-      <form className="organization-policy-form" autoComplete="off" data-dashboard-draft="credit-defaults" method="post" action="/admin/ui/credit-defaults" data-confirmation={warning}><Card className="organization-policy-board">
+      <form className="organization-policy-form" autoComplete="off" data-dashboard-draft="credit-defaults" method="post" action="/admin/ui/credit-defaults" {...confirmationAttributes(warning)}><Card className="organization-policy-board">
       <input type="hidden" name="confirm" value="1"/>
       <header className="organization-policy-scope"><span>每人每月</span><span>按 UTC 自然月重置</span><InfoPopover id="organization-quota-rules" label="额度规则" iconOnly><p>组织默认只影响继承它的账号，不是组织共用预算。修改上限不会清零已用量。</p><p>0 credits 仍允许不计额度的操作，不等于停用服务。</p></InfoPopover></header>
       <CardContent>
@@ -48,7 +51,7 @@ export function QuotasPage({ defaults }: { readonly defaults: readonly QuotaDefa
             </div>
           );
         })}
-      </CardContent><CardFooter><p className="caption">三项一起保存，已用额度不会清零。</p><ConfirmationFallback message={warning}/><Button type="submit" disabled={defaults.length !== CREDIT_SURFACE_IDS.length}>保存额度</Button></CardFooter>
+      </CardContent><CardFooter><p className="caption">三项一起保存，已用额度不会清零。</p><ConfirmationFallback message={warning.primary} details={warning.details}/><Button type="submit" disabled={defaults.length !== CREDIT_SURFACE_IDS.length}>保存额度</Button></CardFooter>
       {defaults.length !== CREDIT_SURFACE_IDS.length ? <p role="alert">组织默认额度未完整读到，请重新读取后再保存。</p> : null}
       </Card></form>
     </section>

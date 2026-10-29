@@ -262,7 +262,7 @@ describe("role-aware console", () => {
     const amount = quotaDoc.querySelector('[data-quota-default="codex"] input[name="codex"]');
     expect(amount?.getAttribute("min")).toBe("0");
     expect(amount?.hasAttribute("required")).toBe(true);
-    expect(quotaDoc.querySelector('.organization-policy-form')?.getAttribute("data-confirmation")).toContain("0 credits 只允许不计额度的操作");
+    expect(quotaDoc.querySelector('.organization-policy-form')?.getAttribute("data-confirmation-details")).toContain("0 credits 只允许不计额度的操作");
     expect(quotasHtml).not.toContain(">Unlimited<");
     const audit = await admin(fixture, "https://admin.example.test/admin?view=control-audit", { method: "GET" });
     expect(audit.status).toBe(200);

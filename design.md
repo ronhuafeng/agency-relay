@@ -438,6 +438,14 @@ dialog already owns that decision.
 Help gives short, actionable installation or recovery steps, not internal design
 rules or an inventory of everything that might fail.
 
+Write each consequential confirmation in two parts. Primary (`data-confirmation`,
+about 40 characters at most): what happens to which object, now. Details
+(`data-confirmation-details`): what does not change, what remains possible and how
+to recover. Authority changes, irreversibility and xAI shared-team effects stay in
+the primary sentence. The dialog shows the primary sentence first and the details
+below it; the native acknowledgement names the primary sentence and its help shows
+both, so no fact is lost without JavaScript.
+
 Write the object and outcome in familiar words. Remove explanations that merely
 describe how to operate a clear control. Keep a short impact statement beside a
 control when the consequence cannot be expressed by the control alone. Place field
