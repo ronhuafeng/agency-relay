@@ -72,7 +72,7 @@ describe('task-oriented console layouts',()=>{
       expect(detail.querySelector(`#credit-policy-member-${surface}-editor select[name="mode"]`)?.querySelectorAll('option')).toHaveLength(3);
     }
     expect(detail.querySelector('[data-action="user-status"]')?.getAttribute('data-confirmation-details')).toContain('已复制的服务密钥');
-    for(const link of detail.querySelectorAll<HTMLAnchorElement>('nav[aria-label="人员内容"] a')) expect(doc.querySelector(link.hash)).not.toBeNull();
+    for(const link of detail.querySelectorAll<HTMLAnchorElement>('nav[aria-label="账号内容"] a')) expect(doc.querySelector(link.hash)).not.toBeNull();
     expect(doc.body.textContent).not.toContain('invalid-display-only-hash');
   });
   it('keeps member creation and selected/missing keys exact',async()=>{

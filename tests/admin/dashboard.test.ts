@@ -1047,7 +1047,7 @@ describe("Dashboard", () => {
     expect(html).toContain("查看路由");
     expect(html).toContain("通过已连接的 ChatGPT 使用 Codex CLI。");
     expect(html).toContain("包含 Grok Build，以及有限的 xAI 能力。文件和视频仍绑定上游账号所有者。");
-    expect(html).toContain("可以操作组织共享的 xAI API 资源。只授予值得信任的人员。");
+    expect(html).toContain("可以操作组织共享的 xAI API 资源。只授予值得信任的成员。");
     expect(html).toContain("api.trustedtunnel.app");
     expect(html.match(/name="clients"/g)).toHaveLength(3);
     expect(html).not.toContain("sourcePlanId");

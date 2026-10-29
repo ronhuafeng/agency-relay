@@ -76,11 +76,11 @@ export function initializeMutations(navigation: TaskController): () => void {
           const outcome = result.dataset.dashboardMutation?.endsWith("_error") ? "rejected" : "confirmed";
           recordConsoleOutcome(outcome);
           if (!retainConsoleActor(doc, outcome)) return;
-          const inputError = doc.querySelector("[data-mutation-input-error]");
+          const inputError = doc.querySelector<HTMLElement>("[data-mutation-input-error]");
           if (inputError) {
             const recovery = inputError.querySelector<HTMLAnchorElement>("a[data-rejected-read]");
             const readUrl = recovery ? new URL(recovery.getAttribute("href") ?? "",location.href) : null;
-            navigation.notice(inputError.querySelector("p")?.textContent ?? inputError.textContent ?? "请检查填写的内容。", "error", readUrl?.origin === location.origin ? readUrl : null, recovery?.textContent?.trim() || "查看当前状态", inputError.querySelector<HTMLElement>("[data-error-code]")?.dataset.errorCode);
+            navigation.notice(inputError.querySelector("p")?.textContent ?? inputError.textContent ?? "请检查填写的内容。", "error", readUrl?.origin === location.origin ? readUrl : null, recovery?.textContent?.trim() || "查看当前状态", (inputError.matches("[data-error-code]") ? inputError : inputError.querySelector<HTMLElement>("[data-error-code]"))?.dataset.errorCode);
             focusNotice(); return;
           }
           navigation.showMutationResult(doc, form); recordConsoleOutcome(outcome); return;

@@ -829,11 +829,11 @@ table.member-quota-table [data-slot=progress] { height:6px; margin-top:8px; }
   .person-credit-table thead { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); }
   .person-credit-table tr[data-credit-surface] { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:var(--space-2) var(--space-3); padding:var(--space-3) 0; border-bottom:1px solid var(--line-soft); }
   .person-credit-table tr[data-credit-surface]>td { display:block; min-width:0; padding:0; border:0; text-align:left; }
-  .person-credit-table tr[data-credit-surface]>td:nth-child(1) { grid-column:1/-1; grid-row:1; }
+  .person-credit-table tr[data-credit-surface]>td:nth-child(1) { grid-column:1/3; grid-row:1; }
+  .person-credit-table tr[data-credit-surface]>td:nth-child(2) { grid-column:3; grid-row:1; justify-self:end; }
   .person-credit-table tr[data-credit-surface]>td[data-label] { grid-row:2; }
-  /* Key access and the controls share the last row across the full card width, so the
-     wider native acknowledgement never narrows the values or changes the card height. */
-  .person-credit-table tr[data-credit-surface]>td:nth-child(2) { grid-column:1; grid-row:3; align-self:center; }
+  /* The controls own the last row across the full card width, so the wider native
+     acknowledgement never narrows the values, overlaps key access or changes the height. */
   .person-credit-table tr[data-credit-surface]>td:nth-child(6) { grid-column:1/-1; grid-row:3; justify-self:end; }
   .person-credit-table tr[data-credit-surface]>td[data-label]::before { content:attr(data-label); display:block; color:var(--muted-foreground); font-size:11px; }
   .person-credit-table .credit-editor-row,.person-credit-table .credit-editor-row>td { display:block; }

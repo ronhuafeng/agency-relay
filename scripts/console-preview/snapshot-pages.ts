@@ -34,7 +34,8 @@ const targets: readonly Target[] = [
 // A filtered run refreshes only its own captures.
 if (!filter) rmSync(outdir, { recursive: true, force: true });
 mkdirSync(outdir, { recursive: true });
-const preview = await buildPreviewRouter(outdir, 1);
+// Bundles stay out of the capture directory so it holds review material only.
+const preview = await buildPreviewRouter("tmp/console-snapshot-build", 1);
 let fixture: PreviewFixture | undefined;
 let role = "admin";
 let theme: PreviewTheme = "light";
