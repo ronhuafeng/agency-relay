@@ -73,6 +73,10 @@ only after at least two real tasks share the same layout/interaction problem. Pa
 bind business data and operations and may own genuinely unique layout; they do not
 redefine semantic tokens or reach into primitive internals to repair appearance.
 
+`design.md` keeps rules that apply across pages and non-obvious page decisions with
+their reason. Page geometry, sizes and per-page states belong to the page source and
+the browser layout specs that pin them, so prose cannot drift from code.
+
 Preserve product contracts rather than DOM/class snapshots: exact URLs and return
 targets, authority, state distinctions, native forms, one-time secrets, mutation
 outcomes, focus and recovery remain intact.
