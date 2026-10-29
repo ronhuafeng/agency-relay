@@ -52,7 +52,9 @@ jobs:
       - name: Switch the verified version to 100 percent
         env:
           VERSION: ${{ steps.uploaded.outputs.version }}
-        run: pnpm exec wrangler versions deploy "$VERSION@100" --message "release $GITHUB_SHA" --yes
+        run: |
+          test "$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq .object.sha)" = "$GITHUB_SHA"
+          pnpm exec wrangler versions deploy "$VERSION@100" --message "release $GITHUB_SHA" --yes
       - name: Read back the actual deployment
         run: pnpm exec tsx scripts/release-control.ts deployed
       - name: Preserve the deployed package and release identity

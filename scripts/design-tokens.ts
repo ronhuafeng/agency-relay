@@ -242,7 +242,9 @@ export interface DesignTokenProjection {
   };
 }
 
-export async function projectDesignTokens(designMdSource = "---\n\n---\n", filename = new URL("../tokens/console.resolver.json", import.meta.url)): Promise<DesignTokenProjection> {
+export function projectDesignTokens(): Promise<Omit<DesignTokenProjection, "designMd">>;
+export function projectDesignTokens(designMdSource: string, filename?: URL): Promise<DesignTokenProjection>;
+export async function projectDesignTokens(designMdSource?: string, filename = new URL("../tokens/console.resolver.json", import.meta.url)): Promise<Omit<DesignTokenProjection, "designMd"> | DesignTokenProjection> {
   const parsed = await parse([{ filename, src: readFileSync(filename, "utf8") }], { config });
   if (!parsed.resolver) throw new Error("Console token resolver did not load.");
   const light = parsed.resolver.apply({ theme: "light" });
@@ -254,7 +256,9 @@ export async function projectDesignTokens(designMdSource = "---\n\n---\n", filen
     light: { background: hex(light, "color.background"), card: hex(light, "color.card") },
     dark: { background: hex(dark, "color.background"), card: hex(dark, "color.card") },
   };
+  const runtime = { css: String(file.contents).replace(/^--/gm, "  --"), theme };
+  if (designMdSource === undefined) return runtime;
   const designMd = `${frontmatter(light, dark)}${designBody(designMdSource)}`;
   lintDesignMd(designMd);
-  return { css: String(file.contents).replace(/^--/gm, "  --"), designMd, theme };
+  return { ...runtime, designMd };
 }
