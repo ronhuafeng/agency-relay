@@ -165,7 +165,7 @@ describe("native credential task commit boundary", () => {
     const disconnected = await f.request("/admin/ui/subscriptions/old/logout", [["confirm", "1"]]);
     expect(disconnected.status).toBe(200);
     const partial = new JSDOM(await disconnected.text()).window.document;
-    expect(partial.querySelector('[data-mutation-flash="credential_disconnected"]')?.textContent).toContain("连接已断开，令牌清理未确认");
+    expect(partial.querySelector('[data-mutation-flash="credential_disconnected"][data-token-cleanup="failed"]')).not.toBeNull();
     expect(partial.querySelector('[data-action="credential-cleanup"]')?.getAttribute("action")).toBe("/admin/ui/subscriptions/old/cleanup");
     expect(f.status()).toEqual({status: "revoked"}); expect(f.cleanup).toEqual(["subscription:old"]);
     const beforeCleanup = f.audits();
@@ -174,7 +174,7 @@ describe("native credential task commit boundary", () => {
     f.failCleanup(false);
     const completed = await f.request("/admin/ui/subscriptions/old/cleanup", [["confirm", "1"]]);
     expect(completed.status).toBe(200);
-    expect(new JSDOM(await completed.text()).window.document.querySelector('[data-mutation-flash="credential_cleanup"]')?.textContent).toContain("令牌清理已确认");
+    expect(new JSDOM(await completed.text()).window.document.querySelector('[data-mutation-flash="credential_cleanup"][data-token-cleanup="cleared"]')).not.toBeNull();
     expect(f.status()).toEqual({status: "revoked"}); expect(f.bindings()).toEqual(moved); expect(f.defaults()).toEqual(defaults);
     expect(f.audits().filter(row => row.action === "credential.cleanup_retry")).toHaveLength(1);
   });
@@ -224,13 +224,13 @@ describe("native credential task commit boundary", () => {
     f.failCleanup(true);
     const disconnected = await f.request("/admin/ui/codex-auths/codex-old/logout",[["confirm","1"]]);
     expect(disconnected.status).toBe(200);
-    expect(new JSDOM(await disconnected.text()).window.document.querySelector('[data-mutation-flash="credential_disconnected"]')?.textContent).toContain("连接已断开，令牌清理未确认");
+    expect(new JSDOM(await disconnected.text()).window.document.querySelector('[data-mutation-flash="credential_disconnected"][data-token-cleanup="failed"]')).not.toBeNull();
     expect(f.db.sqlite.prepare("SELECT status FROM codex_auths WHERE id='codex-old'").get()).toEqual({status:"revoked"});
     expect(f.cleanup).toEqual(["codex-old"]);
     f.failCleanup(false);
     const cleaned = await f.request("/admin/ui/codex-auths/codex-old/cleanup",[["confirm","1"]]);
     expect(cleaned.status).toBe(200);
-    expect(new JSDOM(await cleaned.text()).window.document.querySelector('[data-mutation-flash="credential_cleanup"]')?.textContent).toContain("令牌清理已确认");
+    expect(new JSDOM(await cleaned.text()).window.document.querySelector('[data-mutation-flash="credential_cleanup"][data-token-cleanup="cleared"]')).not.toBeNull();
     expect(f.db.sqlite.prepare("SELECT status FROM codex_auths WHERE id='codex-old'").get()).toEqual({status:"revoked"});
     expect(f.bindings().filter(row=>row.api_key_id!=="codex-key")).toEqual(grokBindings);
     expect(f.defaults().filter(row=>row.surface_grant!=="surface:codex:production")).toEqual(grokDefaults);

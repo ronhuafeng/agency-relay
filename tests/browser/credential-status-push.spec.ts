@@ -22,7 +22,7 @@ test("a credential notification updates the open exact detail while retaining it
   await expect(detail.locator("[data-credential-status]")).toHaveText("需要重新连接");
   await expect(page.locator('[data-account-key="codex:fixture-codex"] [data-credential-status]')).toHaveText("需要重新连接");
   await expect(detail.locator("[data-credential-hint]")).toContainText("请重新登录");
-  await expect(detail.getByRole("button", {name: "刷新账号", exact: true})).toBeDisabled();
+  await expect(detail.getByRole("button", {name: "刷新连接", exact: true})).toBeDisabled();
   await expect(detail.getByRole("button", {name: "重新连接", exact: true})).toBeVisible();
   const current = detail.locator("[data-credential-read-current]"); await expect(current).toBeVisible();
   const readUrl = new URL((await current.getAttribute("href"))!, worker.origin);

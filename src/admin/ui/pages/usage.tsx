@@ -87,7 +87,7 @@ export function UsagePage({model}: {readonly model: UsagePageModel}) {
     {[...url.searchParams].filter(([key]) => key !== "q").map(([key, value]) => <input key={key} type="hidden" name={key} value={value}/>)}
     <div className="usage-search">
       <InputGroup>
-        <InputGroupInput type="search" name="q" aria-label={model.filterPlaceholder ?? "搜索人员或模型"} placeholder={model.filterPlaceholder ?? "搜索人员或模型"} defaultValue={model.search ?? ""} maxLength={256} autoComplete="off"/>
+        <InputGroupInput type="search" name="q" aria-label={model.filterPlaceholder ?? "搜索账号或模型"} placeholder={model.filterPlaceholder ?? "搜索账号或模型"} defaultValue={model.search ?? ""} maxLength={256} autoComplete="off"/>
         {model.search ? <a className="usage-search-clear" data-dashboard-link="" href={inventoryUrl(`${url.pathname}${url.search}`, {q: null})}>清除</a> : null}
         <button type="submit" className="usage-search-icon" aria-label="搜索"><Search aria-hidden="true"/></button>
       </InputGroup>
@@ -98,7 +98,7 @@ export function UsagePage({model}: {readonly model: UsagePageModel}) {
     emptyLabel: model.trends && model.trends.daily.responses.length === 0 && model.trends.daily.media.length === 0 ? "" : model.range.emptyLabel,
     exportUrl: model.range.rawUsageUrl,
     truncated: model.rowsTruncated || model.mediaRowsTruncated,
-    filterPlaceholder: model.filterPlaceholder ?? "搜索人员或模型",
+    filterPlaceholder: model.filterPlaceholder ?? "搜索账号或模型",
     limitNote: model.limitNote ?? "请求和媒体记录分别显示最多 250 条，导出文件中各保留最多 1,000 条。"
   }} /></div></section></div>;
 }

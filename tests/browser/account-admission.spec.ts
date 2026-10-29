@@ -39,7 +39,7 @@ for (const script of [true, false]) test.describe(`account admission script ${sc
     expect(admissionPosts(worker.requests)).toHaveLength(0);
     expect(worker.codexAdmissionFacts()).toEqual(before);
 
-    await confirm(page, form, script, "暂停请求");
+    await confirm(page, form, script, "暂停接收请求");
     await expect(page.locator('[data-mutation-flash="codex_admission"]')).toContainText("ChatGPT 请求已暂停");
     await expect(toggle).not.toBeChecked();
     await expect(form).toHaveAttribute("action", "/admin/ui/codex-auths/fixture-codex/resume");
@@ -54,8 +54,8 @@ for (const script of [true, false]) test.describe(`account admission script ${sc
     expect(read.status()).toBe(200);
     expect((await read.json()).auths.find((account: {id:string}) => account.id === "fixture-codex")).toMatchObject({status:"active",admission_state:"paused"});
 
-    await confirm(page, form, script, "恢复请求");
-    await expect(page.locator('[data-mutation-flash="codex_admission"]')).toContainText("ChatGPT 请求准入已恢复");
+    await confirm(page, form, script, "恢复接收请求");
+    await expect(page.locator('[data-mutation-flash="codex_admission"]')).toContainText("ChatGPT 连接已恢复接收请求");
     await expect(toggle).toBeChecked();
     expect(worker.codexAdmissionFacts()).toEqual(before); expect(worker.keyMetadata()).toEqual(keys);
     expect(admissionPosts(worker.requests).map(request=>request.path)).toEqual(["/admin/ui/codex-auths/fixture-codex/pause","/admin/ui/codex-auths/fixture-codex/resume"]);
@@ -70,7 +70,7 @@ test("an uncertain pause blocks replay and reconciles the exact committed accoun
   await expect(admission(page).locator('[data-confirmation-fallback]')).toBeHidden();
   const write = worker.hold({method:"POST",path:"/admin/ui/codex-auths/fixture-codex/pause"});
   try {
-    await confirm(page, admission(page).locator("form"), true, "暂停请求");
+    await confirm(page, admission(page).locator("form"), true, "暂停接收请求");
     await write.entered;
     expect(worker.codexAdmissionFacts().account?.admission_state).toBe("paused");
     // The server has committed, but no success response has arrived in this page.
@@ -95,7 +95,7 @@ test("a metadata pause invalidates the stale control and keeps the exact recover
   await page.goto(target);
   await expect.poll(()=>Boolean(channel)).toBe(true);
   await expect.poll(()=>worker.requests.filter(request=>request.path === "/admin/credential-status").length).toBeGreaterThan(0);
-  const search = page.getByRole("searchbox", {name:"搜索账号",exact:true});
+  const search = page.getByRole("searchbox", {name:"搜索连接",exact:true});
   await search.fill("unfinished search");
   worker.setBoundCredentialAdmission("paused"); channel!.send(JSON.stringify({type:"credentials-changed"}));
   await expect(admission(page).getByRole("switch")).toBeDisabled();

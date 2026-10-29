@@ -455,11 +455,79 @@ not ordinary onboarding copy.
 | Account-state action | `已启用` / `已停用`; confirmation `启用账号` / `停用账号` | An isolated “enable” fact that looks editable but has no control. |
 | Setup selection | `选择成员与密钥` | `使用已有密钥` when the action actually opens a selection list. |
 | Local file generation | `生成配置文件` | Wording that suggests it creates a key or verifies a task. |
-| New secret and package | `换发密钥并下载配置包` | `创建安装包` when issuance is the consequential effect. |
+| New secret and package | `更换密钥并下载配置包` | `创建安装包` when issuance is the consequential effect. |
 | Task evidence | `尚无任务请求记录`, or the dated recorded outcome | `就绪` based only on a download or model-list response. |
 | Routine data reads | Quiet background reads; show only an actionable failure or deferred update | A global refresh button, `刚刚更新` row or permanent freshness warning. |
 | Request identifiers | `请求 ID`, with secondary diagnostic help | Backend field names as the main label. |
 | Unknown mutation | `结果尚未确认`, with a read-only recovery action | A success claim or a retry that may repeat the mutation. |
+
+#### Vocabulary
+
+Each object and action has one visible Chinese name. Audience `admin` terms appear
+only on organization pages; member pages use the member wording. `diagnostics`
+terms stay in help popovers or detail facts. Tests may pin these terms exactly
+(see [test authoring](tests/AGENTS.md)); other copy is free to change.
+
+Identities:
+
+| Concept | Term | Audience | Avoid |
+| --- | --- | --- | --- |
+| Human with an organization email | `成员` | all | `用户`, `人员` (the page name `成员与服务` stays) |
+| Administrator role | `管理员` | all | |
+| Non-login identity for automation | `服务账号` | all | `服务` alone when the identity is meant |
+| Legacy identity needing classification | `待确认账号` | admin | |
+| Console identity of either kind | `账号` | all | `账号` for a provider credential |
+
+Upstream connections:
+
+| Concept | Term | Audience | Avoid |
+| --- | --- | --- | --- |
+| A connected ChatGPT/Grok credential | `上游连接`; specifically `ChatGPT 连接` / `Grok 连接` | admin | `账号`, `上游账号`, `账号连接` |
+| The provider-side account behind a connection | `上游账号` | admin; runtime consent | A synonym for `上游连接` |
+| Add / authorize / reconnect / refresh / disconnect | `添加上游连接` / `连接` / `重新连接` / `刷新连接` / `断开` | admin | `添加账号`, `刷新账号` |
+| Admission pause on a connection | `暂停接收请求` / `恢复接收请求` | admin | `暂停请求准入` |
+| Default for new keys | `新密钥的默认连接` | admin | `默认账号` |
+| Key → connection assignment | `密钥使用的上游连接` (`绑定` in admin detail) | admin | `密钥使用的账号` |
+| OAuth/refresh material | `凭据` (`清理旧凭据`) | admin | `令牌` (reserved for usage) |
+
+Keys:
+
+| Concept | Term | Audience | Avoid |
+| --- | --- | --- | --- |
+| API key | `密钥` | all | `secret`, `API 密钥` unless the API context is required |
+| Create key | `创建密钥` | all | `发行`, `授予新的访问` |
+| Replace key (active or expired source) | `更换密钥` | all | `换发`, `续发` |
+| Replace with a one-time package | `更换密钥并下载配置包` | admin setup | `换发密钥并下载配置包` |
+| Rename / revoke | `重命名` / `撤销` | all | |
+| Key family capacity | `最多 5 个有效密钥（更换期间的新旧密钥算一个）` | all | `家族`, `密钥家族` |
+| Replacement overlap | `更换中（新旧密钥都有效）` | all | `重叠`, `同家族` |
+
+Allowance:
+
+| Concept | Term | Audience | Avoid |
+| --- | --- | --- | --- |
+| Monthly credit allowance | `额度` (unit `credits`) | all | `配额` |
+| Policy mode | `额度政策`: `限额` / `不限` / `停用` | admin | `策略` |
+| Organization default | `组织默认额度` | all | |
+| Personal override | `个人额度` | all | `账号额度`, `自定义额度` |
+| Allowance admission switch | `请求准入` | admin | On member pages: `可用` / `已停用` |
+| Operations allowed at 0 | `不计额度的操作` | admin; member pages say `额度为 0` | `零消耗操作` |
+| xAI shared-team effect | `团队共享资源` | all | `派生凭据权限` outside diagnostics |
+
+Clients, tools and records:
+
+| Concept | Term | Audience |
+| --- | --- | --- |
+| Codex CLI / Grok Build / xAI API | `客户端` | all |
+| Local file / one-time package | `配置文件` / `配置包` | all |
+| Runtime MCP service | `工具服务` | all |
+| OAuth grant to a runtime client | `客户端授权` | all |
+| Permanent runtime retirement | `退役` | admin |
+| Request audit page | `请求记录` | admin |
+| Latest dated key evidence | `最近任务结果` | all |
+| Usage tokens | `令牌` | all |
+| Read failure | `暂时无法读取` | all |
+| Unconfirmed write | `结果尚未确认` | all |
 
 Business verbs still mean exactly what the [product contract](docs/product/experience.md#setup-and-safe-verbs)
 defines. If concise wording would hide a new secret, a changed binding or shared

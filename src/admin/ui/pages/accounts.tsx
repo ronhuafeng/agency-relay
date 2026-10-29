@@ -71,23 +71,23 @@ function AccountAdmission({ model }: { readonly model: AccountsPageModel }) {
   const paused = account.projection.admissionState === "paused";
   const impact = model.retirement;
   const blocked = !impact ? "暂时无法读取影响，请先查看当前状态。"
-    : ["revoked", "absent"].includes(account.projection.state) ? "连接账号后可更改请求准入，重新连接不会自动解除暂停。"
-    : impact.status === "retiring" ? "此账号正在停用，请先核对剩余绑定和默认连接并完成停用。" : null;
+    : ["revoked", "absent"].includes(account.projection.state) ? "连接后可更改是否接收请求，重新连接不会自动解除暂停。"
+    : impact.status === "retiring" ? "此连接正在停用，请先核对剩余绑定和默认连接并完成停用。" : null;
   const count = impact ? new Set(impact.live_keys.map(key => key.id)).size : null;
-  const impactText = impact ? `${count} 个未撤销密钥、${impact.live_keys.length} 项绑定使用此账号。${impact.default_surfaces.length ? "当前默认连接保留；暂停期间，新密钥不能使用这个默认连接。" : ""}` : "";
+  const impactText = impact ? `${count} 个未撤销密钥、${impact.live_keys.length} 项绑定使用此连接。${impact.default_surfaces.length ? "当前默认连接保留；暂停期间，新密钥不能使用这个默认连接。" : ""}` : "";
   const effect = paused
     ? "只解除管理员设置的暂停，连接、授权与额度检查仍然生效。已断开或失效的凭据不会恢复。"
-    : "拒绝此账号的后续上游请求，不会自动切换账号。已接受的请求或外部任务不会因此取消。";
-  const confirmation = `${paused ? "恢复" : "暂停"} ChatGPT · ${account.label}（${account.id}）的请求准入？${impactText}${effect}连接凭据、密钥、绑定、默认设置、额度与历史用量保留。`;
+    : "拒绝此连接的后续上游请求，不会自动切换连接。已接受的请求或外部任务不会因此取消。";
+  const confirmation = `${paused ? "恢复" : "暂停"}接收 ChatGPT · ${account.label}（${account.id}）的请求？${impactText}${effect}连接凭据、密钥、绑定、默认设置、额度与历史用量保留。`;
   const params = new URL(model.canonicalUrl, "https://dashboard.invalid").searchParams;
   const controlId = `account-admission-${encodeURIComponent(account.id)}`;
-  return <section className="workspace-section" aria-label="ChatGPT 请求准入" data-account-admission="">
+  return <section className="workspace-section" aria-label="ChatGPT 接收请求" data-account-admission="">
     <form method="post" action={`/admin/ui/codex-auths/${encodeURIComponent(account.id)}/${paused ? "resume" : "pause"}`} data-action={`codex-${paused ? "resume" : "pause"}`} data-credential-admission-form="" data-admission-state={account.projection.admissionState} data-confirmation={confirmation}>
       <ReturnFields query={params.get("q") ?? ""} page={params.get("page") ?? "1"}/>
       <input type="hidden" name="confirm" value="1"/>
-      <div className="status-switch-control"><Label htmlFor={controlId}>允许新请求</Label><Badge data-credential-admission="" className="tone-warn" hidden={!paused}>已暂停</Badge><InfoPopover id="account-admission-help" label="请求准入的影响" iconOnly><p data-admission-impact="">{impactText}</p><p>{effect}</p></InfoPopover><Switch id={controlId} type="submit" checked={!paused} disabled={blocked !== null} aria-label={`ChatGPT · ${account.label}：允许新请求`} data-confirm-label={paused ? "恢复请求" : "暂停请求"}/></div>
+      <div className="status-switch-control"><Label htmlFor={controlId}>允许新请求</Label><Badge data-credential-admission="" className="tone-warn" hidden={!paused}>已暂停</Badge><InfoPopover id="account-admission-help" label="暂停接收请求的影响" iconOnly><p data-admission-impact="">{impactText}</p><p>{effect}</p></InfoPopover><Switch id={controlId} type="submit" checked={!paused} disabled={blocked !== null} aria-label={`ChatGPT · ${account.label}：允许新请求`} data-confirm-label={paused ? "恢复接收请求" : "暂停接收请求"}/></div>
       {blocked ? <p className="caption">{blocked}</p> : <ConfirmationFallback message={confirmation}/>}
-      <p className="caption" data-credential-admission-changed="" hidden>请求准入已变化，请先查看当前状态，再确认操作。</p>
+      <p className="caption" data-credential-admission-changed="" hidden>是否接收请求已变化，请先查看当前状态，再确认操作。</p>
       <a data-credential-admission-read="" data-dashboard-link="" data-task-link="" href={accountDashboardUrl(model.canonicalUrl, account.key)} hidden={!blocked}>查看当前状态</a>
     </form>
   </section>;
@@ -109,12 +109,12 @@ function RetirementImpact({ model }: { readonly model: AccountsPageModel }) {
     grants: retirement.live_keys.filter(key => key.id === id).map(key => key.surface_grant)
   }));
   const migrationWarning = `迁移 ${account.label} 的所选密钥绑定和默认连接？这会改变未来请求的上游身份。服务商持有的文件、响应、任务和历史不会迁移。迁移后还需单独断开旧连接。`;
-  const cleanupWarning = `重试清理 ${account.label} 的旧令牌？此操作不会恢复连接或更改密钥绑定。`;
+  const cleanupWarning = `重试清理 ${account.label} 的旧凭据？此操作不会恢复连接或更改密钥绑定。`;
   return (
     <section data-retirement="true" className="account-retirement-strip" aria-label="停用影响">
       {migrating ? <p data-retirement-block="true">{`断开前需处理：${[keys.length ? `${formatNumber(keys.length)} 个未撤销密钥` : "", retirement.default_surfaces.length ? `${retirement.default_surfaces.length} 项默认连接` : ""].filter(Boolean).join("、")}。`}</p> : null}
       {retirement.status === "retiring" ? <p role="status">此连接正在停用，不能用于新绑定。请核对剩余绑定和默认连接，再断开旧连接。</p> : null}
-      <InfoPopover id="account-retirement-help" label="停用影响" iconOnly><p>人员停用或密钥到期不会自动解除绑定，这里包括所有尚未撤销的密钥。</p><p>更改组织默认连接不会迁移现有密钥。服务商持有的文件、响应、任务和历史不会随账号停用或密钥换绑而迁移。</p>{retirement.shared_provider_authority ? <p>xAI API 使用组织的上游团队共享权限。控制台的个人权限不会隔离共享资源。</p> : null}</InfoPopover>
+      <InfoPopover id="account-retirement-help" label="停用影响" iconOnly><p>成员停用或密钥到期不会自动解除绑定，这里包括所有尚未撤销的密钥。</p><p>更改组织默认连接不会迁移现有密钥。服务商持有的文件、响应、任务和历史不会随连接停用或密钥换绑而迁移。</p>{retirement.shared_provider_authority ? <p>xAI API 使用组织的上游团队共享权限。控制台的个人权限不会隔离共享资源。</p> : null}</InfoPopover>
       {migrating && !["revoked","disabled"].includes(retirement.status) ? retirement.compatible_replacements.length ? (
         <section className="credential-migration-task">
           <h3 data-credential-migration-heading="">迁移绑定与默认连接</h3>
@@ -134,7 +134,7 @@ function RetirementImpact({ model }: { readonly model: AccountsPageModel }) {
           </form>
         </section>
       ) : <span className="caption">暂无可替换连接</span> : null}
-      {retirement.status === "revoked" ? <form className="credential-cleanup-task" method="post" action={`${path}/cleanup`} data-action="credential-cleanup" data-confirmation={cleanupWarning}>{fields}<input type="hidden" name="confirm" value="1"/><p>连接已断开。如上次令牌清理未确认，可继续清理。</p><ConfirmationFallback message={cleanupWarning}/><Button type="submit" variant="outline">重试清理</Button></form> : null}
+      {retirement.status === "revoked" ? <form className="credential-cleanup-task" method="post" action={`${path}/cleanup`} data-action="credential-cleanup" data-confirmation={cleanupWarning}>{fields}<input type="hidden" name="confirm" value="1"/><p>连接已断开。如上次旧凭据清理未确认，可继续清理。</p><ConfirmationFallback message={cleanupWarning}/><Button type="submit" variant="outline">重试清理</Button></form> : null}
     </section>
   );
 }
@@ -244,7 +244,7 @@ function IdentityCard(props: {
     logoutAction: `logout-${props.account.provider}`
   };
   const logoutConfirm = `断开 ${providerLabel} · ${props.account.label}？已绑定的客户端在重新连接之前会失败。`;
-  const reauthConfirm = projection.reauthReplacesActive ? `重新连接 ${providerLabel} · ${props.account.label}？这会替换当前的账号连接。` : null;
+  const reauthConfirm = projection.reauthReplacesActive ? `重新连接 ${providerLabel} · ${props.account.label}？这会替换当前的上游连接。` : null;
   const placeholder = props.account.provider === "codex"
     ? "http://localhost:1455/auth/callback?code=…&state=…"
     : "http://127.0.0.1:56121/callback?code=…&state=…";
@@ -280,7 +280,7 @@ function IdentityCard(props: {
         </dl>
         <fieldset className="oauth-task-controls credential-admission-control" disabled={projection.state === "authorizing"}>{props.admission}</fieldset>
         {props.linkedTotal === null ? null : (
-          <nav className="section-links account-access-link" aria-label="账号访问">
+          <nav className="section-links account-access-link" aria-label="连接访问">
             <a href="#account-keys">{`${formatNumber(props.linkedTotal)} 个关联密钥 `}<Icon name="arrow" /></a>
           </nav>
         )}
@@ -306,7 +306,7 @@ function LinkedKeys(props: { readonly model: AccountsPageModel; readonly readOnl
     <section id="account-keys" className="workspace-section account-linked-keys">
       <h2>关联的密钥</h2>
       {props.readOnly ? null : <InventoryPages base={props.model.canonicalUrl} page={linked.page.page} hasNext={linked.page.hasNext} field="page" label="关联密钥" anchor="account-keys" />}
-      {linked.page.rows.length === 0 ? <p className="empty" data-empty={linked.total ? "page" : "none"}>{linked.total ? "这一页没有密钥。" : "没有密钥使用这个账号。"}</p> : (
+      {linked.page.rows.length === 0 ? <p className="empty" data-empty={linked.total ? "page" : "none"}>{linked.total ? "这一页没有密钥。" : "没有密钥使用这个连接。"}</p> : (
         <ul className="linked-key-list" aria-label="关联密钥">
           {linked.page.rows.map((key) => {
             const grants = parseApiKeyScopes(key.scopes);
@@ -347,7 +347,7 @@ function DefaultAccounts({model}: {readonly model: AccountsPageModel}) {
             {options.map(account => <NativeSelectOption key={account.key} value={account.id} disabled={!account.defaultEligible}>{presentText(account.label)} · {account.projection.statusLabel}{account.projection.admissionState === "paused" ? " · 已暂停" : ""} · {account.id}</NativeSelectOption>)}
           </NativeSelect>
           <ConfirmationFallback message={warning}/>
-          {!options.some(account=>account.defaultEligible) ? <span className="record-subline">请先添加并连接一个兼容的上游账号</span> : null}
+          {!options.some(account=>account.defaultEligible) ? <span className="record-subline">请先添加一个兼容的上游连接</span> : null}
         </form>
         <Button type="submit" form={formId} variant="outline" aria-label={`保存 ${name} 默认连接`} disabled={!options.some(account=>account.defaultEligible)}>保存</Button></div>;
     })}</div>}
@@ -365,30 +365,30 @@ export function AccountsPage({ model }: { readonly model: AccountsPageModel }) {
   const parentUrl = inventoryUrl(model.canonicalUrl, { account: null, task: null, page: null });
   const detail = adding || model.selectedAccountKey !== null;
   return (
-    <section aria-label="账号" className="accounts-workspace" data-view-role="accounts" data-credential-admin="true" data-auth-management="lifecycle" data-show-detail={detail ? "true" : "false"}>
+    <section aria-label="上游连接" className="accounts-workspace" data-view-role="accounts" data-credential-admin="true" data-auth-management="lifecycle" data-show-detail={detail ? "true" : "false"}>
       <ObjectWorkspace className="credential-object-workspace" task={<div className="credential-workspace-body">{detail ? (
         <div className="account-detail" id="account-detail" tabIndex={-1} data-account-detail={model.selectedAccountKey ?? ""}>
-          {adding ? <Card className="account-create-task"><header className="task-card-head"><h2>添加上游账号</h2><TaskClose href={`${parentUrl}#accounts-list`} label="收起添加账号"/></header><AddAccountIsland control={{ query, page }} /></Card> : selected ? (
+          {adding ? <Card className="account-create-task"><header className="task-card-head"><h2>添加上游连接</h2><TaskClose href={`${parentUrl}#accounts-list`} label="收起添加上游连接"/></header><AddAccountIsland control={{ query, page }} /></Card> : selected ? (
             <>
               <IdentityCard account={selected} linkedTotal={model.linkedKeys ? model.linkedKeys.total : null} query={query} page={page} cancelUrl={accountDashboardUrl(model.canonicalUrl, selected.key)} closeHref={`${parentUrl}#accounts-list`} admission={<AccountAdmission model={model}/>} retirement={<RetirementImpact model={model}/>} disconnectBlock={model.retirement === null ? "请先重新读取停用影响" : model.retirement.live_keys.length > 0 ? "请先处理未撤销密钥绑定" : model.retirement.default_surfaces.length > 0 ? "请先处理默认连接" : null}/>
               <LinkedKeys model={model} readOnly={authorizing}/>
               {model.snapshot ? <section className="account-snapshot"><AccountDossier accountId={selected.id} snapshot={model.snapshot}/></section> : null}
             </>
           ) : (
-            <Card className="workspace-section"><div className="task-card-head"><h2>没有这个账号</h2><TaskClose href={`${parentUrl}#accounts-list`} label="收起连接详情"/></div><p className="caption">这个账号已经不存在。</p></Card>
+            <Card className="workspace-section"><div className="task-card-head"><h2>没有这个连接</h2><TaskClose href={`${parentUrl}#accounts-list`} label="收起连接详情"/></div><p className="caption">这个连接已经不存在。</p></Card>
           )}
         </div>
-      ) : null}<fieldset className="oauth-task-controls" disabled={authorizing}><DefaultAccounts model={model}/></fieldset></div>} collection={<aside id="accounts-list" className="accounts-index" tabIndex={-1} aria-label="账号列表">
-        {detail ? <Button type="button" variant="ghost" hidden className="credential-catalog-toggle" data-credential-catalog-toggle="" data-catalog-initial-open={query ? "true" : "false"} aria-controls="credential-catalog" aria-expanded="false" disabled={authorizing}><span>{selected ? presentText(selected.label) : adding ? "正在添加账号" : "选择连接"}</span><span>切换<Icon name="expand"/></span></Button> : null}
+      ) : null}<fieldset className="oauth-task-controls" disabled={authorizing}><DefaultAccounts model={model}/></fieldset></div>} collection={<aside id="accounts-list" className="accounts-index" tabIndex={-1} aria-label="连接列表">
+        {detail ? <Button type="button" variant="ghost" hidden className="credential-catalog-toggle" data-credential-catalog-toggle="" data-catalog-initial-open={query ? "true" : "false"} aria-controls="credential-catalog" aria-expanded="false" disabled={authorizing}><span>{selected ? presentText(selected.label) : adding ? "正在添加上游连接" : "选择连接"}</span><span>切换<Icon name="expand"/></span></Button> : null}
         <div id="credential-catalog" className="credential-catalog">
         <div className="accounts-toolbar">
-          {authorizing ? <Button variant="outline" disabled><Icon name="plus" />添加上游账号</Button> : <Button asChild variant={model.accounts.length ? "outline" : "default"}><TaskLink href={inventoryUrl(parentUrl, { task: "add-account" }, "account-detail")}><Icon name="plus" />添加上游账号</TaskLink></Button>}
+          {authorizing ? <Button variant="outline" disabled><Icon name="plus" />添加上游连接</Button> : <Button asChild variant={model.accounts.length ? "outline" : "default"}><TaskLink href={inventoryUrl(parentUrl, { task: "add-account" }, "account-detail")}><Icon name="plus" />添加上游连接</TaskLink></Button>}
         </div>
-        {authorizing ? <p role="status" className="caption">请先完成或取消当前授权。账号列表与其他设置暂时只读。</p> : null}
-        <fieldset className="oauth-task-controls" disabled={authorizing}><InventorySearchView control={{...inventorySearchControl(model.canonicalUrl, "q", "page", "搜索账号", "accounts-list"),...(authorizing ? {clearHref:null} : {})}} /></fieldset>
-        {query ? <p className="inventory-scope">{`${formatNumber(matches.length)} / ${formatNumber(model.accounts.length)} 个账号`}</p> : null}
-        <ul className="account-list" aria-label="账号">
-          {matches.length === 0 ? <li><p className="empty" data-empty={model.accounts.length ? "filter" : "none"}>{model.accounts.length ? "没有匹配的账号。" : "还没有账号。"}</p></li> : matches.map((account) => {
+        {authorizing ? <p role="status" className="caption">请先完成或取消当前授权。连接列表与其他设置暂时只读。</p> : null}
+        <fieldset className="oauth-task-controls" disabled={authorizing}><InventorySearchView control={{...inventorySearchControl(model.canonicalUrl, "q", "page", "搜索连接", "accounts-list"),...(authorizing ? {clearHref:null} : {})}} /></fieldset>
+        {query ? <p className="inventory-scope">{`${formatNumber(matches.length)} / ${formatNumber(model.accounts.length)} 个连接`}</p> : null}
+        <ul className="account-list" aria-label="上游连接">
+          {matches.length === 0 ? <li><p className="empty" data-empty={model.accounts.length ? "filter" : "none"}>{model.accounts.length ? "没有匹配的连接。" : "还没有上游连接。"}</p></li> : matches.map((account) => {
             const identity = <><span className="account-identity"><strong>{presentText(account.label)}</strong><small>{account.provider === "codex" ? "ChatGPT" : "Grok"}{account.provider === "codex" ? <span data-credential-admission="" hidden={account.projection.admissionState !== "paused"}> · 已暂停</span> : null}</small></span><Badge data-credential-status="" className={`account-state tone-${statusToneForState(account.projection.state)}`}>{presentText(account.projection.statusLabel)}</Badge></>;
             return (
             <li key={account.key} data-account-key={account.key} data-credential-key={account.key}>

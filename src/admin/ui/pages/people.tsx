@@ -63,7 +63,7 @@ function ClassifyService({model, personUrl}: {readonly model: AdminDashboardAcce
   const user = model.selectedUser!;
   if (user.account_kind !== "legacy_unresolved" || user.login_capable !== 0 || user.role !== "user" || user.email !== null || user.canonical_email !== null) return null;
   const error = model.mutationFlash?.kind === "service_error" ? model.mutationFlash : null;
-  const warning = `确认历史账号 ${user.id} 是项目或自动化使用的服务账号？已有密钥、到期时间、绑定、额度、消耗和历史均保留，不会套用新账号的停用额度。此操作不能将服务账号转回人员。`;
+  const warning = `确认历史账号 ${user.id} 是项目或自动化使用的服务账号？已有密钥、到期时间、绑定、额度、消耗和历史均保留，不会套用新账号的停用额度。此操作不能将服务账号转回成员。`;
   return <section className="workspace-section" aria-label="确认历史账号用途"><h2>确认历史账号用途</h2>
     <form className="board-form" method="post" action={`/admin/ui/services/${encodeURIComponent(user.id)}/classify`} data-confirmation={warning} autoComplete="off" data-dashboard-draft="service-classify" data-draft-scope={user.id}>
       <Field control={{label: "服务名称", name: "display_name", required: true, maxLength: 64, autoComplete: "off", value: error?.display_name ?? "", invalid: Boolean(error)}} />
@@ -102,8 +102,8 @@ function PersonIdentity({model, personUrl}: {readonly model: AdminDashboardAcces
   if (user.account_kind === "service") return <ServiceIdentity model={model} personUrl={personUrl} />;
   const role = user.role === "admin" ? "user" : "admin";
   const roleLabel = role === "admin" ? "设为管理员" : "设为普通成员";
-  const roleWarning = `${roleLabel}：${personLabel(user)}？管理员可以管理组织人员、额度和账号。个人 API 密钥与额度不会随角色改变。`;
-  const emailWarning = `迁移 ${personLabel(user)} 的登录邮箱？确认下方新邮箱无误。旧浏览器会话将全部失效，需用新邮箱重新登录。用户 ID、API 密钥、额度和历史保留；此前复制的 API 密钥不会自动撤销。`;
+  const roleWarning = `${roleLabel}：${personLabel(user)}？管理员可以管理组织成员、额度和上游连接。个人密钥与额度不会随角色改变。`;
+  const emailWarning = `迁移 ${personLabel(user)} 的登录邮箱？确认下方新邮箱无误。旧浏览器会话将全部失效，需用新邮箱重新登录。账号 ID、密钥、额度和历史保留；此前复制的密钥不会自动撤销。`;
   const error = model.mutationFlash?.kind === "user_lifecycle_error" && model.mutationFlash.action === "email" ? model.mutationFlash : null;
   return <section className="workspace-section person-identity-actions" id="identity" tabIndex={-1} aria-label="身份设置">
     {user.login_capable !== 1 ? <Badge>尚不能登录</Badge> : <TaskEditorIsland control={{id:`role-${user.id}`,label:"更改角色",action:`/admin/ui/users/${encodeURIComponent(user.id)}/role`,submitLabel:roleLabel,fields:[],hidden:{role,confirm:"1",person_return:personUrl},confirmation:roleWarning}}/>}
@@ -118,14 +118,14 @@ function AssignedServices({model, personUrl}: {readonly model: AdminDashboardAcc
   return <section className="workspace-section" id="assigned-services" tabIndex={-1} aria-label="服务账号与离职影响" data-assigned-service-impact="">
     <h3>管理的服务账号</h3>
 
-    {!impact.known ? <p role="alert" data-service-impact-state="unknown">服务分配暂时无法读取，不代表没有服务账号。<a href={personUrl}>重新读取人员详情</a></p> : <>
+    {!impact.known ? <p role="alert" data-service-impact-state="unknown">服务分配暂时无法读取，不代表没有服务账号。<a href={personUrl}>重新读取账号详情</a></p> : <>
       {impact.services.length === 0 ? <p>当前没有分配的服务账号。</p> : <ul>{impact.services.map(service => <li key={service.id}>
-        <h4>{service.display_name} · <code>{service.id}</code></h4><p>服务状态：{service.status === "active" ? "启用" : "停用"}；停用人员不会改变此状态。</p>
+        <h4>{service.display_name} · <code>{service.id}</code></h4><p>服务状态：{service.status === "active" ? "启用" : "停用"}；停用管理人不会改变此状态。</p>
         <p><a href={memberHref("keys",undefined,service.id)}>单独管理服务密钥：{service.display_name}</a> · <a href={inventoryUrl(personUrl,{person:service.id,key:null})}>查看服务与管理人分配</a></p>
         {service.keys === null ? <p role="alert" data-service-impact-state="unknown">这个服务的密钥元数据暂时无法读取，不代表没有密钥。请打开服务密钥页面核对。</p> : service.keys.length === 0 ? <p>当前没有密钥。</p> : <ul>{service.keys.map(key => <li key={key.id}><code>{key.key_prefix}</code> · {key.name ?? "未命名"} · 存储状态 {key.status} · 到期 {key.expires_at ?? "无到期时间"} · <a href={memberHref("keys",key.id,service.id)}>单独撤销或更换</a></li>)}</ul>}
         {service.moreKeys ? <p>仅显示前 10 个密钥；请打开该服务的密钥页面检查其余密钥。</p> : null}
       </li>)}</ul>}
-      {impact.moreServices ? <p>仅显示前 20 个当前分配的服务账号，还有更多服务未显示；请继续在人员列表核对服务分配。</p> : null}
+      {impact.moreServices ? <p>仅显示前 20 个当前分配的服务账号，还有更多服务未显示；请继续在账号列表核对服务分配。</p> : null}
     </>}
   </section>;
 }
@@ -133,9 +133,9 @@ function PersonDetail({model, giving, personUrl}: {readonly model: AdminDashboar
   const user = model.selectedUser; if (!user) return null;
   const next = user.status === "active" ? "disabled" : "active"; const name = personLabel(user); const warning = user.account_kind === "service" ? next === "disabled" ? `停用服务账号 ${name}（${user.id}）？后续 API 鉴权将被拒绝，但不保证中止已经开始的请求或外部任务。` : `启用服务账号 ${name}（${user.id}）？未撤销且未过期的密钥恢复原有访问，额度限制仍然有效。已撤销密钥不会恢复。` : next === "disabled" ? `停用 ${name}？此人的后续控制台和个人 API 鉴权将被拒绝，现有浏览器会话失效。服务账号及其密钥保持不变：已复制的服务账号密钥仍可能用于 API 调用，请另行核对并选择撤销或更换。不会移出飞书，也不保证中止已开始的请求或外部任务。` : `启用 ${name}？未撤销且未过期的密钥恢复原有访问，额度限制仍然有效。旧控制台会话不会恢复，需要重新登录。`;
   return <><header className="person-detail-head"><div className="person-detail-identity"><div className="person-title"><h2>{user.account_kind === "legacy_unresolved" ? "待确认账号" : name}</h2><Badge>{user.account_kind === "service" ? "服务账号" : user.account_kind === "legacy_unresolved" ? "待确认" : user.role === "admin" ? "管理员" : "成员"}</Badge></div></div>
-    <div className="task-head-actions"><form className="inline-form person-status-form" id="person-status" aria-label="账号访问状态" method="post" action={`/admin/ui/users/${encodeURIComponent(user.id)}/status`} data-action="user-status" data-confirmation={warning}><ConfirmationFallback message={warning} /><input type="hidden" name="person_return" value={personUrl} /><input type="hidden" name="status" value={next} /><input type="hidden" name="confirm" value="1" /><StatusSwitch enabled={user.status === "active"} label={name} /></form><TaskClose href={inventoryUrl(personUrl, {person:null,key_q:null,key_page:null}, "people-list")} label="收起人员详情"/></div>
+    <div className="task-head-actions"><form className="inline-form person-status-form" id="person-status" aria-label="账号访问状态" method="post" action={`/admin/ui/users/${encodeURIComponent(user.id)}/status`} data-action="user-status" data-confirmation={warning}><ConfirmationFallback message={warning} /><input type="hidden" name="person_return" value={personUrl} /><input type="hidden" name="status" value={next} /><input type="hidden" name="confirm" value="1" /><StatusSwitch enabled={user.status === "active"} label={name} /></form><TaskClose href={inventoryUrl(personUrl, {person:null,key_q:null,key_page:null}, "people-list")} label="收起账号详情"/></div>
     </header>
-    <nav className="section-links" aria-label="人员内容"><a href="#keys">密钥</a><a href="#credits">额度</a><a href="#identity">{user.account_kind === "service" ? "身份与管理人" : "身份与权限"}</a>{model.assignedServiceImpact && (!model.assignedServiceImpact.known || model.assignedServiceImpact.services.length > 0) ? <a href="#assigned-services">管理的服务</a> : null}</nav>
+    <nav className="section-links" aria-label="账号内容"><a href="#keys">密钥</a><a href="#credits">额度</a><a href="#identity">{user.account_kind === "service" ? "身份与管理人" : "身份与权限"}</a>{model.assignedServiceImpact && (!model.assignedServiceImpact.known || model.assignedServiceImpact.services.length > 0) ? <a href="#assigned-services">管理的服务</a> : null}</nav>
     <section className="workspace-section"><div className="person-access-head"><h2>密钥</h2>{giving ? null : <Button asChild><TaskLink href={inventoryUrl(personUrl,{task:"give-access"},"give-access")}><Icon name="plus"/>创建密钥</TaskLink></Button>}</div>
       {giving ? <GiveAccess model={model} personId={user.id} cancelHref={`${personUrl}#keys`} /> : null}<PersonKeys model={model} personId={user.id} base={personUrl}/></section>
     <section className="workspace-section" id="credits" tabIndex={-1} data-credit-allowances="true"><PersonCredits model={model} personId={user.id} /></section><PersonIdentity model={model} personUrl={personUrl} /><AssignedServices model={model} personUrl={personUrl} />
@@ -169,8 +169,8 @@ export function PeoplePage({model}: {readonly model: AdminDashboardAccessModel})
   const personUrl = inventoryUrl(model.canonicalUrl, {task: null, key: null});
   const search = new URL(model.canonicalUrl, "https://console.invalid").searchParams;
   const detail = !adding && Boolean(model.selectedUser || selectedId !== null);
-  return <section aria-label="人员" className="people-workspace" data-view-role="people" data-keys-admin="true" data-show-detail={String(detail)}>
-    <ObjectWorkspace task={detail ? <Card className="person-detail" id="person-detail" tabIndex={-1} data-person-detail={model.selectedUser?.id ?? ""}>{model.selectedUser ? <PersonDetail model={model} giving={Boolean(model.givingAccess)} personUrl={personUrl} /> : <section className="workspace-section"><div className="task-card-head"><h2>未显示人员</h2><TaskClose href={`${peopleUrl}#people-list`} label="收起人员详情"/></div><p className="caption">请从列表中选择一个人。</p></section>}</Card> : null} collection={<aside className="people-index" id="people-list" tabIndex={-1} aria-label="人员">
+  return <section aria-label="成员与服务" className="people-workspace" data-view-role="people" data-keys-admin="true" data-show-detail={String(detail)}>
+    <ObjectWorkspace task={detail ? <Card className="person-detail" id="person-detail" tabIndex={-1} data-person-detail={model.selectedUser?.id ?? ""}>{model.selectedUser ? <PersonDetail model={model} giving={Boolean(model.givingAccess)} personUrl={personUrl} /> : <section className="workspace-section"><div className="task-card-head"><h2>未显示账号</h2><TaskClose href={`${peopleUrl}#people-list`} label="收起账号详情"/></div><p className="caption">请从列表中选择一个人。</p></section>}</Card> : null} collection={<aside className="people-index" id="people-list" tabIndex={-1} aria-label="账号列表">
       <div className="people-toolbar">
         <InventorySearchView control={inventorySearchControl(model.canonicalUrl, "q", "page", "搜索邮箱、名称或 ID", "people-list")} />
         <PeopleCreateIsland control={{returnHref:peopleUrl,initialKind:model.addingService ? "service" : model.addingPerson ? "human" : null,
@@ -178,10 +178,10 @@ export function PeoplePage({model}: {readonly model: AdminDashboardAccessModel})
       </div>
       <nav className="people-kinds" aria-label="账号类型">{([["human", "成员"], ["admin", "管理员"], ["service", "服务账号"], ["legacy_unresolved", "待确认"]] as const).map(([kind, label]) => <Button key={kind} asChild variant={(search.get("kind") ?? "human") === kind ? "secondary" : "ghost"}><DashLink href={inventoryUrl(model.canonicalUrl, {kind: kind === "human" ? null : kind, page: null}, "people-list")} aria-current={(search.get("kind") ?? "human") === kind ? "page" : undefined}>{label}</DashLink></Button>)}</nav>
       {search.get("kind") === "legacy_unresolved" ? <p className="inventory-scope">核实用途后，关联成员邮箱或确认为服务账号。</p> : null}
-      <Table className="people-table" aria-label="人员和客户端访问"><TableHeader><TableRow><TableHead scope="col">账号</TableHead><TableHead scope="col">密钥授权</TableHead><TableHead scope="col">状态</TableHead><TableHead scope="col"><span className="sr-only">查看</span></TableHead></TableRow></TableHeader><TableBody>
+      <Table className="people-table" aria-label="账号和客户端访问"><TableHeader><TableRow><TableHead scope="col">账号</TableHead><TableHead scope="col">密钥授权</TableHead><TableHead scope="col">状态</TableHead><TableHead scope="col"><span className="sr-only">查看</span></TableHead></TableRow></TableHeader><TableBody>
         {model.users.length === 0 ? <TableRow><TableCell colSpan={4}><p className="empty" data-empty={model.peoplePage.page > 1 ? "page" : search.get("q") ? "filter" : "none"}>{model.peoplePage.page > 1 ? "这一页没有账号。" : search.get("q") ? "没有匹配的账号，试试其他邮箱或名称。" : "这个分类下还没有账号。"}</p></TableCell></TableRow> : model.users.map(user => <PeopleRow key={user.id} model={model} user={user} selected={user.id === selectedId && !adding} href={inventoryUrl(peopleUrl,{person:user.id},"person-detail")} />)}
       </TableBody></Table>
-      <InventoryPages base={model.canonicalUrl} page={model.peoplePage.page} pageSize={Number(search.get("page_size") ?? DASHBOARD_PEOPLE_PAGE_SIZE)} hasNext={model.peoplePage.hasNext} field="page" label="人员" anchor="people-list" />
+      <InventoryPages base={model.canonicalUrl} page={model.peoplePage.page} pageSize={Number(search.get("page_size") ?? DASHBOARD_PEOPLE_PAGE_SIZE)} hasNext={model.peoplePage.hasNext} field="page" label="账号" anchor="people-list" />
     </aside>}/>
   </section>;
 }

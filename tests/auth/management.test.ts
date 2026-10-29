@@ -253,7 +253,7 @@ describe("account auth-management projection", () => {
   it("maps every action to a short operator button label", () => {
     const labels: Record<AuthManagementAction, string> = {
       connect: "连接",
-      refresh: "刷新账号",
+      refresh: "刷新连接",
       reauth: "重新连接",
       logout: "断开",
       continue_authorize: "打开登录",

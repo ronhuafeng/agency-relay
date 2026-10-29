@@ -73,7 +73,7 @@ test('chosen page size survives resize and native search while document departur
   const create = page.locator('#people-create-root');
   await create.getByRole('button',{name:'添加成员',exact:true}).click();
   await page.locator('#add-person input[name=email]').fill('unfinished@example.test');
-  const size = page.getByRole('form',{name:'人员每页数量',exact:true});
+  const size = page.getByRole('form',{name:'账号每页数量',exact:true});
   await size.getByRole('combobox',{name:'每页',exact:true}).selectOption('40');
   await size.getByRole('button',{name:'应用',exact:true}).click();
   await expect(page.locator('.people-table [data-user-id]')).toHaveCount(20);
@@ -104,12 +104,12 @@ test.describe('native people search and pagination', () => {
   test('category and page size controls use GET, reset the page and retain exact query context', async ({page, worker}) => {
     await page.goto('/admin?view=access&person=admin&range=30d&q=example&page_size=10&page=2');
     await expect(page.locator('.people-table [data-user-id]')).toHaveCount(10);
-    await page.getByRole('navigation',{name:'人员分页',exact:true}).getByRole('link',{name:'上一页',exact:true}).click();
+    await page.getByRole('navigation',{name:'账号分页',exact:true}).getByRole('link',{name:'上一页',exact:true}).click();
     await expect(page.locator('.people-table [data-user-id]')).toHaveCount(10);
     expect(new URL(page.url()).searchParams.has('page')).toBe(false);
     await page.getByRole('navigation',{name:'账号类型',exact:true}).getByRole('link',{name:'管理员',exact:true}).click();
     await expect(page.locator('.people-table [data-user-id]')).toHaveCount(2);
-    const size = page.getByRole('form',{name:'人员每页数量',exact:true});
+    const size = page.getByRole('form',{name:'账号每页数量',exact:true});
     await size.getByRole('combobox',{name:'每页',exact:true}).selectOption('20');
     await size.getByRole('button',{name:'应用',exact:true}).click();
     await expect(page.locator('.people-table [data-user-id]')).toHaveCount(2);

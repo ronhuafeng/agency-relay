@@ -63,7 +63,7 @@ describe('task-oriented console layouts',()=>{
     const detail=doc.querySelector('[data-person-detail="member"]')!;
     expect(detail.querySelector('a[aria-label="管理密钥 display_first"]')?.getAttribute('href')).toContain('person=member');
     expect(detail.querySelector('a[aria-label="管理密钥 display_first"]')?.getAttribute('href')).toContain('key=first');
-    const parent=new URL(doc.querySelector('a[aria-label="收起人员详情"]')!.getAttribute('href')!,'https://console.invalid');
+    const parent=new URL(doc.querySelector('a[aria-label="收起账号详情"]')!.getAttribute('href')!,'https://console.invalid');
     expect(parent.searchParams.get('q')).toBe('member');expect(parent.searchParams.has('person')).toBe(false);
     for(const surface of ['codex','grok','xai']) {
       const policy=detail.querySelector(`[data-credit-surface="${surface}"]`)!;
@@ -134,7 +134,7 @@ describe('task-oriented console layouts',()=>{
       expect(table.querySelector('[data-surface="xai"] td:first-child')?.querySelector('strong')?.textContent).toBe('xAI API');
       if(view==='quota') {
         const help=table.querySelector('thead [popover]')!;
-        expect(help.textContent).toContain('Codex：自定义额度');
+        expect(help.textContent).toContain('Codex：个人额度');
         expect(help.querySelectorAll('time[datetime]')).toHaveLength(1);
         expect(help.querySelector('time')?.getAttribute('datetime')).toBe('2026-07-01T00:00:00.000Z');
         expect(doc.querySelector('.credit-table-footer')).toBeNull();

@@ -82,13 +82,13 @@ for (const script of [true, false]) test.describe(`credential tasks script ${scr
     worker.failCredentialCleanup(true);
     const disconnect = page.locator('[data-action="logout-grok"]');
     await submit(page, disconnect, disconnect.getByRole('button',{name:'断开',exact:true}), script, '断开');
-    await expect(page.locator('[data-mutation-flash="credential_disconnected"]')).toContainText('连接已断开，令牌清理未确认');
+    await expect(page.locator('[data-mutation-flash="credential_disconnected"]')).toHaveAttribute('data-token-cleanup','failed');
     expect(worker.credentialStatus('task-old')).toBe('revoked');
     expect(worker.credentialCleanupCalls).toEqual(['subscription:task-old']);
     worker.failCredentialCleanup(false);
     const cleanup = page.locator('[data-action="credential-cleanup"]');
     await submit(page, cleanup, cleanup.getByRole('button', {name: '重试清理', exact: true}), script, '重试清理');
-    await expect(page.locator('[data-mutation-flash="credential_cleanup"]')).toContainText('令牌清理已确认');
+    await expect(page.locator('[data-mutation-flash="credential_cleanup"]')).toHaveAttribute('data-token-cleanup','cleared');
     expect(worker.credentialStatus('task-old')).toBe('revoked');
     expect(worker.credentialBindings()).toEqual(moved);
     expect(worker.requests.filter(request => request.method === 'POST' && request.path === '/admin/ui/subscriptions/task-old/logout')).toHaveLength(1);

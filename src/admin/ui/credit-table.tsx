@@ -33,7 +33,7 @@ function PolicyRow({row}: {readonly row: CreditTableRow}) {
   const cap = !state ? "无法读取" : state.mode === "limited" ? formatNumber(state.monthly_allowance ?? 0) : state.mode === "unlimited" ? "不限" : "已停用";
   return <>
     <TableRow data-credit-user={control.personId} data-credit-surface={surface}>
-      <TableCell><strong>{control.clientLabel}</strong><span className="record-subline"><Badge>{state?.source === "personal" ? "账号额度" : state?.source === "organization" ? "组织默认" : state ? "未配置" : "无法读取"}</Badge></span>{control.clientLabel === "xAI API" ? <span className="record-subline">团队共享资源</span> : null}</TableCell>
+      <TableCell><strong>{control.clientLabel}</strong><span className="record-subline"><Badge>{state?.source === "personal" ? "个人额度" : state?.source === "organization" ? "组织默认" : state ? "未配置" : "无法读取"}</Badge></span>{control.clientLabel === "xAI API" ? <span className="record-subline">团队共享资源</span> : null}</TableCell>
       <TableCell><span data-access-client={surface} data-access-state={row.keyAccess}>{{granted:"密钥有效",paused:"账号已停用",expired:"密钥已过期",none:"无密钥"}[row.keyAccess]}</span></TableCell>
       <TableCell className="number">{cap}</TableCell>
       <TableCell className="credit-used"><strong>{state ? formatNumber(state.consumed_credits) : "无法读取"}</strong>{state?.mode === "limited" && (state.monthly_allowance ?? 0) > 0 ? <Progress aria-label={`${control.clientLabel} 本月已用额度占比`} value={Math.min(100,Math.max(0,state.consumed_credits / state.monthly_allowance! * 100))}/> : null}</TableCell>

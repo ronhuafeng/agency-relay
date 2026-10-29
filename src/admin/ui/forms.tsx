@@ -50,7 +50,7 @@ export function CreditPolicyForm({control, initialMode = control.mode}: {readonl
         <Label className="radix-field">
           每月额度
           <Input
-            aria-label={`${control.clientLabel} 每月额度，人员 ${control.personLabel}`}
+            aria-label={`${control.clientLabel} 每月额度，账号 ${control.personLabel}`}
             name="monthly_allowance"
             type="number"
             min={0}
@@ -79,23 +79,23 @@ export function AddAccountView({ control }: { readonly control: AddAccountContro
   const [kind, setKind] = useState<"chatgpt" | "grok">("chatgpt");
   return (
     <section className="workspace-section add-account" data-add-kind={enhanced ? kind : undefined}>
-      {enhanced ? <RadioGroup className="add-kind-group" value={kind} aria-label="账号类型" onValueChange={(value) => { if (value === "chatgpt" || value === "grok") setKind(value); }}>
+      {enhanced ? <RadioGroup className="add-kind-group" value={kind} aria-label="连接类型" onValueChange={(value) => { if (value === "chatgpt" || value === "grok") setKind(value); }}>
         <Label className="radix-check" htmlFor="add-chatgpt"><RadioGroupItem value="chatgpt" id="add-chatgpt" />ChatGPT</Label>
         <Label className="radix-check" htmlFor="add-grok"><RadioGroupItem value="grok" id="add-grok" />Grok</Label>
-      </RadioGroup> : <p className="caption">选择下面的账号类型，填写名称后添加。</p>}
-      <form className="board-form add-chatgpt" method="post" action="/admin/ui/codex-auths" aria-label="添加 ChatGPT 账号" autoComplete="off" data-dashboard-draft="account">
+      </RadioGroup> : <p className="caption">选择下面的连接类型，填写名称后添加。</p>}
+      <form className="board-form add-chatgpt" method="post" action="/admin/ui/codex-auths" aria-label="添加 ChatGPT 连接" autoComplete="off" data-dashboard-draft="account">
         {!enhanced ? <h3>ChatGPT</h3> : null}
         <ReturnFields query={control.query} page={control.page} />
         <Label>名称 <Input name="label" required autoComplete="off" placeholder="团队或负责人" /></Label>
-        <Button type="submit">添加账号</Button>
+        <Button type="submit">添加上游连接</Button>
       </form>
-      <form className="board-form add-grok" method="post" action="/admin/ui/subscriptions" aria-label="添加 Grok 账号" autoComplete="off" data-dashboard-draft="account">
+      <form className="board-form add-grok" method="post" action="/admin/ui/subscriptions" aria-label="添加 Grok 连接" autoComplete="off" data-dashboard-draft="account">
         {!enhanced ? <h3>Grok</h3> : null}
         <ReturnFields query={control.query} page={control.page} />
         <input type="hidden" name="capability_source" value="grok" />
         <input type="hidden" name="environment" value="production" />
         <Label>名称 <Input name="label" required autoComplete="off" placeholder="团队或负责人" /></Label>
-        <Button type="submit">添加账号</Button>
+        <Button type="submit">添加上游连接</Button>
       </form>
     </section>
   );

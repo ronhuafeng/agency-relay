@@ -38,7 +38,7 @@ describe("surface capability catalog", () => {
         ],
         authority: [
           "已连接的 Grok",
-          "包含 Grok Build，以及有限的 xAI 能力。文件和视频仍绑定账号所有者。"
+          "包含 Grok Build，以及有限的 xAI 能力。文件和视频仍绑定上游账号所有者。"
         ]
       },
       {

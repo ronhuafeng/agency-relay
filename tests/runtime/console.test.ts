@@ -65,7 +65,7 @@ it("uses the guarded lifecycle for native admin forms and distinguishes rotation
     const page=await f.runtime.dispatchFetch(`${ISSUER}/admin?view=runtime&installation=design`,{headers:{Cookie:f.cookies.get("admin")!,Accept:"text/html"}});
     const html=await page.text();expect(page.status).toBe(200);
     expect(html.includes('type="password"')).toBe(true);expect(html.includes('value="synthetic-stitch-key"')).toBe(false);
-    expect(html.includes("更换同一账号的凭据")).toBe(true);expect(html.includes("绑定新的上游账号")).toBe(true);
+    expect(html.includes("更换同一上游账号的凭据")).toBe(true);expect(html.includes("绑定新的上游账号")).toBe(true);
     const rename={action:"rename",expectedRevision:String(initial.revision),operationId:"ui-rename",label:"Reviewed design"};
     for(const [member,origin] of [["member",ISSUER],["admin","https://attacker.example.test"]]) {
       const denied=await post(rename,member!,origin);expect(denied.status).toBe(403);await denied.body?.cancel();

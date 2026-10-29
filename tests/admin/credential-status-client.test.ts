@@ -21,7 +21,7 @@ const row = (key: string, id: string) => `<article id="${id}" data-credential-ke
 const detail = `<section id="detail" data-credential-key="codex:shared-id" data-mgmt-state="active">
   <span data-credential-status class="credential-status-meta tone-ok">已连接</span>
   <p data-credential-hint hidden></p><a data-credential-read-current hidden href="/admin?view=credentials&amp;account=codex%3Ashared-id&amp;q=Synthetic&amp;range=30d">查看当前连接</a>
-  <form data-credential-refresh method="post" action="/admin/ui/codex-auths/shared-id/refresh"><input type="hidden" name="confirm" value="1"><button type="submit">刷新账号</button></form>
+  <form data-credential-refresh method="post" action="/admin/ui/codex-auths/shared-id/refresh"><input type="hidden" name="confirm" value="1"><button type="submit">刷新连接</button></form>
   <form data-dashboard-draft="unrelated"><input name="label" value="unfinished"><button type="submit" disabled>Locked action</button></form>
 </section>`;
 let stop = (): void => {};

@@ -104,7 +104,7 @@ const SURFACES: readonly SurfaceCapabilitySurface[] = [
       "文件、模型与分词"
     ],
     authorityLabel: "已连接的 Grok",
-    authorityNote: "包含 Grok Build，以及有限的 xAI 能力。文件和视频仍绑定账号所有者。"
+    authorityNote: "包含 Grok Build，以及有限的 xAI 能力。文件和视频仍绑定上游账号所有者。"
   },
   {
     ...PRODUCT_ACCESS.xai,

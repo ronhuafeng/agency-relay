@@ -48,7 +48,7 @@ test('expired-source replacement preserves family, selected expiry and its one-t
   await key.getByRole('button',{name:'更换',exact:true}).click();
   await page.getByRole('alertdialog').getByRole('button',{name:'更换',exact:true}).click();
   await expect.poll(()=>page.locator('[data-one-time-key]').isVisible()).toBe(true);
-  expect(await page.locator('[data-one-time-key]').evaluate(node=>node.textContent?.includes('不会因为这次续发恢复有效'))).toBe(true);
+  expect(await page.locator('[data-one-time-key]').evaluate(node=>node.textContent?.includes('不会因为这次更换恢复有效'))).toBe(true);
   expect(await page.locator('[data-one-time-key]').evaluate(node=>{
     const codes=Array.from(node.querySelectorAll('.note code'));
     return codes.length===1 && !!codes[0].textContent && codes[0].textContent!=='display_member' && node.textContent?.includes('display_member');

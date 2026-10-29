@@ -64,7 +64,7 @@ function SetupDetail({model,closeHref,held}: {readonly model: SetupPageModel; re
     verifications:files.map(file=>({client:file.client,...verificationText(Object.values(PRODUCT_ACCESS).find(access=>access.id===file.client)!.label,model.verifications,person.id,key.id)})),
     closeHref,heldHref:inventoryUrl(model.canonicalUrl,{task:"sync-configuration"},"setup-detail"),selectedHref:inventoryUrl(model.canonicalUrl,{task:null},"setup-detail"),manageHref:inventoryUrl(model.canonicalUrl,{view:"access",q:null,page:null,task:null}),
     newKeyHref:!justCreated && key.status==="active" && expired ? freshAccessHref(person.id,model.canonicalUrl) : undefined,
-    replacement:replace ? {action:"/admin/ui/keys/"+encodeURIComponent(key.id)+"/replace",returnHref:model.canonicalUrl,confirmation:"为 "+key.key_prefix+" 换发密钥并下载配置包？这会创建一个新密钥。换发不会自动撤销原密钥。请先保存文件，再验证客户端。"} : undefined
+    replacement:replace ? {action:"/admin/ui/keys/"+encodeURIComponent(key.id)+"/replace",returnHref:model.canonicalUrl,confirmation:"为 "+key.key_prefix+" 更换密钥并下载配置包？这会创建一个新密钥。更换发不会自动撤销原密钥。请先保存文件，再验证客户端。"} : undefined
   }}}/>;
 }
 export function SyncTask({recoveryHref,client}: ConfigurationHelpProps & {client?:"codex"|"grok"|"xai"}) {

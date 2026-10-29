@@ -63,9 +63,9 @@ for(const width of [390,1440])test.describe(`remaining journeys ${width}px`,()=>
     await page.locator('[data-user-id="layout-long"] .person-link').click();
     await expect(page.locator('[data-person-detail="layout-long"]')).toBeVisible();
     await inspect(page,info,'long-person','admin');
-    await page.getByRole('link',{name:'收起人员详情',exact:true}).click();await expect(page.getByRole('searchbox',{name:'搜索邮箱、名称或 ID'})).toHaveValue('long.person');
+    await page.getByRole('link',{name:'收起账号详情',exact:true}).click();await expect(page.getByRole('searchbox',{name:'搜索邮箱、名称或 ID'})).toHaveValue('long.person');
     await page.goto('/admin?view=access&person=member&q=member');
-    await page.getByRole('navigation',{name:'人员内容'}).getByRole('link',{name:'密钥',exact:true}).click();
+    await page.getByRole('navigation',{name:'账号内容'}).getByRole('link',{name:'密钥',exact:true}).click();
     expect(await page.locator('.person-key-inventory').evaluate(root=>[...root.querySelectorAll('a[data-slot="button"]')].filter(link=>link.checkVisibility()).every(link=>{
       const rect=link.getBoundingClientRect();return rect.left>=-1&&rect.right<=innerWidth+1&&rect.width>=44&&rect.height>=44;
     }))).toBe(true);
@@ -95,7 +95,7 @@ test.describe('native narrow policy and key controls',()=>{
   test.use({script:false,viewport:{width:320,height:900},colorScheme:'dark'});
   test('native policy form keeps the exact person and acknowledgement',async({page,worker},info)=>{
     await page.goto('/admin?view=access&person=member&q=member');
-    await page.getByRole('navigation',{name:'人员内容'}).getByRole('link',{name:'额度',exact:true}).click();
+    await page.getByRole('navigation',{name:'账号内容'}).getByRole('link',{name:'额度',exact:true}).click();
     await page.locator('[data-credit-user=member][data-credit-surface=codex]').getByRole('button',{name:'调整 Codex 额度',exact:true}).click();
     const policy=page.locator('#credit-policy-member-codex-editor');
     await policy.getByRole('spinbutton').fill('37');

@@ -68,7 +68,7 @@ it("ends self-email migration at reauthentication and renders login for the stal
   expect(response.headers.get("Set-Cookie")).toContain("Max-Age=0");
   const html = await response.text();
   expect(html).toContain("旧控制台会话已失效");
-  expect(html).toContain("API 密钥和历史不变");
+  expect(html).toContain("密钥和历史不变");
   expect(html).not.toContain("data-dashboard-nav");
   const login = await handleRequest(new Request(`${host}/login`, { headers: { Cookie: `__Host-mini-console=${token}` } }), fixture.env, fixture.ctx, fixture.deps);
   expect(login.status).toBe(200);
@@ -121,7 +121,7 @@ it("gives native human creation a known rejection when authority changes before 
     expect(response.status).toBe(403);
     expect(response.headers.get("Content-Type")).toContain("text/html");
     const doc = new JSDOM(await response.text()).window.document;
-    expect(doc.querySelector('[data-console-terminal-result]')?.textContent).toContain("这次人员创建没有执行");
+    expect(doc.querySelector('[data-console-terminal-result]')?.textContent).toContain("这次添加成员没有执行");
     expect(doc.querySelector('a[href="/login"]')).not.toBeNull();
     expect(db.sqlite.prepare("SELECT COUNT(*) AS count FROM users WHERE canonical_email = 'new@example.com'").get()).toEqual({ count: 0 });
     expect(db.sqlite.prepare("SELECT COUNT(*) AS count FROM operator_mutation_audit WHERE action = 'user.create'").get()).toEqual({ count: 0 });

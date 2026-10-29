@@ -26,7 +26,7 @@ function surfaceTitle(surface: string): string {
 }
 
 export function QuotasPage({ defaults }: { readonly defaults: readonly QuotaDefault[] }) {
-  const warning = "保存组织默认额度？继承它的账号将使用这些月度上限；个人额度和已用量保持不变，额度按 UTC 月重置。0 credits 只允许不计额度的操作。xAI API 额度大于 0 时，成员可以使用上游团队的共享资源和派生凭据。";
+  const warning = "保存组织默认额度？继承它的账号将使用这些月度上限；个人额度和已用量保持不变，额度按 UTC 月重置。0 credits 只允许不计额度的操作。xAI API 额度大于 0 时，成员可以使用上游团队的共享资源。";
   return (
     <section className="organization-policy-workspace" aria-label="组织额度" data-view-role="quotas">
       <header className="organization-policy-heading">
@@ -97,24 +97,24 @@ function actorKindLabel(kind: string): string {
 }
 
 function targetTypeLabel(type: string): string {
-  if (type === "user") return "人员";
+  if (type === "user") return "成员";
   if (type === "surface_credit") return "服务额度";
   if (type === "credential") return "上游连接设置";
   if (type === "api_key") return "密钥";
   if (type === "api_key_surface_credential") return "密钥的上游连接";
-  if (type === "codex_auth") return "ChatGPT 账号";
-  if (type === "subscription_account") return "Grok 账号";
+  if (type === "codex_auth") return "ChatGPT 连接";
+  if (type === "subscription_account") return "Grok 连接";
   return "未记录对象";
 }
 
 function actionLabel(action: string): string {
   const labels: Readonly<Record<string, string>> = {
     "service.create": "创建服务账号", "service.rename": "更改服务账号名称", "service.classify": "确认为服务账号", "service.owner.change": "更改服务管理人",
-    "user.create": "添加人员", "user.enable": "启用人员", "user.disable": "停用人员", "user.promote": "设为管理员", "user.demote": "设为成员", "user.email": "更改邮箱",
+    "user.create": "添加成员", "user.enable": "启用账号", "user.disable": "停用账号", "user.promote": "设为管理员", "user.demote": "设为成员", "user.email": "更改邮箱",
     "key.create": "创建密钥", "key.replace.create": "更换密钥", "key.rename": "更改密钥名称", "key.revoke": "撤销密钥", "key.revoke_all": "撤销全部密钥", "key.credential_binding.set": "更改密钥的上游连接",
     "credit_policy.set": "设置个人额度", "credit_policy.delete": "恢复组织默认额度", "credit_default.set": "设置组织额度", "credential_default.set": "更改默认上游连接",
-    "credential.retire": "断开上游连接", "credential.cleanup_retry": "重试连接清理", "credential.migrate_bindings": "迁移密钥的上游连接", "credential.migrate_defaults": "迁移默认上游连接",
-    "credential.codex_create": "添加 ChatGPT 账号", "subscription.grok_create": "添加 Grok 账号", "credential.codex_oauth_start": "开始连接 ChatGPT", "credential.codex_oauth_complete": "完成连接 ChatGPT", "credential.grok_oauth_start": "开始连接 Grok", "credential.grok_oauth_complete": "完成连接 Grok",
+    "credential.retire": "断开上游连接", "credential.cleanup_retry": "重试清理旧凭据", "credential.migrate_bindings": "迁移密钥的上游连接", "credential.migrate_defaults": "迁移默认上游连接",
+    "credential.codex_create": "添加 ChatGPT 连接", "subscription.grok_create": "添加 Grok 连接", "credential.codex_oauth_start": "开始连接 ChatGPT", "credential.codex_oauth_complete": "完成连接 ChatGPT", "credential.grok_oauth_start": "开始连接 Grok", "credential.grok_oauth_complete": "完成连接 Grok",
     "credential.codex_refresh": "刷新 ChatGPT 连接", "credential.grok_refresh": "刷新 Grok 连接", "credential.codex_import": "导入 ChatGPT 连接", "credential.grok_test": "检查 Grok 连接", "credential.grok_storage_purge": "清理 Grok 连接数据"
   };
   return Object.hasOwn(labels, action) ? labels[action] ?? "管理操作" : "管理操作";

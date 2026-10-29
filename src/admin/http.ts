@@ -1127,7 +1127,7 @@ async function routeDashboardUiMutation(
       return jsonResponse({ user }, { status: 201 });
     } catch (error) {
       if (error instanceof HttpError && error.status === 403 && wantsHtml(request)) {
-        return consoleLifecycleOutcome({ rejected: true, href: "/login", label: "重新登录", message: "你的登录身份或管理员权限已改变，这次人员创建没有执行。请重新登录并查看当前状态。" });
+        return consoleLifecycleOutcome({ rejected: true, href: "/login", label: "重新登录", message: "你的登录身份或管理员权限已改变，这次添加成员没有执行。请重新登录并查看当前状态。" });
       }
       assertHtmlMutationError(error, request, [400, 409]);
       return dashboardAfterMutation(env, url, admin, deps, requestContext, {
@@ -1291,10 +1291,10 @@ async function routeDashboardUiMutation(
     if (!wantsHtml(request)) return jsonResponse(result);
     if (userId === admin.userId && (action === "email" || (flash.kind === "user_status" && flash.status === "disabled"))) {
       return consoleLifecycleOutcome({ href: "/login", label: "重新登录", cookie: clearConsoleSessionCookie(),
-        message: action === "email" ? "邮箱已迁移，旧控制台会话已失效。请使用新邮箱重新登录。API 密钥和历史不变，撤销或替换密钥需单独操作。" : "账号已停用，旧控制台会话已失效。请联系其他管理员恢复账号后重新登录。" });
+        message: action === "email" ? "邮箱已迁移，旧控制台会话已失效。请使用新邮箱重新登录。密钥和历史不变，撤销或更换密钥需单独操作。" : "账号已停用，旧控制台会话已失效。请联系其他管理员恢复账号后重新登录。" });
     }
     if (userId === admin.userId && flash.kind === "user_role" && flash.role === "user") {
-      return consoleLifecycleOutcome({ href: "/admin?view=keys", label: "打开我的密钥", message: "你现在是普通成员，组织管理权限已结束。个人 API 密钥、额度和历史不变。" });
+      return consoleLifecycleOutcome({ href: "/admin?view=keys", label: "打开我的密钥", message: "你现在是普通成员，组织管理权限已结束。个人密钥、额度和历史不变。" });
     }
     return dashboardAfterMutation(env, url, admin, deps, requestContext, flash, 200, returnUrl);
   }
@@ -1959,8 +1959,8 @@ function usageQueryGuide() {
     notes: [
       "数据查询必须指定查询方式。",
       `显式 from/to 区间最多 ${MAX_USAGE_RANGE_DAYS} 个 UTC 日（含首尾）；更长历史可显式使用 scope=all 或拆分区间。`,
-      "模型响应记录按人员、路由和 response_model 分组。",
-      "媒体记录按人员、路由和 capability 分组。",
+      "模型响应记录按账号、路由和 response_model 分组。",
+      "媒体记录按账号、路由和 capability 分组。",
       "response_model 只过滤模型响应记录。媒体记录使用其余适用的过滤条件。",
       "total_tokens 已经是合计。",
       "cached_input_tokens 是 input_tokens 的一部分。",

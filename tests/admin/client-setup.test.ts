@@ -62,7 +62,7 @@ describe("client setup projection", () => {
     expect(grokConfig).toContain("请管理员在控制台「上游连接」检查 Grok 连接");
     const xaiEnv = files.find((file) => file.client === "xai")?.content;
     expect(xaiEnv).toContain('XAI_API_KEY="cfwd_example"');
-    expect(xaiEnv).toContain("xAI 使用这个 Grok 上游账号，不是单独的 xAI 凭据。");
+    expect(xaiEnv).toContain("xAI 使用这个 Grok 连接，不是单独的 xAI 凭据。");
     expect(xaiEnv).toContain('XAI_BASE_URL="https://xai.trustedtunnel.app/v1"');
     expect(files.find((file) => file.client === "xai")?.installTarget).toContain(
       "项目环境。在客户端中填写接口地址。"

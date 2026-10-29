@@ -262,7 +262,7 @@ describe("complete dashboard inventories", () => {
     const doc = new JSDOM(html).window.document;
     expect(doc.querySelector('.key-detail-head .eyebrow')?.textContent).toBe('person0@example.test');
     expect(html).toContain("2020-01-01 00:00 UTC");
-    expect(doc.querySelector('.key-detail-head .key-state')?.textContent).toBe({ active: "有效", expired: "已过期", revoked: "已撤销", paused: "已暂停 — 人员已停用" }[state]);
+    expect(doc.querySelector('.key-detail-head .key-state')?.textContent).toBe({ active: "有效", expired: "已过期", revoked: "已撤销", paused: "已暂停 — 账号已停用" }[state]);
     expect(html.includes('data-action="replace-key"')).toBe(state === "active" || state === "paused");
     expect(html.includes('data-action="credential-binding-set"')).toBe(state === "active" || state === "paused");
     expect(html.includes('data-action="revoke-key"')).toBe(state !== "revoked");
@@ -325,11 +325,11 @@ describe("complete dashboard inventories", () => {
     expect(ids(html, "data-user-id")).toEqual(["person-100"]);
     expect(html).toContain('data-person-detail="person-000"');
     expect(html).toContain('data-access-client="codex" data-access-state="paused"');
-    expect(new JSDOM(html).window.document.querySelector('[data-key-id="key-000"] [data-key-state="paused"]')?.textContent).toBe("已暂停 — 人员已停用");
-    expect(html).not.toContain("未显示人员");
+    expect(new JSDOM(html).window.document.querySelector('[data-key-id="key-000"] [data-key-state="paused"]')?.textContent).toBe("已暂停 — 账号已停用");
+    expect(html).not.toContain("未显示账号");
     expect(html).not.toContain("Person not loaded");
     const missing = await f.render("view=access&person=missing&task=give-access");
-    expect(missing.html).toContain("未显示人员");
+    expect(missing.html).toContain("未显示账号");
     expect(missing.html).not.toContain('name="user_id"');
   });
 
@@ -415,7 +415,7 @@ describe("complete dashboard inventories", () => {
     const { html } = await f.render("view=setup&person=person-000&key=key-000");
     const badge = new JSDOM(html).window.document.querySelector('.setup-config-card .key-state');
     expect(badge?.getAttribute('data-key-state')).toBe(state);
-    expect(badge?.textContent).toBe({active:"有效",paused:"已暂停 — 人员已停用",expired:"已过期",revoked:"已撤销"}[state]);
+    expect(badge?.textContent).toBe({active:"有效",paused:"已暂停 — 账号已停用",expired:"已过期",revoked:"已撤销"}[state]);
     expect(html.includes('data-action="create-setup-package"')).toBe(["active", "paused"].includes(state));
     expect([...new JSDOM(html).window.document.querySelectorAll('.setup-config-card a')].some(link => link.textContent === "创建新密钥")).toBe(state === "expired");
     if (state === "expired") {

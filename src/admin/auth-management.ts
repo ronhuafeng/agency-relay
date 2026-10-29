@@ -283,7 +283,7 @@ export function actionButtonLabel(action: AuthManagementAction): string {
     case "connect":
       return "连接";
     case "refresh":
-      return "刷新账号";
+      return "刷新连接";
     case "reauth":
       return "重新连接";
     case "logout":

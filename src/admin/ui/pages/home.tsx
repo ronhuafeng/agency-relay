@@ -46,7 +46,7 @@ function accountAttention(account: HomeAccount, base: string): AttentionItem {
     title: `${account.client === "Codex" ? "ChatGPT" : "Grok"} · ${presentText(account.label)}`,
     detail: presentText(account.projection.statusLabel),
     href: accountDashboardUrl(base, account.key),
-    action: "打开账号"
+    action: "打开连接"
   };
 }
 
@@ -85,7 +85,7 @@ function AccountCards({ accounts, base }: { readonly accounts: readonly HomeAcco
 export function HomePage({ model }: { readonly model: HomeModel }) {
   const items = attentionItems(model);
   const emptyUsage = model.trends && model.trends.daily.responses.length === 0 && model.trends.daily.media.length === 0;
-  const connectAction = <Button asChild><DashLink href={`${viewHref("credentials")}&task=add-account`}>连接账号</DashLink></Button>;
+  const connectAction = <Button asChild><DashLink href={`${viewHref("credentials")}&task=add-account`}>添加上游连接</DashLink></Button>;
   return <View label="首页" role="home" mode="product" className="pulse-board view-stack">
     <div className="magnitude-row home-resource-summary" data-home-summary="true">
       <DashLink className="magnitude" href={viewHref("access")}><Icon name="access"/><span>成员与服务账号</span><strong>{formatNumber(model.userCount)}</strong><Icon name="arrow"/></DashLink>

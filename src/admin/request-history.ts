@@ -77,11 +77,11 @@ const reasons: Record<string, { reason: string; check: "key" | "person" | "diagn
   scope_denied: { reason: "Mini 记录了服务权限拒绝", check: "key" },
   surface_not_entitled: { reason: "Mini 记录了服务未启用", check: "person" },
   surface_credit_exhausted: { reason: "Mini 记录了额度不足", check: "person" },
-  missing_credential_binding: { reason: "Mini 记录了缺少固定账号绑定", check: "key" },
-  invalid_credential_binding: { reason: "Mini 记录了固定账号绑定不可用", check: "key" },
-  missing_credential_account: { reason: "Mini 记录了绑定账号不可用", check: "key" },
-  missing_subscription_credential: { reason: "Mini 记录了账号凭据缺失", check: "key" },
-  reauth_required: { reason: "Mini 记录了账号需要重新授权", check: "key" },
+  missing_credential_binding: { reason: "Mini 记录了缺少固定的上游连接绑定", check: "key" },
+  invalid_credential_binding: { reason: "Mini 记录了固定的上游连接绑定不可用", check: "key" },
+  missing_credential_account: { reason: "Mini 记录了绑定的上游连接不可用", check: "key" },
+  missing_subscription_credential: { reason: "Mini 记录了上游连接凭据缺失", check: "key" },
+  reauth_required: { reason: "Mini 记录了上游连接需要重新授权", check: "key" },
   upstream_transport_failed: { reason: "记录了上游传输失败；未确证根因", check: "diagnosis" },
   codex_upstream_transport_error: { reason: "记录了 Codex 传输失败；未确证根因", check: "diagnosis" },
   provider_upstream_transport_error: { reason: "记录了提供商传输失败；未确证根因", check: "diagnosis" },
@@ -115,7 +115,7 @@ function project(row: StoredRequest, baseUrl: string): RequestHistoryRecord {
   const check = recognized?.check === "key" && personUrl && keyId
     ? { href: `${personUrl}&key=${encodeURIComponent(keyId)}`, label: "核对当前密钥状态" }
     : recognized?.check === "person" && personUrl
-      ? { href: personUrl, label: "核对当前人员与服务额度" }
+      ? { href: personUrl, label: "核对当前账号与服务额度" }
       : { href: diagnosticUrl, label: "查看只读诊断说明" };
   const upstreamStatus = nonNegativeIntegerOrNull(row.upstream_status);
   return {

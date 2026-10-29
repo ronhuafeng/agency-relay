@@ -214,7 +214,7 @@ for (const width of [320, 390, 768, 1440]) for (const colorScheme of ['light', '
       await inspect(page, testInfo, 'admin-add-account', width);
       await page.locator('label[for="add-grok"]').click({ position: { x: 4, y: 4 } });
       await expect(page.getByRole('radio', { name: 'Grok', exact: true })).toBeChecked();
-      await reachable(page.getByRole('button', { name: '添加账号', exact: true }));
+      await reachable(page.getByRole('button', { name: '添加上游连接', exact: true }));
       expect(worker.requests.filter((request) => request.method === 'POST')).toHaveLength(0);
     });
   });
