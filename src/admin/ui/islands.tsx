@@ -12,7 +12,7 @@ import { CreditTableView, type CreditTableRow } from "./credit-table";
 import { PeopleCreateView, type PeopleCreateControl } from "./people-create";
 
 export function PeopleCreateIsland({control}: {readonly control: PeopleCreateControl}) {
-  return <><div id="people-create-root"><PeopleCreateView control={control}/></div><IslandData id="people-create-props" kind="people-create" value={control}/></>;
+  return <><div id="people-create-root" className="people-create-root"><PeopleCreateView control={control}/></div><IslandData id="people-create-props" kind="people-create" value={control}/></>;
 }
 
 export function CreditTableIsland({rows}: {readonly rows: readonly CreditTableRow[]}) {
@@ -35,7 +35,7 @@ export function RequestFiltersIsland({control}: {readonly control: RequestFilter
 }
 
 export function AccountMenuIsland({control}: {readonly control: AccountMenuControl}) {
-  return <><div id="account-menu-root"><AccountMenuView control={control}/></div><IslandData id="account-menu-props" kind="account-menu" value={control}/></>;
+  return <><div id="account-menu-root" className="account-menu-root"><AccountMenuView control={control}/></div><IslandData id="account-menu-props" kind="account-menu" value={control}/></>;
 }
 export function SetupFilesIsland({control}: {readonly control: SetupFilesControl}) {
   const published = {id:control.id,clientSelectId:control.clientSelectId,files:control.files.map(({client,clientLabel,filename,installTarget,template})=>({client,clientLabel,filename,installTarget,template}))};

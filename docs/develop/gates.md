@@ -13,7 +13,7 @@ Select relevant commands; do not run every expensive or paid gate merely because
 The [Design System Governance Loop](design-system.md) owns style-system boundaries.
 `pnpm run console:check` validates the DTCG resolver, generates the runtime theme
 and `design.md` frontmatter, and fails when those outputs are stale. `pnpm run lint:css`
-rejects hex colors, redeclared generated tokens, unknown token references, and
+rejects hex colors, ID selectors, redeclared generated tokens, unknown token references, and
 raw or unproven visual aliases, while preserving owned structural geometry.
 `pnpm run lint:classes` rejects arbitrary Tailwind values and
 visual `style` properties on console TSX, including the primitives. Measured sidebar

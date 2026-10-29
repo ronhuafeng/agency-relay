@@ -22,6 +22,8 @@ export default {
   ignoreFiles: ["src/admin/generated/**"],
   rules: {
     "color-no-hex": true,
+    // Pages style through classes and data hooks; ID selectors out-specify primitives.
+    "selector-max-id": 0,
     "mini/token-policy": {
       tokens,
       aliases,

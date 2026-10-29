@@ -83,7 +83,7 @@ function ReturnField({keyId}: {keyId?:string}) {
   const scope = useMemberScope(); const memberHref = scope.href; return <input type="hidden" name="key_return" value={memberHref("keys",keyId)}/>; }
 function ConfirmForm({action,message,details,submitLabel,keyId,children,quiet=false}: {action:string;message:string;details?:string;submitLabel:string;keyId?:string;children?:React.ReactNode;quiet?:boolean}) {
   const scope = useMemberScope(); if (scope.service) message = `服务账号 ${scope.service.display_name}（${scope.service.id}）：${message}`;
-  return <form method="post" action={action} data-confirmation={message} data-confirmation-details={details}><ReturnField keyId={keyId}/>{action.endsWith("replace")?<input type="hidden" name="submission_id" value={generateId("submit")}/>:null}<ConfirmationFallback message={message} details={details}/>{children}<Button type="submit" variant={quiet || action.endsWith("replace")?"outline":"destructive"} className={quiet?"quiet-destructive":undefined}>{submitLabel}</Button></form>;
+  return <form className="member-form" method="post" action={action} data-confirmation={message} data-confirmation-details={details}><ReturnField keyId={keyId}/>{action.endsWith("replace")?<input type="hidden" name="submission_id" value={generateId("submit")}/>:null}<ConfirmationFallback message={message} details={details}/>{children}<Button type="submit" variant={quiet || action.endsWith("replace")?"outline":"destructive"} className={quiet?"quiet-destructive":undefined}>{submitLabel}</Button></form>;
 }
 const lifecycleLabels: Record<MemberKeyFact["key"]["lifecycle"]["state"],string> = {active:"有效",expired:"已过期",revoked:"已撤销",paused:"账号已暂停",inactive:"已停用",unknown:"状态未知"};
 function TaskEvidence({item}: {item:MemberKeyFact}) {

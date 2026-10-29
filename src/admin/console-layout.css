@@ -26,7 +26,7 @@ body { font:var(--typography-body); letter-spacing:var(--typography-body-letter-
 .console-help-popover li+li { margin-top:8px; }
 .console-help-popover .table-scroll { margin-top:12px; }
 .table-wrap :is(th,td) { position:relative; }
-.shell main#content { max-width:none; padding:16px clamp(16px,2vw,24px) 32px; gap:16px; container-type:inline-size; container-name:console-main; }
+.shell main.console-main { max-width:none; padding:16px clamp(16px,2vw,24px) 32px; gap:16px; container-type:inline-size; container-name:console-main; }
 .nav-rail { width:var(--rail); background:var(--card); padding-inline:12px; }
 .nav-context { padding:14px 10px 8px; font-size:11px; font-weight:600; }
 .nav-rail a { gap:10px; min-height:44px; padding:10px 12px; font-size:14px; }
@@ -80,7 +80,7 @@ form.inventory-page-size { display:flex; align-items:center; flex-wrap:wrap; gap
 .accounts-toolbar { justify-content:flex-start; gap:8px; }
 .people-toolbar { display:grid; grid-template-columns:minmax(0,1fr) auto auto; align-items:center; gap:8px; margin-bottom:12px; }
 .people-toolbar .inventory-search { margin:0; }
-.people-toolbar :is(#people-create-root,.people-create,.people-create-task) { display:contents; }
+.people-toolbar :is(.people-create-root,.people-create,.people-create-task) { display:contents; }
 .people-create-content { grid-column:1/-1; order:1; padding:16px; border:1px solid var(--line-soft); background:var(--secondary); }
 .people-create-form { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:end; gap:12px; }
 .people-create-form :is(.form-error,.people-create-hint) { grid-column:1/-1; }
@@ -123,7 +123,7 @@ form.inventory-page-size { display:flex; align-items:center; flex-wrap:wrap; gap
 .person-access-head { justify-content:space-between; }
 .person-detail>.workspace-section:last-child { border-bottom:0; }
 .person-detail>.section-links { padding:4px 8px; margin:0; border-bottom:1px solid var(--line-soft); }
-.person-detail #person-status { flex:0 1 auto; width:auto; margin:0; padding:0; border:0; background:transparent; display:flex; flex-wrap:wrap; align-items:center; justify-content:flex-end; gap:var(--space-1) var(--space-2); }
+.person-detail .person-status-form { flex:0 1 auto; width:auto; margin:0; padding:0; border:0; background:transparent; display:flex; flex-wrap:wrap; align-items:center; justify-content:flex-end; gap:var(--space-1) var(--space-2); }
 .key-detail,.account-detail-content,.account-linked-keys { background:var(--card); border:1px solid var(--border); padding:16px; border-radius:var(--radius); }
 .person-credit-policies { display:grid; grid-template-columns:minmax(0,1fr); gap:0; margin:0; padding:0; list-style:none; border:1px solid var(--line-soft); }
 .person-credit-policies>li { min-width:0; display:grid; grid-template-columns:minmax(160px,1fr) minmax(180px,1.2fr) auto; padding:12px; background:transparent; border:0; gap:8px 16px; align-items:center; }
@@ -151,9 +151,9 @@ form.inventory-page-size { display:flex; align-items:center; flex-wrap:wrap; gap
 .person-credit-policies form[data-action=credit-set] { display:grid; grid-template-columns:minmax(90px,.7fr) minmax(110px,1fr) auto; gap:8px; align-items:end; }
 .person-credit-policies form[data-action=credit-set]>:is([data-slot=button],[data-variant][data-size]:not([data-slot=switch])) { grid-column:3; }
 .person-credit-policies form[data-action=credit-set] .radix-field { min-width:0; font-size:12px; }
-.person-detail #give-access .person-access-summary { display:flex; flex-wrap:wrap; gap:8px 12px; padding-top:12px; }
+.person-detail [data-action=give-access] .person-access-summary { display:flex; flex-wrap:wrap; gap:8px 12px; padding-top:12px; }
 .person-key-inventory { display:grid; gap:12px; margin-top:12px; min-width:0; container:member-workspace / inline-size; }
-.person-detail #give-access .person-access-summary>div { display:flex; gap:8px; padding:6px 10px; background:var(--secondary); border:1px solid var(--line-soft); font-size:12px; }
+.person-detail [data-action=give-access] .person-access-summary>div { display:flex; gap:8px; padding:6px 10px; background:var(--secondary); border:1px solid var(--line-soft); font-size:12px; }
 
 .account-detail .account-defaults ul { display:flex; flex-wrap:wrap; gap:8px 16px; }
 .account-detail .account-defaults .info-popover { margin-left:auto; }
@@ -646,9 +646,9 @@ table.member-quota-table [data-slot=progress] { height:6px; margin-top:8px; }
 .quota-amount { display:flex; align-items:baseline; flex-wrap:wrap; gap:8px; padding:16px 0; }
 .quota-amount>strong { font-size:28px; }
 .quota-amount>span { color:var(--muted-foreground); font-size:12px; }
-@media(min-width:1400px) { .shell main#content { padding-inline:24px; } }
+@media(min-width:1400px) { .shell main.console-main { padding-inline:24px; } }
 @media(max-width:999px) {
-  .shell main#content { padding:16px 16px 32px; }
+  .shell main.console-main { padding:16px 16px 32px; }
   .nav-rail { width:100%; padding:4px 16px; background:var(--card); }
   .nav-rail .nav-toggle-label { border:0; padding:0; gap:8px; }
   .nav-toggle-label>span:first-child { font-size:12px; color:var(--muted-foreground); }
@@ -718,7 +718,7 @@ table.member-quota-table [data-slot=progress] { height:6px; margin-top:8px; }
   :root { --stack:12px; }
   .site-header { padding:0 12px; flex-wrap:nowrap; min-height:52px; }
   .identity { display:flex; flex:0 0 auto; margin-left:auto; }
-  .shell main#content { padding:12px 12px 24px; gap:12px; }
+  .shell main.console-main { padding:12px 12px 24px; gap:12px; }
   .nav-rail { padding:4px 12px; }
   .brand>strong { font-size:15px; }
   .shell .page-head h1,.console-simple h1 { font-size:18px; }
@@ -765,7 +765,7 @@ table.member-quota-table [data-slot=progress] { height:6px; margin-top:8px; }
 .nav-rail .console-nav-brand .brand { padding:8px; color:var(--foreground); font-weight:650; }
 .console-navigation-items { flex:1; }
 .console-nav-account { margin-top:auto; padding:8px 0; border-top:1px solid var(--line-soft); }
-.console-nav-account .identity,.console-nav-account .identity-person,#account-menu-root { width:100%; margin:0; }
+.console-nav-account .identity,.console-nav-account .identity-person,.account-menu-root { width:100%; margin:0; }
 .console-nav-account .account-menu-trigger { width:100%; min-height:48px; height:auto; padding:8px; justify-content:flex-start; }
 .account-trigger-identity { display:grid; gap:2px; min-width:0; text-align:left; flex:1; }
 .account-trigger-identity strong { font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
@@ -802,8 +802,7 @@ table.member-quota-table [data-slot=progress] { height:6px; margin-top:8px; }
 .member-key-detail :is(h2,h3,p) { min-width:0; overflow-wrap:anywhere; }
 .member-key-detail>.key-task-evidence { border-top:1px solid var(--line-soft); padding-top:12px; }
 .member-key-detail .key-edit-actions { display:flex; flex-wrap:wrap; gap:12px; align-items:flex-start; }
-.key-edit-actions>form:not([data-dashboard-search]) { display:flex; align-items:center; gap:var(--space-1); margin:0; padding:0; }
-.key-edit-actions details.task-editor { border-top:0; padding-top:0; }
+.key-edit-actions>form { display:flex; align-items:center; gap:var(--space-1); margin:0; padding:0; }
 .member-key-detail .person-access-head { display:flex; align-items:start; justify-content:space-between; gap:16px; }
 .member-key-detail .person-access-head h2 { flex:1; }
 .member-key-detail .person-access-head>a { flex:none; }
