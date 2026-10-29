@@ -13,6 +13,8 @@ jobs:
   build:
     name: Build candidate
     runs-on: ubuntu-24.04
+    outputs:
+      artifact_id: ${{ steps.candidate.outputs.artifact-id }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -33,9 +35,10 @@ jobs:
           pnpm exec wrangler deploy --dry-run --outdir dist/worker
           pnpm exec tsx scripts/candidate-artifact.ts seal
           tar -czf candidate.tar.gz candidate.json src/admin/generated worker-configuration.d.ts wrangler.jsonc dist/worker deploy/codex-egress-shim/*.mjs deploy/codex-egress-shim/egress-protocol.json
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      - id: candidate
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: candidate-${{ github.sha }}
+          name: candidate-${{ github.sha }}-${{ github.run_attempt }}
           path: candidate.tar.gz
           if-no-files-found: error
           retention-days: 30
@@ -56,7 +59,8 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
-          name: candidate-${{ github.sha }}
+          artifact-ids: ${{ needs.build.outputs.artifact_id }}
+          merge-multiple: true
           path: ${{ runner.temp }}/candidate
       - run: |
           tar -xzf "$RUNNER_TEMP/candidate/candidate.tar.gz"
@@ -79,7 +83,8 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
-          name: candidate-${{ github.sha }}
+          artifact-ids: ${{ needs.build.outputs.artifact_id }}
+          merge-multiple: true
           path: ${{ runner.temp }}/candidate
       - run: |
           tar -xzf "$RUNNER_TEMP/candidate/candidate.tar.gz"
@@ -104,7 +109,8 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
-          name: candidate-${{ github.sha }}
+          artifact-ids: ${{ needs.build.outputs.artifact_id }}
+          merge-multiple: true
           path: ${{ runner.temp }}/candidate
       - run: |
           tar -xzf "$RUNNER_TEMP/candidate/candidate.tar.gz"
@@ -129,10 +135,14 @@ jobs:
   browser:
     needs: build
     uses: ./.github/workflows/console-browser.yml
+    with:
+      artifact_id: ${{ needs.build.outputs.artifact_id }}
   release:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: [source-integrity, design-enforcement, runtime-contracts, browser]
+    needs: [build, source-integrity, design-enforcement, runtime-contracts, browser]
     uses: ./.github/workflows/release.yml
+    with:
+      artifact_id: ${{ needs.build.outputs.artifact_id }}
     permissions:
       contents: write
     secrets: inherit

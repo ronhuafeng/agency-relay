@@ -42,7 +42,9 @@ Keep tests bounded and revoke temporary keys. For the Feishu console, use the de
 The [CI workflow](../../.github/workflows/ci.yml) builds one candidate per checkout:
 Console runtime assets, binding types, egress modules and the final Worker bundle.
 Its manifest binds file digests to the actual Git SHA and tree. Type, runtime,
-design and browser jobs download and verify that same candidate. Browser fixtures
+design and browser jobs download and verify that same candidate by the upload's
+immutable Artifact ID. Attempts have separate artifact names; reruns do not
+overwrite earlier evidence or select a package by a mutable name. Browser fixtures
 still bundle their Node-only test adapter; they do not regenerate Console assets.
 The final Worker bundle also receives a no-bundle local runtime smoke. A PR merge
 checkout is not relabeled as the standalone head SHA.
