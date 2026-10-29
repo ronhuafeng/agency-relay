@@ -40,7 +40,7 @@ for (const script of [true, false]) test.describe(`account admission script ${sc
     expect(worker.codexAdmissionFacts()).toEqual(before);
 
     await confirm(page, form, script, "暂停接收请求");
-    await expect(page.locator('[data-mutation-flash="codex_admission"]')).toContainText("ChatGPT 请求已暂停");
+    await expect(page.locator('[data-mutation-flash="codex_admission"]')).toContainText("ChatGPT 连接已暂停接收请求");
     await expect(toggle).not.toBeChecked();
     await expect(form).toHaveAttribute("action", "/admin/ui/codex-auths/fixture-codex/resume");
     await expect(page.locator('[data-codex-admin] [data-credential-status]')).toHaveText("已连接");
