@@ -27,7 +27,6 @@
 }
 .setup-workbench-body { display:grid; gap:var(--space-4); min-width:0; margin-block:0; }
 .setup-mode-choices { display:flex; flex-wrap:wrap; gap:var(--space-2); }
-.setup-mode-choices>[data-slot=button][data-variant][aria-pressed=true] { background:var(--accent); border-color:var(--primary); color:var(--foreground); }
 .setup-selected-action { display:grid; gap:var(--space-3); }
 .setup-selected-action>.action-link { justify-self:start; }
 .setup-selected-action>.board-form,.setup-held-form { padding:0; margin:0; width:100%; max-width:none; }

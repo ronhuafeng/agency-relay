@@ -186,7 +186,7 @@ describe("admin pages, accounts, and audit", () => {
     expect(body).toContain("2026-06-23");
     expect(body).toContain("ChatGPT");
     expect(body).toContain('data-mgmt-state="degraded"');
-    expect(body).toContain("先刷新账号。刷新失败时，再重新连接。");
+    expect(body).toContain("先刷新连接。刷新失败时，再重新连接。");
     expect(body).toContain('data-codex-admin="true"');
     expect(body).not.toContain("People you authorize share");
     expect(body).not.toContain("refresh_error");

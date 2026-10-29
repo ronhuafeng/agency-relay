@@ -15,6 +15,7 @@
 :is([data-slot=button],[data-variant][data-size]:not([data-slot=switch]))[data-variant=secondary] { background:var(--secondary); color:var(--foreground); }
 :is([data-slot=button],[data-variant][data-size]:not([data-slot=switch]))[data-variant=destructive] { background:var(--destructive); color:var(--destructive-foreground); }
 [data-slot=button][data-variant=outline].quiet-destructive { color:var(--destructive); border-color:var(--destructive); }
+[data-slot=button][data-variant=outline][aria-pressed=true] { background:var(--accent); border-color:var(--primary); color:var(--foreground); }
 :is([data-slot=input],[data-slot=input-group-control],[data-slot=native-select],[data-slot=textarea]) { min-height:var(--control-target); height:auto; border-radius:var(--radius); font:var(--typography-body); letter-spacing:var(--typography-body-letter-spacing); }
 [data-slot=input],[data-slot=native-select],[data-slot=textarea] { border:1px solid var(--input); padding:10px 12px; background:var(--card); color:var(--foreground); }
 [data-slot=native-select] { padding-right:36px; }

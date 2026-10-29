@@ -265,7 +265,7 @@ describe("exact account tasks", () => {
   it("keeps creation separate and native without provider reads", async () => {
     const f = fixture();
     const { html } = await f.render("&task=add-account");
-    expect(detail(html)).toContain('<h2>添加账号</h2>');
+    expect(detail(html)).toContain('<h2>添加上游账号</h2>');
     expect(detail(html)).toContain('action="/admin/ui/codex-auths"');
     expect(detail(html)).toContain('action="/admin/ui/subscriptions"');
     expect(detail(html)).not.toContain('name="return_range"');

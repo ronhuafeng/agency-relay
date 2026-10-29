@@ -113,7 +113,7 @@ function actionLabel(action: string): string {
     "user.create": "添加人员", "user.enable": "启用人员", "user.disable": "停用人员", "user.promote": "设为管理员", "user.demote": "设为成员", "user.email": "更改邮箱",
     "key.create": "创建密钥", "key.replace.create": "更换密钥", "key.rename": "更改密钥名称", "key.revoke": "撤销密钥", "key.revoke_all": "撤销全部密钥", "key.credential_binding.set": "更改密钥的上游连接",
     "credit_policy.set": "设置个人额度", "credit_policy.delete": "恢复组织默认额度", "credit_default.set": "设置组织额度", "credential_default.set": "更改默认上游连接",
-    "credential.retire": "停用上游连接", "credential.cleanup_retry": "重试连接清理", "credential.migrate_bindings": "迁移密钥的上游连接", "credential.migrate_defaults": "迁移默认上游连接",
+    "credential.retire": "断开上游连接", "credential.cleanup_retry": "重试连接清理", "credential.migrate_bindings": "迁移密钥的上游连接", "credential.migrate_defaults": "迁移默认上游连接",
     "credential.codex_create": "添加 ChatGPT 账号", "subscription.grok_create": "添加 Grok 账号", "credential.codex_oauth_start": "开始连接 ChatGPT", "credential.codex_oauth_complete": "完成连接 ChatGPT", "credential.grok_oauth_start": "开始连接 Grok", "credential.grok_oauth_complete": "完成连接 Grok",
     "credential.codex_refresh": "刷新 ChatGPT 连接", "credential.grok_refresh": "刷新 Grok 连接", "credential.codex_import": "导入 ChatGPT 连接", "credential.grok_test": "检查 Grok 连接", "credential.grok_storage_purge": "清理 Grok 连接数据"
   };

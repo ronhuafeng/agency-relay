@@ -316,9 +316,9 @@ export function operatorHintForState(state: AuthManagementState): string | null 
     case "authorizing":
       return null;
     case "degraded":
-      return "先刷新账号。刷新失败时，再重新连接。";
+      return "先刷新连接。刷新失败时，再重新连接。";
     case "reauth_required":
-      return "请重新登录。登录完成前，客户端不能使用这个账号。";
+      return "请重新登录。登录完成前，客户端不能使用这个连接。";
     default:
       return null;
   }

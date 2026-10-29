@@ -387,7 +387,7 @@ test.describe('native administrator issuance recovery',()=>{
     await page.goto('/admin?view=access&person=member&task=give-access');
     const form=page.locator('form[action="/admin/ui/keys"]');
     await form.getByRole('checkbox',{name:'Codex',exact:true}).check();
-    await form.getByRole('combobox',{name:'Codex 账号',exact:true}).selectOption('fixture-codex');
+    await form.getByRole('combobox',{name:'Codex 上游连接',exact:true}).selectOption('fixture-codex');
     await form.getByRole('button',{name:'创建密钥',exact:true}).click();
     await expect.poll(()=>page.locator('[data-one-time-key]').isVisible()).toBe(true);
     const issued=worker.keyMetadata().find(row=>row.id!=='member-key')!;

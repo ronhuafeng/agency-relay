@@ -225,8 +225,8 @@ describe("role-aware console", () => {
     const reportHtml = await report.text();
     const reportDoc = new JSDOM(reportHtml).window.document;
     expect(reportDoc.querySelectorAll('.usage-record')).toHaveLength(1);
-    expect(reportDoc.querySelector('.usage-metrics')?.textContent).toContain('Requests2');
-    expect(reportDoc.querySelector('.usage-metrics')?.textContent).toContain('Token10');
+    expect(reportDoc.querySelector('.usage-metrics')?.textContent).toContain('请求2');
+    expect(reportDoc.querySelector('.usage-metrics')?.textContent).toContain('令牌10');
     expect(reportDoc.querySelector('.usage-record')?.textContent).toContain('gpt-5');
     expect(reportDoc.querySelector('.usage-record')?.textContent).not.toContain('未记录令牌用量');
     expect(reportDoc.querySelector('.usage-record [data-cost-basis="api_equivalent"]')).not.toBeNull();

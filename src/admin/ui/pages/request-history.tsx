@@ -58,7 +58,7 @@ function RequestDetail({ row, model }: { readonly row: RequestHistoryRecord; rea
         <Fact label="总令牌">{row.tokens === null ? "未记录" : formatNumber(row.tokens)}</Fact>
         <Fact label="输入／缓存令牌">{row.inputTokens === null ? "未记录" : formatNumber(row.inputTokens)} / {row.cachedTokens === null ? "未记录" : formatNumber(row.cachedTokens)}</Fact>
         <Fact label="输出／推理令牌">{row.outputTokens === null ? "未记录" : formatNumber(row.outputTokens)} / {row.reasoningTokens === null ? "未记录" : formatNumber(row.reasoningTokens)}</Fact>
-        <Fact label="上游金额原始值（ticks）">{row.costTicks === null ? "未记录" : formatNumber(row.costTicks)}（暂估值，不是账单）</Fact>
+        <Fact label="上游金额原始值（ticks）">{row.costTicks === null ? "未记录" : formatNumber(row.costTicks)}（上游报告值，不是账单）</Fact>
       </dl>
     </InfoPopover><HistoryScope model={model} id="request-detail-scope"/></div>
   </Card>;

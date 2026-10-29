@@ -79,7 +79,7 @@ describe("administrator credential status metadata", () => {
     expect(body.accounts).toEqual([
       { admissionState: "enabled", key: "codex:collision", state: "active", statusLabel: "已连接", tone: "ok", hint: null, expiresAt: "2026-10-07T12:00:00.000Z", lastRefreshAt: "2026-10-06T11:30:00.000Z" },
       { admissionState: "enabled", key: "codex:expired", state: "expired", statusLabel: "访问已过期", tone: "bad", hint: null, expiresAt: now.toISOString(), lastRefreshAt: null },
-      { admissionState: "enabled", key: "codex:legacy", state: "degraded", statusLabel: "需要处理", tone: "bad", hint: "先刷新账号。刷新失败时，再重新连接。", expiresAt: null, lastRefreshAt: null },
+      { admissionState: "enabled", key: "codex:legacy", state: "degraded", statusLabel: "需要处理", tone: "bad", hint: "先刷新连接。刷新失败时，再重新连接。", expiresAt: null, lastRefreshAt: null },
       { admissionState: "enabled", key: "codex:pending", state: "absent", statusLabel: "未连接", tone: "neutral", hint: null, expiresAt: null, lastRefreshAt: null },
       { admissionState: "enabled", key: "codex:revoked", state: "revoked", statusLabel: "已断开", tone: "neutral", hint: null, expiresAt: null, lastRefreshAt: null },
       { admissionState: "enabled", key: "codex:soon", state: "expiring_soon", statusLabel: "即将过期", tone: "warn", hint: null, expiresAt: "2026-10-06T12:05:00.000Z", lastRefreshAt: null },

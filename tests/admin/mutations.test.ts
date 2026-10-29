@@ -66,7 +66,7 @@ describe("bounded mutation outcomes", () => {
     expect(body instanceof URLSearchParams && body.get("confirm")).toBe("1");
     if (!resolve) throw new Error("request missing"); const complete: (response: Response) => void = resolve;
     complete(new Response(JSON.stringify({error: {message: "invalid input"}}), {status: 422, headers: {"Content-Type": "application/json"}}));
-    await vi.waitFor(() => expect(navigation.notice).toHaveBeenCalledWith(expect.stringContaining("未接受"), "error")); expect(element("button[type=submit]", HTMLButtonElement).disabled).toBe(false);
+    await vi.waitFor(() => expect(navigation.notice).toHaveBeenCalledWith(expect.stringContaining("没有执行"), "error")); expect(element("button[type=submit]", HTMLButtonElement).disabled).toBe(false);
     const leaving = new Event("beforeunload", {cancelable:true}); window.dispatchEvent(leaving);
     expect(leaving.defaultPrevented).toBe(false);
   });
