@@ -37,8 +37,11 @@ jobs:
       - name: Scan Git-visible artifacts
         run: pnpm run scan:git-artifacts
 
-      - name: Check generated Worker bindings
-        run: pnpm run types:check
+      - name: Generate build inputs from this checkout
+        run: |
+          pnpm run types:generate
+          pnpm run console:check
+          pnpm run egress:build
 
       - name: Typecheck Worker and console TypeScript
         run: |
@@ -100,6 +103,12 @@ jobs:
 
       - name: Prepare pinned Codex client for the synthetic OAuth contract
         run: npm install --prefix "$RUNNER_TEMP/runtime-codex" --no-audit --no-fund @openai/codex@0.156.1
+
+      - name: Generate runtime inputs from this checkout
+        run: |
+          pnpm run types:generate
+          pnpm run console:check
+          pnpm run egress:build
 
       - name: Worker unit and contract tests
         run: pnpm exec vitest run

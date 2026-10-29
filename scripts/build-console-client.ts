@@ -2,17 +2,18 @@ import { createHash } from "node:crypto";
 import { consoleAssetBytes } from "./console-asset-metrics";
 import { projectDesignTokens } from "./design-tokens";
 import { spawnSync } from "node:child_process";
-import { readFileSync, writeFileSync, mkdtempSync, rmSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdtempSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 const buildDirectory = mkdtempSync(join(tmpdir(), "mini-console-"));
 const check = process.argv.includes("--check");
 function output(path: string, contents: string): void {
-  if (check) {
+  if (check && path === "design.md") {
     if (readFileSync(path, "utf8") !== contents) throw new Error(`${path} is out of date. Run pnpm console:build.`);
   } else writeFileSync(path, contents);
 }
 try {
+mkdirSync("src/admin/generated", { recursive: true });
 const tokens = await projectDesignTokens(readFileSync("design.md", "utf8"));
 output("src/admin/generated/tokens.css", tokens.css);
 output("design.md", tokens.designMd);
