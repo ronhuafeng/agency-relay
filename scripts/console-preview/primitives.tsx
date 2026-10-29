@@ -45,7 +45,7 @@ export function renderPrimitiveGallery(): string {
           </Specimen>
           <Specimen title="ConfirmationFallback">
             <form className="inline-form" data-confirmation="撤销此密钥？"><ConfirmationFallback message="撤销此密钥？此密钥立即且永久失效。" /><Button type="submit" variant="destructive">撤销</Button></form>
-            <form className="inline-form" data-confirmation="停用额度？"><ConfirmationFallback message="停用额度？新请求立即被拒绝。" compact /><Button type="submit" variant="outline">保存</Button></form>
+            <form className="inline-form" data-confirmation="停用额度？"><ConfirmationFallback message="停用额度？新请求立即被拒绝。" /><Button type="submit" variant="outline">保存</Button></form>
           </Specimen>
           <Specimen title="Input">
             <p><Label htmlFor="gallery-input">名称</Label><Input id="gallery-input" defaultValue="工作电脑" /></p>

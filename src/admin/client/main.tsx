@@ -38,9 +38,13 @@ interface PendingConfirmation {
 function hideFallbacks(root: ParentNode): void {
   const nodes = Array.from(root.querySelectorAll<HTMLElement>("[data-confirmation-fallback]"));
   if (root instanceof HTMLElement && root.matches("[data-confirmation-fallback]")) nodes.push(root);
+  // The dialog repeats the same consequence on submission, so the whole native prompt,
+  // including its help button, leaves the enhanced layout.
   nodes.forEach((node) => {
     node.hidden = true;
     node.querySelector("input")?.setAttribute("disabled", "");
+    const prompt = node.closest<HTMLElement>("[data-confirmation-prompt]");
+    if (prompt) prompt.hidden = true;
   });
 }
 
