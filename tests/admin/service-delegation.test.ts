@@ -6,7 +6,7 @@ import { commitServiceAccount } from "../../src/auth/service-accounts";
 import { commitServiceOwner } from "../../src/auth/service-delegation";
 import { handleRequest } from "../../src/router";
 import { authenticateEndUser } from "../../src/auth/authenticate";
-import { readAssignedServiceImpact } from "../../src/admin/service-owner-impact";
+import { readAssignedServiceImpact } from "../../src/console/service-owner-impact";
 import { makeFixture } from "../router/fixture";
 import { createTestD1 } from "../support/sqlite-d1";
 

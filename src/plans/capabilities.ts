@@ -1,4 +1,4 @@
-import { PRODUCT_ACCESS, type ProductAccessId } from "../admin/client-setup";
+import { PRODUCT_ACCESS, type ProductAccessId } from "../console/client-setup";
 import {
   publicExecutionPlanPath,
   type ExecutionPlan,

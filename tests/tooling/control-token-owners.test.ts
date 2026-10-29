@@ -1,8 +1,8 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
-const primitives = readFileSync("src/admin/ui/components/primitives.css", "utf8");
-const layout = readFileSync("src/admin/console-layout.css", "utf8");
+const primitives = readFileSync("src/console/ui/components/primitives.css", "utf8");
+const layout = readFileSync("src/console/console-layout.css", "utf8");
 
 describe("shared control token owners", () => {
   it("uses the generated control and overlay tokens for shared primitive and menu decisions", () => {

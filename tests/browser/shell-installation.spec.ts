@@ -1,7 +1,7 @@
 import { writeFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { createServer } from 'node:http';
-import { dashboardAppResponse } from '../../src/admin/app';
+import { dashboardAppResponse } from '../../src/console/app';
 import { test, expect, authenticate, expectAccountRole } from './fixtures';
 import { ORIGIN } from './worker';
 

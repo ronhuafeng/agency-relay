@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { initializeMemberMutations } from "../../src/admin/client/member-mutations";
+import { initializeMemberMutations } from "../../src/console/client/member-mutations";
 import { browserLayout, element, submit } from "../support/browser-dom";
 let dispose: (() => void) | null = null;
 beforeEach(() => {

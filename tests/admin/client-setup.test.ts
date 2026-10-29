@@ -5,7 +5,7 @@ import {
   CLIENT_SETUP_TOKEN_PLACEHOLDER,
   productAccessFromScopes,
   productAccessLabels
-} from "../../src/admin/client-setup";
+} from "../../src/console/client-setup";
 
 describe("client setup projection", () => {
   it("projects human product access without exposing grant syntax", () => {

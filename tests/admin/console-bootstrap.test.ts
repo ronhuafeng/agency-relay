@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { JSDOM } from "jsdom";
-import { consoleClientPath } from "../../src/admin/app";
-import { consoleBootstrapSource } from "../../src/admin/generated/console-bootstrap";
+import { consoleClientPath } from "../../src/console/app";
+import { consoleBootstrapSource } from "../../src/console/generated/console-bootstrap";
 
 describe("CSS-first progressive runtime bootstrap", () => {
   it("adds only the generated async module and propagates the document nonce", () => {

@@ -1,11 +1,11 @@
 /** @vitest-environment jsdom */
 import {afterEach, beforeEach, expect, it, vi} from 'vitest';
-import {createTaskController} from '../../src/admin/client/navigation';
-import {createDrafts} from '../../src/admin/client/drafts';
-import {initializeMutations} from '../../src/admin/client/mutations';
-import {initializeMemberMutations} from '../../src/admin/client/member-mutations';
+import {createTaskController} from '../../src/console/client/navigation';
+import {createDrafts} from '../../src/console/client/drafts';
+import {initializeMutations} from '../../src/console/client/mutations';
+import {initializeMemberMutations} from '../../src/console/client/member-mutations';
 import {browserLayout,dashboardHtml,submit} from '../support/browser-dom';
-import {initializeRecovery} from '../../src/admin/client/recovery';
+import {initializeRecovery} from '../../src/console/client/recovery';
 let stop = () => {};
 beforeEach(() => {
   history.replaceState(null, '', '/admin?area=me&view=setup&key=exact#content');

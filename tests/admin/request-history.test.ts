@@ -1,6 +1,6 @@
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { JSDOM } from "jsdom";
-import { readRequestHistory, parseRequestHistoryQuery } from "../../src/admin/request-history";
+import { readRequestHistory, parseRequestHistoryQuery } from "../../src/console/request-history";
 import { createConsoleSession } from "../../src/auth/console-session";
 import { handleRequest } from "../../src/router";
 import { createTestD1 } from "../support/sqlite-d1";

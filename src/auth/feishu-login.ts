@@ -1,8 +1,8 @@
-import { CONSOLE_RETURN_SECTIONS, consoleLoginHref, consoleReturnTarget } from "../admin/return-target";
+import { CONSOLE_RETURN_SECTIONS, consoleLoginHref, consoleReturnTarget } from "../console/return-target";
 import { createElement } from "react";
-import { LoginEntry, LogoutEntry } from "../admin/ui/pages/login";
-import { assertConsoleBrowserWrite } from "../admin/browser-write";
-import { consoleDocument } from "../admin/console-shell";
+import { LoginEntry, LogoutEntry } from "../console/ui/pages/login";
+import { assertConsoleBrowserWrite } from "../console/browser-write";
+import { consoleDocument } from "../console/console-shell";
 import { base64UrlEncode, nowIso } from "../crypto";
 import { HttpError, invalidConsoleReturn, publicInternalError } from "../errors";
 import { asRecord as record } from "../records";

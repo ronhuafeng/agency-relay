@@ -1,6 +1,6 @@
 import { JSDOM } from "jsdom";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
-import { adminDashboardResponse } from "../../src/admin/dashboard";
+import { adminDashboardResponse } from "../../src/console/dashboard";
 import type { CodexAccountSnapshot } from "../../src/codex/account";
 import { makeFixture } from "../router/fixture";
 import { createTestD1, type TestD1 } from "../support/sqlite-d1";

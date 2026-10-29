@@ -8,7 +8,7 @@ import {
   revokeApiKey,
   setSurfaceCreditPolicy,
   type OperatorMutationContext
-} from "../../src/admin/operator-mutations";
+} from "../../src/control/operator-mutations";
 import { createTestD1 } from "../support/sqlite-d1";
 
 const NOW = new Date("2026-08-10T12:00:00.000Z");

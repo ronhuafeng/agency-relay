@@ -1,9 +1,9 @@
 /** @vitest-environment jsdom */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { initializeMutations } from "../../src/admin/client/mutations";
-import type { TaskController } from "../../src/admin/client/navigation";
-import { createTaskController } from "../../src/admin/client/navigation";
-import { createDrafts } from "../../src/admin/client/drafts";
+import { initializeMutations } from "../../src/console/client/mutations";
+import type { TaskController } from "../../src/console/client/navigation";
+import { createTaskController } from "../../src/console/client/navigation";
+import { createDrafts } from "../../src/console/client/drafts";
 import { browserLayout, dashboardHtml, element, submit } from "../support/browser-dom";
 let dispose: (() => void) | null = null;
 beforeEach(() => {
@@ -125,7 +125,7 @@ describe("bounded mutation outcomes", () => {
     const target = "/admin?view=credentials&account=grok%3Acurrent";
     // Load the real Worker-owned response at runtime. Its module remains checked
     // in the Worker TypeScript program; this DOM test stays in the client realm.
-    const {consoleUnknownOutcome} = await vi.importActual<{consoleUnknownOutcome:(href:string)=>Response}>("../../src/admin/dashboard");
+    const {consoleUnknownOutcome} = await vi.importActual<{consoleUnknownOutcome:(href:string)=>Response}>("../../src/console/dashboard");
     const response = consoleUnknownOutcome(target); expect(response.status).toBe(403);
     const fetch = vi.fn().mockResolvedValue(response); vi.stubGlobal("fetch",fetch);
     const navigation = start(); submit(element("form",HTMLFormElement));
@@ -136,7 +136,7 @@ describe("bounded mutation outcomes", () => {
     expect(fetch).toHaveBeenCalledOnce();
   });
   it.each(["actor", "navigation", "form", "extra-shell"] as const)("rejects a public unknown response mixed with private authority or controls: %s", async projection => {
-    const {consoleUnknownOutcome} = await vi.importActual<{consoleUnknownOutcome:(href:string)=>Response}>("../../src/admin/dashboard");
+    const {consoleUnknownOutcome} = await vi.importActual<{consoleUnknownOutcome:(href:string)=>Response}>("../../src/console/dashboard");
     const response = consoleUnknownOutcome("/admin?view=credentials&account=grok%3Acurrent");
     const doc = new DOMParser().parseFromString(await response.text(),"text/html");
     const extra = {actor:'<span data-console-actor-id="actor-A"></span>',navigation:'<nav data-member-nav="true"></nav>',form:'<form method="post" action="/admin/ui/keys"></form>',"extra-shell":'<div class="shell"><p>Former private content</p></div>'}[projection];

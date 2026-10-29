@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { adminDashboardResponse } from "../../src/admin/dashboard";
+import { adminDashboardResponse } from "../../src/console/dashboard";
 
-import { buildClientSetupFiles } from "../../src/admin/client-setup";
+import { buildClientSetupFiles } from "../../src/console/client-setup";
 import { createTestD1 } from "../support/sqlite-d1";
 
 describe("one-time setup downloads", () => {

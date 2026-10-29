@@ -1,6 +1,6 @@
 import { DurableObject } from "cloudflare:workers";
 import OAuth2Server from "@node-oauth/oauth2-server";
-import { assertConsoleBrowserWrite } from "../../src/admin/browser-write";
+import { assertConsoleBrowserWrite } from "../../src/console/browser-write";
 import { HttpError, jsonResponse } from "../../src/errors";
 
 const REQUIRED_SCOPE = "relay.read";

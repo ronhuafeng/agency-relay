@@ -3,8 +3,8 @@ import { act, createElement } from "react";
 import { createRoot, hydrateRoot, type Root } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, expect, it } from "vitest";
-import { createDrafts, type Drafts } from "../../src/admin/client/drafts";
-import { TaskEditorView, readTaskEditor, type TaskEditorControl } from "../../src/admin/ui/task-editor";
+import { createDrafts, type Drafts } from "../../src/console/client/drafts";
+import { TaskEditorView, readTaskEditor, type TaskEditorControl } from "../../src/console/ui/task-editor";
 
 Object.defineProperty(globalThis, "IS_REACT_ACT_ENVIRONMENT", {configurable: true, value: true});
 let root: Root | null = null; let drafts: Drafts | null = null;

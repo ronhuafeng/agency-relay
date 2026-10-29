@@ -212,7 +212,7 @@ Generated counts, controls, roles, code examples and success claims are not prod
 Pixel character, both color themes, task-based organization, shadcn interaction
 patterns, suitable controls and concise copy are user requirements. Agency Relay owns local
 styling; upstream defaults are not a second theme authority. Primitive appearance
-is owned by `src/admin/ui/components/primitives.css`. Component classes keep structure, state and interaction.
+is owned by `src/console/ui/components/primitives.css`. Component classes keep structure, state and interaction.
 Page CSS may own unique task geometry; it does not restate primitive color, radius
 or shadow. Page and workflow
 boundaries can be redesigned within existing backend capabilities. The page
@@ -389,7 +389,7 @@ accessible names explain consequential actions.
 
 Use [shadcn/ui](https://ui.shadcn.com/docs/components) for component anatomy,
 semantics and interaction patterns. The source-owned primitives in
-[`src/admin/ui/components`](src/admin/ui/components) are Agency Relay code and use Radix
+[`src/console/ui/components`](src/console/ui/components) are Agency Relay code and use Radix
 behavior where appropriate. Apply Agency Relay's semantic tokens rather than upstream
 default styling, and selectively adopt upstream interaction/accessibility fixes.
 

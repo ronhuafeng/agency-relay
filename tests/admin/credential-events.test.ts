@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
-import { CredentialEvents } from "../../src/admin/credential-events";
+import { CredentialEvents } from "../../src/control/credential-events";
 import { createConsoleSession } from "../../src/auth/console-session";
 import { hmacSha256Hex } from "../../src/crypto";
 import { createTestD1 } from "../support/sqlite-d1";

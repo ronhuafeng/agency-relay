@@ -2,7 +2,7 @@ import { spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { buildClientSetupFiles } from "../../../src/admin/client-setup";
+import { buildClientSetupFiles } from "../../../src/console/client-setup";
 import { HOST, assertImage, assertVideo, call, codexLanguageModel, env, expectJson, grokGatewayModel, isRecord } from "../support";
 
 export interface ClientHome {

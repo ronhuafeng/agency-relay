@@ -9,7 +9,7 @@ it("binds all shipped bytes to the candidate source and rejects tampering, missi
   const sha = "1".repeat(40), tree = "2".repeat(40);
   const put = (path: string, value = "fixture") => { mkdirSync(dirname(join(directory, path)), { recursive: true }); writeFileSync(join(directory, path), value); };
   try {
-    for (const path of ["src/admin/generated/client.ts", "dist/worker/index.js", "worker-configuration.d.ts", "wrangler.jsonc",
+    for (const path of ["src/console/generated/client.ts", "dist/worker/index.js", "worker-configuration.d.ts", "wrangler.jsonc",
       "deploy/codex-egress-shim/server.mjs", "deploy/codex-egress-shim/node-transport-adapter.mjs", "deploy/codex-egress-shim/transport-lifecycle.mjs", "deploy/codex-egress-shim/egress-protocol.json"]) put(path);
     const candidate = sealCandidate(directory, sha, tree);
     expect(() => verifyCandidate(directory, candidate, sha, tree)).not.toThrow();

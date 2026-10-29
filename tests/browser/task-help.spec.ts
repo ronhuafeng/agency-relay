@@ -1,5 +1,5 @@
 import { test, expect, authenticate, openKeyEditor } from './fixtures';
-import { buildClientSetupFiles, CLIENT_SETUP_TOKEN_PLACEHOLDER, PRODUCT_ACCESS } from '../../src/admin/client-setup';
+import { buildClientSetupFiles, CLIENT_SETUP_TOKEN_PLACEHOLDER, PRODUCT_ACCESS } from '../../src/console/client-setup';
 
 test('configuration path copy remains usable when the Clipboard API is unavailable', async ({page}) => {
   await page.addInitScript(() => { Object.defineProperty(navigator, 'clipboard', {value: undefined, configurable: true}); });

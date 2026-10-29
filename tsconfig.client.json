@@ -13,5 +13,5 @@
     "noUnusedParameters": true,
     "types": []
   },
-  "include": ["src/admin/client/**/*.tsx", "src/admin/client/**/*.ts", "tests/admin/confirmation.test.ts", "tests/admin/navigation.test.ts", "tests/admin/recovery.test.ts", "tests/admin/mutations.test.ts", "tests/admin/member-mutations.test.ts", "tests/admin/drafts.test.ts", "tests/admin/controls.test.ts", "tests/admin/task-editor-drafts.test.ts", "tests/tooling/preview-workbench.test.ts", "tests/admin/credential-status-client.test.ts"]
+  "include": ["src/console/client/**/*.tsx", "src/console/client/**/*.ts", "tests/admin/confirmation.test.ts", "tests/admin/navigation.test.ts", "tests/admin/recovery.test.ts", "tests/admin/mutations.test.ts", "tests/admin/member-mutations.test.ts", "tests/admin/drafts.test.ts", "tests/admin/controls.test.ts", "tests/admin/task-editor-drafts.test.ts", "tests/tooling/preview-workbench.test.ts", "tests/admin/credential-status-client.test.ts"]
 }

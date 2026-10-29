@@ -9,7 +9,7 @@ import {
   statusToneForState,
   type AuthManagementAction,
   type AuthManagementState
-} from "../../src/admin/auth-management";
+} from "../../src/console/auth-management";
 
 describe("account auth-management projection", () => {
   const nowMs = Date.parse("2026-07-28T12:00:00.000Z");

@@ -5,17 +5,17 @@
   "tsx": true,
   "tailwind": {
     "config": "",
-    "css": "src/admin/console.css",
+    "css": "src/console/console.css",
     "baseColor": "slate",
     "cssVariables": true,
     "prefix": ""
   },
   "iconLibrary": "lucide",
   "aliases": {
-    "components": "@/admin/ui",
-    "utils": "@/admin/ui/utils",
-    "ui": "@/admin/ui/components",
-    "lib": "@/admin/ui",
-    "hooks": "@/admin/ui/hooks"
+    "components": "@/console/ui",
+    "utils": "@/console/ui/utils",
+    "ui": "@/console/ui/components",
+    "lib": "@/console/ui",
+    "hooks": "@/console/ui/hooks"
   }
 }

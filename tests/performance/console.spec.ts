@@ -5,8 +5,8 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { cpus, platform, release } from "node:os";
 import { authenticate } from "../browser/fixtures";
 import { NOW, ORIGIN, startConsoleWorker, type ConsoleWorker } from "../browser/worker";
-import { consoleClientSource } from "../../src/admin/generated/console-client";
-import { consoleStyles } from "../../src/admin/generated/console-styles";
+import { consoleClientSource } from "../../src/console/generated/console-client";
+import { consoleStyles } from "../../src/console/generated/console-styles";
 import { consoleAssetBytes } from "../../scripts/console-asset-metrics";
 import { distribution, labCls } from "./metrics";
 

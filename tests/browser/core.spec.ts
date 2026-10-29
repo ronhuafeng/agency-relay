@@ -1,4 +1,4 @@
-import { consoleClientPath } from "../../src/admin/app";
+import { consoleClientPath } from "../../src/console/app";
 import { openNativeConfirmation, test, expect, authenticate, openMemberCreate, openKeyEditor, reopenRestoredConsolePage, acceptUnknownOutcomeRead } from "./fixtures";
 import { ATTACKER_ORIGIN, ORIGIN } from "./worker";
 import { request as apiRequest, type Page } from "@playwright/test";
