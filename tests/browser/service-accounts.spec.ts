@@ -50,7 +50,7 @@ test('admin creates and renames the exact service, then disables and enables it 
   const creditRow = page.locator('[data-credit-surface="codex"]');
   const credit = page.locator(`[id="credit-policy-${id}-codex-editor"]`);
   await creditRow.getByRole('button',{name:'调整 Codex 额度',exact:true}).click();
-  await credit.getByRole('combobox', { name: '策略' }).selectOption('limited');
+  await credit.getByRole('combobox', { name: '额度政策' }).selectOption('limited');
   await credit.getByRole('spinbutton', { name: '每月额度' }).fill('12');
   await creditRow.getByRole('button',{name:'调整 Codex 额度',exact:true}).click();
   await expect(credit.getByRole('spinbutton')).toBeHidden();
