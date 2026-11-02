@@ -37,11 +37,11 @@
     "console:preview:pull": "tsx scripts/console-preview/pull-data.ts"
   },
   "devDependencies": {
-    "@babel/core": "^8.0.7",
+    "@babel/core": "^8.0.10",
     "@babel/eslint-parser": "^8.0.7",
     "@babel/preset-react": "^8.0.1",
     "@babel/preset-typescript": "^8.0.7",
-    "@cloudflare/workers-types": "^5.20261022.1",
+    "@cloudflare/workers-types": "^5.20261030.1",
     "@google/design.md": "^0.4.0",
     "@playwright/test": "1.64.1",
     "@tailwindcss/cli": "^4.3.3",
@@ -49,7 +49,7 @@
     "@terrazzo/parser": "^2.10.0",
     "@terrazzo/plugin-css": "^2.10.0",
     "@types/jsdom": "^30.0.0",
-    "@types/node": "^26.6.5",
+    "@types/node": "^26.6.6",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "esbuild": "^0.28.2",
@@ -61,8 +61,8 @@
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",
     "vitest": "^5.0.5",
-    "werift": "0.25.1",
-    "wrangler": "^4.152.0"
+    "werift": "0.25.2",
+    "wrangler": "^4.156.0"
   },
   "pnpm": {
     "overrides": {
