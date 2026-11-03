@@ -135,7 +135,7 @@ export function SetupWorkbenchView({control}: {readonly control: SetupWorkbenchC
       <Field control={{label:"已有密钥",name:"existing_key",type:"password",autoComplete:"off",pattern:"cfwd_[A-Za-z0-9_-]+",required:true}}/>
       <p className="caption">密钥仅在本机生成配置文件，不会上传。</p>
       </fieldset>
-      <div className="form-footer"><Button type="submit" disabled={!enhanced || !activeFile}>下载配置文件</Button>{mode === "held" ? <ConfigurationInstructions recoveryHref={control.recovery ? view=>control.recovery![view] : undefined}/> : null}</div>
+      <div className="form-footer"><Button type="submit" disabled={!enhanced || !activeFile}>生成配置文件</Button>{mode === "held" ? <ConfigurationInstructions recoveryHref={control.recovery ? view=>control.recovery![view] : undefined}/> : null}</div>
     </form>
   </>;
   return <Card className="setup-config-card setup-workbench" id="sync-configuration" tabIndex={-1} data-task-help="configuration" data-setup-selected-key={key?.id} data-sync-configuration={!key || mode === "held" ? "local-only" : undefined} data-configuration-mode={mode}>

@@ -53,7 +53,7 @@ function localFiles() {
 function SetupDetail({model,closeHref,held}: {readonly model: SetupPageModel; readonly closeHref: string; readonly held: boolean}) {
   const key = model.selectedKey;
   const person = model.users.find(user=>user.id===model.selectedPersonId);
-  if (!key || !person) return <Card className="workspace-section" data-setup-missing=""><div className="task-card-head"><h2>没有这个密钥</h2><TaskClose href={closeHref} label="收起密钥配置"/></div><p className="caption">这个人没有这个密钥。</p></Card>;
+  if (!key || !person) return <Card className="workspace-section" data-setup-missing=""><div className="task-card-head"><h2>没有这个密钥</h2><TaskClose href={closeHref} label="收起密钥配置"/></div><p className="caption">这个账号没有这个密钥。</p></Card>;
   const files = configurationTargets(parseApiKeyScopes(key.scopes));
   const expired = keyIsExpired(key,model.nowMs);
   const justCreated = (model.mutationFlash?.kind==="key_created" || model.mutationFlash?.kind==="key_replacement_created") && model.mutationFlash.key_id===key.id;

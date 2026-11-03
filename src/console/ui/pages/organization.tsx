@@ -31,7 +31,7 @@ export function QuotasPage({ defaults }: { readonly defaults: readonly QuotaDefa
     details: "个人额度和已用量保持不变，额度按 UTC 月重置。0 credits 只允许不计额度的操作。"
   };
   return (
-    <section className="organization-policy-workspace" aria-label="组织额度" data-view-role="quotas">
+    <section className="organization-policy-workspace" aria-label="组织默认额度" data-view-role="quotas">
       <header className="organization-policy-heading">
         <h2>组织默认额度</h2>
         <p>设置成员与服务账号的每月额度。使用个人额度的账号不受影响。</p>
@@ -51,7 +51,7 @@ export function QuotasPage({ defaults }: { readonly defaults: readonly QuotaDefa
             </div>
           );
         })}
-      </CardContent><CardFooter><p className="caption">三项一起保存，已用额度不会清零。</p><ConfirmationFallback message={warning.primary} details={warning.details}/><Button type="submit" disabled={defaults.length !== CREDIT_SURFACE_IDS.length}>保存额度</Button></CardFooter>
+      </CardContent><CardFooter><p className="caption">三项一起保存。</p><ConfirmationFallback message={warning.primary} details={warning.details}/><Button type="submit" disabled={defaults.length !== CREDIT_SURFACE_IDS.length}>保存额度</Button></CardFooter>
       {defaults.length !== CREDIT_SURFACE_IDS.length ? <p role="alert">组织默认额度未完整读到，请重新读取后再保存。</p> : null}
       </Card></form>
     </section>

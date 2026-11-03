@@ -150,7 +150,12 @@ describe("complete dashboard inventories", () => {
     const recovery = new URL(unknown!.querySelector("a")!.getAttribute("href")!, "https://admin.example.test");
     expect(Object.fromEntries(recovery.searchParams)).toMatchObject({ view: "access", person: "person-000", key: "key-000", q: "absent" });
     expect(recovery.searchParams.has("range")).toBe(false);
-    expect(doc.querySelector('[data-action="credential-binding-set"][action*="/grok"]')).not.toBeNull();
+    const binding = doc.querySelector('[data-action="credential-binding-set"][action*="/grok"]');
+    expect(binding).not.toBeNull();
+    // Rebinding moves this key's future requests to another upstream connection, so it confirms like the default change.
+    expect(binding?.getAttribute("data-confirmation")).toBeTruthy();
+    expect(binding?.hasAttribute("data-confirm-credential")).toBe(true);
+    expect(binding?.querySelector('[data-confirmation-fallback] input[type="checkbox"][required]')).not.toBeNull();
     expect(doc.querySelector('[data-action="credential-binding-set"][action*="/codex"]')).toBeNull();
     expect(doc.querySelector('[data-action="replace-key"]')).not.toBeNull();
     expect(doc.querySelector('[data-action="revoke-key"]')).not.toBeNull();

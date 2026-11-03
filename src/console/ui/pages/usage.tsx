@@ -6,7 +6,7 @@ import { UsageReport } from "../usage-report";
 import type { UsageFact, UsageRecord } from "../models";
 import { usageCost } from "../../usage-cost";
 import { Button } from "../components/button";
-import { InputGroup, InputGroupInput } from "../components/input-group";
+import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from "../components/input-group";
 import { Download, Search } from "lucide-react";
 import { inventoryUrl } from "../href";
 
@@ -56,7 +56,7 @@ function responseRecord(row: UsageSummaryRow, index: number): UsageRecord {
       {label: "成功请求", value: formatNumber(row.ok_requests)}, {metric:"failure",label: "失败请求", value: formatNumber(row.error_requests)},
       {label: "输入令牌", value: measured ? formatNumber(row.input_tokens) : "未记录"}, {label: "输出令牌", value: measured ? formatNumber(row.output_tokens) : "未记录"},
       {label: "缓存读取占比", value: cache}, {label: "令牌记录覆盖", value: `${formatRatioPercent(row.token_measurements, row.requests)} · ${formatNumber(row.token_measurements)} / ${formatNumber(row.requests)} 次请求`},
-      ...(cost ? [{label: "金额记录覆盖", value: `${formatNumber(cost.measurements)} / ${formatNumber(row.requests)} 次请求`}] : []),
+      ...(cost ? [{label: "费用记录覆盖", value: `${formatNumber(cost.measurements)} / ${formatNumber(row.requests)} 次请求`}] : []),
       ...recentService(row)
     ]
   };
@@ -75,7 +75,7 @@ function mediaRecord(row: MediaUsageSummaryRow, index: number): UsageRecord {
     details: [
       ...(row.capability.startsWith("video") ? [{label:"已记录时长",value:row.duration_measurements > 0 ? formatUsageSeconds(row.video_seconds) : "未记录",coverage:{recorded:row.duration_measurements,total:opportunities}}] : []),
       {label: "已完成", value: formatNumber(row.completed_jobs)}, {metric:"failure",label: "失败", value: formatNumber(row.failed_jobs)}, {label: "已过期", value: formatNumber(row.expired_jobs)},
-      {label: "输出记录覆盖", value: `${formatNumber(row.output_measurements)} / ${formatNumber(opportunities)} 次${row.capability.startsWith("video") ? "终态" : "请求"}`}, {label: "时长记录覆盖", value: `${formatNumber(row.duration_measurements)} / ${formatNumber(opportunities)} 次${row.capability.startsWith("video") ? "终态" : "请求"}`},
+      {label: "输出记录覆盖", value: `${formatNumber(row.output_measurements)} / ${formatNumber(opportunities)} 次${row.capability.startsWith("video") ? "终态" : "请求"}`}, ...(row.capability.startsWith("video") ? [{label: "时长记录覆盖", value: `${formatNumber(row.duration_measurements)} / ${formatNumber(opportunities)} 次终态`}] : []),
       {label: "费用记录覆盖", value: `${formatNumber(row.cost_measurements)} / ${formatNumber(opportunities)} 次${row.capability.startsWith("video") ? "终态" : "请求"}`},
       ...recentService(row)
     ]
@@ -88,8 +88,7 @@ export function UsagePage({model}: {readonly model: UsagePageModel}) {
     <div className="usage-search">
       <InputGroup>
         <InputGroupInput type="search" name="q" aria-label={model.filterPlaceholder ?? "搜索账号或模型"} placeholder={model.filterPlaceholder ?? "搜索账号或模型"} defaultValue={model.search ?? ""} maxLength={256} autoComplete="off"/>
-        {model.search ? <a className="usage-search-clear" data-dashboard-link="" href={inventoryUrl(`${url.pathname}${url.search}`, {q: null})}>清除</a> : null}
-        <button type="submit" className="usage-search-icon" aria-label="搜索"><Search aria-hidden="true"/></button>
+        <InputGroupAddon align="inline-end">{model.search ? <a className="usage-search-clear" data-dashboard-link="" href={inventoryUrl(`${url.pathname}${url.search}`, {q: null})}>清除</a> : null}<InputGroupButton type="submit" variant="ghost" size="icon-sm" aria-label="搜索"><Search aria-hidden="true"/></InputGroupButton></InputGroupAddon>
       </InputGroup>
     </div>
     <div className="usage-export"><Button asChild variant="ghost" size="icon"><a href={model.range.rawUsageUrl} download="usage.json" aria-label="导出数据" title="导出数据"><Download className="ui-icon" aria-hidden="true"/></a></Button></div>

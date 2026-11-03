@@ -160,7 +160,7 @@ describe("admin pages, accounts, and audit", () => {
       expect(authResponse.status).toBe(503);
       const body = await authResponse.text();
       expect(body).toContain("控制台暂时打不开");
-      expect(body).toMatch(/请求编号：/);
+      expect(body).toMatch(/请求 ID：/);
       expect(body).not.toContain("auth dashboard read failed");
     } finally {
       logSpy.mockRestore();

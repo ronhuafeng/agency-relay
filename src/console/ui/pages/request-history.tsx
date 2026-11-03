@@ -80,7 +80,7 @@ export function RequestHistory({ model }: { readonly model: RequestHistoryModel 
         <TableCell role="cell"><a className="action-link request-record-link" data-dashboard-link="" data-task-link="" href={row.href} aria-label={`查看请求 ${row.id}`}><span>查看</span><ChevronRight className="ui-icon" aria-hidden="true" /></a></TableCell>
       </TableRow>)}
     </TableBody></Table>
-    {!model.rows.length ? <p role="status" data-request-empty="">没有符合筛选的保留记录。不代表没有发生请求；也可清除筛选查看。</p> : null}
+    {!model.rows.length ? <p role="status" data-request-empty="">{q.from || q.to || q.plan || q.user || q.result || q.request ? "没有符合筛选的保留记录。不代表没有发生请求；也可清除筛选查看。" : "没有保留的请求记录。不代表没有发生请求。"}</p> : null}
     {model.previousUrl || model.nextUrl || q.cursor ? <nav aria-label="请求记录分页" className="request-pagination">
       {model.previousUrl ? <a className="action-link" data-dashboard-link="" href={`${model.previousUrl}#request-history`}>较新记录</a> : null}
       {model.nextUrl ? <a className="action-link" data-dashboard-link="" href={`${model.nextUrl}#request-history`}>较旧记录</a> : null}

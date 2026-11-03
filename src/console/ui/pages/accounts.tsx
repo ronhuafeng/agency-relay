@@ -111,7 +111,7 @@ function RetirementImpact({ model }: { readonly model: AccountsPageModel }) {
     ...retirement.live_keys.find(key => key.id === id)!,
     grants: retirement.live_keys.filter(key => key.id === id).map(key => key.surface_grant)
   }));
-  const migrationWarning: Confirmation = {primary: `迁移 ${account.label} 的所选绑定和默认连接？未来请求将改用新的上游身份。`, details: "服务商持有的文件、响应、任务和历史不会迁移。迁移后还需单独断开旧连接。"};
+  const migrationWarning: Confirmation = {primary: `迁移 ${account.label} 的所选项目？旧连接随即进入停用，不能撤回。`, details: "所选绑定和默认连接之后改用替代连接。旧连接不能再用于新绑定，未选的项目保持不变。服务商持有的文件、响应、任务和历史不会迁移。完成后还需单独断开旧连接。"};
   const cleanupWarning: Confirmation = {primary: `重试清理 ${account.label} 的旧凭据？`, details: "此操作不会恢复连接或更改密钥绑定。"};
   return (
     <section data-retirement="true" className="account-retirement-strip" aria-label="停用影响">
@@ -131,7 +131,6 @@ function RetirementImpact({ model }: { readonly model: AccountsPageModel }) {
             </NativeSelect>
             {keys.length ? <fieldset><legend>未撤销密钥及其在此连接的绑定</legend>{keys.map(key => <Label key={key.id} className="credential-migration-choice"><input type="checkbox" name="key_ids[]" value={key.id}/><span><code>{presentText(key.key_prefix)}</code> · {productAccessLabels(key.grants).join(" · ")}<span className="record-subline">{presentText(key.id)}</span></span></Label>)}</fieldset> : null}
             {retirement.default_surfaces.length ? <fieldset><legend>新密钥默认连接</legend>{retirement.default_surfaces.map(surface => <Label key={surface} className="credential-migration-choice"><input type="checkbox" name="default_surfaces[]" value={surface.split(":")[1]}/><span>{productAccessLabels([surface])[0]}</span></Label>)}</fieldset> : null}
-            <p>迁移只更改所选绑定和默认连接。文件、响应、任务和历史不会迁移；完成后还需单独断开旧连接。</p>
             <ConfirmationFallback message={migrationWarning.primary} details={migrationWarning.details}/>
             <Button type="submit">迁移所选项目</Button>
           </form>
