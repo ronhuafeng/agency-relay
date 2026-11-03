@@ -97,7 +97,7 @@ test('local client drafts survive exact selection while held secrets and selecte
   await expect(page.getByRole('tab',{name:'Codex CLI',exact:true})).toBeFocused();
   await expect(form.locator('select[name="client"]')).toHaveValue('');
   await expect(page.getByRole('tab',{selected:true})).toHaveCount(0);
-  await expect(form.getByRole('button',{name:'下载配置文件',exact:true})).toBeDisabled();
+  await expect(form.getByRole('button',{name:'生成配置文件',exact:true})).toBeDisabled();
   expect(worker.requests.every(request=>request.method==='GET')).toBe(true);
 });
 
@@ -128,7 +128,7 @@ test('discard focuses the restored client even when a frame precedes the React c
   await expect(page.getByRole('tab',{name:'Codex CLI',exact:true})).toBeFocused();
   await expect(form.locator('select[name="client"]')).toHaveValue('');
   await expect(page.getByRole('heading',{name:'codex-config.toml',exact:true})).toHaveCount(0);
-  await expect(form.getByRole('button',{name:'下载配置文件',exact:true})).toBeDisabled();
+  await expect(form.getByRole('button',{name:'生成配置文件',exact:true})).toBeDisabled();
   expect(worker.requests.every(request=>request.method==='GET')).toBe(true);
 });
 
@@ -162,6 +162,6 @@ test('reloading held-key setup does not inherit the selected key client',async({
  await page.goto('/admin?view=setup&person=member&key=member-key&task=sync-configuration');
  await expect(page.getByRole('tab',{selected:true})).toHaveCount(0);
  await expect(page.locator('[data-local-config-sync] select[name="client"]')).toHaveValue('');
- await expect(page.getByRole('button',{name:'下载配置文件',exact:true})).toBeDisabled();
+ await expect(page.getByRole('button',{name:'生成配置文件',exact:true})).toBeDisabled();
  expect(worker.requests.every(request=>request.method==='GET')).toBe(true);
 });

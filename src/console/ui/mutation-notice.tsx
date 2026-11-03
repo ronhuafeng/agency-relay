@@ -31,7 +31,7 @@ export function MutationNotice({flash}: {readonly flash: DashboardMutationFlash 
   if (flash?.kind === "user_lifecycle_error") return <section className="panel mutation-flash" role="alert" data-mutation-input-error=""><p data-error-code={flash.error_code}>{flash.message}</p></section>;
   if (!flash || flash.kind === "user_create_error" || flash.kind === "codex_oauth_started" || flash.kind === "grok_oauth_started") return null;
   if (flash.kind === "key_created" || flash.kind === "key_replacement_created") return <SetupPackage result={flash} />;
-  if (flash.kind === "credential_binding") return <section className="panel mutation-flash" role="status" data-mutation-flash={flash.kind}><div className="panel-head"><h2>{`${productAccessLabels([flash.surface_grant])[0] ?? "客户端"} 上游绑定已更新`}</h2></div><p className="panel-caption">仅密钥 <code>{flash.key_id}</code> 的这个服务使用新上游身份。其他密钥、服务权限和额度不变；服务商资源与历史没有迁移。</p></section>;
+  if (flash.kind === "credential_binding") return <section className="panel mutation-flash" role="status" data-mutation-flash={flash.kind}><div className="panel-head"><h2>{`${productAccessLabels([flash.surface_grant])[0] ?? "客户端"} 上游绑定已更新`}</h2></div><p className="panel-caption">仅密钥 <code>{flash.key_id}</code> 的这个服务改用新的上游连接。其他密钥、服务权限和额度不变；服务商资源与历史没有迁移。</p></section>;
   if (flash.kind === "user_created") return <section className="panel mutation-flash" role="status" data-mutation-flash={flash.kind}><div className="panel-head"><h2>{`已添加 ${personLabel({ id: flash.user_id, email: flash.email })}。`}</h2></div><p className="panel-caption">已建立普通成员身份，尚未生成密钥。成员可使用这个组织邮箱登录，再按当前额度与服务条件管理自己的密钥。</p></section>;
   if (flash.kind === "credit_default") return (
     <section className="panel mutation-flash" role="status" data-mutation-flash={flash.kind}>

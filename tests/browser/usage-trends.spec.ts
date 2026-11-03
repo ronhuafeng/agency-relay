@@ -21,7 +21,7 @@ for (const scenario of [
     const detail = page.locator('.console-help-popover:popover-open');
     await expect(detail).toContainText('API 费率折算');
     await expect(detail).toContainText('令牌记录覆盖');
-    await expect(detail).toContainText('金额记录覆盖');
+    await expect(detail).toContainText('费用记录覆盖');
     await page.keyboard.press('Escape');
     await expect(detail).toHaveCount(0);
     if (scenario.identity === "member") expect((await page.locator('main').textContent())?.includes('other-private-model')).toBe(false);

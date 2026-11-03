@@ -89,7 +89,7 @@ for (const owner of ['personal','delegated','administrator'] as const) test(`loc
     expect(await template.locator('pre').getAttribute('aria-label')).toBeNull();
     expect((await template.locator('pre').textContent())?.includes('cfwd_invalid'),'The on-screen template does not expose the held key').toBe(false);
     const result = page.waitForEvent('download');
-    await form.getByRole('button',{name:'下载配置文件',exact:true}).click();
+    await form.getByRole('button',{name:'生成配置文件',exact:true}).click();
     const download = await result;
     expect(download.suggestedFilename()).toBe(file.filename);
     const stream = await download.createReadStream();
@@ -114,7 +114,7 @@ test.describe('member service configuration context',()=>{
   await expect(page.getByRole('heading',{name:'grok-config.toml',exact:true})).toBeVisible();
   await page.goto('/admin?area=me&view=setup');
   await expect(page.getByRole('tab',{selected:true})).toHaveCount(0);
-  await expect(page.getByRole('button',{name:'下载配置文件',exact:true})).toBeDisabled();
+  await expect(page.getByRole('button',{name:'生成配置文件',exact:true})).toBeDisabled();
   expect(worker.requests.every(request=>request.method==='GET')).toBe(true);
  });
 });

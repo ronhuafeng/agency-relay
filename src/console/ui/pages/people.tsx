@@ -128,7 +128,7 @@ function AssignedServices({model, personUrl}: {readonly model: AdminDashboardAcc
       {impact.services.length === 0 ? <p>当前没有分配的服务账号。</p> : <ul>{impact.services.map(service => <li key={service.id}>
         <h4>{service.display_name} · <code>{service.id}</code></h4><p>服务状态：<Badge data-tone={service.status === "active" ? "ok" : undefined}>{service.status === "active" ? "已启用" : "已停用"}</Badge>；停用管理人不会改变此状态。</p>
         <p><a href={memberHref("keys",undefined,service.id)}>单独管理服务密钥：{service.display_name}</a> · <a href={inventoryUrl(personUrl,{person:service.id,key:null})}>查看服务与管理人分配</a></p>
-        {service.keys === null ? <p role="alert" data-service-impact-state="unknown">这个服务的密钥元数据暂时无法读取，不代表没有密钥。请打开服务密钥页面核对。</p> : service.keys.length === 0 ? <p>当前没有密钥。</p> : <ul>{service.keys.map(key => <li key={key.id}><code>{key.key_prefix}</code> · {key.name ?? "未命名"} · 存储状态 {key.status} · 到期 {key.expires_at ?? "无到期时间"} · <a href={memberHref("keys",key.id,service.id)}>单独撤销或更换</a></li>)}</ul>}
+        {service.keys === null ? <p role="alert" data-service-impact-state="unknown">这个服务的密钥元数据暂时无法读取，不代表没有密钥。请打开服务密钥页面核对。</p> : service.keys.length === 0 ? <p>当前没有密钥。</p> : <ul>{service.keys.map(key => <li key={key.id}><code>{key.key_prefix}</code> · {key.name ?? "未命名密钥"} · {key.status === "active" ? "未撤销" : key.status === "revoked" ? "已撤销" : "状态未识别"} · {key.expires_at ? `到期 ${formatOperatorInstantOrDash(key.expires_at)}` : "未设到期"} · <a href={memberHref("keys",key.id,service.id)}>单独撤销或更换</a></li>)}</ul>}
         {service.moreKeys ? <p>仅显示前 10 个密钥；请打开该服务的密钥页面检查其余密钥。</p> : null}
       </li>)}</ul>}
       {impact.moreServices ? <p>仅显示前 20 个当前分配的服务账号，还有更多服务未显示；请继续在账号列表核对服务分配。</p> : null}

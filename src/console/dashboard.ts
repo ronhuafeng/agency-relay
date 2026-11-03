@@ -102,7 +102,7 @@ export async function adminDashboardResponse(input: AdminDashboardInput): Promis
   const base = {
     appEnabled: input.url.hostname === input.env.ADMIN_DASHBOARD_HOST,
     canonicalUrl: `${input.url.pathname}?view=${view}${view === "overview" || view === "usage" ? `&range=${range.key}` : ""}${view==="runtime"&&input.url.searchParams.has("installation")?`&installation=${encodeURIComponent(input.url.searchParams.get("installation")!)}`:""}${requestedPerson === null ? "" : `&person=${encodeURIComponent(requestedPerson)}`}${task ? `&task=${task}` : ""}${requestedKey === null ? "" : `&key=${encodeURIComponent(requestedKey)}`}${requestedAccount === null ? "" : `&account=${encodeURIComponent(requestedAccount)}`}${inventoryQuery.size ? `&${inventoryQuery}` : ""}`,
-    documentTitle: `${requestedAccount !== null ? "连接详情" : task === "add-account" ? "添加上游连接" : task === "sync-configuration" ? "生成配置文件" : requestedKey !== null ? view === "setup" ? "客户端配置" : "密钥详情" : task === "give-access" ? "创建密钥" : task === "add-person" ? "添加成员" : dashboardViewTitle(view)} · Agency Relay 控制台`,
+    documentTitle: `${requestedAccount !== null ? "连接详情" : task === "add-account" ? "添加上游连接" : task === "sync-configuration" ? "生成配置文件" : requestedKey !== null ? view === "setup" ? "客户端配置" : "密钥详情" : task === "give-access" ? "创建密钥" : task === "add-person" ? "添加成员" : task === "add-service" ? "创建服务账号" : dashboardViewTitle(view)} · Agency Relay 控制台`,
     operatorId: input.identity.userId ?? null,
     operatorLabel: input.identity.email ?? "已登录的管理员",
     nowMs: input.now.getTime(),

@@ -45,8 +45,7 @@ function Navigation({model}: {readonly model: DashboardChromeModel}) {
   </SidebarGroup>)}</ConsoleNavigation>;
 }
 function PageHeader({model}: {readonly model: DashboardChromeModel}) {
-  const titles = {overview:"组织概览",credentials:"上游连接",runtime:"工具服务",access:"成员与服务",setup:"客户端配置",audit:"请求记录",usage:"用量报告",surfaces:"服务路由",quotas:"额度政策","control-audit":"管理记录"};
-  return <h1 className="sr-only">{titles[model.view]}</h1>;
+  return <h1 className="sr-only">{dashboardViewTitle(model.view)}</h1>;
 }
 function DashboardDocument({model, nonce, children, revision}: {readonly model: DashboardChromeModel; readonly nonce: string; readonly children: ReactNode; readonly revision?: string}) {
   return <html lang="zh-CN"><head><meta charSet="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" /><meta name="color-scheme" content="light dark" /><meta name="robots" content="noindex,nofollow" /><title>{model.documentTitle}</title><meta name="description" content="Agency Relay 管理控制台。" />{model.appEnabled ? <AppHead /> : null}<link rel="stylesheet" href={consoleStylesheetPath()} /></head><body id="top">
@@ -58,5 +57,5 @@ function DashboardDocument({model, nonce, children, revision}: {readonly model: 
 }
 export function renderDashboardDocument(model: DashboardChromeModel, nonce: string, content: ReactNode, revision?: string): string { return '<!doctype html>'+renderToString(<DashboardDocument model={model} nonce={nonce} revision={revision}>{content}</DashboardDocument>); }
 export function ReadUnavailable({url, requestId}: {readonly url: string; readonly requestId: string}) {
-  return <section className="unavailable-view" data-dashboard-unavailable="" role="alert"><h2>控制台暂时打不开</h2><p>当前数据读取失败。</p><Button asChild><a href={url} data-dashboard-link="">重试</a></Button><p className="data-note">请求编号：{requestId}</p></section>;
+  return <section className="unavailable-view" data-dashboard-unavailable="" role="alert"><h2>控制台暂时打不开</h2><p>当前数据读取失败。</p><Button asChild><a href={url} data-dashboard-link="">重试</a></Button><p className="data-note">请求 ID：{requestId}</p></section>;
 }

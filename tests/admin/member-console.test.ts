@@ -111,14 +111,15 @@ describe("role-aware console", () => {
     expect(result.querySelector('time')?.getAttribute('datetime')).toBe(at);
     expect(result.querySelector('time .member-task-outcome')?.textContent).toBe('请求记录失败：');
     expect(result.querySelector('strong')).toBeNull();
-    expect(homeDoc.querySelector('[data-surface="grok"] td:last-child')?.textContent).toBe('');
+    expect(homeDoc.querySelector('[data-surface="grok"] td:last-child [data-task-result="none"]')).not.toBeNull();
+    expect(homeDoc.querySelector('[data-surface="grok"] td:last-child time')).toBeNull();
     db.sqlite.exec('DROP TABLE request_audit');
     const unread=await handleRequest(new Request('https://admin.example.test/admin?area=me&view=home',{
       headers:{Cookie:`__Host-mini-console=${cookie}`}
     }),fixture.env,fixture.ctx,fixture.deps);
     expect(unread.status).toBe(200);
     const unreadDoc=new JSDOM(await unread.text()).window.document;
-    expect(unreadDoc.querySelector('[data-surface="codex"] td:last-child [role="alert"]')?.textContent).toBe('结果无法读取');
+    expect(unreadDoc.querySelector('[data-surface="codex"] td:last-child [data-read-state="unknown"]')?.textContent).toBe('结果无法读取');
   });
 
   it("lets an exhausted member create a key without refilling their allowance", async () => {

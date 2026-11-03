@@ -31,14 +31,14 @@ function PolicyRow({row}: {readonly row: CreditTableRow}) {
   const trigger = useRef<HTMLElement | null>(null);
   const surface = control.id.split("-").at(-1);
   const inherit: Confirmation = {primary: `去掉 ${control.personLabel} 的个人 ${control.clientLabel} 额度，改用组织默认？`, details: "已用量不会重置。"};
-  const cap = !state ? "无法读取" : state.mode === "limited" ? formatNumber(state.monthly_allowance ?? 0) : state.mode === "unlimited" ? "不限" : "已停用";
+  const cap = !state ? "无法读取" : state.mode === "limited" ? state.monthly_allowance === null ? "无法读取" : formatNumber(state.monthly_allowance) : state.mode === "unlimited" ? "不限" : "已停用";
   return <>
     <TableRow data-credit-user={control.personId} data-credit-surface={surface}>
       <TableCell><strong>{control.clientLabel}</strong><span className="record-subline"><Badge>{state?.source === "personal" ? "个人额度" : state?.source === "organization" ? "组织默认" : state ? "未配置" : "无法读取"}</Badge></span>{control.clientLabel === "xAI API" ? <span className="record-subline">团队共享资源</span> : null}</TableCell>
       <TableCell><Badge data-access-client={surface} data-access-state={row.keyAccess} data-tone={row.keyAccess === "granted" ? "ok" : row.keyAccess === "none" ? undefined : "bad"}>{{granted:"密钥有效",paused:"账号已停用",expired:"密钥已过期",none:"无密钥"}[row.keyAccess]}</Badge></TableCell>
       <TableCell className="number" data-label="每月上限">{cap}</TableCell>
       <TableCell className="credit-used" data-label="已用"><strong>{state ? formatNumber(state.consumed_credits) : "无法读取"}</strong>{state?.mode === "limited" && (state.monthly_allowance ?? 0) > 0 ? <Progress aria-label={`${control.clientLabel} 本月已用额度占比`} value={Math.min(100,Math.max(0,state.consumed_credits / state.monthly_allowance! * 100))}/> : null}</TableCell>
-      <TableCell className="number" data-label="剩余"><strong>{state?.mode === "limited" ? formatNumber(state.remaining_credits ?? 0) : cap}</strong>{state?.mode === "limited" && state.monthly_allowance === 0 ? <span className="record-subline">仅不计额度操作</span> : null}</TableCell>
+      <TableCell className="number" data-label="剩余"><strong>{state?.mode === "limited" ? state.remaining_credits === null ? "无法读取" : formatNumber(state.remaining_credits) : cap}</strong>{state?.mode === "limited" && state.monthly_allowance === 0 ? <span className="record-subline">仅不计额度操作</span> : null}</TableCell>
       <TableCell><div className="credit-policy-controls">{state ? <><CreditPolicySwitch control={control} onEnable={() => setEditing(true)}/><details ref={disclosure} className="credit-policy-disclosure" open={editing} onToggle={event=>setEditing(event.currentTarget.open)}><Button asChild variant="ghost" size="icon"><summary ref={trigger} role="button" aria-expanded={enhanced ? editing : undefined} title={`调整 ${control.clientLabel} 额度`} aria-label={`调整 ${control.clientLabel} 额度`} aria-controls={`${control.id}-editor`}><Icon name="edit"/></summary></Button></details></> : <span role="alert">读取失败</span>}</div></TableCell>
     </TableRow>
     {state ? <TableRow className="credit-editor-row"><TableCell colSpan={6}><div id={`${control.id}-editor`} className="credit-editor" data-credit-editor-state={editing ? "open" : "closed"}>
