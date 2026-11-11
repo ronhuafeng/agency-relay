@@ -1,16 +1,18 @@
 import type { CapturedResponseUsage } from "./types";
 import { nonNegativeIntegerOrNull } from "../records";
 
-// Standard text-token rates, checked 2026-10-07. This is not subscription spend.
+// Standard text-token rates with default 30m cache writes, checked 2026-11-11.
+// Fixed reference valuation, not actual tier/TTL charges or subscription spend.
 // https://developers.openai.com/api/docs/pricing
 // https://developers.openai.com/api/docs/guides/prompt-caching
-export const OPENAI_PRICE_VERSION = "openai-standard-2026-10-07";
+export const OPENAI_PRICE_VERSION = "openai-standard-30m-2026-11-11";
 type Rates = readonly [input: number, cacheRead: number | null, output: number, cacheWrite?: number];
 type Price = { short: Rates; long?: Rates };
 // Integer USD ticks per token: USD per million tokens * 10,000.
 const PRICES: Readonly<Record<string, Price>> = {
   "gpt-6-astra": { short: [100000, 10000, 500000, 125000], long: [200000, 20000, 750000, 250000] },
   "gpt-6.1-sol": { short: [20000, 1000, 100000, 25000], long: [40000, 2000, 150000, 50000] },
+  "gpt-6.1-terra": { short: [10000, 500, 50000, 12500], long: [20000, 1000, 75000, 25000] },
   "gpt-6-luna": { short: [1000, 100, 5000, 1250], long: [2000, 200, 7500, 2500] },
   "gpt-6-sol": { short: [20000, 2000, 100000, 25000], long: [40000, 4000, 150000, 50000] },
   "gpt-5.6-sol": { short: [40000, 4000, 200000, 50000], long: [80000, 8000, 300000, 100000] },
@@ -38,6 +40,7 @@ const PRICES: Readonly<Record<string, Price>> = {
   "gpt-4o-mini": { short: [1500, 750, 6000] },
   "o1": { short: [150000, 75000, 600000] },
   "o3": { short: [20000, 5000, 80000] },
+  "o3-pro": { short: [200000, null, 800000] },
   "o4-mini": { short: [11000, 2750, 44000] }
 };
 function count(value: unknown): value is number {

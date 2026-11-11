@@ -114,11 +114,20 @@ Build's headless `usage.input_tokens` is the ordinary-input bucket: full input m
 
 ### OpenAI API and ChatGPT subscriptions
 
+The Standard snapshot was checked against the official table on 2026-11-11.
+Existing listed rates are unchanged; `gpt-6.1-terra` and `o3-pro` are now covered.
+Cache-write valuation uses the default **30-minute** rate. OpenAI also lists a
+12-hour rate (2.5× ordinary input, rather than 1.25×), and permits mixed lifetimes.
+Agency Relay does not observe lifetime-specific write buckets. Its fixed default
+valuation therefore does not establish actual charges for 12-hour or mixed writes.
+It does not inspect or modify requests to choose a cache lifetime.
+
 “ChatGPT API pricing” needs an exact authority: the public OpenAI API has a USD price table; ChatGPT-authenticated Codex has a subscription/credit contract. They are not the same bill. The [official OpenAI API price table](https://developers.openai.com/api/docs/pricing) lists these Standard text rates in USD per million tokens:
 
 | Model | Short input | Cache read | Cache write | Short output | Long input | Long cache read | Long cache write | Long output |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | `gpt-6.1-sol` | 2 | 0.10 | 2.50 | 10 | 4 | 0.20 | 5 | 15 |
+| `gpt-6.1-terra` | 1 | 0.05 | 1.25 | 5 | 2 | 0.10 | 2.50 | 7.50 |
 | `gpt-6-sol` | 2 | 0.20 | 2.50 | 10 | 4 | 0.40 | 5 | 15 |
 | `gpt-5.5` | 5 | 0.50 | — | 30 | 10 | 1 | — | 45 |
 | `gpt-5.4` | 2.50 | 0.25 | — | 15 | 5 | 0.50 | — | 22.50 |

@@ -35,6 +35,18 @@ describe("OpenAI Standard API-equivalent USD", () => {
     expect(value("gpt-5.5", {input_tokens: 272000, cached_input_tokens: 0, output_tokens: 0})?.ticks).toBe(13600000000);
     expect(value("gpt-5.5", {input_tokens: 272001, cached_input_tokens: 0, output_tokens: 10})?.ticks).toBe(27204600000);
   });
+  it("values newly listed models at the November Standard default-cache rates", () => {
+    // 50 ordinary + 20 read + 30 write + 10 output tokens.
+    expect(value("gpt-6.1-terra", {cache_write_input_tokens: 30}))
+      .toEqual({ticks: 1385000, version: "openai-standard-30m-2026-11-11"});
+    expect(value("gpt-6.1-terra")).toBeNull();
+    // Above 272K, every bucket uses the long-context rate, not just the excess.
+    expect(value("gpt-6.1-terra", {input_tokens: 272001, cache_write_input_tokens: 30})?.ticks)
+      .toBe(5440540000);
+    expect(value("o3-pro", {cached_input_tokens: 0})?.ticks).toBe(28000000);
+    expect(value("o3-pro")).toBeNull();
+    expect(value("gpt-6.1-terra-guessed-alias", {cache_write_input_tokens: 0})).toBeNull();
+  });
   it("keeps zero measured and missing, invalid, unknown or unsafe data unpriced", () => {
     expect(value("gpt-5.5", {input_tokens: 0, cached_input_tokens: 0, output_tokens: 0})?.ticks).toBe(0);
     for (const overrides of [{input_tokens: null}, {cached_input_tokens: null}, {output_tokens: null},
