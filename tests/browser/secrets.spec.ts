@@ -147,10 +147,11 @@ for (const identity of ['member', 'admin'] as const) {
       await expect.poll(() => page.locator('[data-created-token]').count()).toBe(0);
       if (identity === 'admin') await page.evaluate(() => (window as unknown as { copyContract: { resolve(): void } }).copyContract.resolve());
       await page.goBack();
-      if (identity === 'member') {
-        await page.waitForURL(returnUrl, { waitUntil: 'load' });
-        await expect.poll(() => page.getByRole('heading', { name: '我的密钥', exact: true }).isVisible()).toBe(true);
-      }
+      // Wait for the Back navigation itself before reading the document; the
+      // token count is already zero on the departing page, so polling it alone
+      // can race the history commit and run page.evaluate in a destroyed context.
+      await page.waitForURL(returnUrl, { waitUntil: 'load' });
+      if (identity === 'member') await expect.poll(() => page.getByRole('heading', { name: '我的密钥', exact: true }).isVisible()).toBe(true);
       await expect.poll(() => page.locator('[data-created-token],[data-one-time-key]').count()).toBe(0);
       expect(await page.evaluate(() => getSelection()?.toString().includes('INVALID-DISPLAY-ONLY'))).toBe(false);
       await noPersistence(page);
