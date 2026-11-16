@@ -84,6 +84,35 @@ test('member creation opens on demand and cancel preserves its safe draft', asyn
   expect(worker.requests.every(request=>request.method==='GET')).toBe(true);
 });
 
+// A safe new-key draft survives an in-document departure and return exactly as reviewed.
+// Wrong: the draft is dropped with a "form options changed" notice although nothing changed,
+// or the service switch shows off while the form still submits that service.
+test('a staged new-key draft returns with the switch showing what the form submits', async ({page, worker}) => {
+  await page.goto('/admin?view=access&person=member&task=give-access');
+  const form = page.locator('form[data-dashboard-draft=access]');
+  const submitted = () => form.evaluate(node=>new FormData(node as HTMLFormElement).getAll('clients'));
+  await form.getByRole('switch', {name:'新密钥包含 Codex',exact:true}).click();
+  await form.getByRole('textbox', {name:'密钥名称',exact:true}).fill('Reviewed workstation');
+  const connection = form.getByRole('combobox', {name:'Codex 上游连接',exact:true});
+  await connection.selectOption({index:1});
+  const chosen = await connection.inputValue();
+  expect(chosen).not.toBe('');
+  expect(await submitted()).toEqual(['codex']);
+
+  await page.locator('[data-user-id="other"] .person-link').click();
+  await expect(page.locator('[data-person-detail="other"]')).toBeVisible();
+  await page.goBack();
+  await page.waitForURL(/person=member&task=give-access/);
+
+  await expect(form.getByRole('textbox', {name:'密钥名称',exact:true})).toHaveValue('Reviewed workstation');
+  await expect(form.getByRole('switch', {name:'新密钥包含 Codex',exact:true})).toBeChecked();
+  await expect(form.getByRole('switch', {name:'新密钥包含 Grok',exact:true})).not.toBeChecked();
+  await expect(connection).toHaveValue(chosen);
+  expect(await submitted()).toEqual(['codex']);
+  await expect(page.locator('[data-dashboard-notice]')).not.toHaveAttribute('data-state', 'stale');
+  expect(worker.requests.every(request=>request.method==='GET')).toBe(true);
+});
+
 test('administrator service switches stage only the reviewed new-key grants', async ({page, worker}) => {
   await page.goto('/admin?view=access&person=member&task=give-access');
   const form = page.locator('form[data-dashboard-draft=access]');

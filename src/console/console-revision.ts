@@ -1,10 +1,18 @@
-import { bytesToHex } from "../crypto";
+import { bytesToHex, parseIsoMillis } from "../crypto";
 
 /** Read-model identity for quiet console updates, not HTTP caching or authority.
- * Read clocks and transient write acknowledgements are not business changes. */
-export async function consoleDataRevision(model: unknown): Promise<string> {
-  const value = JSON.stringify(model, (key, value: unknown) =>
-    ["asOf", "dataAsOf", "nowMs", "mutationFlash"].includes(key) ? undefined : value);
+ * Read clocks and transient write acknowledgements are not business changes.
+ * An expiry that has passed is one: pages derive key state from it at render time,
+ * so an unchanged row must still produce a new revision once it expires. */
+export async function consoleDataRevision(model: unknown, nowMs?: number): Promise<string> {
+  const value = JSON.stringify(model, (key, value: unknown) => {
+    if (["asOf", "dataAsOf", "nowMs", "mutationFlash"].includes(key)) return undefined;
+    if (nowMs !== undefined && key === "expires_at" && typeof value === "string") {
+      const expiry = parseIsoMillis(value);
+      return expiry !== undefined && expiry <= nowMs ? {at: value, expired: true} : value;
+    }
+    return value;
+  });
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
   return bytesToHex(new Uint8Array(digest));
 }

@@ -160,7 +160,9 @@ export async function readRequestHistory(env: Env, url: URL): Promise<RequestHis
   else if (query.result) filter("a.status = ?", query.result);
   if (query.request) filter("a.request_id = ?", query.request);
   const newer = query.direction === "newer";
-  if (query.cursor) { where.push(`(a.created_at ${newer ? ">" : "<"} ? OR (a.created_at = ? AND a.id ${newer ? ">" : "<"} ?))`); values.push(query.cursor.at, query.cursor.at, query.cursor.id); }
+  // The leading inclusive bound is implied by the keyset comparison. It lets the time index
+  // seek to the cursor; the OR alone makes every later page walk from the newest record.
+  if (query.cursor) { where.push(`a.created_at ${newer ? ">=" : "<="} ? AND (a.created_at ${newer ? ">" : "<"} ? OR (a.created_at = ? AND a.id ${newer ? ">" : "<"} ?))`); values.push(query.cursor.at, query.cursor.at, query.cursor.at, query.cursor.id); }
   const [result, selected] = await Promise.all([
     env.DB.prepare(`${selection} ${where.length ? `WHERE ${where.join(" AND ")}` : ""} ORDER BY a.created_at ${newer ? "ASC" : "DESC"}, a.id ${newer ? "ASC" : "DESC"} LIMIT ?`).bind(...values, REQUEST_HISTORY_PAGE_SIZE + 1).all<StoredRequest>(),
     query.record ? env.DB.prepare(`${selection} WHERE a.id = ? LIMIT 1`).bind(query.record).first<StoredRequest>() : Promise.resolve(null)

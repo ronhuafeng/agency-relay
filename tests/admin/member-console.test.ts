@@ -35,6 +35,46 @@ describe("role-aware console", () => {
     expect(doc.querySelector('main')?.getAttribute('data-console-read-url')).toBe('/admin?area=me&view=setup');
   });
 
+  // Personal pages display one-time keys. Wrong: serving them without the framing, script
+  // and sniffing policy that organization pages carry, or with a script the policy would refuse.
+  it("serves personal pages under the console document policy with a matching script nonce", async () => {
+    const db = createTestD1(); onTestFinished(() => db.close());
+    const fixture = makeFixture({env:{DB:db.binding}});
+    await createUser(fixture, "policy@example.com");
+    const cookie = await consoleCookie(fixture, "policy@example.com");
+    for (const path of ["/admin?area=me&view=keys", "/admin?area=me&view=absent"]) {
+      const response = await handleRequest(new Request(`https://admin.example.test${path}`, {headers:{Cookie:`__Host-mini-console=${cookie}`}}), fixture.env, fixture.ctx, fixture.deps);
+      const policy = response.headers.get("Content-Security-Policy") ?? "";
+      expect(policy).toContain("default-src 'none'");
+      expect(policy).toContain("frame-ancestors 'none'");
+      expect(policy).toContain("base-uri 'none'");
+      expect(policy).toContain("form-action 'self'");
+      expect(policy).not.toContain("unsafe-eval");
+      expect(response.headers.get("X-Frame-Options")).toBe("DENY");
+      expect(response.headers.get("X-Content-Type-Options")).toBe("nosniff");
+      expect(response.headers.get("Cache-Control")).toBe("no-store");
+      const nonce = /script-src 'nonce-([A-Za-z0-9_-]+)'/.exec(policy)?.[1];
+      expect(nonce).toBeTruthy();
+      const html = await response.text();
+      const scripts = [...new JSDOM(html).window.document.querySelectorAll("script:not([type='application/json'])")];
+      expect(scripts.length).toBeGreaterThan(0);
+      expect(scripts.every(script => script.getAttribute("nonce") === nonce)).toBe(true);
+    }
+  });
+
+  it("does not present a missing personal page as the workspace", async () => {
+    const db = createTestD1(); onTestFinished(() => db.close());
+    const fixture = makeFixture({env:{DB:db.binding}});
+    await createUser(fixture, "missing-page@example.com");
+    const cookie = await consoleCookie(fixture, "missing-page@example.com");
+    const response = await handleRequest(new Request("https://admin.example.test/admin?area=me&view=absent", {headers:{Cookie:`__Host-mini-console=${cookie}`}}), fixture.env, fixture.ctx, fixture.deps);
+    expect(response.status).toBe(404);
+    const doc = new JSDOM(await response.text()).window.document;
+    expect(doc.querySelectorAll('[aria-current="page"]')).toHaveLength(0);
+    expect(doc.title).not.toContain("工作台");
+    expect(doc.querySelectorAll('[data-member-nav] a[href]').length).toBeGreaterThan(0);
+  });
+
   it("keeps task observations attached to the exact key in key management", async () => {
     const db = createTestD1(); onTestFinished(() => db.close());
     const fixture = makeFixture({env:{DB:db.binding}});

@@ -27,6 +27,11 @@ import { RoutesView, readRoutes } from "../ui/pages/routes";
 import { CreditTableView, readCreditTable } from "../ui/credit-table";
 import { PeopleCreateView, readPeopleCreate } from "../ui/people-create";
 
+// Radix locks document scroll under a modal by injecting a <style>. The document
+// policy admits only this response's nonce, which the nonce-bound bootstrap carries.
+const styleNonce = document.querySelector<HTMLScriptElement>("script[data-console-bootstrap]")?.nonce;
+if (styleNonce) (globalThis as {__webpack_nonce__?: string}).__webpack_nonce__ = styleNonce;
+
 interface PendingConfirmation {
   form: HTMLFormElement;
   submitter: HTMLElement | null;

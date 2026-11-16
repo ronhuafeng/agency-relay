@@ -20,7 +20,7 @@ import { consoleDataRevision, unchangedConsoleRead } from "./console-revision";
 import {readRuntimeMember} from "../runtime/member";
 import {RuntimeMemberPage,runtimeMemberHref} from "./ui/pages/runtime";
 import {verifyConsoleAccess} from "../auth/authenticate";
-import {consoleLifecycleOutcome} from "./dashboard";
+import {consoleHtmlResponse,consoleLifecycleOutcome,randomNonce} from "./dashboard";
 import {
   isMemberView,
   MEMBER_VIEWS,
@@ -49,13 +49,13 @@ export async function memberConsoleResponse(input: {
 }): Promise<Response> {
   const requested = input.url.searchParams.get("view") ?? "home";
   if (!isMemberView(requested)) {
-    return html(404, input.requestId, createElement(MemberMissingPage), input.principal, "home", input.service);
+    return html(404, input.requestId, createElement(MemberMissingPage), input.principal, null, input.service);
   }
   const view = requested;
   if(view==="integrations"&&(input.service||[...input.url.searchParams].some(([field,value])=>
     !["area","view","installation"].includes(field)||input.url.searchParams.getAll(field).length!==1
       ||field==="installation"&&!/^[a-z][a-z0-9-]{0,63}$/.test(value))))
-    return html(404,input.requestId,createElement(MemberMissingPage),input.principal,"home",input.service);
+    return html(404,input.requestId,createElement(MemberMissingPage),input.principal,null,input.service);
   let trend: UsageTrendRange | undefined;
   if (view === "usage") {
     try {
@@ -72,7 +72,7 @@ export async function memberConsoleResponse(input: {
     if(view==="integrations")await assertRuntimePageActor(input);
     const notice=input.runtimeRevoked?createElement("p",{role:"status"},"客户端授权已撤销。后续调用会被拒绝；浏览器登录、其他客户端和已经执行的上游操作不变。"):null;
     if (input.service) await delegatedService(input.env, input.principal, input.service.id);
-    const revision = await consoleDataRevision({readUrl, data, service: input.service, actor: {id: input.principal.id, email: input.principal.email, role: input.principal.role}});
+    const revision = await consoleDataRevision({readUrl, data, service: input.service, actor: {id: input.principal.id, email: input.principal.email, role: input.principal.role}}, input.now.getTime());
     const unchanged = unchangedConsoleRead(input.unchangedRevision, revision, input.principal.id);
     if (unchanged) return unchanged;
     const missing=view==="integrations"&&input.url.searchParams.has("installation")&&!(data as Awaited<ReturnType<typeof readRuntimeMember>>).installations.some(row=>row.id===input.url.searchParams.get("installation"));
@@ -175,14 +175,13 @@ async function renderView(input: {
     return {body:createElement(MemberSetupPage,{client:client as "codex"|"grok"|"xai"|undefined}),data:{client}};
   }
   if (view === "home" || view === "keys") {
-    const model = await readMemberAccess(input.env, input.service?.id ?? input.principal.id, input.now);
+    // Home's delegated-service list is independent of the member's own access facts.
+    const [model, services] = await Promise.all([
+      readMemberAccess(input.env, input.service?.id ?? input.principal.id, input.now),
+      view === "home" && !input.service ? listDelegatedServices(input.env, input.principal).catch((): ServiceContext[] | null => null) : [] as ServiceContext[] | null
+    ]);
     const selectedId = input.url.searchParams.get("key");
     if (view === "home") {
-      let services: ServiceContext[] | null = [];
-      if (!input.service) {
-        try { services = await listDelegatedServices(input.env, input.principal); }
-        catch { services = null; }
-      }
       return {body: createElement("div", null, createElement(MemberHomePage, { model }), !input.service && (services === null || services.length > 0) ? createElement(MemberDelegatedServices,{services}) : null), data: {model, services}};
     }
     return {body: createElement(MemberKeysPage, { model, now: input.now, selectedId }), data: model};
@@ -207,7 +206,8 @@ async function renderView(input: {
   return {body: createElement(MemberMissingPage), data: null};
 }
 
-function html(status: number, requestId: string, body: ReactNode, principal: ConsolePrincipal, view: MemberView, service?: ServiceContext, navigationUrl?: string, read?: {url: string; revision: string},mutation?:string): Response {
+/** A null view is a page that does not exist: no navigation entry or title may claim it as current. */
+function html(status: number, requestId: string, body: ReactNode, principal: ConsolePrincipal, view: MemberView | null, service?: ServiceContext, navigationUrl?: string, read?: {url: string; revision: string},mutation?:string): Response {
   const nav = createElement(SidebarMenu, null, ...MEMBER_VIEWS.filter(item=>!service||item!=="integrations").map(item =>
     createElement(SidebarMenuItem, {key:item},
       createElement(SidebarMenuButton, {asChild:true,isActive:item===view},
@@ -218,32 +218,30 @@ function html(status: number, requestId: string, body: ReactNode, principal: Con
       )
     )
   ));
+  const nonce = randomNonce();
   const document = consoleDocument({
-    title: `${service ? service.display_name + " · " + label(view).replace("我的", "") : label(view)} · Agency Relay`,
+    nonce,
+    title: `${view === null ? "没有这个页面" : service ? service.display_name + " · " + label(view).replace("我的", "") : label(view)} · Agency Relay`,
     navigationUrl,
     readUrl: read?.url,
     dataRevision: read?.revision,
     mutation,
-    view,
+    view: view ?? undefined,
     email: principal.email,
     actorId: principal.id,
     nav: createElement(SidebarGroup, {className:"console-nav-group"}, createElement(SidebarGroupLabel, null, service ? `服务账号 · ${service.display_name}` : "我的空间"), nav),
     switches: [...(service ? [{href: memberHref("home"), label: "我的空间"}] : []), ...(principal.role === "admin" ? [{href: "/admin", label: "组织管理"}] : [])],
     role: principal.role,
-    current: `${service ? service.display_name : "我的空间"} · ${label(view).replace(service ? "我的" : "服务", "")}`,
+    current: `${service ? service.display_name : "我的空间"}${view === null ? "" : ` · ${label(view).replace(service ? "我的" : "服务", "")}`}`,
     appEnabled: true,
-    main: createElement(MemberScope.Provider, {value:service ?? null}, createElement("div", {"data-member-view": view, "data-service-id":service?.id, "data-service-status":service?.status}, service ? createElement("aside", {"aria-label":"当前服务账号",className:"member-scope-bar"}, createElement(Badge, null, "服务账号"), createElement("strong", null, service.display_name), createElement("code", {className:"caption"}, service.id), createElement("span", {className:"caption"}, "独立密钥与额度"), service.status !== "active" ? createElement("p", null, "已停用，不能创建或更换密钥；仍可撤销已有密钥。只有管理员能重新启用。") : null) : null, body, createElement("p", {hidden: true, "data-request-id": requestId}))),
+    main: createElement(MemberScope.Provider, {value:service ?? null}, createElement("div", {"data-member-view": view ?? "missing", "data-service-id":service?.id, "data-service-status":service?.status}, service ? createElement("aside", {"aria-label":"当前服务账号",className:"member-scope-bar"}, createElement(Badge, null, "服务账号"), createElement("strong", null, service.display_name), createElement("code", {className:"caption"}, service.id), createElement("span", {className:"caption"}, "独立密钥与额度"), service.status !== "active" ? createElement("p", null, "已停用，不能创建或更换密钥；仍可撤销已有密钥。只有管理员能重新启用。") : null) : null, body, createElement("p", {hidden: true, "data-request-id": requestId}))),
     extra: createElement("script", {id: "console-setup-config", type: "application/json", dangerouslySetInnerHTML: {__html: JSON.stringify({templates: buildClientSetupTemplates(), placeholder: CLIENT_SETUP_TOKEN_PLACEHOLDER}).replaceAll("<", "\\u003c")}}),
     confirm: true
   });
-  return new Response(document, {
-    status,
-    headers: {
-      "Content-Type": "text/html; charset=utf-8",
-      "Cache-Control": "no-store",
-      "X-Request-Id": requestId
-    }
-  });
+  // Personal pages show one-time keys: they carry the same framing, script and referrer policy as organization pages.
+  const response = consoleHtmlResponse(document, status, nonce, true);
+  response.headers.set("X-Request-Id", requestId);
+  return response;
 }
 
 const memberNavigation: Record<MemberView, { icon: IconName; label: string }> = {

@@ -8,7 +8,7 @@ import { SelectView } from "./forms";
 import { TaskLink } from "./chrome";
 import { TaskClose } from "./task-workspace";
 import { SetupFileTargetView, SetupTemplate, readSetupFiles, type SetupFileTarget } from "./setup-files";
-import { ConfigurationInstructions } from "./task-help";
+import { ConfigurationInstructions } from "./configuration-instructions";
 import { useEnhanced } from "./use-enhanced";
 
 interface SetupVerification {
@@ -142,8 +142,10 @@ export function SetupWorkbenchView({control}: {readonly control: SetupWorkbenchC
     {key ? <header className="setup-workbench-key"><div><strong>{key.owner}</strong><span>{key.name} · <code>{key.prefix}</code></span></div><div className="task-head-actions"><Badge className="key-state" data-key-state={key.state}>{key.status}</Badge><TaskClose href={key.closeHref} label="收起密钥配置"/></div></header> : null}
     <Tabs ref={clientTabs} activationMode="manual" value={client} onValueChange={chooseClient} className="setup-workbench-clients">
       <div className="setup-workbench-controls">
-        <TabsList variant="line" aria-label="客户端配置">{files.map(file=><TabsTrigger key={file.client} value={file.client} disabled={!enhanced}>{file.clientLabel}</TabsTrigger>)}</TabsList>
-        <TabsContent className="setup-workbench-body" value={client}>{content}</TabsContent>
+        <TabsList variant="line" aria-label="客户端配置">{files.map(file=><TabsTrigger key={file.client} value={file.client} disabled={!enhanced} id={`${control.id}-tab-${file.client}`} aria-controls={`${control.id}-panel`}>{file.clientLabel}</TabsTrigger>)}</TabsList>
+        {/* One panel serves every client. Its relations are named from the control, because ids
+            generated for the whole server document differ from this island's own once it re-renders. */}
+        <TabsContent className="setup-workbench-body" value={client} id={`${control.id}-panel`} aria-labelledby={activeFile ? `${control.id}-tab-${activeFile.client}` : undefined} aria-label={activeFile ? undefined : "客户端配置"}>{content}</TabsContent>
       </div>
       {activeFile?.template && !(mode === "selected" && key?.hideTemplates) ? <section className="setup-workbench-preview" aria-label="配置文件预览"><h2>配置文件预览</h2><SetupTemplate file={activeFile}/></section> : null}
     </Tabs>

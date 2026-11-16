@@ -190,11 +190,13 @@ export async function selectIssuanceDefaults(
 
 export async function previewCredentialRetirement(env: Env, kind: CredentialKind, accountId: string): Promise<RetirementPreview> {
   const account = await requireAccount(env, kind, accountId);
-  const liveKeys = await liveBindings(env, kind, accountId);
-  const defaults = (await readDefaultRows(env))
+  // A read-only preview: its three facts are independent once the account is known to exist.
+  const [liveKeys, defaultRows, replacements] = await Promise.all([
+    liveBindings(env, kind, accountId), readDefaultRows(env), compatibleReplacements(env, kind, accountId)
+  ]);
+  const defaults = defaultRows
     .filter((row) => (kind === "codex" ? row.codex_auth_id : row.subscription_account_id) === accountId)
     .map((row) => row.surface_grant);
-  const replacements = await compatibleReplacements(env, kind, accountId);
   const xai = kind === "grok" && (defaults.includes("surface:xai:production") || liveKeys.some((key) => key.surface_grant === "surface:xai:production"));
   return {
     account_id: accountId,

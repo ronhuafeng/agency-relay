@@ -86,7 +86,8 @@ export function createDrafts(): Drafts {
         const current = controls(form);
         const available = current.length === saved.values.length && current.every((field, index) => {
           const value = saved.values[index]; if (!value || field.name !== value.name || field.type !== value.type) return false;
-          return !(field instanceof HTMLSelectElement) || Array.from(field.options).some((option) => option.value === value.value && !option.disabled && !(option.parentElement instanceof HTMLOptGroupElement && option.parentElement.disabled));
+          // A value the fresh form already shows needs no choice to be restored, including its disabled placeholder.
+          return !(field instanceof HTMLSelectElement) || field.value === value.value || Array.from(field.options).some((option) => option.value === value.value && !option.disabled && !(option.parentElement instanceof HTMLOptGroupElement && option.parentElement.disabled));
         });
         if ((!retry && !equal(fresh, saved.baseline)) || !available) { drafts.delete(key(form)); changed = true; continue; }
         apply(form, saved.values); showState(form, true);

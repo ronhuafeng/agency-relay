@@ -114,11 +114,13 @@ export async function adminDashboardResponse(input: AdminDashboardInput): Promis
     const model = await loadDashboard(input, page, {person: requestedPerson, key: requestedKey, account: requestedAccount, task, inventory: inventoryQuery});
     // Selected upstream snapshots can read providers; only local inventories and
     // ledgers participate in periodic console updates. Write results stay put.
-    const revision = !input.mutationFlash && !task && !(view === "credentials" && requestedAccount)
-      ? await consoleDataRevision(model) : undefined;
+    // A selection that names no declared tool service is a missing object: answered once, never polled.
+    const missing = model.view === "runtime" && model.selectedId !== null && !model.installations.some(row => row.id === model.selectedId);
+    const revision = !input.mutationFlash && !task && !missing && !(view === "credentials" && requestedAccount)
+      ? await consoleDataRevision(model, input.now.getTime()) : undefined;
     const unchanged = unchangedConsoleRead(input.unchangedRevision, revision, input.identity.userId);
     if (unchanged) return unchanged;
-    return htmlResponse(renderDashboardDocument(model, nonce, createElement(DashboardContent, {model}), revision), 200, nonce, true, input.url.origin);
+    return htmlResponse(renderDashboardDocument(model, nonce, createElement(DashboardContent, {model}), revision), missing ? 404 : 200, nonce, true, input.url.origin);
   } catch (error) {
     const requestId = presentText(input.requestId);
     console.error(JSON.stringify({
@@ -278,6 +280,8 @@ function renderErrorResponse(input: {
   return htmlResponse(html, input.status, input.nonce);
 }
 
+/** One document policy for every console HTML response, organization and personal alike. */
+export { htmlResponse as consoleHtmlResponse };
 function htmlResponse(html: string, status: number, nonce: string, allowScript = false, origin?: string): Response {
   const socket = origin ? new URL("/admin/events/credentials", origin) : null;
   if (socket) socket.protocol = socket.protocol === "http:" ? "ws:" : "wss:";
@@ -307,7 +311,7 @@ function dashboardErrorCategory(error: unknown): "schema_unavailable" | "read_fa
 
 /** Operator-facing instant (no raw ISO walls). */
 
-function randomNonce(): string {
+export function randomNonce(): string {
   const bytes = new Uint8Array(18);
   crypto.getRandomValues(bytes);
   return base64UrlEncode(bytes);

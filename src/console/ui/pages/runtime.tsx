@@ -2,6 +2,7 @@ import type {RuntimeMemberModel} from "../../../runtime/oauth";
 import {memberHref} from "../../member-href";
 import {Button} from "../components/button";
 import {Badge} from "../components/badge";
+import {Card} from "../components/card";
 import {Table,TableBody,TableCell,TableHead,TableHeader,TableRow} from "../components/table";
 import {ObjectWorkspace,TaskClose} from "../task-workspace";
 import {TaskLink} from "../chrome";
@@ -104,6 +105,6 @@ export function RuntimeAdminPage({model}:{readonly model:RuntimeAdminModel}) {
           </div>
         </section><section className="runtime-retirement" aria-label="退役服务"><RuntimeAction installation={selected} action="retire" label="永久退役服务" variant="destructive" message="永久退役此服务？不能重新启用，客户端授权立即失效。" details="后续调用被拒绝并清理上游凭据；不撤回已执行的上游操作。"/></section></aside>:null}
       </div>:null}
-    </section>:model.installations.length?<p className="empty">选择一个工具服务，管理成员权限与上游凭据。</p>:null}
+    </section>:model.selectedId?<Card className="workspace-section" data-runtime-missing=""><h2>没有这个工具服务</h2><p className="caption">这个工具服务不存在或已不在部署配置中。没有选择其他服务。</p><TaskLink className="action-link" href={runtimeAdminHref()}>查看工具服务</TaskLink></Card>:model.installations.length?<p className="empty">选择一个工具服务，管理成员权限与上游凭据。</p>:null}
   </div>;
 }

@@ -3,6 +3,7 @@ import { Fragment } from "react";
 import { generateId } from "../../../crypto";
 import type { ServiceContext } from "../../../auth/service-delegation";
 import { memberHref } from "../../member-href";
+import { formatNumber } from "../../format";
 import type { SurfaceCreditState } from "../../../auth/credits";
 import type { ClientSetupFile } from "../../client-setup";
 import { type MemberAccessModel, type MemberKeyFact, type MemberSurfaceFact, type ReadFact, verificationSurface } from "../../member-access";
@@ -34,10 +35,10 @@ function instant(value: string | null): string {
 const serviceStatus: Record<MemberSurfaceFact["reason"],string> = {unknown:"状态无法读取",unconfigured:"待配置",disabled:"已停用",zero:"额度为 0",exhausted:"本月额度已用完","no-key":"待创建密钥","default-unavailable":"新建连接需管理员处理","default-unknown":"新建连接状态未知",expired:"密钥已失效","binding-unavailable":"连接需处理","binding-unknown":"连接状态未知","metadata-ready":"待任务验证"};
 function shortDate(value:string|null):string { return value ? instant(value).slice(0,10) : "无到期时间"; }
 function CreditUsage({state,service}: {state:SurfaceCreditState;service:string}) {
-  const cap = state.mode === "unlimited" ? "不限" : state.mode === "disabled" ? "已停用" : state.monthly_allowance;
+  const cap = state.mode === "unlimited" ? "不限" : state.mode === "disabled" ? "已停用" : formatNumber(state.monthly_allowance ?? 0);
   const progress = state.mode === "limited" && state.monthly_allowance !== null && state.monthly_allowance > 0
     ? Math.min(100,Math.max(0,state.consumed_credits / state.monthly_allowance * 100)) : null;
-  return <div className="member-credit-usage"><span className="member-credit-value"><span className="sr-only">已用 / 上限：</span>{state.consumed_credits} / {cap}</span>{progress !== null ? <Progress value={progress} aria-label={`${service} 本月已用额度占比`}/> : null}</div>;
+  return <div className="member-credit-usage"><span className="member-credit-value"><span className="sr-only">已用 / 上限：</span>{formatNumber(state.consumed_credits)} / {cap}</span>{progress !== null ? <Progress value={progress} aria-label={`${service} 本月已用额度占比`}/> : null}</div>;
 }
 export function MemberHomePage({model}: {model:MemberAccessModel}) {
   const scope = useMemberScope(); const memberHref = scope.href;
@@ -70,9 +71,9 @@ export function MemberQuotaPage({states}: {states:ReadFact<SurfaceCreditState[]>
   return <><h1 className="sr-only">{scope.label("额度")}</h1>
     {!states.known ? <p role="alert" data-read-state="unknown">额度暂时无法读取。<a href={memberHref("keys")}>管理已有密钥</a></p> : <section className="member-quota-board" aria-label="额度"><Table className="member-quota-table" data-member-quota="true" aria-label="各服务的额度政策"><TableHeader><TableRow><TableHead>服务</TableHead><TableHead className="number">每月上限（credits）</TableHead><TableHead>已用 / 上限</TableHead><TableHead className="number"><span>剩余</span><InfoPopover id="member-quota-rules" label="额度规则" iconOnly><p>此账号的密钥共用服务额度。额度为 0 时只允许不计额度的操作；停用拒绝新请求。xAI API 使用上游团队共享资源。</p><ul>{states.value.map(state=><li key={state.surface_grant}>{label(state.surface_grant.split(":")[1]!)}：{state.source === "personal" ? "个人额度" : state.source === "organization" ? "组织默认" : "未配置"}{resets.length > 1 ? <>；<time dateTime={state.reset_at}>{state.reset_at.slice(0,10)} UTC 重置</time></> : null}</li>)}</ul>{resets.length === 1 ? <p><time dateTime={resets[0]}>{resets[0]!.slice(0,10)} UTC 重置</time></p> : null}</InfoPopover></TableHead></TableRow></TableHeader><TableBody>{states.value.map(state=><TableRow key={state.surface_grant} data-surface={state.surface_grant.split(":")[1]} data-credit-mode={state.mode}>
       <TableCell><strong>{label(state.surface_grant.split(":")[1]!)}</strong></TableCell>
-      <TableCell className="number">{state.mode === "unlimited" ? "不限" : state.mode === "disabled" ? "已停用" : state.monthly_allowance}</TableCell>
+      <TableCell className="number">{state.mode === "unlimited" ? "不限" : state.mode === "disabled" ? "已停用" : formatNumber(state.monthly_allowance ?? 0)}</TableCell>
       <TableCell className="credit-used"><CreditUsage state={state} service={label(state.surface_grant.split(":")[1]!)}/></TableCell>
-      <TableCell className="number"><strong>{state.mode === "unlimited" ? "不限" : state.mode === "disabled" ? "已停用" : state.remaining_credits}</strong></TableCell>
+      <TableCell className="number"><strong>{state.mode === "unlimited" ? "不限" : state.mode === "disabled" ? "已停用" : formatNumber(state.remaining_credits ?? 0)}</strong></TableCell>
     </TableRow>)}</TableBody></Table></section>}
   </>;
 }

@@ -100,6 +100,8 @@ form.inventory-page-size { display:flex; align-items:center; flex-wrap:wrap; gap
 .people-table tr[data-user-id] { position:relative; }
 .people-table tr[data-state=selected],.people-table tr[data-state=selected]:hover { background:var(--accent); box-shadow:inset 3px 0 var(--primary); }
 .people-table .person-link { display:flex; align-items:center; min-height:44px; margin:0; padding:0; background:transparent; box-shadow:none; }
+/* The row owns the selected surface and leading edge; its link must not paint a second one. */
+.people-table .person-link[aria-current=true],.people-table .person-link[aria-current=true]:hover { background:transparent; box-shadow:none; }
 .people-table .person-identity small { display:block; max-width:100%; font:12px/1.5 var(--font-mono); }
 .people-row-arrow { color:var(--muted-foreground); }
 .people-row-arrow [data-slot=button] { position:relative; outline-offset:-3px; }
@@ -490,7 +492,7 @@ h1.usage-page-heading { margin:0 0 var(--space-4); }
 .usage-chart-frame { display:grid; grid-template-columns:max-content minmax(0,1fr); gap:2px; align-items:start; }
 .usage-chart-context { margin:0 0 var(--space-2); color:var(--muted-foreground); font-size:var(--typography-caption-font-size); }
 .usage-chart-y { display:flex; flex-direction:column; justify-content:space-between; width:max-content; padding:8px 0; text-align:right; color:var(--muted-foreground); font:var(--typography-caption); height:150px; }
-.usage-chart-body { min-width:0; container-type:inline-size; }
+.usage-chart-body { min-width:0; container:usage-chart / inline-size; }
 .usage-bar-plot { display:block; width:100%; height:150px; overflow:visible; }
 .usage-chart-grid { stroke:var(--line-soft); fill:none; }
 .usage-day-hit { fill:transparent; cursor:pointer; }
@@ -499,19 +501,20 @@ h1.usage-page-heading { margin:0 0 var(--space-4); }
 .usage-unknown-mark { fill:transparent; }
 .usage-unknown-mark:focus-visible { outline:none; stroke:var(--foreground); stroke-width:1; }
 .usage-chart-x { display:flex; align-items:flex-start; color:var(--muted-foreground); font:var(--typography-caption); }
-.usage-chart-x>span { position:relative; display:flex; flex-direction:column; align-items:center; flex:1 1 0; min-width:0; min-height:28px; gap:2px; }
+.usage-chart-x>span { position:relative; display:flex; flex-direction:column; align-items:center; flex:1 1 0; min-width:0; min-height:28px; gap:2px; container-type:inline-size; }
 .usage-day-tick { display:block; flex:0 0 auto; overflow:visible; }
 .usage-day-tick polygon:first-child { fill:var(--border); }
 .usage-day-tick polygon:last-child { fill:var(--card); }
 .usage-chart-x>span>span { position:absolute; top:8px; left:50%; transform:translateX(-50%); white-space:nowrap; visibility:hidden; }
 .usage-chart-x>span[data-tick-wide=true]>span { visibility:visible; }
-.usage-chart-x>span:first-child>span { left:0; transform:none; }
-.usage-chart-x>span:last-child>span { left:auto; right:0; transform:none; }
-@container (max-width:560px) {
+/* End labels stay under their own tick while the day band has room, and stop at the plot edge when it does not. */
+.usage-chart-x>span:first-child>span { transform:translateX(max(-50%,-50cqw)); }
+.usage-chart-x>span:last-child>span { left:auto; right:50%; transform:translateX(min(50%,50cqw)); }
+@container usage-chart (max-width:560px) {
   .usage-chart-x>span[data-tick-wide]>span { visibility:hidden; }
   .usage-chart-x>span[data-tick-medium=true]>span { visibility:visible; }
 }
-@container (max-width:380px) {
+@container usage-chart (max-width:380px) {
   .usage-chart-x>span[data-tick-medium]>span { visibility:hidden; }
   .usage-chart-x>span[data-tick-compact=true]>span { visibility:visible; }
 }
@@ -693,9 +696,9 @@ table.member-quota-table [data-slot=progress] { height:6px; margin-top:8px; }
   .people-table { display:block; }
   .people-table thead { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); }
   .people-table tbody { display:block; }
-  .people-table tr[data-user-id] { display:grid; grid-template-columns:minmax(0,1fr) auto auto; gap:2px 8px; padding:8px 0; }
+  /* Every stacked row keeps the same inset, so the selection edge never overlaps the identity. */
+  .people-table tr[data-user-id] { display:grid; grid-template-columns:minmax(0,1fr) auto auto; gap:2px 8px; padding:8px var(--space-3); }
   .people-table tr[data-user-id] { border-bottom:1px solid var(--line-soft); }
-  .people-table tr[data-state=selected] { margin-inline:0; padding-inline:0; background:var(--accent); }
   table.people-table td { display:block; padding:0; border:0; }
   .people-table .people-identity-cell { grid-column:1/3; grid-row:1; }
   .people-table td[data-label=密钥授权] { grid-column:1; grid-row:2; align-self:center; }

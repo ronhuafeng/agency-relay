@@ -15,7 +15,7 @@ import { listCodexAuths } from "../codex/credential-store";
 import type { ApiKeySurfaceCredentialRow } from "../auth/bindings";
 import type { CodexAuthRow } from "../codex/types";
 import type { MediaUsageSummaryRow, UsageSummaryRow } from "../usage/types";
-import { listExecutionPlans, publicExecutionPlanPath } from "../plans/execution-plans";
+import { isChatgptProductionSlot, listExecutionPlans, profileForSurfaceGrant, publicExecutionPlanPath } from "../plans/execution-plans";
 import { projectCodexIdentity, projectGrokIdentity, type AuthManagementProjection } from "./auth-management";
 import { listSubscriptionAccounts, publicSubscriptionAccount } from "../auth/subscription-accounts";
 import { dashboardInventoryCounts, dashboardPeoplePage, dashboardKeyPage, dashboardPersonKey, dashboardAccessKeys, dashboardKeyOwners, dashboardKeyBindings, dashboardAccountKeys, type DashboardPage, type DashboardKey, type DashboardAccessKey } from "./inventory";
@@ -171,8 +171,8 @@ export interface SurfaceRow {
   hostname: string;
   method: string;
   path: string;
-  grant: string;
-  slot: string;
+  grantLabel: string;
+  slotLabel: string;
   last_success_at: string | null;
   last_failure_at: string | null;
 }
@@ -262,13 +262,13 @@ export async function loadDashboard(input: AdminDashboardInput, base: DashboardL
     }
     case "overview": {
     const trendRange = parseUsageTrendRange(input.url, input.now);
-    const [attempts, counts, codexAuths, daily] = await Promise.all([
+    const [attempts, counts, codexAuths, daily, accounts] = await Promise.all([
       queryRequestAttemptState(input.env),
       dashboardInventoryCounts(input.env),
       listCodexAuths(input.env),
-      queryUsageDaily(input.env, { mode: "range", from: trendRange.from, to: trendRange.to, limit: LEDGER_QUERY_LIMIT }).catch(() => null)
+      queryUsageDaily(input.env, { mode: "range", from: trendRange.from, to: trendRange.to, limit: LEDGER_QUERY_LIMIT }).catch(() => null),
+      listSubscriptionAccounts(input.env)
     ]);
-    const accounts = await listSubscriptionAccounts(input.env);
     model = {
       ...base,
       view,
@@ -323,8 +323,8 @@ export async function loadDashboard(input: AdminDashboardInput, base: DashboardL
       hostname: plan.hostname,
       method: plan.method,
       path: publicExecutionPlanPath(plan),
-      grant: plan.surfaceGrant,
-      slot: plan.credentialSlot,
+      grantLabel: profileForSurfaceGrant(plan.surfaceGrant)?.clientLabel ?? "未记录授权",
+      slotLabel: isChatgptProductionSlot(plan.credentialSlot) ? "ChatGPT" : plan.credentialSlot === "grok_production" ? "Grok" : "未记录连接",
       last_success_at: attempt?.last_success_at ?? null,
       last_failure_at: attempt?.last_failure_at ?? null
       };
@@ -345,16 +345,20 @@ export async function loadDashboard(input: AdminDashboardInput, base: DashboardL
       projection: projectGrokIdentity({ account, nowMs: base.nowMs, oauthPending: grokPending?.account_id === account.id ? grokPending : null }) }))
     ];
     const selected = accounts.find(account => account.key === requestedAccount);
-    const linkedKeys = selected ? await dashboardAccountKeys(input.env, selected.provider, selected.id, Number(inventoryQuery.get("page") ?? 1)) : null;
-    const issuanceDefaults = await readIssuanceDefaults(input.env);
-    const retirement = selected ? await readRetirement(input.env, selected.provider, selected.id) : null;
+    // These reads depend only on the selected connection, so its detail waits for the slowest one, not their sum.
+    const [linkedKeys, issuanceDefaults, retirement, snapshot] = await Promise.all([
+      selected ? dashboardAccountKeys(input.env, selected.provider, selected.id, Number(inventoryQuery.get("page") ?? 1)) : null,
+      readIssuanceDefaults(input.env),
+      selected ? readRetirement(input.env, selected.provider, selected.id) : null,
+      selected?.provider === "codex" && selected.projection.admissionState !== "paused" && input.mutationFlash?.kind !== "codex_admission" ? input.loadCodexAccount(selected.id) : null
+    ]);
     model = {
       ...base,
       view,
       accounts,
       selectedAccountKey: requestedAccount,
       linkedKeys,
-      snapshot: selected?.provider === "codex" && selected.projection.admissionState !== "paused" && input.mutationFlash?.kind !== "codex_admission" ? await input.loadCodexAccount(selected.id) : null,
+      snapshot,
       issuanceDefaults,
       retirement
     };
@@ -367,22 +371,26 @@ export async function loadDashboard(input: AdminDashboardInput, base: DashboardL
     ]);
     const userIds = [...new Set([...peoplePage.rows.map(user => user.id), ...(selectedUser ? [selectedUser.id] : [])])];
     const personOverview = selectedUser;
-    const [accessKeys, keyPage, creditStates, selectedKey] = await Promise.all([
+    // Everything that depends only on the selected account is read together; only the
+    // reads that need the confirmed key (its bindings and their choices) follow it.
+    const [accessKeys, keyPage, creditStates, selectedKey, serviceIdentity, assignedServiceImpact] = await Promise.all([
       dashboardAccessKeys(input.env, userIds),
       personOverview ? dashboardKeyPage(input.env, { person: selectedUser.id, search: inventoryQuery.get("key_q") ?? "", page: Number(inventoryQuery.get("key_page") ?? 1) }).catch(() => null) : { rows: [], page: 1, hasNext: false },
       personOverview ? listSurfaceCreditStates(input.env, input.now, selectedUser.id).catch(() => null) : [],
-      selectedUser && requestedKey !== null ? dashboardPersonKey(input.env, selectedUser.id, requestedKey) : null
+      selectedUser && requestedKey !== null ? dashboardPersonKey(input.env, selectedUser.id, requestedKey) : null,
+      selectedUser?.account_kind === "service" ? Promise.all([
+        readServiceOwner(input.env, selectedUser.id).catch(() => null),
+        (async () => (await input.env.DB.prepare(`SELECT id, canonical_email FROM users WHERE account_kind = 'human' AND status = 'active' AND login_capable = 1 AND substr(canonical_email, instr(canonical_email, '@') + 1) = ? ORDER BY canonical_email`).bind(organizationDomain(input.env) ?? "").all<{id:string;canonical_email:string}>()).results)().catch(() => null),
+        listMemberKeys(input.env, selectedUser.id, input.now).catch(() => null)
+      ]) : null,
+      selectedUser?.account_kind === "human" ? readAssignedServiceImpact(input.env, selectedUser.id) : null
     ]);
-    const credentialBindings = selectedKey ? await dashboardKeyBindings(input.env, [selectedKey.id]) : [];
     const needsAccounts = Boolean(selectedKey || selectedUser && task === "give-access");
-    const [codexAuths, subscriptionAccounts] = needsAccounts ? await Promise.all([
-      listCodexAuths(input.env).catch(() => null), listSubscriptionAccounts(input.env).catch(() => null)
-    ]) : [[], []];
-    const serviceIdentity = selectedUser?.account_kind === "service" ? await Promise.all([
-      readServiceOwner(input.env, selectedUser.id).catch(() => null),
-      (async () => (await input.env.DB.prepare(`SELECT id, canonical_email FROM users WHERE account_kind = 'human' AND status = 'active' AND login_capable = 1 AND substr(canonical_email, instr(canonical_email, '@') + 1) = ? ORDER BY canonical_email`).bind(organizationDomain(input.env) ?? "").all<{id:string;canonical_email:string}>()).results)().catch(() => null),
-      listMemberKeys(input.env, selectedUser.id, input.now).catch(() => null)
-    ]) : null;
+    const [credentialBindings, codexAuths, subscriptionAccounts] = await Promise.all([
+      selectedKey ? dashboardKeyBindings(input.env, [selectedKey.id]) : [],
+      needsAccounts ? listCodexAuths(input.env).catch(() => null) : [],
+      needsAccounts ? listSubscriptionAccounts(input.env).catch(() => null) : []
+    ]);
     model = {
       ...base,
       view,
@@ -390,7 +398,7 @@ export async function loadDashboard(input: AdminDashboardInput, base: DashboardL
       ...(serviceIdentity ? {
         serviceOwner: serviceIdentity[0], serviceOwnerCandidates: serviceIdentity[1], serviceOwnerKeys: serviceIdentity[2]
       } : {}),
-      ...(personOverview && selectedUser.account_kind === "human" ? {assignedServiceImpact: await readAssignedServiceImpact(input.env, selectedUser.id)} : {}),
+      ...(assignedServiceImpact ? {assignedServiceImpact} : {}),
       selectedUser: selectedUser ? { ...selectedUser, login_capable: isOrganizationLoginUser(input.env, selectedUser) ? 1 : 0 } : null,
       selectedKeyId: requestedKey,
       selectedKey,

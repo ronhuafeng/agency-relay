@@ -652,9 +652,11 @@ form[aria-busy=true] :is(button,a)[aria-disabled=true],form[aria-busy=true] butt
 
 .confirmation-fallback{display:flex;align-items:flex-start;gap:12px;max-width:420px;white-space:normal;font-size:13px;line-height:1.5;color:var(--muted-foreground)}
 .confirmation-fallback input[type=checkbox],.radix-check input[type=checkbox],.access-choice input[type=checkbox]{appearance:none;-webkit-appearance:none;flex:0 0 auto;width:20px;height:20px;min-height:20px;margin:1px 0 0;border:1px solid var(--foreground);border-radius:var(--radius);background:var(--card)}
-.confirmation-fallback input:checked,.radix-check input[type=checkbox]:checked,.access-choice input[type=checkbox]:checked{background:var(--foreground) center/14px no-repeat url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23f4f6f8' stroke-width='3' stroke-linejoin='miter'><path d='M5 12.5 10 17.5 19 7'/></svg>")}
+/* The tick is drawn in CSS from theme roles: the document policy admits no data: images, and one rule serves both themes. */
+.confirmation-fallback input[type=checkbox],.radix-check input[type=checkbox],.access-choice input[type=checkbox]{display:inline-grid;place-content:center}
+.confirmation-fallback input:checked,.radix-check input[type=checkbox]:checked,.access-choice input[type=checkbox]:checked{background:var(--foreground)}
+:is(.confirmation-fallback,.radix-check,.access-choice) input[type=checkbox]:checked::before{content:"";width:14px;height:14px;background:var(--background);clip-path:polygon(16.4% 56.5%,42% 82.1%,83.9% 33.2%,74.4% 25.1%,41.3% 63.7%,25.3% 47.7%)}
 .radix-check input[type=checkbox]:disabled{opacity:.5;cursor:not-allowed}
-@media (prefers-color-scheme: dark){.confirmation-fallback input:checked,.radix-check input[type=checkbox]:checked,.access-choice input[type=checkbox]:checked{background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%230d121a' stroke-width='3' stroke-linejoin='miter'><path d='M5 12.5 10 17.5 19 7'/></svg>")}}
 .console-simple [data-member-view] :is(form,.radix-field):not([data-dashboard-search]):not(.setup-workbench *){max-width:420px}
 
 /* Member objects sit in the shared shell. */

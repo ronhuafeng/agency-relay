@@ -108,6 +108,10 @@ export function initializeBackgroundRefresh(apply: (doc: Document) => void): () 
       if (!response.headers.get("Content-Type")?.includes("text/html")) throw new Error("read unavailable");
       const doc = new DOMParser().parseFromString(await response.text(), "text/html");
       if (!current()) return;
+      // A failed response that carries no console identity or terminal result (an edge or
+      // gateway error page) says nothing about this actor. It is an unavailable read; it
+      // must not discard the page and its drafts as if the account had changed.
+      if (!response.ok && !consoleActorId(doc) && !doc.querySelector("[data-console-terminal-result],[data-console-recovery]")) throw new Error("read unavailable");
       if (!retainConsoleActor(doc)) return;
       if (!document.querySelector("[data-member-nav]") && doc.querySelector("[data-member-nav]")) {
         document.dispatchEvent(new CustomEvent("console:actor-changed", {detail: {outcome: "read", changed: false, reason: "authority"}}));

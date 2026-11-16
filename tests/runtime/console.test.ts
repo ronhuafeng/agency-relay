@@ -53,6 +53,22 @@ it("hides transport after access removal but still lets its owner revoke the rec
   } finally {await f.dispose();}
 },20000);
 
+// An unknown selection is a missing object. Wrong: reporting a failed read with a retry
+// link, or selecting another declared service in its place.
+it("answers an unknown tool service selection as missing, without a retry or substitute",async()=>{
+  const f=await oauthFixture();
+  try {
+    const page=await f.runtime.dispatchFetch(`${ISSUER}/admin?view=runtime&installation=retired-service`,{headers:{Cookie:f.cookies.get("admin")!,Accept:"text/html"}});
+    const html=await page.text();
+    expect(page.status).toBe(404);
+    expect(html.includes("data-runtime-missing")).toBe(true);
+    expect(html.includes('id="runtime-detail"')).toBe(false);
+    expect(html.includes("data-console-revision")).toBe(false);
+    const known=await f.runtime.dispatchFetch(`${ISSUER}/admin?view=runtime&installation=design`,{headers:{Cookie:f.cookies.get("admin")!,Accept:"text/html"}});
+    expect(known.status).toBe(200);expect((await known.text()).includes('id="runtime-detail"')).toBe(true);
+  } finally { await f.dispose(); }
+});
+
 it("uses the guarded lifecycle for native admin forms and distinguishes rotation from rebind",async()=>{
   const f=await oauthFixture();
   try {

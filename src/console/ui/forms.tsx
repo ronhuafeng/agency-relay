@@ -126,12 +126,14 @@ function FormCheckbox({ option }: { readonly option: CheckControl }) {
 
 export function AccessChoiceView({ choice }: { readonly choice: AccessChoiceControl }) {
   const enhanced = useEnhanced(); const [checked, setChecked] = useState(false); const input = useRef<HTMLInputElement | null>(null);
+  // The submitted checkbox exists only once enhanced: follow a restored draft from then on,
+  // so the switch can never show "off" while the form still submits the service.
   useEffect(() => {
     const field = input.current; if (!field?.form) return;
     const restore = (): void => setChecked(field.checked); restore();
     const form = field.form; form.addEventListener("console:restore", restore);
     return () => form.removeEventListener("console:restore", restore);
-  }, []);
+  }, [enhanced]);
   return <div className="access-choice" data-access-choice={choice.id} data-access-level={choice.accessLevel}>
     {enhanced ? <><Label htmlFor={`access-${choice.id}`}>{choice.label}</Label><Switch id={`access-${choice.id}`} checked={checked} onCheckedChange={setChecked} aria-label={`新密钥包含 ${choice.label}`}/><input ref={input} type="checkbox" name="clients" value={choice.id} checked={checked} hidden readOnly/></> : <FormCheckbox option={{name: "clients", value: choice.id, label: choice.label, checked: false, disabled: false}} />}
     <span className="access-choice-body">
