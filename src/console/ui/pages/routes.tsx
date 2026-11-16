@@ -7,15 +7,15 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "../components/tabs";
 import { useEnhanced } from "../use-enhanced";
 import { initializeVisibleRowFilters } from "../../client/filters";
-import { isChatgptProductionSlot, profileForSurfaceGrant } from "../../../plans/execution-plans";
 
 export interface RouteRow {
   readonly id: string;
   readonly hostname: string;
   readonly method: string;
   readonly path: string;
-  readonly grant: string;
-  readonly slot: string;
+  /** Display labels projected by the server from the plan catalogue, which stays out of the browser bundle. */
+  readonly grantLabel: string;
+  readonly slotLabel: string;
   readonly last_success_at: string | null;
   readonly last_failure_at: string | null;
 }
@@ -32,22 +32,12 @@ function healthLabel(health: "ok" | "warn" | "neutral"): string {
   return "尚无记录";
 }
 
-function grantLabel(grant: string): string {
-  return profileForSurfaceGrant(grant)?.clientLabel ?? "未记录授权";
-}
-
-function slotLabel(slot: string): string {
-  if (isChatgptProductionSlot(slot)) return "ChatGPT";
-  if (slot === "grok_production") return "Grok";
-  return "未记录连接";
-}
-
 function RouteList({ hostname, routes, hostIndex, tabbed = false }: { readonly hostname: string; readonly routes: readonly RouteRow[]; readonly hostIndex: number; readonly tabbed?: boolean }) {
   const headingId = `route-host-${hostIndex}-title`;
   return (
     <section className="panel surface-host" data-surface-hostname={hostname} aria-labelledby={headingId}>
       <div className="panel-head">
-        <div className="route-host-identity"><h2 id={headingId} className={tabbed ? "sr-only" : undefined}>{grantLabel(routes[0]?.grant ?? "")}</h2><code>{presentText(hostname)}</code></div>
+        <div className="route-host-identity"><h2 id={headingId} className={tabbed ? "sr-only" : undefined}>{routes[0]?.grantLabel ?? ""}</h2><code>{presentText(hostname)}</code></div>
       </div>
       <VisibleRowFilter label={`${hostname} 上的路由`} placeholder="过滤路由" countLabel={`${formatNumber(routes.length)} 条`} rowCount={routes.length} shownRowsOnly hideCount>
         <div className="route-table"><Table scrollLabel={`${hostname} 上的路由`} role="table" aria-label={`${hostname} 上的路由`}><TableHeader role="rowgroup"><TableRow role="row"><TableHead scope="col">方法</TableHead><TableHead scope="col">请求路径</TableHead><TableHead scope="col">服务</TableHead><TableHead scope="col">最近结果</TableHead><TableHead scope="col"><span className="sr-only">详情</span></TableHead></TableRow></TableHeader><TableBody role="rowgroup">
@@ -55,14 +45,14 @@ function RouteList({ hostname, routes, hostIndex, tabbed = false }: { readonly h
             const health = healthOf(route);
             return (
               <TableRow role="row" key={route.id} data-route-id={route.id} data-route-health={health}>
-                <TableCell role="cell"><code className="route-method">{presentText(route.method)}</code></TableCell><TableCell role="cell"><code className="route-path">{presentText(route.path)}</code></TableCell><TableCell role="cell">{grantLabel(route.grant)}</TableCell>
+                <TableCell role="cell"><code className="route-method">{presentText(route.method)}</code></TableCell><TableCell role="cell"><code className="route-path">{presentText(route.path)}</code></TableCell><TableCell role="cell">{route.grantLabel}</TableCell>
                 <TableCell role="cell"><Badge className={`tone-badge tone-${health === "warn" ? "bad" : health}`}>{healthLabel(health)}</Badge></TableCell>
                 <TableCell role="cell"><InfoPopover id={`route-info-${hostIndex}-${encodeURIComponent(route.id)}`} label="请求与授权详情" iconOnly>
                   <dl className="admin-facts">
                     <div><dt>最近失败</dt><dd><time dateTime={route.last_failure_at ?? undefined} title={route.last_failure_at ?? undefined}>{formatOperatorInstantOrDash(route.last_failure_at)}</time></dd></div>
                     <div><dt>最近成功</dt><dd><time dateTime={route.last_success_at ?? undefined} title={route.last_success_at ?? undefined}>{formatOperatorInstantOrDash(route.last_success_at)}</time></dd></div>
-                    <div><dt>需要的授权</dt><dd>{grantLabel(route.grant)}</dd></div>
-                    <div><dt>使用的上游连接</dt><dd>{slotLabel(route.slot)}</dd></div>
+                    <div><dt>需要的授权</dt><dd>{route.grantLabel}</dd></div>
+                    <div><dt>使用的上游连接</dt><dd>{route.slotLabel}</dd></div>
                   </dl>
                 </InfoPopover></TableCell>
               </TableRow>
@@ -75,7 +65,7 @@ function RouteList({ hostname, routes, hostIndex, tabbed = false }: { readonly h
 }
 
 export function readRoutes(value: unknown): readonly RouteRow[] | null {
-  return Array.isArray(value) && value.every(row => row && ["id", "hostname", "method", "path", "grant", "slot"].every(field => typeof row[field] === "string") && ["last_success_at", "last_failure_at"].every(field => row[field] === null || typeof row[field] === "string")) ? value : null;
+  return Array.isArray(value) && value.every(row => row && ["id", "hostname", "method", "path", "grantLabel", "slotLabel"].every(field => typeof row[field] === "string") && ["last_success_at", "last_failure_at"].every(field => row[field] === null || typeof row[field] === "string")) ? value : null;
 }
 export function RoutesView({ routes }: { readonly routes: readonly RouteRow[] }) {
   const enhanced = useEnhanced();
@@ -94,10 +84,10 @@ export function RoutesView({ routes }: { readonly routes: readonly RouteRow[] })
     return () => window.removeEventListener("hashchange", restore);
   }, [hosts.join("|")]);
   const active = hosts.includes(selected) ? selected : hosts[0];
-  if (hosts.length > 1) return <section data-route-ready={enhanced ? "true" : undefined} ref={root} aria-label="路由" className="route-catalog" data-surfaces-grouped="hostname" data-view-role="routes"><Tabs value={active} onValueChange={host => {setSelected(host); history.replaceState(history.state,"",`#route-host-${hosts.indexOf(host)}-title`);}}><TabsList variant="line" aria-label="路由服务">{hosts.map(host => <TabsTrigger key={host} value={host} asChild><a href={`#route-host-${hosts.indexOf(host)}-title`} onClick={event => event.preventDefault()}>{grantLabel(byHost.get(host)?.[0]?.grant ?? "")}</a></TabsTrigger>)}</TabsList>{hosts.map((hostname,hostIndex)=><TabsContent key={hostname} value={hostname} forceMount><RouteList hostname={hostname} routes={byHost.get(hostname) ?? []} hostIndex={hostIndex} tabbed/></TabsContent>)}</Tabs><noscript><span className="route-native-fallback" /></noscript></section>;
+  if (hosts.length > 1) return <section data-route-ready={enhanced ? "true" : undefined} ref={root} aria-label="路由" className="route-catalog" data-surfaces-grouped="hostname" data-view-role="routes"><Tabs value={active} onValueChange={host => {setSelected(host); history.replaceState(history.state,"",`#route-host-${hosts.indexOf(host)}-title`);}}><TabsList variant="line" aria-label="路由服务">{hosts.map(host => <TabsTrigger key={host} value={host} asChild><a href={`#route-host-${hosts.indexOf(host)}-title`} onClick={event => event.preventDefault()}>{byHost.get(host)?.[0]?.grantLabel ?? ""}</a></TabsTrigger>)}</TabsList>{hosts.map((hostname,hostIndex)=><TabsContent key={hostname} value={hostname} forceMount><RouteList hostname={hostname} routes={byHost.get(hostname) ?? []} hostIndex={hostIndex} tabbed/></TabsContent>)}</Tabs><noscript><span className="route-native-fallback" /></noscript></section>;
   return (
     <section ref={root} aria-label="路由" className="view-stack route-catalog" data-surfaces-grouped="hostname" data-view-role="routes">
-      {hosts.length > 1 ? <nav className="section-links route-host-links" aria-label="路由主机">{hosts.map((hostname, index) => <a key={hostname} href={`#route-host-${index}-title`}>{grantLabel(byHost.get(hostname)?.[0]?.grant ?? "")} <span className="sr-only">{hostname}</span></a>)}</nav> : null}
+      {hosts.length > 1 ? <nav className="section-links route-host-links" aria-label="路由主机">{hosts.map((hostname, index) => <a key={hostname} href={`#route-host-${index}-title`}>{byHost.get(hostname)?.[0]?.grantLabel ?? ""} <span className="sr-only">{hostname}</span></a>)}</nav> : null}
       {hosts.length === 0
         ? <p className="empty">还没有路由。</p>
         : hosts.map((hostname, hostIndex) => <RouteList key={hostname} hostname={hostname} routes={byHost.get(hostname) ?? []} hostIndex={hostIndex} />)}

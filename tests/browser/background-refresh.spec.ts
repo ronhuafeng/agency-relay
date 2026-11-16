@@ -142,3 +142,26 @@ test.describe('member draft during background reads', () => {
     expect(worker.requests.every(request => request.method === 'GET')).toBe(true);
   });
 });
+
+// An edge or gateway failure in front of the console answers with its own HTML, which
+// carries no console identity. Wrong: treating it as a changed account, which replaces
+// the page and discards the reader's work. The double stands at that external seam only.
+test('an identity-less gateway error during a quiet read is unavailable, not a changed account', async ({page, worker}) => {
+  await page.clock.install({time: new Date(NOW)});
+  worker.seedUsageTrends();
+  await page.goto('/admin?view=usage&range=7d');
+  const root = await page.locator('main#content').elementHandle();
+  await page.route(url => url.pathname === '/admin', async route => {
+    if (route.request().headers()['x-console-revision'] === undefined) { await route.fallback(); return; }
+    await route.fulfill({status: 502, contentType: 'text/html; charset=utf-8', body: '<!doctype html><html><head><title>502</title></head><body><h1>Bad gateway</h1></body></html>'});
+  });
+  const failed = page.waitForResponse(response => response.status() === 502);
+  worker.advanceClock(300000);
+  await page.clock.fastForward(300000);
+  await failed;
+  await expect(page.locator('[data-console-status]')).toHaveAttribute('data-state', 'error');
+  await expect(page.locator('[data-console-recovery]')).toHaveCount(0);
+  await expect(page.locator('.shell')).toBeVisible();
+  expect(await page.evaluate(node => node === document.querySelector('main#content'), root)).toBe(true);
+  expect(worker.requests.every(request => request.method === 'GET')).toBe(true);
+});

@@ -60,6 +60,14 @@ export function initializeRecovery(dispose: () => void): () => void {
   let checking: HTMLElement | null = null;
   let publicRoot: Root | null = null;
   let returnFocus: HTMLElement | null = null;
+  // Masking removes the private layout, which collapses every scroll offset. A confirmed
+  // return puts the reader back where they were instead of at the top of the page.
+  let returnScroll: {x: number; y: number; regions: [HTMLElement, number, number][]} | null = null;
+  const restoreScroll = (): void => {
+    const saved = returnScroll; returnScroll = null; if (!saved) return;
+    for (const [region, left, top] of saved.regions) if (region.isConnected) { region.scrollLeft = left; region.scrollTop = top; }
+    window.scrollTo(saved.x, saved.y);
+  };
   const privateNodes = (): HTMLElement[] => Array.from(document.querySelectorAll<HTMLElement>('.shell,.identity'));
   const mask = (pending: boolean): void => {
     document.documentElement.toggleAttribute('data-console-authority-pending', pending);
@@ -83,7 +91,7 @@ export function initializeRecovery(dispose: () => void): () => void {
     // No hidden snapshots, detached React roots, dialogs, or serialized props survive.
     privateNodes().forEach(node => node.remove());
     document.querySelectorAll('script[type="application/json"],[data-ui-props],#console-dialog-root').forEach(node => node.remove());
-    returnFocus = null;
+    returnFocus = null; returnScroll = null;
     mask(false);
     show(message, target, state, result);
   };
@@ -91,7 +99,7 @@ export function initializeRecovery(dispose: () => void): () => void {
     const {outcome, changed, reason} = (event as CustomEvent<{outcome: ConsoleOutcome; changed: boolean; reason?: "authority"}>).detail;
     clear(reason === "authority" ? '当前登录或页面权限已改变。请重新打开以读取获准访问的内容。' : changed ? '当前账号已改变。请重新打开页面；原账号的内容和草稿已清除。' : '无法确认页面的当前账号。请重新打开；原内容和草稿已清除。', reason === 'authority' || changed ? 'authority' : 'unavailable', outcome);
   }, {signal});
-  const stop = (): void => { ended = true; invalidate(); listeners.abort(); returnFocus = null; publicRoot?.unmount(); publicRoot = null; mask(false); };
+  const stop = (): void => { ended = true; invalidate(); listeners.abort(); returnFocus = null; returnScroll = null; publicRoot?.unmount(); publicRoot = null; mask(false); };
   document.addEventListener('console:document-ended', () => { stop(); dispose(); }, {signal});
   if (!actorId) { clear('无法确认这个页面的原账号。请重新打开以读取当前身份。'); return stop; }
   window.addEventListener('pagehide', () => clear('页面已离开。重新打开后按当前账号和权限读取；不会重复提交操作。', 'reopen'), {signal});
@@ -103,7 +111,11 @@ export function initializeRecovery(dispose: () => void): () => void {
   }, {signal});
   document.addEventListener('visibilitychange', async () => {
     if (ended) return;
-    if (!document.documentElement.hasAttribute('data-console-authority-pending')) returnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    if (!document.documentElement.hasAttribute('data-console-authority-pending')) {
+      returnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      returnScroll = {x: window.scrollX, y: window.scrollY, regions: Array.from(document.querySelectorAll<HTMLElement>('.shell [data-slot="table-container"],.shell pre'))
+        .filter(region => region.scrollLeft !== 0 || region.scrollTop !== 0).map(region => [region, region.scrollLeft, region.scrollTop])};
+    }
     invalidate(); mask(true);
     if (document.visibilityState !== 'visible') return;
     const epoch = generation;
@@ -145,7 +157,7 @@ export function initializeRecovery(dispose: () => void): () => void {
           clear('当前服务账号或管理权限已经改变。请重新打开以查看获准访问的页面。', response.status === 401 ? 'login' : 'authority'); return;
         }
       }
-      mask(false);
+      mask(false); restoreScroll();
       if (returnFocus?.isConnected && returnFocus.getClientRects().length) returnFocus.focus({preventScroll: true});
       returnFocus = null;
     } catch {

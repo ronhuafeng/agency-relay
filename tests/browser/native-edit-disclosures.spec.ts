@@ -22,6 +22,21 @@ test.describe('native edit disclosures', () => {
     await expect(page.locator('[data-mutation-flash=credit_policy]')).toHaveText('Codex 额度已更新');
     expect(worker.servicePolicy('member')).toEqual(expect.arrayContaining([expect.objectContaining({monthly_allowance:28})]));
   });
+  // The document policy admits no data: images. Wrong: a checked acknowledgement whose tick is
+  // such an image, which the browser refuses, leaving a filled box that reads as a blocked control.
+  test('a checked native acknowledgement needs no image the document policy refuses', async ({page}) => {
+    const refused: string[] = [];
+    page.on('console', message => { if (message.type() === 'error' && message.text().includes('data:image')) refused.push('refused image'); });
+    await page.goto('/admin?view=access&person=member');
+    const form = page.locator('#credit-policy-member-codex-editor form[data-action=credit-set]');
+    await page.locator('[data-credit-user=member][data-credit-surface=codex]').getByRole('button',{name:'调整 Codex 额度',exact:true}).click();
+    await openNativeConfirmation(form);
+    const acknowledgement = form.getByRole('checkbox');
+    await acknowledgement.check();
+    await expect(acknowledgement).toBeChecked();
+    expect(await acknowledgement.evaluate(node => getComputedStyle(node).backgroundImage.includes('url('))).toBe(false);
+    expect(refused).toEqual([]);
+  });
   test('email task opens by keyboard and keeps input on collapse', async ({page}) => {
     await page.goto('/admin?view=access&person=other');
     const trigger = page.getByRole('button',{name:'更改登录邮箱',exact:true});

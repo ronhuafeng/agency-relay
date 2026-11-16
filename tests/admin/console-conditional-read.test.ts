@@ -22,10 +22,10 @@ async function fixture() {
   }
   const sessions = new Map<string, string>();
   for (const id of ["admin-a", "member-a", "member-b"]) sessions.set(id, await createConsoleSession(env, {id, email: `${id}@example.test`, sessionEpoch: 0}, now));
-  const read = (path: string, actor = "admin-a", revision?: string) => {
+  const read = (path: string, actor = "admin-a", revision?: string, at = now) => {
     const headers = new Headers({Accept: "text/html", Cookie: `__Host-mini-console=${sessions.get(actor)}`});
     if (revision) headers.set("X-Console-Revision", revision);
-    return handleRequest(new Request(origin + path, {headers}), env, {waitUntil: () => {}}, {now: () => now, fetch: provider});
+    return handleRequest(new Request(origin + path, {headers}), env, {waitUntil: () => {}}, {now: () => at, fetch: provider});
   };
   return {db, env, read, provider, duringRead: (action: () => void) => {duringRead = action;}};
 }
@@ -89,4 +89,21 @@ it("never turns a creation task into an unchanged acknowledgement", async () => 
   expect(response.status).toBe(200);
   const doc = new JSDOM(await response.text()).window.document;
   expect(doc.querySelector("main")?.hasAttribute("data-console-revision")).toBe(false);
+});
+// Pages derive a key's state from its expiry at render time, so the stored rows are
+// identical before and after it lapses. Wrong: acknowledging the read as unchanged and
+// leaving an expired key displayed as valid. A later clock alone is still not a change.
+it("does not acknowledge an administrator page as unchanged once a displayed key has expired", async () => {
+  const f = await fixture();
+  const expiry = new Date(now.getTime() + 60_000);
+  f.db.sqlite.prepare(`INSERT INTO api_keys (id,user_id,key_prefix,key_hash,status,scopes,name,family_id,created_at,expires_at)
+    VALUES ('expiring-key','member-a','display-expiring','invalid-expiring','active','["surface:codex:production"]','Expiring','family:expiring',?,?)`).run(now.toISOString(), expiry.toISOString());
+  const path = "/admin?view=access&person=member-a";
+  const initial = await model(await f.read(path));
+  const stillValid = await f.read(initial.path, "admin-a", initial.revision, new Date(expiry.getTime() - 1_000));
+  expect(stillValid.status).toBe(204); await stillValid.body?.cancel();
+  const lapsed = await model(await f.read(initial.path, "admin-a", initial.revision, new Date(expiry.getTime() + 1_000)));
+  expect(lapsed.revision).not.toBe(initial.revision);
+  const settled = await f.read(initial.path, "admin-a", lapsed.revision, new Date(expiry.getTime() + 120_000));
+  expect(settled.status).toBe(204); await settled.body?.cancel();
 });

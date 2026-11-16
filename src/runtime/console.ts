@@ -53,10 +53,11 @@ export interface RuntimeAdminModel {
   more:boolean;
 }
 export async function readRuntimeAdmin(env:Env,actor:LifecycleActor,selectedId:string|null,search="",page=1):Promise<RuntimeAdminModel> {
-  const installations=[];
-  for(const declared of runtimeInstallations(env))installations.push(await readRuntimeInstallation(env,actor,declared.id));
+  // Each read keeps its own authority checks; declared installations are independent of one another.
+  const installations=await Promise.all(runtimeInstallations(env).map(declared=>readRuntimeInstallation(env,actor,declared.id)));
+  // An unknown selection is a missing object, not a failed read: the page keeps the
+  // declared services and names the absence without selecting a substitute.
   const selected=installations.find(row=>row.id===selectedId);
-  if(selectedId&&!selected)throw new HttpError(404,"Runtime installation not found.","invalid_request_error","not_found");
   const members:RuntimeAdminModel["members"]=[];
   let more=false;
   if(selected&&selected.state!=="unconfigured") {

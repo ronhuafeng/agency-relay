@@ -43,7 +43,8 @@ export async function queryUsageSummary(
   input: UsageSummaryQuery
 ): Promise<UsageSummaryResult> {
   const { where, bindings } = usageSummaryWhere(input);
-  const totalsRow = await env.DB.prepare(
+  // Totals and rows are independent aggregates over the same scope.
+  const [totalsRow, rows] = await Promise.all([env.DB.prepare(
     `SELECT
        COALESCE(SUM(ud.requests), 0) AS requests,
        COALESCE(SUM(ud.ok_requests), 0) AS ok_requests,
@@ -62,9 +63,7 @@ export async function queryUsageSummary(
        MAX(ud.last_seen_at) AS latest_usage_at
      FROM usage_daily AS ud
      ${where}`
-  ).bind(...bindings).first<UsageSummaryTotalsRow>();
-
-  const rows = await queryUsageSummaryRows(env, where, bindings, input.limit);
+  ).bind(...bindings).first<UsageSummaryTotalsRow>(), queryUsageSummaryRows(env, where, bindings, input.limit)]);
 
   return {
     totals: normalizeUsageTotals(totalsRow),
@@ -79,7 +78,7 @@ export async function queryMediaUsageSummary(
   input: MediaUsageSummaryQuery
 ): Promise<MediaUsageSummaryResult> {
   const { where, bindings } = mediaUsageSummaryWhere(input);
-  const totalsRow = await env.DB.prepare(
+  const [totalsRow, rowsResult] = await Promise.all([env.DB.prepare(
     `SELECT
        COALESCE(SUM(mu.started_jobs), 0) AS started_jobs,
        COALESCE(SUM(mu.completed_jobs), 0) AS completed_jobs,
@@ -93,8 +92,7 @@ export async function queryMediaUsageSummary(
        COALESCE(SUM(mu.cost_measurements), 0) AS cost_measurements
      FROM media_usage_daily AS mu
      ${where}`
-  ).bind(...bindings).first<MediaUsageSummaryTotals>();
-  const rowsResult = await env.DB.prepare(
+  ).bind(...bindings).first<MediaUsageSummaryTotals>(), env.DB.prepare(
     `SELECT
        MIN(mu.day) AS first_day,
        MAX(mu.day) AS last_day,
@@ -119,7 +117,7 @@ export async function queryMediaUsageSummary(
      GROUP BY mu.user_id, users.email, mu.route_profile_id, mu.capability
      ORDER BY provider_cost_usd_ticks DESC, started_jobs DESC
      LIMIT ?`
-  ).bind(...bindings, input.limit).all<MediaUsageSummaryRow>();
+  ).bind(...bindings, input.limit).all<MediaUsageSummaryRow>()]);
   return {
     totals: normalizeMediaUsageTotals(totalsRow),
     rows: rowsResult.results ?? []

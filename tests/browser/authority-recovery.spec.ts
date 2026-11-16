@@ -77,3 +77,24 @@ test.describe('stable member actor',()=>{
     expect(worker.countKeys()).toBe(2);
   });
 });
+
+// The privacy mask removes the private layout while authority is pending. A confirmed
+// same-actor return must not cost the reader their place. Wrong: the page comes back at the top.
+test('a confirmed foreground return keeps the reader at the same scroll position',async({page,worker})=>{
+  await page.setViewportSize({width:1024,height:400});
+  await page.goto('/admin?view=access'); await ready(page);
+  await page.evaluate(()=>window.scrollTo(0,240));
+  const before=await page.evaluate(()=>scrollY);
+  expect(before).toBeGreaterThan(0);
+  const authority=worker.hold({method:'GET',path:'/me'});
+  try {
+    await foreground(page); await authority.entered;
+    await expect(page.locator('.shell')).toBeHidden();
+    // A rendered frame commits the collapsed layout, as a real stay in another tab does.
+    await page.evaluate(()=>new Promise<void>(done=>requestAnimationFrame(()=>requestAnimationFrame(()=>done()))));
+    expect(await page.evaluate(()=>scrollY)).toBe(0);
+  } finally { authority.release(); }
+  await expect(page.locator('.shell')).toBeVisible();
+  await expect.poll(()=>page.evaluate(()=>scrollY)).toBe(before);
+  expect(worker.requests.every(request=>request.method==='GET')).toBe(true);
+});

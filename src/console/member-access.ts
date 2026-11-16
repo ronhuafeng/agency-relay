@@ -51,8 +51,11 @@ function entitlement(state: SurfaceCreditState | undefined): Entitlement {
 
 /** No provider requests or token refreshes. Each independent read owns its failure. */
 export async function readMemberAccess(env: Env, userId: string, now: Date): Promise<MemberAccessModel> {
-  const [inventory, quotas, defaults, bindings] = await Promise.all([
+  // The task-evidence read is scoped to this account's own keys, so it starts with the
+  // inventory instead of waiting for it; it is used only when that inventory has keys.
+  const [inventory, verification, quotas, defaults, bindings] = await Promise.all([
     read(() => listMemberKeys(env, userId, now)),
+    read(() => queryClientVerification(env, undefined, userId)),
     read(() => listSurfaceCreditStates(env, now, userId)),
     read(async () => (await env.DB.prepare(`SELECT ${ORGANIZATION_DEFAULT_ACCOUNT_COLUMNS} FROM organization_surface_credential_defaults`).all<DefaultRow>()).results),
     read(async () => (await env.DB.prepare(`SELECT b.api_key_id, b.surface_grant, b.codex_auth_id, b.subscription_account_id
@@ -94,7 +97,7 @@ export async function readMemberAccess(env: Env, userId: string, now: Date): Pro
   const keys = inventory.known ? inventory.value : [];
   const live = keys.filter(key => keyIsLive(key, now.getTime()));
   const liveFamilies = inventory.known ? new Set(live.map(key => key.family_id).filter(Boolean)).size : null;
-  const observations = inventory.known && keys.length ? await read(() => queryClientVerification(env, undefined, userId)) : { known: true, value: [] } as const;
+  const observations = inventory.known && keys.length ? verification : { known: true, value: [] } as const;
   const projected: MemberKeyFact[] = await Promise.all(keys.map(async key => {
     const keySurfaces = key.scopes.map(surfaceOf);
     const conditions = await Promise.all(keySurfaces.filter((surface): surface is MemberSurface => surface !== null).map(async surface => {
