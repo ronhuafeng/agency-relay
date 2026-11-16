@@ -1,32 +1,32 @@
 ---
 version: alpha
 name: Agency Relay Console
-description: Cyan pixel workspaces with cool light surfaces, deep indigo dark surfaces and crisp task boundaries.
+description: Cyan pixel workspaces printed on warm ruled paper, with deep indigo dark surfaces and crisp task sheets.
 colors:
   primary: "#00dbe9"
-  on-primary: "#002a2f"
-  background: "#f6f8fa"
-  surface: "#ffffff"
-  on-surface: "#0f172a"
-  muted: "#526174"
-  border: "#d6dde5"
-  input-border: "#526174"
-  secondary: "#f1f5f9"
-  accent: "#d9f6f8"
-  success: "#15803d"
-  warning: "#995c00"
+  on-primary: "#00262b"
+  background: "#f3f1ea"
+  surface: "#fffefa"
+  on-surface: "#17160f"
+  muted: "#5e594c"
+  border: "#d3cdbc"
+  input-border: "#625c4e"
+  secondary: "#eae7dc"
+  accent: "#c8f1f4"
+  success: "#17753a"
+  warning: "#8a5300"
   error: "#b4233e"
   on-error: "#ffffff"
   dark-primary: "#00dbe9"
-  dark-on-primary: "#002a2f"
-  dark-background: "#0f0b21"
-  dark-surface: "#1c182f"
-  dark-on-surface: "#f0edf8"
-  dark-muted: "#b9b4cd"
-  dark-border: "#5e566f"
-  dark-input-border: "#867d9c"
-  dark-secondary: "#28233c"
-  dark-accent: "#103c48"
+  dark-on-primary: "#00262b"
+  dark-background: "#0e0b1f"
+  dark-surface: "#191530"
+  dark-on-surface: "#f1eef9"
+  dark-muted: "#b8b2cf"
+  dark-border: "#554d6e"
+  dark-input-border: "#8a81a3"
+  dark-secondary: "#231e3a"
+  dark-accent: "#0f3f4a"
   dark-success: "#68e6a0"
   dark-warning: "#ffd078"
   dark-error: "#ff9bb0"
@@ -237,12 +237,15 @@ The format follows the [Google design.md specification](https://github.com/googl
 
 ## Colors
 
-Use the page background as the canvas. A task object, such as a record card or a
-form, uses the surface color and one boundary. A page, and a section that only
-groups those objects, has no extra frame. Use the foreground for names and facts; muted text is secondary, not a
-substitute for a missing label. Use a light canvas in light mode, with quiet boundaries around task surfaces.
-Input borders are stronger than section dividers; informational groups do not need
-a dark outer frame. Align the desktop brand row with the first content row while
+The console reads as a printed technical manual: warm paper, ink, and cyan as the
+one spot colour. The page background is the canvas, ruled with a quiet dot grid
+that carries no meaning. Readable content never sits directly on the grid: a task
+object, a chart, a ledger and a collection are each one sheet, with the surface
+colour and one boundary. A page, and a section that only groups sheets, has no
+extra frame. Use the foreground ink for names and facts; muted text is secondary, not a
+substitute for a missing label. Light mode stays warm and light, with calm boundaries around sheets.
+Input and control outlines are ink-toned and stronger than section dividers; rows inside a
+sheet are separated by dashed hairlines, and a table head sits on one ink rule. Align the desktop brand row with the first content row while
 keeping the navigation surface continuous.
 Cyan identifies the primary action and current selection. The darker teal focus
 outline stays visible against white; dark mode uses a light cyan outline. Action
@@ -265,7 +268,9 @@ PingFang SC, Microsoft YaHei, Noto Sans CJK SC and `sans-serif` as local fallbac
 do not require a downloaded font or select fonts through user-agent detection.
 Font metrics and glyphs may differ across platforms. Layouts must still preserve
 readable text, wrapping and reachable controls. Use monospace for paths,
-filenames and short identifiers. Prefer tabular numerals for metrics and times.
+filenames and short identifiers, and for overview metrics. Table heads and state badges
+keep the sans caption: their columns are sized by content, and wider glyphs change how
+native and enhanced rows wrap. Prefer tabular numerals for metrics and times.
 Do not turn an internal UUID into the largest item in a row when a useful identity
 exists. Legacy objects without a human identity need a truthful label and a
 secondary stable identifier.
@@ -365,12 +370,15 @@ defined in the product contract.
 
 ## Elevation & Depth
 
-Use a calm boundary for an object that is itself a task. Do not add another frame
-around the page or around a section that only groups those objects; internal rows
-use the softer divider. Primary and destructive buttons carry the hard ink shadow
-(`--shadow-soft`, DTCG `shadow.pixel`); pressed buttons move into it and lose it.
-Secondary buttons have an outline and no offset shadow. The page heading has no
-enclosing frame. Menus and popovers use `--shadow-overlay`. Exact values come from
+Depth is printed, never blurred. A sheet has a calm boundary and a paper-toned hard
+offset, so it reads as lying on the canvas. Do not add another frame around the page
+or around a section that only groups sheets; internal rows use the dashed divider.
+The ink shadow (`--shadow-soft`, DTCG `shadow.pixel`) is reserved for what the user
+presses or is on: primary and destructive buttons, the current navigation entry and
+the phone navigation capsule. Pressed buttons move into it and lose it. Secondary
+buttons have an ink hairline and a paper-toned offset, never the ink shadow. Overview
+tiles are links: an ink outline, whose offset turns cyan on hover. The page heading has no
+enclosing frame. Menus, popovers and dialogs use an ink outline and `--shadow-overlay`. Exact values come from
 the generated tokens above. These hard edges preserve the theme; do not replace
 them with blurred elevation, glow or glass effects.
 
@@ -380,7 +388,10 @@ an action or state. Respect reduced motion; feedback does not require animation.
 ## Shapes
 
 Controls, cards, badges, menus and avatars use the same 2px corner language.
-Switch tracks need a distinct sliding thumb but keep the square visual family.
+Switch tracks need a distinct sliding thumb but keep the square visual family: an ink
+outline, an ink thumb, and a cyan track when on. The current tab is ink text over a
+cyan block on the tab rule, not a tinted pill. A progress meter is stepped into pixel
+blocks. A state badge is a stamped tag: a compact caption with a hairline in its own tone.
 Icons use the shared line-icon set with consistent size and stroke. Familiar
 actions such as refresh need familiar symbols, not custom logos. Text and
 accessible names explain consequential actions.
@@ -569,8 +580,9 @@ state near its affected task; routine success does not demand another banner.
 ## Do's and Don'ts
 
 - Keep cyan action emphasis and pixel feedback across the whole shell and tasks.
-- Keep light mode fully light, including selected navigation, popovers and code
-  surfaces; use the separate indigo token set for dark mode.
+- Keep light mode fully light and warm, including selected navigation and popovers;
+  configuration source previews keep their dark code surface in both themes. Use the
+  separate indigo token set for dark mode.
 - Group by user activity; make identity, useful facts and the next action scannable.
 - Choose a component for its behavior, then apply Agency Relay's theme.
 - Keep paths, the selected target and consequential impact directly visible.

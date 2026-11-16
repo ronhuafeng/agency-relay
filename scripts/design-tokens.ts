@@ -108,7 +108,7 @@ function frontmatter(light: TokenNormalizedSet, dark: TokenNormalizedSet): strin
   return `---
 version: alpha
 name: Agency Relay Console
-description: Cyan pixel workspaces with cool light surfaces, deep indigo dark surfaces and crisp task boundaries.
+description: Cyan pixel workspaces printed on warm ruled paper, with deep indigo dark surfaces and crisp task sheets.
 colors:
 ${color("primary")}
 ${color("on-primary", "primary-foreground")}

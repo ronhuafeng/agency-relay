@@ -84,8 +84,8 @@
 table{width:100%;border-collapse:collapse;min-width:0}
 .table-wrap table{min-width:40rem}
 .wide-table-wrap table{min-width:900px}
-th,td{text-align:left;padding:16px 16px 16px 0;border-bottom:1px solid var(--line-soft);font-size:14px;vertical-align:baseline}
-th{background:transparent;color:var(--muted-foreground);font:600 13px/1.4 var(--font-sans);text-transform:none;letter-spacing:0;border-bottom-color:var(--border)}
+th,td{text-align:left;padding:16px 16px 16px 0;border-bottom:1px dashed var(--border);font-size:14px;vertical-align:baseline}
+th{background:transparent;color:var(--muted-foreground);font:600 13px/1.4 var(--font-sans);text-transform:none;letter-spacing:0;border-bottom-color:var(--foreground)}
 td.number,th.number{text-align:right;font-variant-numeric:tabular-nums}
 .dense-table table{min-width:0}
 .user strong,.user small{display:block}
@@ -248,7 +248,8 @@ td.actions{white-space:nowrap}
 
 html { background:var(--background); color:var(--foreground); font:14px/1.5 var(--font-sans); scroll-padding-top:var(--dashboard-scroll-inset,calc(var(--header-h) + 16px)); -webkit-font-smoothing:antialiased; }
 html, body { max-width:100%; }
-body { margin:0; min-width:0; background:var(--background); }
+/* The canvas is ruled paper: a quiet dot grid that task sheets sit on. It carries no meaning. */
+body { margin:0; min-width:0; background:var(--background) radial-gradient(color-mix(in srgb,var(--foreground) 11%,transparent) 1px,transparent 1.5px) 0 0/16px 16px; }
 button,input,select,textarea { font:inherit; }
 input,select,textarea { scroll-margin-block:100px; }
 input::placeholder,textarea::placeholder { color:var(--muted-foreground); opacity:1; }
@@ -297,10 +298,11 @@ input::placeholder,textarea::placeholder { color:var(--muted-foreground); opacit
 @media (max-width:999px) { .dashboard-notice { position:static; } }
 button:disabled,input:disabled,select:disabled,textarea:disabled { cursor:not-allowed; opacity:.5; }
 form[aria-busy=true] :is(button,a)[aria-disabled=true],form[aria-busy=true] button:disabled,a[aria-disabled=true] { opacity:.5; cursor:wait; }
-.ranges { display:flex; flex-wrap:wrap; border:1px solid var(--border); border-radius:var(--radius); }
+.ranges { display:flex; flex-wrap:wrap; border:1px solid var(--foreground); border-radius:var(--radius); }
 .ranges a { display:flex; align-items:center; justify-content:center; min-height:44px; padding:7px 12px; border-radius:var(--radius); font-size:14px; font-weight:600; color:var(--muted-foreground); text-decoration:none; }
 .ranges a:hover { background:var(--accent); color:var(--foreground); }
-.ranges a[aria-current=page],.ranges a[aria-current=true] { background:var(--accent); color:var(--foreground); }
+.ranges a+a { border-left:1px solid var(--foreground); border-radius:var(--rounded-none); }
+.ranges a[aria-current=page],.ranges a[aria-current=true] { background:var(--primary); color:var(--primary-foreground); }
 .panel-head { min-width:0; }
 .panel-head h3 { font-size:20px; font-weight:650; letter-spacing:-.03em; line-height:1.3; display:flex; align-items:center; gap:8px; }
 .panel-head h3 .ui-icon { width:17px; height:17px; }
