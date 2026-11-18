@@ -131,8 +131,8 @@ Details: [usage](../operate/usage.md), [Responses development](../develop/respon
 
 Provider profiles above do not admit an MCP client. A Runtime client presents a resource-bound OAuth bearer to one exact resource. That grant is separate from an Agency Relay API key, a console session, and a Provider credential.
 
-The canonical console origin owns the OAuth issuer role. Deployment-declared MCP
-resources use origins separate from the console and Providers, in the same Worker.
+The canonical console origin owns the OAuth issuer role. The deployment configures an MCP origin separate from the console and Providers,
+in the same Worker. The console configures each connector's path on that origin.
 Exact discovery and
 OAuth paths are listed in [Security](../../SECURITY.md#runtime-admission-and-lifecycle).
 Public registration and token routes stay outside the console browser-write
@@ -142,7 +142,7 @@ Rebind remains the installation control operation, not a public OAuth route.
 keep the OAuth surface closed. Protected MCP forwarding is a separate transport
 boundary, not established by discovery or token issuance.
 
-Each protected resource is the exact deployment-declared installation URI. A
+Each protected resource is the exact current installation URI. A
 descendant path is a different resource. A bearer for one resource is rejected
 by another. Production admission enforces the actual `runtime.use` consent for
 installation use, not per-tool read-only authority. Advertising a scope does not
@@ -159,21 +159,20 @@ bounds and cleanup are owned by [Security](../../SECURITY.md#runtime-admission-a
 Synthetic identity, task output and controlled clocks are test inputs, not live
 Feishu, upstream capability or transport-capacity evidence.
 
-The canonical Stitch resource is `https://mcp.trustedtunnel.app/google-stitch`.
-Runtime resources use one explicitly declared lowercase letter-led path segment
-(letters, digits and hyphens, at most 64 characters). Distinct installations can
-share an origin; exact full-URL matching selects the installation, not the first
-declaration on that host. No prefix matching, alias or trailing-slash redirect
-expands the resource. Its OAuth metadata is published at
-`https://mcp.trustedtunnel.app/.well-known/oauth-protected-resource/google-stitch`,
-and an unauthenticated request receives a challenge for that exact document.
-The resource URL is a stable authorization identity, not a mutable display name.
+Runtime resources use one lowercase letter-led path segment (letters, digits
+and hyphens, at most 64 characters). Two installations can share the MCP origin.
+D1 reserves each full URL through creation, change and retirement. Path changes
+invalidate the installation's client consent and close the old URL. There are no
+aliases or redirects between these resources. The existing Stitch installation
+retains `/google-stitch` until an administrator changes it.
 
-The relay implements request-scoped POST to the exact resource. The reviewed
-`google.stitch` profile fixes the complete upstream URL to `https://stitch.googleapis.com/mcp`
-and injects the exact admitted secret version as `X-Goog-Api-Key`. No incoming
-path, query, body, header or client version selects that URL or credential.
-No query is allowed. A present Origin must equal the resource origin.
+The relay implements request-scoped POST to the exact resource. The
+`google.stitch` profile fixes the upstream to `https://stitch.googleapis.com/mcp`.
+The `lark.doc` profile fixes the upstream to `https://mcp.feishu.cn/mcp` and sends
+`X-Lark-MCP-Allowed-Tools: fetch-doc`. The relay injects the admitted secret
+version using the installation's validated credential header. An incoming path,
+query, body, header or client version cannot set the upstream URL, header or
+credential. No query is allowed. A present Origin must equal the resource origin.
 
 The supported envelope headers declare `2024-11-05`, `2025-06-18`, `2025-11-25`, or `2026-07-28`.
 Any other `Mcp-Protocol-Version` is rejected before dispatch. An absent version
@@ -239,10 +238,9 @@ facts. Cleanup can be delayed. Failed recording stays unknown; stale leases expi
 tool count, semantic success, token/cost measurement or Provider ledger entry is
 created. HTTP 200 or clean SSE EOF is not a tool outcome.
 
-The second fixed profile exists only in the synthetic Worker fixture and uses this
-same core. It proves the extension seam and isolation, not another vendor's behavior.
-Deterministic/native-client evidence is separate from deployed latency, capacity,
-Feishu and a real Stitch task. Empty deployment declarations remain closed.
+The local Worker fixture tests connector isolation and exact header projection.
+Deployed reachability, native-client interoperability and completed vendor tasks
+require evidence from the corresponding deployed surface.
 
 Codex may still authenticate to the existing Provider surface with a static API key or access token. Those Provider plans stay unchanged.
 

@@ -1,5 +1,20 @@
 import { expect, it } from "vitest";
-import { assertDeployment, assertVersion, assertMigrations } from "../../scripts/release-control";
+import { assertDeployment, assertVersion, assertMigrations, productionConfig } from "../../scripts/release-control";
+
+it("adds only production deployment values to the verified local configuration", () => {
+  const base = {name:"agency-relay-local", routes:[], compatibility_date:"2026-06-24", compatibility_flags:["global_fetch_strictly_public"],
+    vars:{RUNTIME_MCP_ORIGIN:"",RUNTIME_INSTALLATIONS:"[]"}, secrets:{required:["KEY"]},
+    d1_databases:[{binding:"DB",database_id:"local",migrations_dir:"migrations"}],durable_objects:{bindings:[]}};
+  const settings = {name:"relay-primary",databaseName:"relay",databaseId:"1b26b984-8450-4220-bae0-330609b7cb9c",
+    routes:[{pattern:"api.example.test/*",zone_name:"example.test"}, {pattern:"mcp.example.test",custom_domain:true}, {pattern:"console.example.test",custom_domain:true}],
+    vars:{ADMIN_DASHBOARD_HOST:"console.example.test",CONSOLE_EMAIL_DOMAIN:"example.test",CODEX_EGRESS_BASE_URL:"https://egress.example.test",RUNTIME_MCP_ORIGIN:"https://mcp.example.test"}};
+  expect(productionConfig(base,settings)).toMatchObject({name:"relay-primary",routes:settings.routes,
+    vars:{...settings.vars,RUNTIME_INSTALLATIONS:"[]"},compatibility_flags:["global_fetch_strictly_public"],
+    d1_databases:[{binding:"DB",database_id:settings.databaseId,migrations_dir:"migrations"}]});
+  expect(base.routes).toEqual([]);
+  expect(() => productionConfig(base,{...settings,vars:{...settings.vars,RUNTIME_INSTALLATIONS:"[]"}})).toThrow();
+  expect(() => productionConfig(base,{...settings,routes:[settings.routes[0],settings.routes[1],settings.routes[1]]})).toThrow();
+});
 
 it("requires every current migration without treating retained historical ledger names as pending work", () => {
   const expected = ["0001_initial.sql", "0002_current.sql"];

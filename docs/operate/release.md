@@ -68,6 +68,25 @@ rotates credentials or rolls back automatically. The preceding version remains
 the code recovery target only while its schema and authority stay compatible.
 An unknown upload/deployment result requires readback before another write.
 
+The public Wrangler file is a local build template. Production jobs materialize
+an ignored `.wrangler.production.json` from that verified template and the
+repository secret `WRANGLER_PRODUCTION_SETTINGS`. Supply a JSON
+object with `name` (Worker name), `databaseName`, `databaseId`, `routes` (the
+existing Wrangler route array), and `vars` with exactly
+`ADMIN_DASHBOARD_HOST`, `CONSOLE_EMAIL_DOMAIN`, `CODEX_EGRESS_BASE_URL`, and
+`RUNTIME_MCP_ORIGIN`. Include the MCP and console Custom Domains in `routes`.
+The MCP origin is HTTPS without a trailing slash. The candidate archive contains
+the local template. The production file and Wrangler command output stay on
+the release runner. Public results omit production configuration values.
+
+On the initial connector cutover, apply migration `0042` through the native
+D1 workflow and verify the existing Stitch installation's resource, revisions
+and credential binding. Use the same MCP origin as the existing resource. The
+migration reserves existing URLs and preserves those values. The automatic
+code-release guard stops on this configuration and migration change, so an
+operator must perform the initial cutover. Before allowing path or header
+changes, use a recovery version that understands the new configuration.
+
 Repository Secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` authorize
 Worker version upload/deployment and read-only D1 ledger verification;
 `MINI_ADMIN_SECRET` is used only for operator readiness. PR jobs receive no release

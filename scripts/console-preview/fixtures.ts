@@ -12,8 +12,23 @@ export async function createPreviewFixture(scenario: Scenario, preferredEmail?: 
   if(scenario==="runtime") {
     // Miniflare/Wrangler load only for the integrated Runtime scenario.
     const {oauthFixture,authorizedTokens,resourceRequest}=await import("../../tests/runtime/oauth-fixture");
-    const f=await oauthFixture(undefined,{issuer:PREVIEW_ORIGIN});
+    const f=await oauthFixture(undefined,{issuer:PREVIEW_ORIGIN,editablePaths:true});
     try {
+      for(const body of [
+        {action:"configure"},
+        {action:"supply",expectedRevision:1,operationId:"preview-bind",authority:"rebind",material:"synthetic-preview-key"},
+        {action:"enable",expectedRevision:2,operationId:"preview-enable"},
+      ]) {
+        const response=await f.admin("google-stitch",body);
+        await response.body?.cancel();
+        if(!response.ok)throw new Error("Runtime preview setup failed");
+      }
+      const access=await f.runtime.dispatchFetch(`${PREVIEW_ORIGIN}/admin/ui/runtime-installations/google-stitch`,{
+        method:"POST",headers:{Cookie:f.cookies.get("admin")!,Origin:PREVIEW_ORIGIN,Accept:"text/html","Content-Type":"application/x-www-form-urlencoded"},
+        body:new URLSearchParams({action:"access",confirm:"1",subject:"member",state:"granted",expectedRevision:"0",expiresAt:""}).toString()
+      });
+      await access.body?.cancel();
+      if(!access.ok)throw new Error("Runtime preview access setup failed");
       const client=await authorizedTokens(f);
       const response=await resourceRequest(f,client.tokens.access_token);await response.body?.cancel();
       return {env:f.env,cookies:f.cookies,dispatchRequest:async request=>f.runtime.dispatchFetch(request.url,{method:request.method,headers:Object.fromEntries(request.headers),...(request.body?{body:await request.arrayBuffer()}:{}),redirect:"manual"}),close:f.dispose};
@@ -25,6 +40,7 @@ export async function createPreviewFixture(scenario: Scenario, preferredEmail?: 
   const env: Env = {
     DB: db.binding, ADMIN_DASHBOARD_HOST: new URL(PREVIEW_ORIGIN).hostname,
     CONSOLE_EMAIL_DOMAIN: "example.test", API_KEY_HASH_PEPPER: "local-preview-only",
+    RUNTIME_MCP_ORIGIN: "",
     RUNTIME_INSTALLATIONS: "[]",
     RUNTIME_CREDENTIALS: undefined as unknown as Env["RUNTIME_CREDENTIALS"],
     RUNTIME_OAUTH: undefined as unknown as Env["RUNTIME_OAUTH"],

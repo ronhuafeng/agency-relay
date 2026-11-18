@@ -5,7 +5,7 @@ import {headerMediaType} from "../records";
 import {readConsoleSessionPrincipalByHash} from "../auth/console-session";
 import type {ConsolePrincipal} from "../auth/principal";
 import {readRuntimeAuthority,readRuntimeAuthorityRevision,readRuntimeMemberInstallations,type RuntimeAuthority,type RuntimeMemberInstallation} from "./installations";
-import {runtimeInstallations,RUNTIME_SCOPE,RUNTIME_PROFILES} from "./profiles";
+import {runtimeResources,RUNTIME_SCOPE} from "./profiles";
 
 type ClientConsentView={id:string;client_id:string;client_name:string;resource:string;scope:string;created_at:string;expires_at:string};
 export interface RuntimeMemberModel {
@@ -109,14 +109,16 @@ export class RuntimeOAuth extends DurableObject<Env> {
     return this.gate(async(deadline)=>{
       if(!this.attempt("authorization:organization",300,MINUTE))return invalid(429);
       const client=this.client(query.client_id??"");
-      const installation=runtimeInstallations(this.env).find(item=>item.resource===query.resource);
+      const installations=await this.bounded(runtimeResources(this.env),deadline);
+      const installation=installations.find(item=>item.resource===query.resource);
       if(!client||!installation||query.response_type!=="code"||!redirectMatches(client.redirect,query.redirect_uri??"")
         ||query.scope!==RUNTIME_SCOPE||query.code_challenge_method!=="S256"||! /^[A-Za-z0-9_-]{43}$/.test(query.code_challenge??"")
         ||!query.state||query.state.length>512||/[^\x21-\x7e]/.test(query.state))return invalid();
       if(!this.attempt(`authorization:${client.id}`,30,MINUTE))return invalid(429);
       const principal=await this.consolePrincipal(session,deadline);
       const authority=principal?await this.bounded(readRuntimeAuthority(this.env,principal.id,installation.id,new Date(),{hash:session!,email:principal.email,epoch:principal.sessionEpoch}),deadline):null;
-      const revision=principal?authority?.authority_revision:await this.bounded(readRuntimeAuthorityRevision(this.env,installation.id),deadline);
+      const revision=principal?(authority?.resource===installation.resource?authority.authority_revision:null)
+        :await this.bounded(readRuntimeAuthorityRevision(this.env,installation.id,installation.resource),deadline);
       if(revision==null)return invalid(403,"access_denied");
       this.ctx.storage.sql.exec("DELETE FROM pending WHERE expires<=?",Date.now());
       if(this.ctx.storage.sql.exec<{count:number}>("SELECT count(*) AS count FROM pending").one().count>=300)return invalid(429);
@@ -137,7 +139,7 @@ export class RuntimeOAuth extends DurableObject<Env> {
       if(!principal)return {status:303,body:{},location:`/login?return=${encodeURIComponent(`/runtime/consent/${id}`)}`};
       if(pending.principal&&(principal.id!==pending.principal.id||principal.email!==pending.principal.email||principal.sessionEpoch!==pending.principal.sessionEpoch))return invalid(403,"access_denied");
       const authority=await this.bounded(readRuntimeAuthority(this.env,principal.id,pending.installation,new Date(),{hash:session!,email:principal.email,epoch:principal.sessionEpoch}),deadline);
-      if(!authority||authority.authority_revision!==pending.authorityRevision||(pending.accessRevision!==null&&authority.access_revision!==pending.accessRevision))return invalid(403,"access_denied");
+      if(!authority||authority.resource!==pending.query.resource||authority.authority_revision!==pending.authorityRevision||(pending.accessRevision!==null&&authority.access_revision!==pending.accessRevision))return invalid(403,"access_denied");
       const client=this.client(pending.query.client_id!);
       if(!client)return invalid();
       if(!pending.principal) {
@@ -215,8 +217,6 @@ export class RuntimeOAuth extends DurableObject<Env> {
       if(!consent.scope.split(" ").includes(RUNTIME_SCOPE))return invalid(403,"insufficient_scope");
       const authority=await this.bounded(readRuntimeAuthority(this.env,consent.subject,consent.installation),deadline);
       if(!matchesAuthority(consent,authority))return invalid(403,"access_denied");
-      const installation=runtimeInstallations(this.env).find(item=>item.id===authority.installation_id)!;
-      const profile=RUNTIME_PROFILES[installation.profile];
       return this.ctx.storage.transactionSync<RuntimeAdmission|OAuthReply>(()=>{
         const now=Date.now();
         // At most 16 declarations x 16 leases. Expiry is checked at admission;
@@ -227,7 +227,7 @@ export class RuntimeOAuth extends DurableObject<Env> {
         if(count.installation>=16||count.member>=4)return invalid(429,"runtime_capacity_exceeded");
         const lease={id:crypto.randomUUID(),expires:now+10*MINUTE};
         this.ctx.storage.sql.exec("INSERT INTO relay_leases(id,subject,installation,consent,authority_revision,profile,profile_revision,started,expires) VALUES(?,?,?,?,?,?,?,?,?)",
-          lease.id,authority.subject,authority.installation_id,consent.id,authority.authority_revision,installation.profile,profile.revision,now,lease.expires);
+          lease.id,authority.subject,authority.installation_id,consent.id,authority.authority_revision,authority.profile,authority.profile_revision,now,lease.expires);
         return {...authority,client_authorization_id:consent.id,lease_id:lease.id,lease_expires_at:lease.expires};
       });
     },unavailable());

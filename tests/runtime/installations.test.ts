@@ -1,4 +1,5 @@
 import { expect, it } from "vitest";
+import { readFileSync, readdirSync } from "node:fs";
 import { createTestD1 } from "../support/sqlite-d1";
 import { configureRuntimeInstallation, readRuntimeInstallation, readRuntimeAuthority, changeRuntimeInstallation, setRuntimeAccess, readRuntimeOperation } from "../../src/runtime/installations";
 import {runtimeInstallations} from "../../src/runtime/profiles";
@@ -11,6 +12,26 @@ const declarations = JSON.stringify([
   {id:"design",profile:"google.stitch",resource:"https://design.example.test/mcp",label:"Design"},
   {id:"other",profile:"google.stitch",resource:"https://other.example.test/mcp",label:"Other"}
 ]);
+
+it("preserves the existing Stitch OAuth resource and revisions during migration",async()=>{
+  const migrations=new URL("../../migrations/",import.meta.url);
+  const added="0042_runtime_connector_configuration.sql";
+  const {db,env}=setup({migrations:readdirSync(migrations).filter(name=>/^\d{4}_.+\.sql$/.test(name)&&name<added).sort()});
+  const resource="https://mcp.example.test/google-stitch";
+  try {
+    db.sqlite.prepare(`INSERT INTO runtime_installations
+      (id,resource,profile,profile_revision,label,state,revision,authority_revision,credential_ref,credential_revision,created_at,updated_at)
+      VALUES ('google-stitch',?,'google.stitch',1,'Stitch','enabled',8,4,'fixture-ref',6,?,?)`).run(resource,now.toISOString(),now.toISOString());
+    db.sqlite.prepare(`INSERT INTO runtime_installation_access (installation_id,user_id,revision,state,updated_at)
+      VALUES ('google-stitch','member',3,'granted',?)`).run(now.toISOString());
+    db.sqlite.exec(readFileSync(new URL(added,migrations),"utf8"));
+    env.RUNTIME_INSTALLATIONS="[]";
+    env.RUNTIME_MCP_ORIGIN="https://mcp.example.test";
+    expect(await readRuntimeInstallation(env,operator,"google-stitch")).toMatchObject({resource,state:"enabled",revision:8,credential_ready:true,credential_header:"X-Goog-Api-Key"});
+    expect(await readRuntimeAuthority(env,"member","google-stitch",now)).toMatchObject({resource,authority_revision:4,access_revision:3,credential_revision:6});
+    await expect(configureRuntimeInstallation(env,operator,"lark-doc",now,"/google-stitch")).rejects.toMatchObject({code:"runtime_path_taken"});
+  } finally {db.close();}
+});
 function setup(options:Parameters<typeof createTestD1>[0]={}) {
   const db = createTestD1(options);
   const env = {DB:db.binding,CONSOLE_EMAIL_DOMAIN:"example.test",RUNTIME_INSTALLATIONS:declarations} as Env;

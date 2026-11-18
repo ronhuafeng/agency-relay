@@ -600,6 +600,7 @@ function makeTokenAuthorityFixture(options: {
     ADMIN_SECRET: "admin-secret",
     ADMIN_DASHBOARD_HOST: "admin.example.test",
     CONSOLE_EMAIL_DOMAIN: "example.com",
+    RUNTIME_MCP_ORIGIN: "",
     RUNTIME_INSTALLATIONS: "[]",
     RUNTIME_CREDENTIALS: undefined as unknown as Env["RUNTIME_CREDENTIALS"],
     RUNTIME_OAUTH: undefined as unknown as Env["RUNTIME_OAUTH"],

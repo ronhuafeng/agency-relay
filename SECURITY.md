@@ -18,7 +18,7 @@ closed. The synthetic integration uses the pinned
 `2026-06-24`, `nodejs_compat`, and one SQLite-backed Durable Object transaction.
 The unmodified library owns token request validation, PKCE verification and token
 generation; Agency Relay's model owns resource binding, grant generation and
-atomic storage. The real client proof uses Codex CLI `0.156.1`, including a
+atomic storage. The real client proof uses an installed Codex CLI, including a
 protected tool-catalogue read and denial after revocation. It does not use a model
 or Stitch credential.
 
@@ -113,16 +113,15 @@ authority consequence. All token material stays out of audit and diagnostics.
 The canonical console origin owns `/.well-known/oauth-authorization-server`,
 `/runtime/register`, `/runtime/authorize`, `/runtime/token`, the exact opaque
 `/runtime/consent/:id` return, and current-member `/runtime/clients` list/revoke.
-Each deployment-declared resource owns its path-specific metadata at
+Each current resource owns its path-specific metadata at
 `/.well-known/oauth-protected-resource/<resource-path>`, as specified by
 [RFC 9728 section 3.1](https://www.rfc-editor.org/rfc/rfc9728.html#section-3.1).
 Resources use exact HTTPS URLs with one lowercase letter-led path segment
 (letters, digits and hyphens, at most 64 characters), without a query or fragment.
 Selection and token admission use the full URL, never the first matching origin.
 Distinct installations may share an origin, but not a resource URL. A resource
-origin cannot also be a Provider or console origin. The canonical Stitch resource
-is `https://mcp.trustedtunnel.app/google-stitch`; `/stitch`, `/mcp`, descendant paths
-and trailing-slash variants are not aliases.
+origin cannot also be a Provider or console origin. D1 reserves previous and
+retired resources. A path change invalidates authorization for the old URL.
 Registration and token exchange require no browser cookie/Origin; their explicit
 uncredentialed CORS never advertises credentialed wildcard access. Consent and
 client revocation use the existing console principal and exact-Origin write guard.
@@ -142,8 +141,8 @@ does not update an older registration. Unsupported self-asserted metadata is
 ignored without fetching it, as required by [RFC 7591 §2](https://www.rfc-editor.org/rfc/rfc7591.html#section-2);
 client-secret and JWK-based registration are rejected.
 
-The admitted snapshot freezes resource, profile/version, Authority Revision and
-the exact secret reference/version. Transport may not replace it with current
+The admitted snapshot freezes resource, profile/version, Authority Revision,
+credential request header and the exact secret reference/version. Transport may not replace it with current
 or default material. Profile drift or a cleaned/missing version fails closed.
 The OAuth authority atomically reserves a ten-minute request lease after current
 admission, with four per member/installation and sixteen per installation.
@@ -153,7 +152,9 @@ not a permission leak: expiry is enforced before the next reservation. Neither
 a lease nor transport completion is a provider tool-success fact.
 
 Runtime header projection is an explicit content/MCP allowlist, not a generic
-credential denylist. The profile injects only its code-owned credential header.
+credential denylist. The relay injects the exact admitted credential under a
+validated administrator-configured header at the code-owned upstream URL.
+Profile-owned headers, including the Feishu tool allowlist, come from code.
 No cookie, downstream bearer, custom key/routing header, upstream authentication
 challenge or session handle is exported. Upstream redirects are not followed;
 401/403 bodies and challenges are replaced with a safe upstream failure, never

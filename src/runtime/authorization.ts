@@ -1,5 +1,5 @@
 import {plansForHostname} from "../plans/execution-plans";
-import {runtimeInstallations,RUNTIME_SCOPE} from "./profiles";
+import {runtimeInstallations,runtimeResources,RUNTIME_SCOPE} from "./profiles";
 import {base64UrlEncode,runtimeOAuthMaterialHash} from "../crypto";
 import {runtimeBrowserSessionHash as browserSessionHash} from "./member";
 import {assertConsoleBrowserWrite} from "../console/browser-write";
@@ -28,9 +28,12 @@ export async function runtimeAuthorizationResponse(request:Request,env:Env):Prom
       return Response.json(reply.body,{status:reply.status,headers:{"Cache-Control":"no-store","Referrer-Policy":"no-referrer"}});
     }
     if(!installations.length)return null;
-    const resource=installations.find(item=>resourceMetadataUrl(item.resource)===url.href);
-    if(request.method==="GET"&&resource)
-      return protocolResponse({resource:resource.resource,authorization_servers:[issuer],bearer_methods_supported:["header"],scopes_supported:[RUNTIME_SCOPE]});
+    if(request.method==="GET"&&url.pathname.startsWith("/.well-known/oauth-protected-resource/")
+      &&installations.some(item=>new URL(item.resource).origin===url.origin)) {
+      const resources=await runtimeResources(env,installations);
+      const resource=resources.find(item=>resourceMetadataUrl(item.resource)===url.href);
+      if(resource)return protocolResponse({resource:resource.resource,authorization_servers:[issuer],bearer_methods_supported:["header"],scopes_supported:[RUNTIME_SCOPE]});
+    }
     if(url.origin!==issuer)return null;
     if(request.method==="OPTIONS"&&!url.search&&["/runtime/register","/runtime/token"].includes(url.pathname)) {
       if(request.headers.get("Access-Control-Request-Method")!=="POST")return protocolResponse({error:"invalid_request"},405);
@@ -114,11 +117,12 @@ export async function admitRuntimeRequest(request:Request,env:Env):Promise<Runti
   const url=new URL(request.url);
   if(plansForHostname(url.hostname)||url.origin===`https://${env.ADMIN_DASHBOARD_HOST}`)return null;
   try {
-    const installations=runtimeInstallations(env);
+    const declarations=runtimeInstallations(env);
+    if(!declarations.some(item=>new URL(item.resource).origin===url.origin))return null;
+    const installations=await runtimeResources(env,declarations);
     const installation=installations.find(item=>item.resource===url.href);
     if(!installation) {
-      if(!installations.some(item=>new URL(item.resource).origin===url.origin)
-        || installations.some(item=>resourceMetadataUrl(item.resource)===url.href))return null;
+      if(installations.some(item=>resourceMetadataUrl(item.resource)===url.href))return null;
       return protocolResponse({error:"invalid_request"},404);
     }
     if(request.method!=="POST")return protocolResponse({error:"invalid_request"},405);

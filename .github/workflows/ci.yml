@@ -115,8 +115,10 @@ jobs:
       - run: |
           tar -xzf "$RUNNER_TEMP/candidate/candidate.tar.gz"
           pnpm exec tsx scripts/candidate-artifact.ts verify
-      - name: Prepare pinned Codex client for the synthetic OAuth contract
-        run: npm install --prefix "$RUNNER_TEMP/runtime-codex" --no-audit --no-fund @openai/codex@0.156.1
+      - name: Prepare Codex CLI for the Runtime OAuth contracts
+        run: |
+          npm install --prefix "$RUNNER_TEMP/runtime-codex" --no-audit --no-fund @openai/codex
+          "$RUNNER_TEMP/runtime-codex/node_modules/.bin/codex" --version
       - run: pnpm exec vitest run
         env:
           CODEX_TEST_BIN: ${{ runner.temp }}/runtime-codex/node_modules/.bin/codex

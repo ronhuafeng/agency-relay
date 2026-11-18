@@ -1,6 +1,6 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
-  "name": "mini-proxy-core",
+  "name": "agency-relay-local",
   "main": "src/index.ts",
   "compatibility_date": "2026-06-24",
   "compatibility_flags": [
@@ -9,28 +9,7 @@
     "request_signal_passthrough",
     "global_fetch_strictly_public"
   ],
-  "routes": [
-    {
-      "pattern": "api.trustedtunnel.app/*",
-      "zone_name": "trustedtunnel.app"
-    },
-    {
-      "pattern": "grok.trustedtunnel.app/*",
-      "zone_name": "trustedtunnel.app"
-    },
-    {
-      "pattern": "xai.trustedtunnel.app/*",
-      "zone_name": "trustedtunnel.app"
-    },
-    {
-      "pattern": "mcp.trustedtunnel.app",
-      "custom_domain": true
-    },
-    {
-      "pattern": "mini-proxy.uniweaver.com",
-      "custom_domain": true
-    }
-  ],
+  "routes": [],
   "observability": {
     "enabled": true,
     "logs": {
@@ -44,16 +23,20 @@
     }
   },
   "triggers": {
-    "crons": ["17 * * * *", "17 3 * * *"]
+    "crons": [
+      "17 * * * *",
+      "17 3 * * *"
+    ]
   },
   "vars": {
-    "CODEX_EGRESS_BASE_URL": "https://codex-egress-us-west1-a.trustedtunnel.app",
+    "CODEX_EGRESS_BASE_URL": "https://egress.example.test",
     "CODEX_OAUTH_TOKEN_URL": "https://auth.openai.com/oauth/token",
     "CODEX_CLIENT_ID": "app_EMoamEEZ73f0CkXaXp7hrann",
-    "ADMIN_DASHBOARD_HOST": "mini-proxy.uniweaver.com",
-    "CONSOLE_EMAIL_DOMAIN": "uniweaver.com",
-    "RUNTIME_INSTALLATIONS": "[{\"id\":\"google-stitch\",\"resource\":\"https://mcp.trustedtunnel.app/google-stitch\",\"profile\":\"google.stitch\",\"label\":\"Google Stitch\"}]",
-    "REQUEST_AUDIT_RETENTION_DAYS": "30"
+    "ADMIN_DASHBOARD_HOST": "console.example.test",
+    "CONSOLE_EMAIL_DOMAIN": "example.test",
+    "RUNTIME_INSTALLATIONS": "[]",
+    "REQUEST_AUDIT_RETENTION_DAYS": "30",
+    "RUNTIME_MCP_ORIGIN": ""
   },
   "secrets": {
     "required": [
@@ -68,8 +51,8 @@
   "d1_databases": [
     {
       "binding": "DB",
-      "database_name": "mini-proxy-core",
-      "database_id": "d807c677-151e-412d-bc74-fd33836be171",
+      "database_name": "agency-relay-local",
+      "database_id": "00000000-0000-4000-8000-000000000000",
       "migrations_dir": "migrations"
     }
   ],
@@ -96,19 +79,29 @@
   "migrations": [
     {
       "tag": "v1",
-      "new_sqlite_classes": ["TokenAuthority"]
+      "new_sqlite_classes": [
+        "TokenAuthority"
+      ]
     },
     {
       "tag": "v2-credential-events",
-      "new_sqlite_classes": ["CredentialEvents"]
+      "new_sqlite_classes": [
+        "CredentialEvents"
+      ]
     },
     {
       "tag": "v3-runtime-credentials",
-      "new_sqlite_classes": ["RuntimeCredentials"]
+      "new_sqlite_classes": [
+        "RuntimeCredentials"
+      ]
     },
     {
       "tag": "v4-runtime-oauth",
-      "new_sqlite_classes": ["RuntimeOAuth"]
+      "new_sqlite_classes": [
+        "RuntimeOAuth"
+      ]
     }
-  ]
+  ],
+  "workers_dev": false,
+  "preview_urls": false
 }

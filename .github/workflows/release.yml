@@ -21,6 +21,7 @@ jobs:
       CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV: "false"
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      WRANGLER_CONFIG_PATH: .wrangler.production.json
       GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -43,6 +44,10 @@ jobs:
           pnpm exec tsx scripts/candidate-artifact.ts verify
       - name: Reject a superseded main candidate
         run: test "$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq .object.sha)" = "$GITHUB_SHA"
+      - name: Prepare private production configuration
+        env:
+          WRANGLER_PRODUCTION_SETTINGS: ${{ secrets.WRANGLER_PRODUCTION_SETTINGS }}
+        run: pnpm exec tsx scripts/release-control.ts prepare
       - name: Read current version, bindings and D1 ledger
         run: |
           mkdir -p tmp
@@ -50,7 +55,11 @@ jobs:
       - name: Upload the verified bundle without building
         env:
           WRANGLER_OUTPUT_FILE_PATH: tmp/wrangler-upload.jsonl
-        run: pnpm exec wrangler versions upload dist/worker/index.js --no-bundle --message "release $GITHUB_SHA"
+        run: |
+          if ! pnpm exec wrangler versions upload dist/worker/index.js --config "$WRANGLER_CONFIG_PATH" --no-bundle --message "release $GITHUB_SHA" > "$RUNNER_TEMP/wrangler-upload.log" 2>&1; then
+            echo "Worker upload failed. Reconcile the deployment in Cloudflare before retrying."
+            exit 1
+          fi
       - name: Verify uploaded identity and unchanged production
         id: uploaded
         run: pnpm exec tsx scripts/release-control.ts uploaded
@@ -59,7 +68,10 @@ jobs:
           VERSION: ${{ steps.uploaded.outputs.version }}
         run: |
           test "$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq .object.sha)" = "$GITHUB_SHA"
-          pnpm exec wrangler versions deploy "$VERSION@100" --message "release $GITHUB_SHA" --yes
+          if ! pnpm exec wrangler versions deploy "$VERSION@100" --config "$WRANGLER_CONFIG_PATH" --message "release $GITHUB_SHA" --yes > "$RUNNER_TEMP/wrangler-deploy.log" 2>&1; then
+            echo "Worker cutover failed. Reconcile the deployment in Cloudflare before retrying."
+            exit 1
+          fi
       - name: Read back the actual deployment
         run: pnpm exec tsx scripts/release-control.ts deployed
       - name: Preserve the deployed package and release identity
@@ -70,27 +82,32 @@ jobs:
           MINI_ADMIN_SECRET: ${{ secrets.MINI_ADMIN_SECRET }}
         run: |
           node --input-type=module <<'JS'
-          const config = JSON.parse((await import("node:fs")).readFileSync("wrangler.jsonc", "utf8"));
-          for (const origin of ["https://api.trustedtunnel.app", "https://grok.trustedtunnel.app", "https://xai.trustedtunnel.app", config.vars.CODEX_EGRESS_BASE_URL]) {
-            const response = await fetch(origin + "/healthz", {redirect:"error", signal:AbortSignal.timeout(30000)});
-            if (!response.ok) throw Error("Production health failed: " + origin);
+          const config = JSON.parse((await import("node:fs")).readFileSync(process.env.WRANGLER_CONFIG_PATH, "utf8"));
+          const {CODEX_API_HOSTNAME} = await import("./src/plans/execution-plans.ts");
+          const privateFetch = (url, options) => fetch(url, options).catch(() => { throw Error("Production endpoint request failed"); });
+          for (const origin of [...config.routes.filter(route => !route.custom_domain).map(route => "https://" + route.pattern.slice(0,-2)), config.vars.CODEX_EGRESS_BASE_URL]) {
+            const response = await privateFetch(origin + "/healthz", {redirect:"error", signal:AbortSignal.timeout(30000)});
+            if (!response.ok) throw Error("Production health failed (HTTP " + response.status + ")");
             if (origin === config.vars.CODEX_EGRESS_BASE_URL) {
               if ((await response.text()).trim() !== "ok") throw Error("Egress health failed");
-            } else if ((await response.json()).ok !== true) throw Error("Worker health failed");
-            console.log(origin + ": health PASS");
+            } else if ((await response.json().catch(() => null))?.ok !== true) throw Error("Worker health failed");
           }
+          console.log("Production health: PASS");
           if (!process.env.MINI_ADMIN_SECRET) throw Error("Missing operator readiness credential");
-          const response = await fetch("https://api.trustedtunnel.app/admin/readiness", {headers:{Authorization:"Bearer " + process.env.MINI_ADMIN_SECRET}, redirect:"error", signal:AbortSignal.timeout(30000)});
+          const response = await privateFetch("https://" + CODEX_API_HOSTNAME + "/admin/readiness", {headers:{Authorization:"Bearer " + process.env.MINI_ADMIN_SECRET}, redirect:"error", signal:AbortSignal.timeout(30000)});
           if (!response.ok) throw Error("Operator readiness HTTP " + response.status);
-          const readiness = await response.json();
-          if (readiness.kind !== "readiness" || readiness.database !== "available" || readiness.token_authority_binding !== "available") throw Error("Operator readiness contract failed");
+          const readiness = await response.json().catch(() => null);
+          if (readiness?.kind !== "readiness" || readiness.database !== "available" || readiness.token_authority_binding !== "available") throw Error("Operator readiness contract failed");
           console.log("Operator readiness: HTTP 200; provider task not exercised");
           const {createHash} = await import("node:crypto");
           const {consoleClientDigest} = await import("./src/console/generated/console-client.ts");
           const {consoleStylesDigest} = await import("./src/console/generated/console-styles.ts");
           for (const [extension, digest] of [["js", consoleClientDigest], ["css", consoleStylesDigest]]) {
-            const asset = await fetch("https://" + config.vars.ADMIN_DASHBOARD_HOST + "/admin/console-" + digest + "." + extension, {redirect:"error",signal:AbortSignal.timeout(30000)});
+            const asset = await privateFetch("https://" + config.vars.ADMIN_DASHBOARD_HOST + "/admin/console-" + digest + "." + extension, {redirect:"error",signal:AbortSignal.timeout(30000)});
             if (!asset.ok || createHash("sha256").update(Buffer.from(await asset.arrayBuffer())).digest("hex") !== digest) throw Error("Deployed Console asset differs from verified candidate");
             console.log("Deployed Console " + extension + ": candidate bytes PASS");
           }
           JS
+      - name: Remove private release files
+        if: always()
+        run: rm -f "$WRANGLER_CONFIG_PATH" "$RUNNER_TEMP/wrangler-upload.log" "$RUNNER_TEMP/wrangler-deploy.log" tmp/wrangler-upload.jsonl

@@ -13,6 +13,43 @@ interface Config {
   d1_databases: { binding: string; database_id: string }[];
   durable_objects: { bindings: { name: string; class_name: string }[] };
 }
+
+type ProductionRoute = { pattern: string; zone_name?: string; custom_domain?: true };
+const privateVariables = ["ADMIN_DASHBOARD_HOST", "CONSOLE_EMAIL_DOMAIN", "CODEX_EGRESS_BASE_URL", "RUNTIME_MCP_ORIGIN"] as const;
+
+export function productionConfig(base: Config, input: unknown) {
+  const invalid = () => new Error("Invalid private production Worker configuration");
+  if (!input || typeof input !== "object" || Array.isArray(input)) throw invalid();
+  const settings = input as Record<string, unknown>;
+  const { name, databaseName, databaseId, routes, vars } = settings;
+  if (Object.keys(settings).some(key => !["name", "databaseName", "databaseId", "routes", "vars"].includes(key)) ||
+      typeof name !== "string" || !/^[a-z0-9-]{1,63}$/.test(name) || name === base.name ||
+      typeof databaseName !== "string" || !/^[a-zA-Z0-9_-]{1,63}$/.test(databaseName) ||
+      typeof databaseId !== "string" || !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(databaseId) ||
+      !Array.isArray(routes) || routes.length < 3 || !vars || typeof vars !== "object" || Array.isArray(vars)) throw invalid();
+  const variables = vars as Record<string, unknown>;
+  if (Object.keys(variables).length !== privateVariables.length ||
+      privateVariables.some(key => typeof variables[key] !== "string" || !/^[a-z0-9.\-:/]+$/.test(variables[key]))) throw invalid();
+  const host = /^[a-z0-9-]+(?:\.[a-z0-9-]+)+$/;
+  const values = variables as Record<(typeof privateVariables)[number], string>;
+  if (!host.test(values.ADMIN_DASHBOARD_HOST) || !host.test(values.CONSOLE_EMAIL_DOMAIN) ||
+      !values.CODEX_EGRESS_BASE_URL.startsWith("https://") || !host.test(values.CODEX_EGRESS_BASE_URL.slice(8)) ||
+      !values.RUNTIME_MCP_ORIGIN.startsWith("https://") || !host.test(values.RUNTIME_MCP_ORIGIN.slice(8))) throw invalid();
+  const checkedRoutes = routes.map((route: unknown): ProductionRoute => {
+    if (!route || typeof route !== "object" || Array.isArray(route)) throw invalid();
+    const {pattern, zone_name, custom_domain, ...extra} = route as Record<string, unknown>;
+    if (Object.keys(extra).length || typeof pattern !== "string") throw invalid();
+    if (custom_domain === true && zone_name === undefined && host.test(pattern)) return {pattern,custom_domain:true};
+    if (custom_domain === undefined && typeof zone_name === "string" && host.test(zone_name) &&
+        pattern.endsWith("/*") && host.test(pattern.slice(0,-2))) return {pattern,zone_name};
+    throw invalid();
+  });
+  if (new Set(checkedRoutes.map(route=>route.pattern)).size !== checkedRoutes.length ||
+      ![values.ADMIN_DASHBOARD_HOST,values.RUNTIME_MCP_ORIGIN.slice(8)].every(domain=>
+        checkedRoutes.some(route=>route.custom_domain && route.pattern === domain))) throw invalid();
+  return { ...base, name, routes: checkedRoutes, vars: { ...base.vars, ...values },
+    d1_databases: base.d1_databases.map(db => db.binding === "DB" ? {...db,database_name:databaseName,database_id:databaseId} : db) };
+}
 export function assertVersion(version: Version, config: Config, sha: string, previous?: Version): void {
   if (version.annotations["workers/message"] !== `release ${sha}`) throw new Error("Version source annotation mismatch");
   const runtime = version.resources.script_runtime;
@@ -46,7 +83,17 @@ export function assertMigrations(expected: string[], applied: string[]): void {
   }
 }
 async function run(mode: string): Promise<void> {
-  const config: Config = JSON.parse(readFileSync("wrangler.jsonc", "utf8"));
+  const configPath = process.env.WRANGLER_CONFIG_PATH;
+  if (!configPath) throw new Error("Missing private production Worker configuration path");
+  if (mode === "prepare") {
+    try {
+      const base: Config = JSON.parse(readFileSync("wrangler.jsonc", "utf8"));
+      const settings: unknown = JSON.parse(process.env.WRANGLER_PRODUCTION_SETTINGS ?? "");
+      writeFileSync(configPath, JSON.stringify(productionConfig(base, settings)), { mode: 0o600, flag: "wx" });
+    } catch { throw new Error("Unable to create private production Worker configuration"); }
+    return;
+  }
+  const config: Config = JSON.parse(readFileSync(configPath, "utf8"));
   const sha = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
   const account = process.env.CLOUDFLARE_ACCOUNT_ID, token = process.env.CLOUDFLARE_API_TOKEN;
   if (!account || !token) throw new Error("Missing Cloudflare release credentials");

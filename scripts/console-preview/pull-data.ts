@@ -10,7 +10,8 @@ if (process.env.PREVIEW_ENV_FILE) process.loadEnvFile(process.env.PREVIEW_ENV_FI
 const account = process.env.CLOUDFLARE_ACCOUNT_ID;
 const token = process.env.CLOUDFLARE_API_TOKEN_D1_READ || process.env.CLOUDFLARE_API_TOKEN;
 if (!account || !token) throw new Error("Cloudflare account and D1 query credentials are required");
-const config = JSON.parse(readFileSync("wrangler.jsonc", "utf8")) as { d1_databases: { binding: string; database_id: string }[]; vars: { CONSOLE_EMAIL_DOMAIN: string } };
+if (!process.env.WRANGLER_CONFIG_PATH) throw new Error("Private Wrangler configuration is required");
+const config = JSON.parse(readFileSync(process.env.WRANGLER_CONFIG_PATH, "utf8")) as { d1_databases: { binding: string; database_id: string }[]; vars: { CONSOLE_EMAIL_DOMAIN: string } };
 const database = config.d1_databases.find(item => item.binding === "DB")?.database_id;
 if (!database) throw new Error("DB binding is missing");
 const response = await fetch(`https://api.cloudflare.com/client/v4/accounts/${account}/d1/database/${database}/query`, {
