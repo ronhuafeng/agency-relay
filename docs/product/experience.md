@@ -271,6 +271,8 @@ rebind are distinct confirmed actions. The latter invalidates old consent withou
 migrating upstream resources. Native forms and enhanced forms use the same lifecycle;
 credential fields are write-only and enhanced submission clears them immediately.
 They are never saved as drafts or exported to members.
+The Feishu form accepts App ID and App Secret. On-demand token renewal preserves
+client consent. Saving app credentials in the form rebinds the installation.
 
 Member access search and pagination run in SQL, not on an all-organization client
 payload. Grant creates non-expiring access; revoke preserves its revision. Only

@@ -1,9 +1,14 @@
 import { DurableObject } from "cloudflare:workers";
 import { decryptJson,encryptJson,hmacSha256Hex } from "../crypto";
+import { isLarkAppCredential,LarkTenantTokenCache,type LarkAppCredential } from "./connectors/lark-doc/credentials";
+
+export type RuntimeCredentialMaterial = string | LarkAppCredential;
 
 /** Internal RPC only. One object per installation, separate from TokenAuthority.
  * Finalization keeps a durable fence even when all encrypted versions are gone. */
 export class RuntimeCredentials extends DurableObject<Env> {
+  private readonly larkTokens = new Map<string,{revision:number;cache:LarkTenantTokenCache}>();
+
   constructor(ctx:DurableObjectState,env:Env) {
     super(ctx,env);
     ctx.blockConcurrencyWhile(async()=>{
@@ -28,9 +33,9 @@ export class RuntimeCredentials extends DurableObject<Env> {
     return hmacSha256Hex(this.env.TOKEN_ENCRYPTION_KEY_V1,JSON.stringify(["agency-relay/runtime-credential/v1",id,ref]));
   }
 
-  async put(id:string,ref:string,revision:number,material:string):Promise<void> {
+  async put(id:string,ref:string,revision:number,material:RuntimeCredentialMaterial):Promise<void> {
     if(!Number.isSafeInteger(revision)||revision<1||!/^[A-Za-z0-9_-]{1,96}$/.test(ref)
-      || typeof material!=="string" || !/^[\x21-\x7e]{1,4096}$/.test(material)) throw new Error("Invalid Runtime credential");
+      || !(typeof material==="string" ? /^[\x21-\x7e]{1,4096}$/.test(material) : isLarkAppCredential(material))) throw new Error("Invalid Runtime credential");
     this.identity(id);
     const encrypted=await encryptJson(await this.contextKey(id,ref),material);
     this.ctx.storage.transactionSync(()=>{
@@ -42,19 +47,37 @@ export class RuntimeCredentials extends DurableObject<Env> {
 
   async clean(id:string,revision:number,keep:string|null):Promise<void> {
     if(!Number.isSafeInteger(revision)||revision<1) throw new Error("Invalid Runtime revision");
-    this.ctx.storage.transactionSync(()=>{
+    const cleaned=this.ctx.storage.transactionSync(()=>{
       const fence=this.identity(id);
-      if(revision<fence.revision) return;
+      if(revision<fence.revision) return false;
       if(revision===fence.revision && keep!==fence.keep_ref) throw new Error("Conflicting Runtime cleanup");
       this.ctx.storage.sql.exec("DELETE FROM versions WHERE revision<=? AND (? IS NULL OR ref<>?)",revision,keep,keep);
       this.ctx.storage.sql.exec("UPDATE fence SET revision=?,keep_ref=? WHERE singleton=1",revision,keep);
+      return true;
     });
+    if(!cleaned)return;
+    for(const [ref,entry] of this.larkTokens) {
+      if(entry.revision<=revision&&ref!==keep)this.larkTokens.delete(ref);
+    }
+  }
+
+  protected fetchLarkToken(request:Request):Promise<Response> {
+    return fetch(request);
   }
 
   async read(id:string,ref:string,revision:number):Promise<string|null> {
     this.identity(id);
     const row=this.ctx.storage.sql.exec<{iv:string;ciphertext:string}>("SELECT iv,ciphertext FROM versions WHERE ref=? AND revision=?",ref,revision).toArray()[0];
     if(!row) return null;
-    return decryptJson<string>(await this.contextKey(id,ref),row);
+    const material=await decryptJson<RuntimeCredentialMaterial>(await this.contextKey(id,ref),row);
+    if(typeof material==="string")return material;
+    if(!isLarkAppCredential(material)||!this.ctx.storage.sql.exec("SELECT 1 FROM versions WHERE ref=? AND revision=?",ref,revision).toArray().length)return null;
+    let entry=this.larkTokens.get(ref);
+    if(!entry) {
+      entry={revision,cache:new LarkTenantTokenCache()};
+      this.larkTokens.set(ref,entry);
+    }
+    const token=await entry.cache.read(material,request=>this.fetchLarkToken(request));
+    return this.larkTokens.get(ref)===entry?token:null;
   }
 }

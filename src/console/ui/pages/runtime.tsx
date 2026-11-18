@@ -109,12 +109,19 @@ export function RuntimeAdminPage({model}:{readonly model:RuntimeAdminModel}) {
             <h3>服务路径</h3>
             <RuntimeAction installation={selected} action="path" label="保存路径" message="更改服务路径？旧地址将关闭，已有客户端授权失效。" details="获准成员需要在客户端更新地址并重新授权。旧路径继续保留。"><RuntimePathField installation={selected}/></RuntimeAction>
           </section>:null}<section className="runtime-credential-panel" aria-label="上游凭据"><header className="runtime-section-head"><h3>上游凭据</h3><span className="caption">凭据只写</span></header>
-          {selected.profile==="lark.doc"?<p className="caption">使用飞书应用令牌（TAT）。令牌到期前，请在这里保存同一应用的新令牌。</p>:null}
-          <div className="runtime-credential-editor">
+          {selected.profile==="lark.doc"?<>
+            <p className="caption">使用获准读取文档的飞书应用。Relay 会自动获取和更新应用令牌。</p>
+            <RuntimeAction installation={selected} action="supply" label="保存飞书应用" variant="default" message="保存飞书应用凭据？已有客户端授权将失效。" details="成员保留工具服务使用权限，客户端需要重新授权。">
+              <input type="hidden" name="authority" value="rebind"/>
+              <Field control={{label:"凭据请求头名",name:"credentialHeader",value:selected.credential_header,required:true,maxLength:64}}/>
+              <Field control={{label:"App ID",name:"appId",required:true,autoComplete:"off",maxLength:128}}/>
+              <Field control={{label:"App Secret",name:"appSecret",type:"password",required:true,autoComplete:"off",maxLength:256}}/>
+            </RuntimeAction>
+          </>:<div className="runtime-credential-editor">
             {selected.credential_ready?<fieldset className="runtime-credential-modes"><legend className="sr-only">凭据操作</legend><label><input type="radio" name={`credential-mode-${selected.id}`} value="same" defaultChecked/>同一上游账号</label><label><input type="radio" name={`credential-mode-${selected.id}`} value="rebind"/>更改请求头或账号</label></fieldset>:null}
             {selected.credential_ready?<div data-credential-mode="same"><RuntimeAction installation={selected} action="supply" label="更新凭据" variant="default" message="确认新凭据仍属于同一上游账号及同一权限？" details="保存后清理旧凭据，已有客户端授权保留。不要将不同上游账号当成材料轮换。"><input type="hidden" name="authority" value="same"/><Field control={{label:"新的凭据",name:"material",type:"password",required:true,autoComplete:"off",maxLength:4096}}/></RuntimeAction></div>:null}
             <div data-credential-mode="rebind"><RuntimeAction installation={selected} action="supply" label="绑定上游凭据" variant="default" message="保存请求头和凭据？旧客户端授权将失效。" details="旧上游资源和历史不会迁移。启用后获准成员使用新上游账号的共享工具权限。"><input type="hidden" name="authority" value="rebind"/><Field control={{label:"凭据请求头名",name:"credentialHeader",value:selected.credential_header,required:true,maxLength:64}}/><Field control={{label:"上游凭据",name:"material",type:"password",required:true,autoComplete:"off",maxLength:4096}}/></RuntimeAction></div>
-          </div>
+          </div>}
         </section><section className="runtime-retirement" aria-label="退役服务"><RuntimeAction installation={selected} action="retire" label="永久退役服务" variant="destructive" message="永久退役此服务？不能重新启用，客户端授权立即失效。" details="后续调用被拒绝并清理上游凭据；不撤回已执行的上游操作。"/></section></aside>:null}
       </div>:null}
     </section>:model.selectedId?<Card className="workspace-section" data-runtime-missing=""><h2>没有这个工具服务</h2><p className="caption">这个工具服务当前不可用。</p><TaskLink className="action-link" href={runtimeAdminHref()}>查看工具服务</TaskLink></Card>:model.installations.length?<p className="empty">选择一个工具服务，管理成员权限与上游凭据。</p>:null}

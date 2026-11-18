@@ -88,8 +88,9 @@ export async function mutateRuntimeInstallation(env:Env,actor:LifecycleActor,id:
   const common={expectedRevision:revision,operationId:body.operationId??""};
   const allowed=["action","confirm","expectedRevision","operationId"];
   if(body.action==="supply") {
-    fields(body,[...allowed,"material","authority","credentialHeader"]);
-    return changeRuntimeInstallation(env,actor,id,{...common,action:"supply",material:body.material,authority:body.authority as "same"|"rebind",credentialHeader:body.credentialHeader},now);
+    fields(body,[...allowed,"material","appId","appSecret","authority","credentialHeader"]);
+    return changeRuntimeInstallation(env,actor,id,{...common,action:"supply",material:body.material,appId:body.appId,appSecret:body.appSecret,
+      authority:body.authority as "same"|"rebind",credentialHeader:body.credentialHeader},now);
   }
   if(body.action==="path") {
     fields(body,[...allowed,"path"]);
