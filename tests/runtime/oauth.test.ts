@@ -122,6 +122,21 @@ it("permits uncredentialed OAuth preflight, never credentialed wildcard or brows
   } finally {await f.dispose();}
 },20000);
 
+it("ignores unsupported authorization parameters while requiring unique OAuth fields",async()=>{
+  const f=await oauthFixture();try {
+    const {query}=await pendingConsent(f);
+    const authorize=()=>f.runtime.dispatchFetch(`${ISSUER}/runtime/authorize?${query}`,{redirect:"manual"});
+    query.set("ui_locales","en-US");
+    const response=await authorize();
+    expect(response.status).toBe(303);
+    expect(response.headers.get("Location")).toMatch(/^\/runtime\/consent\//);
+    query.append("resource",OTHER_RESOURCE);
+    const rejected=await authorize();
+    expect(rejected.status).toBe(400);
+    expect(await rejected.json()).toEqual({error:"invalid_request"});
+  } finally {await f.dispose();}
+},20000);
+
 it("rejects wrong scope, redirect and PKCE, and preserves current permission checks across regrant",async()=>{
   const f=await oauthFixture();try {
     const current=await authorizedTokens(f),pending=await pendingConsent(f);

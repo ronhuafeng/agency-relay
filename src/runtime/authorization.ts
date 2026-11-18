@@ -56,7 +56,8 @@ export async function runtimeAuthorizationResponse(request:Request,env:Env):Prom
       return protocolResponse(reply.body,reply.status);
     }
     if(url.pathname==="/runtime/authorize"&&request.method==="GET") {
-      const query=uniqueFields(url.searchParams,["response_type","client_id","redirect_uri","resource","scope","state","code_challenge","code_challenge_method"]);
+      // RFC 6749 §3.1 permits clients to send authorization extensions we do not use.
+      const query=uniqueFields(url.searchParams,["response_type","client_id","redirect_uri","resource","scope","state","code_challenge","code_challenge_method"],{ignoreUnknown:true});
       const binding=base64UrlEncode(crypto.getRandomValues(new Uint8Array(32)));
       const reply=await env.RUNTIME_OAUTH.getByName("organization").begin(query,await oauthHash(env,binding),await browserSessionHash(env,request));
       if(!reply.location)return protocolResponse(reply.body,reply.status);
@@ -172,10 +173,14 @@ async function readOAuthBody(request:Request):Promise<string> {
   } catch {await reader.cancel();throw new OAuthInputError();} finally {if(timer!==undefined)clearTimeout(timer);reader.releaseLock();}
 }
 
-function uniqueFields(params:URLSearchParams,allowed:string[]):Record<string,string> {
+function uniqueFields(params:URLSearchParams,allowed:string[],{ignoreUnknown=false}={}):Record<string,string> {
   const fields:Record<string,string>={};
   for(const [key,value] of params) {
-    if(!allowed.includes(key)||params.getAll(key).length!==1||value.length>2048)throw new OAuthInputError();
+    if(!allowed.includes(key)) {
+      if(ignoreUnknown)continue;
+      throw new OAuthInputError();
+    }
+    if(Object.hasOwn(fields,key)||value.length>2048)throw new OAuthInputError();
     fields[key]=value;
   }
   return fields;
