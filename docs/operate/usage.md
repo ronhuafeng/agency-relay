@@ -114,8 +114,8 @@ Build's headless `usage.input_tokens` is the ordinary-input bucket: full input m
 
 ### OpenAI API and ChatGPT subscriptions
 
-The Standard snapshot was checked against the official table on 2026-11-11.
-Existing listed rates are unchanged; `gpt-6.1-terra` and `o3-pro` are now covered.
+The Standard snapshot was checked against the official table on 2026-11-17.
+Existing listed rates are unchanged; `gpt-6.2-sol` is now covered at the same Standard rates as `gpt-6.1-sol`.
 Cache-write valuation uses the default **30-minute** rate. OpenAI also lists a
 12-hour rate (2.5× ordinary input, rather than 1.25×), and permits mixed lifetimes.
 Agency Relay does not observe lifetime-specific write buckets. Its fixed default
@@ -126,6 +126,7 @@ It does not inspect or modify requests to choose a cache lifetime.
 
 | Model | Short input | Cache read | Cache write | Short output | Long input | Long cache read | Long cache write | Long output |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `gpt-6.2-sol` | 2 | 0.10 | 2.50 | 10 | 4 | 0.20 | 5 | 15 |
 | `gpt-6.1-sol` | 2 | 0.10 | 2.50 | 10 | 4 | 0.20 | 5 | 15 |
 | `gpt-6.1-terra` | 1 | 0.05 | 1.25 | 5 | 2 | 0.10 | 2.50 | 7.50 |
 | `gpt-6-sol` | 2 | 0.20 | 2.50 | 10 | 4 | 0.40 | 5 | 15 |

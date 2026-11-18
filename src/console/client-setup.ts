@@ -90,7 +90,7 @@ export function buildClientSetupFiles(input: {
 }): ClientSetupFile[] {
   const access = productAccessFromScopes(input.scopes);
   const token = tomlString(input.token);
-  const codexModel = clientModel(input.models?.codex, "gpt-6.1-sol");
+  const codexModel = clientModel(input.models?.codex, "gpt-6.2-sol");
   const grokModel = clientModel(input.models?.grok, "grok-4.7");
   const files: ClientSetupFile[] = [];
 

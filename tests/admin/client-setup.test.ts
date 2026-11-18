@@ -34,7 +34,7 @@ describe("client setup projection", () => {
 
     expect(files.map((file) => file.client)).toEqual(["codex", "grok", "xai"]);
     expect(files.find((file) => file.client === "codex")?.content).toContain(
-      'model = "gpt-6.1-sol"'
+      'model = "gpt-6.2-sol"'
     );
     expect(files.find((file) => file.client === "codex")?.content).toContain(
       'base_url = "https://api.trustedtunnel.app/backend-api/codex"'

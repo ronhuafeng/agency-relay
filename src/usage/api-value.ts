@@ -1,16 +1,17 @@
 import type { CapturedResponseUsage } from "./types";
 import { nonNegativeIntegerOrNull } from "../records";
 
-// Standard text-token rates with default 30m cache writes, checked 2026-11-11.
+// Standard text-token rates with default 30m cache writes, checked 2026-11-17.
 // Fixed reference valuation, not actual tier/TTL charges or subscription spend.
 // https://developers.openai.com/api/docs/pricing
 // https://developers.openai.com/api/docs/guides/prompt-caching
-export const OPENAI_PRICE_VERSION = "openai-standard-30m-2026-11-11";
+export const OPENAI_PRICE_VERSION = "openai-standard-30m-2026-11-17";
 type Rates = readonly [input: number, cacheRead: number | null, output: number, cacheWrite?: number];
 type Price = { short: Rates; long?: Rates };
 // Integer USD ticks per token: USD per million tokens * 10,000.
 const PRICES: Readonly<Record<string, Price>> = {
   "gpt-6-astra": { short: [100000, 10000, 500000, 125000], long: [200000, 20000, 750000, 250000] },
+  "gpt-6.2-sol": { short: [20000, 1000, 100000, 25000], long: [40000, 2000, 150000, 50000] },
   "gpt-6.1-sol": { short: [20000, 1000, 100000, 25000], long: [40000, 2000, 150000, 50000] },
   "gpt-6.1-terra": { short: [10000, 500, 50000, 12500], long: [20000, 1000, 75000, 25000] },
   "gpt-6-luna": { short: [1000, 100, 5000, 1250], long: [2000, 200, 7500, 2500] },
