@@ -13,7 +13,7 @@ const declarations = JSON.stringify([
   {id:"other",profile:"google.stitch",resource:"https://other.example.test/mcp",label:"Other"}
 ]);
 
-it("preserves the existing Stitch OAuth resource and revisions during migration",async()=>{
+it("cuts over existing Feishu consent without changing the resource, credentials or Stitch authority",async()=>{
   const migrations=new URL("../../migrations/",import.meta.url);
   const added="0042_runtime_connector_configuration.sql";
   const {db,env}=setup({migrations:readdirSync(migrations).filter(name=>/^\d{4}_.+\.sql$/.test(name)&&name<added).sort()});
@@ -25,10 +25,19 @@ it("preserves the existing Stitch OAuth resource and revisions during migration"
     db.sqlite.prepare(`INSERT INTO runtime_installation_access (installation_id,user_id,revision,state,updated_at)
       VALUES ('google-stitch','member',3,'granted',?)`).run(now.toISOString());
     db.sqlite.exec(readFileSync(new URL(added,migrations),"utf8"));
+    const feishu="https://mcp.example.test/team-docs";
+    db.sqlite.prepare(`INSERT INTO runtime_installations
+      (id,resource,profile,profile_revision,label,state,revision,authority_revision,credential_ref,credential_revision,created_at,updated_at)
+      VALUES ('lark-doc',?,'lark.doc',1,'Feishu','enabled',8,4,'fixture-feishu-ref',6,?,?)`).run(feishu,now.toISOString(),now.toISOString());
+    db.sqlite.prepare(`INSERT INTO runtime_installation_access (installation_id,user_id,revision,state,updated_at)
+      VALUES ('lark-doc','member',3,'granted',?)`).run(now.toISOString());
+    db.sqlite.exec(readFileSync(new URL("0043_feishu_tool_selection.sql",migrations),"utf8"));
     env.RUNTIME_INSTALLATIONS="[]";
     env.RUNTIME_MCP_ORIGIN="https://mcp.example.test";
     expect(await readRuntimeInstallation(env,operator,"google-stitch")).toMatchObject({resource,state:"enabled",revision:8,credential_ready:true,credential_header:"X-Goog-Api-Key"});
     expect(await readRuntimeAuthority(env,"member","google-stitch",now)).toMatchObject({resource,authority_revision:4,access_revision:3,credential_revision:6});
+    expect(await readRuntimeAuthority(env,"member","lark-doc",now)).toMatchObject({
+      resource:feishu,authority_revision:5,access_revision:3,credential_revision:6,feishu_tools:["search-doc","fetch-doc","search-user"]});
     await expect(configureRuntimeInstallation(env,operator,"lark-doc",now,"/google-stitch")).rejects.toMatchObject({code:"runtime_path_taken"});
   } finally {db.close();}
 });

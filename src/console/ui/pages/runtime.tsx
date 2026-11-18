@@ -10,6 +10,8 @@ import {ConfirmationFallback} from "../fields";
 import {Field} from "../fields";
 import {formatNumber} from "../../format";
 import type {RuntimeAdminModel} from "../../../runtime/console";
+import {larkHostedTools,larkToolGroups,larkToolIdentities,larkToolsByName} from "../../../runtime/connectors/lark-doc/profile";
+import {NativeFeishuToolTree,type FeishuGroup} from "../feishu-tool-tree";
 
 export const runtimeMemberHref=(id?:string)=>`${memberHref("integrations")}${id?`&installation=${encodeURIComponent(id)}`:""}`;
 const installationState={enabled:"已启用",disabled:"已停用",retired:"已退役"};
@@ -31,6 +33,7 @@ function ClientConsents({model,installation}:{readonly model:RuntimeMemberModel;
 export function RuntimeMemberPage({model,selectedId}:{readonly model:RuntimeMemberModel;readonly selectedId:string|null}) {
   const selected=model.installations.find(row=>row.id===selectedId);
   const fact=selected?model.activity.find(row=>row.installation===selected.id):undefined;
+  const ready=selected?.state==="enabled"&&selected.phase==="ready"&&selected.credential_ready;
   const collection=<section className="runtime-collection" aria-label="可用工具服务" id="runtime-installations"><h1 className="sr-only">我的工具服务</h1>
     {model.installations.length?<Table aria-label="我的工具服务"><TableHeader><TableRow><TableHead>服务</TableHead><TableHead>组织权限 / 服务状态</TableHead><TableHead>客户端授权</TableHead></TableRow></TableHeader><TableBody>{model.installations.map(row=>{
       const clients=model.consents.filter(client=>client.installation===row.id);
@@ -46,17 +49,27 @@ export function RuntimeMemberPage({model,selectedId}:{readonly model:RuntimeMemb
     <header className="task-card-head"><h2 className="task-title">{selected.label}</h2><TaskClose href={runtimeMemberHref()}/></header>
     <dl className="data-list"><div><dt>组织权限</dt><dd>已授予{selected.access_expires_at?`，${utc(selected.access_expires_at)} 到期`:""}</dd></div>
       <div><dt>服务状态</dt><dd>{installationState[selected.state]}</dd></div><div><dt>上游凭据</dt><dd>{selected.phase!=="ready"?"管理员正在处理凭据，当前不可用":selected.credential_ready?"已保存，未进行上游健康探测":"尚未配置，请联系管理员"}</dd></div></dl>
-    {selected.state!=="enabled"||selected.phase!=="ready"||!selected.credential_ready?<p role="status">当前服务不可调用，请由管理员处理。重新做 OAuth 登录不能修复上游连接。</p>:null}
+    {!ready?<p role="status">当前服务不可调用，请由管理员处理。重新做 OAuth 登录不能修复上游连接。</p>:null}
+    {selected.personal_feishu&&ready?<section className="workspace-section" aria-label="飞书账号授权">
+      <h3>飞书账号授权</h3>
+      {selected.personal_feishu==="app_required"?<p>管理员绑定飞书应用后，可使用自己的飞书账号授权工具。</p>:<>
+        <p>{selected.personal_feishu==="connected"?"已连接。Relay 会在调用时刷新令牌。需要新增权限时，可更新授权。":"连接自己的飞书账号，即可用成员身份执行获准的工具操作。"}</p>
+        <form className="member-form" method="post" action={`/runtime/feishu-user/${encodeURIComponent(selected.id)}/connect`}>
+          <Button type="submit" variant="outline">{selected.personal_feishu==="connected"?"更新飞书授权":"连接飞书账号"}</Button>
+          {selected.personal_feishu==="connected"?<Button type="submit" variant="outline" formAction={`/runtime/feishu-user/${encodeURIComponent(selected.id)}/disconnect`}>断开飞书账号</Button>:null}
+        </form>
+      </>}
+    </section>:null}
     <section className="workspace-section" aria-label="Codex MCP 配置"><h3>配置 Codex</h3><p>将下面的 URL 配置合并到 <code>.codex/config.toml</code>（受信任项目）或 <code>~/.codex/config.toml</code>。先检查已有配置，不要覆盖其他选项。</p>
       <pre>{`[mcp_servers.${selected.id}]\nurl = ${JSON.stringify(selected.resource)}\n`}</pre>
       <p>{selected.state==="enabled"&&selected.phase==="ready"&&selected.credential_ready?"在终端完成原生授权：":"服务恢复可用后，再在终端授权："}</p><pre>{`codex mcp login ${selected.id}`}</pre>
       <p className="caption">已验证 Codex CLI 0.156.1。URL 文件可以提交到项目；本地 OAuth token 仍是敏感凭据，由客户端保存，不要提交或共享。配置文件本身不授予使用权限。</p>
-      <p>使用的是组织共享上游账号。工具可能读取或修改共享资源，Agency Relay 不提供工具级只读或对象隔离。</p>
+      <p>{selected.personal_feishu?"客户端授权页会显示工具和调用身份。管理员启用新工具后，重新登录客户端即可授权新增工具。":"使用的是组织共享上游账号。工具可能读取或修改共享资源，Agency Relay 不提供工具级只读或对象隔离。"}</p>
     </section>
     <ClientConsents model={model} installation={selected}/>
     <section className="workspace-section" aria-label="最近传输"><h3>最近传输</h3>{fact?<><p><time dateTime={fact.finished_at}>{utc(fact.finished_at)}</time> · {fact.attempted?`上游 HTTP ${fact.upstream_status??"未记录"}`:"未向上游发送"} · {fact.terminal==="completed"?"传输结束":fact.terminal==="cancelled"?"传输取消":"传输异常"}</p>
       <p className="caption">时长 {formatNumber(fact.duration_ms)} ms · 请求已观测 {formatNumber(fact.request_bytes_observed)} bytes · 响应已观测 {formatNumber(fact.response_bytes_observed)} bytes{fact.authority_revision!==selected.authority_revision?" · 旧权限版本的记录":""}</p>
-      {fact.error?<p role="status">{fact.error==="upstream_credential_unavailable"?"上游凭据不可用，请联系管理员，不需要反复登录。":"传输没有正常结束。先查看当前授权与服务状态，不会自动重试工具操作。"}</p>:null}</>:<p>尚无传输记录。</p>}
+      {fact.error?<p role="status">{fact.error==="lark_user_authorization_required"?"请连接飞书账号并检查该工具所需的权限。":fact.error==="upstream_credential_unavailable"?"上游凭据不可用，请联系管理员，不需要反复登录。":"传输没有正常结束。先查看当前授权与服务状态，不会自动重试工具操作。"}</p>:null}</>:<p>尚无传输记录。</p>}
       <p className="caption">HTTP 状态和传输结束不是工具任务成功证明；这里不统计服务额度、模型用量或金额。</p>
     </section>
   </section>:selectedId?<section className="gate" role="alert"><h2>没有这个工具服务</h2><p>该服务不存在或你目前无使用权限。不会选择另一个服务。</p><a href={runtimeMemberHref()}>查看我的工具服务</a></section>:null;
@@ -80,6 +93,32 @@ function RuntimePathField({installation}:{readonly installation:Installation}) {
     <p className="caption" id={description}>以 / 和小写字母开头。随后可用小写字母、数字和连字符。</p></>;
 }
 
+function FeishuToolSelection({installation,domains}:{readonly installation:Installation;readonly domains:NonNullable<RuntimeAdminModel["openApiDomains"]>}) {
+  const enabled=new Set(installation.feishu_tools);
+  const groups:FeishuGroup[]=[{
+    name:"hosted",title:"飞书托管工具",
+    tools:larkHostedTools.map(tool=>({
+      name:tool.name,title:tool.label,description:tool.group?larkToolGroups[tool.group]:undefined,
+      scopes:[...tool.scopes],supplementalScopes:tool.supplementalScopes?[...tool.supplementalScopes]:undefined,
+      authority:`${tool.writes?"写入 · ":""}${larkToolIdentities[tool.identity]}`,enabled:enabled.has(tool.name),
+    })),
+  },...domains.map(([name,tools])=>({name,title:name,tools:tools.map(tool=>{
+    const executable=larkToolsByName.get(tool.name);
+    return {name:tool.name,title:tool.name,description:tool.description,docsUrl:tool.docsUrl,scopes:tool.scopes,alternatives:tool.alternatives,
+      authority:executable?`${executable.highRisk?"高风险写入 · ":executable.writes?"写入 · ":""}${larkToolIdentities[executable.identity]}`
+        :tool.scopes.length?"当前执行方式未接入":"核实应用权限后可接入",
+      enabled:executable?enabled.has(tool.name):undefined};
+  })}))];
+  return <section className="workspace-section" aria-label="飞书工具">
+    <h3>飞书工具</h3>
+    <p>保存后应用选中的工具。客户端需要重新授权新增工具。</p>
+    <RuntimeAction installation={installation} action="tools" label="保存工具设置" message="保存飞书工具设置？"
+      details="关闭的工具会停止接受新调用。新增工具需要成员授权。">
+      <NativeFeishuToolTree groups={groups}/>
+    </RuntimeAction>
+  </section>;
+}
+
 export function RuntimeAdminPage({model}:{readonly model:RuntimeAdminModel}) {
   const selected=model.installations.find(row=>row.id===model.selectedId);
   const editable=selected&&selected.phase==="ready"&&selected.state!=="unconfigured"&&selected.state!=="retired";
@@ -96,7 +135,7 @@ export function RuntimeAdminPage({model}:{readonly model:RuntimeAdminModel}) {
       <p className="caption runtime-installation-diagnostics">{selected.profile} · 配置版本 {selected.revision} · 权限版本 {selected.authority_revision}</p>
       {selected.phase!=="ready"?<section className="runtime-recovery" aria-label="服务恢复"><p role="alert">{selected.phase==="writing"?"凭据写入结果未确认。不要重新提交凭据。当前无法调用服务。":"权限变更已记录，但旧凭据清理待完成。当前无法调用服务。"}</p><RuntimeAction installation={selected} action="recover" label={selected.phase==="writing"?"放弃未确认凭据并停用":"重试清理"} message={selected.phase==="writing"?"放弃这次凭据写入？服务将停用，旧客户端授权失效。":"继续当前版本的凭据清理？"} details={selected.phase==="writing"?"全部凭据会被清除；不会重复写入候选凭据。":"不重新写入凭据，不恢复旧授权。"}/></section>:selected.state==="unconfigured"?<section className="runtime-recovery" aria-label="建立服务配置"><p>建立配置后，再绑定上游凭据并授予成员权限。</p><RuntimeAction installation={selected} action="configure" label="建立配置" message="建立此已审查服务的配置？" details="初始状态为停用，尚无上游凭据和成员权限。">{selected.editable_path?<RuntimePathField installation={selected}/>:null}</RuntimeAction></section>:selected.state==="retired"?<p role="status">服务已退役。此服务的路径仍保留，无法再次启用。</p>:!selected.credential_ready?<p className="runtime-recovery" role="status">先绑定上游凭据，再启用服务。</p>:null}
       {selected.state!=="unconfigured"?<div className="runtime-admin-columns">
-        <section className="runtime-member-access" aria-label="成员使用权限"><header className="runtime-section-head"><h3>成员使用权限</h3><span className="caption">{selected.profile==="lark.doc"?"共享飞书应用权限 · 读取文档":"共享上游账号 · 可写入"}</span></header>
+        <section className="runtime-member-access" aria-label="成员使用权限"><header className="runtime-section-head"><h3>成员使用权限</h3><span className="caption">{selected.profile==="lark.doc"?"按工具授权 · 优先成员身份":"共享上游账号 · 可写入"}</span></header>
           <form method="get" action="/admin" role="search" aria-label="搜索可授权成员" data-dashboard-search="true" className="runtime-member-search"><input type="hidden" name="view" value="runtime"/><input type="hidden" name="installation" value={selected.id}/><Field control={{label:"组织邮箱或成员 ID",name:"q",value:model.search,maxLength:256}}/><Button type="submit" variant="outline">搜索成员</Button></form>
           <Table className="runtime-member-table" aria-label="成员工具权限"><TableHeader><TableRow><TableHead>成员</TableHead><TableHead>组织权限</TableHead><TableHead>操作</TableHead></TableRow></TableHeader><TableBody>{model.members.map(member=>{
             const confirmation=member.state==="granted"?`撤回 ${member.canonical_email??member.id} 的「${selected.label}」使用权限？后续调用被拒绝。`:`授予 ${member.canonical_email??member.id} 不设期限的「${selected.label}」使用权限？可使用团队共享上游账号的工具。`;
@@ -111,7 +150,7 @@ export function RuntimeAdminPage({model}:{readonly model:RuntimeAdminModel}) {
             <RuntimeAction installation={selected} action="path" label="保存路径" message="更改服务路径？旧地址将关闭，已有客户端授权失效。" details="获准成员需要在客户端更新地址并重新授权。旧路径继续保留。"><RuntimePathField installation={selected}/></RuntimeAction>
           </section>:null}<section className="runtime-credential-panel" aria-label="上游凭据"><header className="runtime-section-head"><h3>上游凭据</h3><span className="caption">凭据只写</span></header>
           {selected.profile==="lark.doc"?<>
-            <p className="caption">使用获准读取文档的飞书应用。Relay 会自动获取和更新应用令牌。</p>
+            <p className="caption">绑定具备所需权限的飞书应用。Relay 会自动刷新成员和应用令牌。</p>
             <RuntimeAction installation={selected} action="supply" label="保存飞书应用" variant="default" message="保存飞书应用凭据？已有客户端授权将失效。" details="成员保留工具服务使用权限，客户端需要重新授权。">
               <input type="hidden" name="authority" value="rebind"/>
               <Field control={{label:"凭据请求头名",name:"credentialHeader",value:selected.credential_header,required:true,maxLength:64}}/>
@@ -125,6 +164,8 @@ export function RuntimeAdminPage({model}:{readonly model:RuntimeAdminModel}) {
           </div>}
         </section><section className="runtime-retirement" aria-label="退役服务"><RuntimeAction installation={selected} action="retire" label="永久退役服务" variant="destructive" message="永久退役此服务？不能重新启用，客户端授权立即失效。" details="后续调用被拒绝并清理上游凭据；不撤回已执行的上游操作。"/></section></aside>:null}
       </div>:null}
+      {editable&&selected.profile==="lark.doc"&&model.openApiDomains
+        ?<FeishuToolSelection installation={selected} domains={model.openApiDomains}/>:null}
     </section>:model.selectedId?<Card className="workspace-section" data-runtime-missing=""><h2>没有这个工具服务</h2><p className="caption">这个工具服务当前不可用。</p><TaskLink className="action-link" href={runtimeAdminHref()}>查看工具服务</TaskLink></Card>:model.installations.length?<p className="empty">选择一个工具服务，管理成员权限与上游凭据。</p>:null}
   </div>;
 }

@@ -11,15 +11,17 @@ export function isLarkAppCredential(value: unknown): value is LarkAppCredential 
     && typeof appSecret === "string" && /^[\x21-\x7e]{1,256}$/.test(appSecret);
 }
 
-interface TenantToken { value: string; expiresAt: number }
+interface TenantToken { value: string; expiresAt: number; scopes: string[] }
 
 /** One cache per encrypted credential version. The object can discard it at any time. */
 export class LarkTenantTokenCache {
   private token?: TenantToken;
   private nextAttemptAt = 0;
-  private pending?: Promise<string | null>;
+  private pending?: Promise<TenantToken | null>;
 
-  read(credential: LarkAppCredential, send: (request: Request) => Promise<Response>, now = Date.now): Promise<string | null> {
+  constructor(private readonly scoped=false) {}
+
+  read(credential: LarkAppCredential, send: (request: Request) => Promise<Response>, now = Date.now): Promise<TenantToken | null> {
     if (this.pending) return this.pending;
     const started = now();
     if (started < this.nextAttemptAt) return Promise.resolve(this.current(started));
@@ -37,15 +39,18 @@ export class LarkTenantTokenCache {
     return this.pending;
   }
 
-  private current(now: number): string | null {
-    return this.token && this.token.expiresAt > now ? this.token.value : null;
+  private current(now: number): TenantToken | null {
+    return this.token && this.token.expiresAt > now ? this.token : null;
   }
 
   private async exchange(credential: LarkAppCredential, send: (request: Request) => Promise<Response>, started: number): Promise<TenantToken> {
-    const response = await send(new Request("https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal", {
+    const url=this.scoped?"https://accounts.feishu.cn/oauth/v3/token":"https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal";
+    const response = await send(new Request(url, {
       method: "POST",
       headers: {"Content-Type":"application/json"},
-      body: JSON.stringify({app_id:credential.appId,app_secret:credential.appSecret}),
+      body: JSON.stringify(this.scoped
+        ?{grant_type:"client_credentials",client_id:credential.appId,client_secret:credential.appSecret}
+        :{app_id:credential.appId,app_secret:credential.appSecret}),
       redirect: "manual",
       signal: AbortSignal.timeout(8000),
     }));
@@ -53,12 +58,14 @@ export class LarkTenantTokenCache {
       await response.body?.cancel();
       throw new Error("Feishu token exchange unavailable");
     }
-    const result = await response.json<{code?:unknown;tenant_access_token?:unknown;expire?:unknown}>();
-    const {code,tenant_access_token,expire} = result;
-    if (code !== 0 || typeof tenant_access_token !== "string" || !/^[\x21-\x7e]{1,4096}$/.test(tenant_access_token)
+    const result = await response.json<{code?:unknown;tenant_access_token?:unknown;expire?:unknown;access_token?:unknown;expires_in?:unknown;scope?:unknown}>();
+    const value=this.scoped?result.access_token:result.tenant_access_token;
+    const expire=this.scoped?result.expires_in:result.expire;
+    if (result.code !== 0 || typeof value !== "string" || !/^[\x21-\x7e]{1,8192}$/.test(value)
       || typeof expire !== "number" || !Number.isSafeInteger(expire) || expire <= 0) {
       throw new Error("Feishu token exchange unavailable");
     }
-    return { value:tenant_access_token, expiresAt:started + Math.min(expire,7200) * 1000 };
+    const scopes=this.scoped&&typeof result.scope==="string"?result.scope.split(/\s+/).filter(Boolean):[];
+    return {value,expiresAt:started+Math.min(expire,7200)*1000,scopes};
   }
 }

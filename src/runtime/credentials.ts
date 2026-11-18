@@ -1,13 +1,17 @@
 import { DurableObject } from "cloudflare:workers";
 import { decryptJson,encryptJson,hmacSha256Hex } from "../crypto";
 import { isLarkAppCredential,LarkTenantTokenCache,type LarkAppCredential } from "./connectors/lark-doc/credentials";
+import {fingerprint,LarkUserGrants,type LarkUserAuthority} from "./connectors/lark-doc/user-grants";
+import {larkUserAuthority,readRuntimeAuthority} from "./installations";
+import type {LarkUserAccess} from "./connectors/lark-doc/user-oauth";
 
 export type RuntimeCredentialMaterial = string | LarkAppCredential;
 
 /** Internal RPC only. One object per installation, separate from TokenAuthority.
  * Finalization keeps a durable fence even when all encrypted versions are gone. */
 export class RuntimeCredentials extends DurableObject<Env> {
-  private readonly larkTokens = new Map<string,{revision:number;cache:LarkTenantTokenCache}>();
+  private readonly larkTokens = new Map<string,{revision:number;cache:LarkTenantTokenCache;scoped:LarkTenantTokenCache}>();
+  private larkUsers?:LarkUserGrants;
 
   constructor(ctx:DurableObjectState,env:Env) {
     super(ctx,env);
@@ -52,6 +56,11 @@ export class RuntimeCredentials extends DurableObject<Env> {
       if(revision<fence.revision) return false;
       if(revision===fence.revision && keep!==fence.keep_ref) throw new Error("Conflicting Runtime cleanup");
       this.ctx.storage.sql.exec("DELETE FROM versions WHERE revision<=? AND (? IS NULL OR ref<>?)",revision,keep,keep);
+      if(this.ctx.storage.sql.exec("SELECT 1 FROM sqlite_master WHERE type='table' AND name='lark_user_grants'").toArray().length) {
+        // Cleanup also fences callbacks and rotations for credentials that were removed.
+        const version=this.ctx.storage.sql.exec<{revision:number}>("SELECT revision FROM versions WHERE ref=?",keep).toArray()[0];
+        this.personal().clean(revision,version?.revision??null);
+      }
       this.ctx.storage.sql.exec("UPDATE fence SET revision=?,keep_ref=? WHERE singleton=1",revision,keep);
       return true;
     });
@@ -65,19 +74,76 @@ export class RuntimeCredentials extends DurableObject<Env> {
     return fetch(request);
   }
 
-  async read(id:string,ref:string,revision:number):Promise<string|null> {
+  private async loadMaterial(id:string,ref:string,revision:number):Promise<RuntimeCredentialMaterial|null> {
     this.identity(id);
     const row=this.ctx.storage.sql.exec<{iv:string;ciphertext:string}>("SELECT iv,ciphertext FROM versions WHERE ref=? AND revision=?",ref,revision).toArray()[0];
-    if(!row) return null;
-    const material=await decryptJson<RuntimeCredentialMaterial>(await this.contextKey(id,ref),row);
+    return row?decryptJson<RuntimeCredentialMaterial>(await this.contextKey(id,ref),row):null;
+  }
+
+  private versionPresent(ref:string,revision:number):boolean {
+    return this.ctx.storage.sql.exec("SELECT 1 FROM versions WHERE ref=? AND revision=?",ref,revision).toArray().length>0;
+  }
+
+  async read(id:string,ref:string,revision:number):Promise<string|null> {
+    const material=await this.loadMaterial(id,ref,revision);
     if(typeof material==="string")return material;
-    if(!isLarkAppCredential(material)||!this.ctx.storage.sql.exec("SELECT 1 FROM versions WHERE ref=? AND revision=?",ref,revision).toArray().length)return null;
+    if(!isLarkAppCredential(material)||!this.versionPresent(ref,revision))return null;
+    return (await this.readLarkTenant(ref,revision,material,false))?.value??null;
+  }
+
+  async readLarkOpenApiTenant(authority:LarkUserAuthority) {
+    const app=await this.larkApp(authority);
+    return app?this.readLarkTenant(authority.credential,authority.credentialRevision,app,true):null;
+  }
+
+  private async readLarkTenant(ref:string,revision:number,material:LarkAppCredential,scoped:boolean) {
+    if(!this.versionPresent(ref,revision))return null;
     let entry=this.larkTokens.get(ref);
     if(!entry) {
-      entry={revision,cache:new LarkTenantTokenCache()};
+      entry={revision,cache:new LarkTenantTokenCache(),scoped:new LarkTenantTokenCache(true)};
       this.larkTokens.set(ref,entry);
     }
-    const token=await entry.cache.read(material,request=>this.fetchLarkToken(request));
+    const token=await (scoped?entry.scoped:entry.cache).read(material,request=>this.fetchLarkToken(request));
     return this.larkTokens.get(ref)===entry?token:null;
+  }
+
+  private personal():LarkUserGrants {
+    return this.larkUsers??=new LarkUserGrants(this.ctx.storage,this.env.TOKEN_ENCRYPTION_KEY_V1,
+      authority=>this.larkApp(authority),request=>this.fetchLarkToken(request));
+  }
+
+  private async larkApp(authority:LarkUserAuthority):Promise<LarkAppCredential|null> {
+    const material=await this.loadMaterial(authority.installation,authority.credential,authority.credentialRevision);
+    return isLarkAppCredential(material)&&this.versionPresent(authority.credential,authority.credentialRevision)?material:null;
+  }
+
+  async beginLarkUser(authority:LarkUserAuthority,browser:{sessionHash:string;email:string},callback:string,scopes:readonly string[]):Promise<string|null> {
+    this.identity(authority.installation);
+    return this.personal().begin(authority,browser,callback,scopes);
+  }
+
+  async finishLarkUser(authority:LarkUserAuthority,browser:{sessionHash:string;email:string},callback:string,state:string,code:string):Promise<boolean> {
+    this.identity(authority.installation);
+    return this.personal().finish(authority,browser,callback,state,code,async()=>{
+      const current=await readRuntimeAuthority(this.env,authority.subject,authority.installation,new Date(),
+        {hash:browser.sessionHash,email:browser.email,epoch:authority.epoch});
+      return current?.profile==="lark.doc"&&fingerprint(larkUserAuthority(current))===fingerprint(authority);
+    });
+  }
+
+  async disconnectLarkUser(id:string,subject:string):Promise<void> {
+    this.identity(id);
+    this.personal().disconnect(subject);
+  }
+
+  async readLarkUser(authority:LarkUserAuthority):Promise<LarkUserAccess|null> {
+    this.identity(authority.installation);
+    return this.personal().read(authority);
+  }
+
+  async larkUserStatus(authority:LarkUserAuthority):Promise<"connected"|"required"|"app_required"> {
+    this.identity(authority.installation);
+    if(this.personal().connected(authority))return "connected";
+    return await this.larkApp(authority)?"required":"app_required";
   }
 }

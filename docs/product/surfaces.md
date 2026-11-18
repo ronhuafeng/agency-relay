@@ -168,21 +168,36 @@ retains `/google-stitch` until an administrator changes it.
 
 The relay implements request-scoped POST to the exact resource. The
 `google.stitch` profile fixes the upstream to `https://stitch.googleapis.com/mcp`.
-The `lark.doc` profile fixes the upstream to `https://mcp.feishu.cn/mcp` and sends
-`X-Lark-MCP-Allowed-Tools: fetch-doc`. The relay injects the admitted secret
-version using the installation's validated credential header. An incoming path,
+The `lark.doc` profile fixes the upstream to `https://mcp.feishu.cn/mcp`.
+The relay injects the admitted credentials and, for Feishu tool requests,
+derives `X-Lark-MCP-Allowed-Tools` from current policy. An incoming path,
 query, body, header or client version cannot set the upstream URL, header or
 credential. No query is allowed. A present Origin must equal the resource origin.
+
+Feishu tool discovery and execution share one policy. The candidate tools are
+those currently enabled by the administrator and covered by this client's
+consent. Each tool uses UAT if the member token has the required scopes.
+When those scopes are absent, a dual-identity tool can use TAT. A binding with
+only a manual TAT can use application tools. A disconnected or expired UAT
+does not establish missing scopes. Each call uses one identity with no retry
+under a different identity. Discovery can merge one bounded JSON tool list per
+identity. Earlier Feishu consent without an explicit tool list is invalid.
+
+Feishu OpenAPI definitions are published from the pinned `AllToolsZh` catalog.
+Relay serves their schemas under the same MCP URL and calls fixed Feishu OpenAPI
+methods and paths for supported JSON tools. It resolves path parameters from
+the registered schema, ignores client-supplied credential headers and applies
+the same tool policy to both backends. Scope evidence comes from the selected
+token. Resource access remains a Feishu decision. The combined tool list uses
+bounded pages so authorized schemas do not need to fit in one response.
 
 The supported envelope headers declare `2024-11-05`, `2025-06-18`, `2025-11-25`, or `2026-07-28`.
 Any other `Mcp-Protocol-Version` is rejected before dispatch. An absent version
 during initialization is forwarded, not synthesized. The
 2025 compatibility subset forwards initialize and notifications but supports
 only stateless POST exchanges. Modern requests do not need a relay-owned
-initialize step. Agency Relay does not compare JSON-RPC bodies with headers,
-validate tool parameters or translate negotiated versions. The upstream owns
-those semantics. This is not full compatibility with every feature of either
-version.
+initialize step. Feishu compares the JSON-RPC envelope with routing headers.
+The upstream owns tool parameter validation and negotiated versions.
 
 GET/DELETE, Upgrade, `Mcp-Session-Id` and `Last-Event-ID` are unsupported.
 They cannot authenticate or resume a session. An upstream session header is
@@ -201,8 +216,11 @@ are available without waiting for upstream I/O and are at most 64 KiB, the respo
 carries `Content-Length` equal to that exact count. An upstream length is not copied.
 A longer body or one that still requires asynchronous delivery stays a
 pull-driven stream and has no `Content-Length`. Responses are no-store. JSON/SSE
-bytes and SSE envelopes remain opaque, with Workers-owned re-encoding rather
-than manual compression marking.
+bytes and SSE envelopes remain opaque except for Feishu discovery.
+Feishu client requests have a 1 MiB bound. Relay reads the JSON-RPC
+method and tool name, checks matching routing headers, and limits each of the
+two upstream JSON discovery results to 256 KiB. Tool arguments and tool-call
+results pass through. Workers own content re-encoding.
 
 Upstream 3xx is rejected as 502 without following Location. Upstream 401/403 is
 mapped to 502 `upstream_credential_unavailable`, without its body/challenge or
@@ -212,7 +230,7 @@ The downstream OAuth challenge remains exclusively the admission owner's rule.
 
 The V1 transport envelope is a streamed request of at most 8 MiB, a
 sixty-second idle upload/header/response-read limit, and a ten-minute admission lease.
-There is no aggregate response-byte cap or JSON parse. The Worker cancels its
+Other profiles have no aggregate response-byte cap or JSON parse. The Worker cancels its
 relay at lease expiry or client disconnect and releases admission on EOF/error;
 it does not claim that the upstream tool action was undone. The OAuth authority
 owns at most four outstanding leases per member/installation and sixteen per
@@ -222,11 +240,12 @@ The idle read timer runs while a read waits, not while downstream backpressure
 withholds a pull. The absolute lease still bounds that hold. A declared oversize
 Content-Length rejects before dispatch; an unknown-length upload can be stopped
 after partial delivery. It cannot undo a tool action. Each admitted HTTP request
-has at most one relay dispatch; client retry is a distinct request, not exactly-once
-execution. Provider Responses limits remain unchanged.
+has at most one tool execution dispatch. Mixed-identity Feishu discovery may
+issue two list requests. Client retry is a distinct request. Provider Responses
+limits remain unchanged.
 
 The request path uses one primary D1 authority snapshot, one OAuth admission
-transaction with capacity reservation, one exact secret-owner read and one terminal
+transaction with capacity reservation, exact secret-owner reads and one terminal
 release. Terminal recording is background work and cannot pull ahead or delay
 close/cancel. The OAuth owner retains only the newest admitted request's completed
 transport facts per member/installation, with a thirty-day cleanup horizon:

@@ -4,8 +4,9 @@ import {runtimeOAuthMaterialHash,timingSafeEqualHex} from "../crypto";
 import {headerMediaType} from "../records";
 import {readConsoleSessionPrincipalByHash} from "../auth/console-session";
 import type {ConsolePrincipal} from "../auth/principal";
-import {readRuntimeAuthority,readRuntimeAuthorityRevision,readRuntimeMemberInstallations,type RuntimeAuthority,type RuntimeMemberInstallation} from "./installations";
+import {larkUserAuthority,readRuntimeAuthority,readRuntimeAuthorityRevision,readRuntimeMemberInstallations,type RuntimeAuthority,type RuntimeMemberInstallation} from "./installations";
 import {runtimeResources,RUNTIME_SCOPE} from "./profiles";
+import {larkToolSelection} from "./connectors/lark-doc/profile";
 
 type ClientConsentView={id:string;client_id:string;client_name:string;resource:string;scope:string;created_at:string;expires_at:string};
 export interface RuntimeMemberModel {
@@ -16,7 +17,7 @@ export interface RuntimeMemberModel {
 type RuntimeMemberReply={status:number;body:RuntimeMemberModel|{error:string}};
 export interface OAuthReply {status:number;body:Record<string,string|number|string[]|ClientConsentView[]>;location?:string}
 export type RuntimeAdmission=RuntimeAuthority&{client_authorization_id:string;lease_id:string;lease_expires_at:number};
-export type RuntimeTransportError="runtime_profile_unavailable"|"upstream_credential_unavailable"|"upstream_redirect_rejected"|"upstream_transport_failed"|"client_request_aborted"|"runtime_transport_unsupported"|"request_too_large"|"stream_idle_timeout"|"lease_expired";
+export type RuntimeTransportError="runtime_profile_unavailable"|"upstream_credential_unavailable"|"upstream_redirect_rejected"|"upstream_transport_failed"|"client_request_aborted"|"runtime_transport_unsupported"|"request_too_large"|"stream_idle_timeout"|"lease_expired"|"lark_user_authorization_required"|"lark_mcp_invalid_request"|"lark_mcp_tool_unavailable";
 export interface RuntimeTransportFacts {
   attempted:boolean;upstream_status:number|null;terminal:"completed"|"cancelled"|"error";
   error:RuntimeTransportError|null;duration_ms:number;headers_ms:number|null;
@@ -30,7 +31,7 @@ interface Pending {
 type Consent = {
   id:string;subject:string;client:string;installation:string;resource:string;
   access_revision:number;authority_revision:number;deadline:number;revoked:number;created:number;
-  scope:string;
+  scope:string;feishu_tools:string|null;
 }
 type Code = {hash:string;consent:string;redirect:string;challenge:string;expires:number;used:number};
 type Refresh = {hash:string;consent:string;expires:number;spent:number};
@@ -59,7 +60,10 @@ export class RuntimeOAuth extends DurableObject<Env> {
       CREATE INDEX IF NOT EXISTS codes_consent ON codes(consent);
       CREATE INDEX IF NOT EXISTS refresh_consent ON refresh_tokens(consent);
       CREATE INDEX IF NOT EXISTS access_consent ON access_tokens(consent);
-      CREATE INDEX IF NOT EXISTS access_expires ON access_tokens(expires);`);
+      CREATE INDEX IF NOT EXISTS access_expires ON access_tokens(expires);
+      CREATE TABLE IF NOT EXISTS lark_tool_consents (id TEXT PRIMARY KEY, tools TEXT NOT NULL);
+      CREATE TRIGGER IF NOT EXISTS lark_tool_consent_cleanup AFTER DELETE ON consents
+        BEGIN DELETE FROM lark_tool_consents WHERE id=OLD.id; END;`);
     ctx.storage.sql.exec(`CREATE TABLE IF NOT EXISTS relay_leases (
       sequence INTEGER PRIMARY KEY AUTOINCREMENT,id TEXT NOT NULL UNIQUE,subject TEXT NOT NULL,
       installation TEXT NOT NULL,consent TEXT NOT NULL,authority_revision INTEGER NOT NULL,
@@ -129,7 +133,7 @@ export class RuntimeOAuth extends DurableObject<Env> {
     },unavailable());
   }
 
-  async consent(id:string,binding:string,session:string|null,decision?:"allow"|"deny"):Promise<OAuthReply> {
+  async consent(id:string,binding:string,session:string|null,decision?:"allow"|"deny",reviewedTools?:string):Promise<OAuthReply> {
     return this.gate(async(deadline)=>{
       const stored=this.ctx.storage.sql.exec<{data:string}>("SELECT data FROM pending WHERE id=? AND expires>?",id,Date.now()).toArray()[0];
       if(!stored)return invalid();
@@ -146,18 +150,24 @@ export class RuntimeOAuth extends DurableObject<Env> {
         pending.principal=principal;pending.accessRevision=authority.access_revision;
         this.ctx.storage.sql.exec("UPDATE pending SET data=? WHERE id=?",JSON.stringify(pending),id);
       }
-      if(!decision)return {status:200,body:{id,client_name:client.name,resource:authority.resource,scope:RUNTIME_SCOPE,email:principal.email,redirect_uri:pending.query.redirect_uri!}};
+      const policyTag=authority.feishu_tools&&decision!=="deny"
+        ?await this.hash(`feishu-tools:${JSON.stringify(authority.feishu_tools)}`):undefined;
+      if(!decision)return {status:200,body:{id,client_name:client.name,resource:authority.resource,scope:RUNTIME_SCOPE,email:principal.email,redirect_uri:pending.query.redirect_uri!,
+        ...(authority.feishu_tools&&policyTag?{feishu_installation:authority.installation_id,feishu_tools:authority.feishu_tools,feishu_policy_tag:policyTag}:{})}};
+      if(decision==="allow"&&authority.feishu_tools&&(!authority.feishu_tools.length||
+        reviewedTools!==policyTag))return invalid(403,"access_denied");
       return this.ctx.storage.transaction(async()=>{
         this.ctx.storage.sql.exec("DELETE FROM pending WHERE id=?",id);
         this.ctx.storage.sql.exec(`UPDATE consents SET revoked=1 WHERE subject=? AND installation=?
           AND (access_revision<>? OR authority_revision<>?)`,principal.id,pending.installation,authority.access_revision,authority.authority_revision);
         const consent:Consent={id:crypto.randomUUID(),subject:principal.id,client:client.id,installation:pending.installation,
           resource:authority.resource,access_revision:authority.access_revision,authority_revision:authority.authority_revision,
-          deadline:Date.now()+FAMILY_MS,revoked:0,created:Date.now(),scope:RUNTIME_SCOPE};
+          deadline:Date.now()+FAMILY_MS,revoked:0,created:Date.now(),scope:RUNTIME_SCOPE,
+          feishu_tools:authority.feishu_tools?JSON.stringify(authority.feishu_tools):null};
         const count=this.ctx.storage.sql.exec<{count:number}>(`SELECT count(*) AS count FROM consents
           WHERE subject=? AND installation=? AND client<>? AND revoked=0 AND deadline>?
             AND access_revision=? AND authority_revision=?`,principal.id,pending.installation,client.id,Date.now(),authority.access_revision,authority.authority_revision).one().count;
-        if(decision==="allow"&&count>=5)return invalid(429);
+        if(decision!=="deny"&&count>=5)return invalid(429);
         const model=this.model(client,consent,deadline);
         const server=new OAuth2Server({model,authorizationCodeLifetime:120,authenticateHandler:{handle:async()=>({id:principal.id})}});
         const response=new OAuth2Server.Response();
@@ -228,7 +238,9 @@ export class RuntimeOAuth extends DurableObject<Env> {
         const lease={id:crypto.randomUUID(),expires:now+10*MINUTE};
         this.ctx.storage.sql.exec("INSERT INTO relay_leases(id,subject,installation,consent,authority_revision,profile,profile_revision,started,expires) VALUES(?,?,?,?,?,?,?,?,?)",
           lease.id,authority.subject,authority.installation_id,consent.id,authority.authority_revision,authority.profile,authority.profile_revision,now,lease.expires);
-        return {...authority,client_authorization_id:consent.id,lease_id:lease.id,lease_expires_at:lease.expires};
+        const approved=consent.feishu_tools===null?null:larkToolSelection(consent.feishu_tools);
+        return {...authority,client_authorization_id:consent.id,lease_id:lease.id,lease_expires_at:lease.expires,
+          ...(approved?{feishu_tools:authority.feishu_tools?.filter(tool=>approved.includes(tool))??[]}:{})};
       });
     },unavailable());
   }
@@ -276,6 +288,11 @@ export class RuntimeOAuth extends DurableObject<Env> {
       const principal=await this.consolePrincipal(session,deadline);
       if(!principal)return {status:401,body:{error:"access_denied"}};
       const installations=await this.bounded(readRuntimeMemberInstallations(this.env,principal.id),deadline);
+      await Promise.all(installations.filter(item=>item.personal_feishu&&item.state==="enabled"&&item.credential_ready).map(async item=>{
+        const authority=await this.bounded(readRuntimeAuthority(this.env,principal.id,item.id,new Date(),{hash:session!,email:principal.email,epoch:principal.sessionEpoch}),deadline);
+        if(authority?.profile==="lark.doc")item.personal_feishu=await this.bounded(
+          this.env.RUNTIME_CREDENTIALS.getByName(item.id).larkUserStatus(larkUserAuthority(authority)),deadline);
+      }));
       const rows=this.ctx.storage.sql.exec<{id:string;client_id:string;client_name:string;installation:string;resource:string;scope:string;authority_revision:number;access_revision:number;created:number;deadline:number}>(`
         SELECT c.id,c.client AS client_id,r.name AS client_name,c.installation,c.resource,c.scope,c.authority_revision,c.access_revision,c.created,c.deadline
         FROM consents c JOIN clients r ON r.id=c.client
@@ -294,7 +311,8 @@ export class RuntimeOAuth extends DurableObject<Env> {
       const current=await this.bounded(readConsoleSessionPrincipalByHash(this.env,session!),deadline);
       if(!current||current.id!==principal.id||current.email!==principal.email||current.role!==principal.role||current.sessionEpoch!==principal.sessionEpoch)
         return {status:401,body:{error:"access_denied"}};
-      return {status:200,body:{installations,consents:rows.map(({created,deadline,...row})=>({...row,created_at:new Date(created).toISOString(),expires_at:new Date(deadline).toISOString()})),activity}};
+      return {status:200,body:{installations,consents:rows.map(({created,deadline,...row})=>({...row,
+        created_at:new Date(created).toISOString(),expires_at:new Date(deadline).toISOString()})),activity}};
     },{status:503,body:{error:"temporarily_unavailable"}});
   }
 
@@ -312,6 +330,7 @@ export class RuntimeOAuth extends DurableObject<Env> {
         if(performance.now()>=deadline)throw new Error();
         this.ctx.storage.sql.exec("UPDATE consents SET revoked=1 WHERE subject=? AND installation=? AND client=?",consent.subject,consent.installation,client.id);
         this.ctx.storage.sql.exec("INSERT INTO consents VALUES (?,?,?,?,?,?,?,?,?,?,?)",consent.id,consent.subject,consent.client,consent.installation,consent.resource,consent.access_revision,consent.authority_revision,consent.deadline,0,consent.created,(code.scope??[]).join(" "));
+        if(consent.feishu_tools!==null)this.ctx.storage.sql.exec("INSERT INTO lark_tool_consents VALUES (?,?)",consent.id,consent.feishu_tools);
         this.ctx.storage.sql.exec("UPDATE clients SET expires=max(expires,?) WHERE id=?",consent.deadline,client.id);
         this.ctx.storage.sql.exec("INSERT INTO codes VALUES (?,?,?,?,?,0)",codeHash,consent.id,code.redirectUri,code.codeChallenge!,code.expiresAt.getTime());
         return {...code,client:wire,user};
@@ -345,7 +364,10 @@ export class RuntimeOAuth extends DurableObject<Env> {
   }
 
   private client(id:string):RegisteredClient|null {return this.ctx.storage.sql.exec<RegisteredClient>("SELECT * FROM clients WHERE id=? AND expires>?",id,Date.now()).toArray()[0]??null;}
-  private currentConsent(id:string):Consent|null {return this.ctx.storage.sql.exec<Consent>("SELECT * FROM consents WHERE id=? AND revoked=0 AND deadline>?",id,Date.now()).toArray()[0]??null;}
+  private currentConsent(id:string):Consent|null {
+    return this.ctx.storage.sql.exec<Consent>(`SELECT c.*,p.tools AS feishu_tools FROM consents c
+      LEFT JOIN lark_tool_consents p ON p.id=c.id WHERE c.id=? AND c.revoked=0 AND c.deadline>?`,id,Date.now()).toArray()[0]??null;
+  }
   private hash(value:string):Promise<string> {return runtimeOAuthMaterialHash(this.env.API_KEY_HASH_PEPPER,value);}
   private attempt(bucket:string,limit:number,window:number):boolean {
     this.ctx.storage.sql.exec("DELETE FROM rate_windows WHERE bucket IN (SELECT bucket FROM rate_windows WHERE expires<=? LIMIT 256)",Date.now());
@@ -406,7 +428,8 @@ export class RuntimeOAuth extends DurableObject<Env> {
 }
 
 function matchesAuthority(consent:Consent,authority:RuntimeAuthority|null):authority is RuntimeAuthority {
-  return !!authority&&authority.resource===consent.resource&&authority.access_revision===consent.access_revision&&authority.authority_revision===consent.authority_revision;
+  return !!authority&&authority.resource===consent.resource&&authority.access_revision===consent.access_revision&&
+    authority.authority_revision===consent.authority_revision&&(authority.profile!=="lark.doc"||consent.feishu_tools!==null);
 }
 function redirectMatches(registered:string,requested:string):boolean {
   if(registered===requested)return true;

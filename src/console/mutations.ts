@@ -2,6 +2,7 @@ import { wantsHtml } from "./request";
 import { type JsonObject, ownerInput, publicService, publicCreditState, readJsonObject, publicCodexAuth, stringField, nullableStringField, creditPolicyField, requiredNonNegativeIntegerField, stringArrayField, requireConfirmation, operatorMutationContext, codexTokenAuthority } from "../control/input";
 import { invalidRuntimeOperation } from "../runtime/installations";
 import { readRuntimeForm, mutateRuntimeInstallation } from "../runtime/console";
+import {runtimeInstallations} from "../runtime/profiles";
 import { isDashboardPageToken } from "./dashboard-page";
 import { type AdminIdentity } from "../auth/authenticate";
 import { readTokenResult } from "../auth/token-result";
@@ -41,7 +42,8 @@ export async function routeDashboardUiMutation(
   const runtime=/^\/admin\/ui\/runtime-installations\/([a-z][a-z0-9-]{0,63})$/.exec(url.pathname);
   if(runtime) {
     if(url.search)throw invalidRuntimeOperation();
-    const body=await readRuntimeForm(request);
+    const feishu=runtimeInstallations(env).some(service=>service.id===runtime[1]&&service.profile==="lark.doc");
+    const body=await readRuntimeForm(request,feishu?128*1024:undefined);
     let flash:DashboardMutationFlash;
     let status=200;
     try {

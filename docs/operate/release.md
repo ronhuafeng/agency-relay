@@ -87,6 +87,11 @@ code-release guard stops on this configuration and migration change, so an
 operator must perform the initial cutover. Before allowing path or header
 changes, use a recovery version that understands the new configuration.
 
+Apply `0043` before releasing Feishu tool selection. It preserves the configured
+URL, credential binding and member access. Existing Feishu clients must complete
+the new tool consent. Verify the enabled tool list from the console and confirm
+the Stitch URL and authority revision through readback.
+
 Repository Secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` authorize
 Worker version upload/deployment and read-only D1 ledger verification;
 `MINI_ADMIN_SECRET` is used only for operator readiness. PR jobs receive no release

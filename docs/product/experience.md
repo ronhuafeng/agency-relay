@@ -226,11 +226,18 @@ A one-time setup package is part of the key creation response. Later local confi
 
 An eligible member reviews the registered client's self-asserted name, exact
 installation URI, `runtime.use` permission and shared-upstream consequence before
-Allow or Deny. This grants all tools of that installation, including supported
-changes to shared resources; it is not read-only or an attestation of the client.
+Allow or Deny. For Stitch, this grants the installation's tools, including
+supported changes to shared resources. Client names are self-asserted.
 Show the thirty-day maximum and explain that browser logout does not revoke the
 client. Long untrusted names and resource addresses must remain readable on a
 narrow screen without pushing decision controls out of view.
+
+Feishu Docs consent lists the exact tools, including write operations and
+which tools can use application identity as a fallback. Members connect a
+Feishu account that matches their Relay organization email. Members can update
+Feishu scopes and renew client consent when administrators add tools.
+Disabling a tool removes it from discovery and prevents new calls.
+Disconnecting removes access through the member's credential.
 
 Login preserves only an opaque, browser-bound transaction. A changed identity or
 authority cannot silently adopt a replacement after login. Expired, invalid or

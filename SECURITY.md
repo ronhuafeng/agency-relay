@@ -106,9 +106,19 @@ transactions. Protocol bodies are limited to 8 KiB and a five-second read budget
 No CIMD, JWKS fetch, third-party registration metadata fetch, automatic consent,
 or persistent MCP session is selected for V1. DCR allocates an independent public
 client ID for each registration; the synthetic fixture's one fixed client ID is
-not the production registration policy. Scope grants installation use, not
-per-tool read-only access. A consent screen must state the shared upstream
-authority consequence. All token material stays out of audit and diagnostics.
+not the production registration policy. The `runtime.use` scope grants
+installation use. A consent screen must state the upstream authority
+consequence. All token material stays out of audit and diagnostics.
+
+Feishu requires explicit client consent for the permitted tools, including
+their application-identity fallback. The member connects a matching Feishu account through the
+console's one-use OAuth callback with PKCE and exact session binding.
+The installation's credential owner encrypts each member's token pair.
+The member, access revision, session epoch and installation credential version
+bind that grant. A durable fence prevents replay of a potentially spent
+refresh token. A late code exchange or refresh cannot recreate a disconnected
+grant. Relay uses one Feishu identity per tool call and checks both the saved
+client consent and current tool policy before dispatch.
 
 The canonical console origin owns `/.well-known/oauth-authorization-server`,
 `/runtime/register`, `/runtime/authorize`, `/runtime/token`, the exact opaque

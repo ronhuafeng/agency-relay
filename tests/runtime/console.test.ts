@@ -38,7 +38,8 @@ it("uses a Feishu app's cached TAT and renews it without changing client consent
     await post({action:"access",expectedRevision:"0",subject:"member",state:"granted",expiresAt:""});
     const {tokens}=await authorizedTokens(f,resource);
     const request=async()=>{
-      const result=await f.runtime.dispatchFetch(resource,{method:"POST",headers:{Authorization:`Bearer ${tokens.access_token}`},body:"{}"});
+      const result=await f.runtime.dispatchFetch(resource,{method:"POST",headers:{Authorization:`Bearer ${tokens.access_token}`,
+        "Content-Type":"application/json"},body:JSON.stringify({jsonrpc:"2.0",id:1,method:"initialize"})});
       const status=result.status;
       await result.body?.cancel();
       return status;
@@ -78,8 +79,9 @@ it("configures both connectors through native forms and moves only the selected 
     expect((await response.text()).includes("fixture-credential")).toBe(false);
   };
   const request=(resource:string,token?:string)=>f.runtime.dispatchFetch(resource,{method:"POST",headers:{
-    ...(token?{Authorization:`Bearer ${token}`} : {}),"X-Connector-Key":"client-header","X-Lark-MCP-Allowed-Tools":"create-doc"
-  },body:"{}"});
+    ...(token?{Authorization:`Bearer ${token}`} : {}),"X-Connector-Key":"client-header","X-Lark-MCP-Allowed-Tools":"create-doc",
+    "Content-Type":"application/json"
+  },body:JSON.stringify({jsonrpc:"2.0",id:1,method:"tools/call",params:{name:"fetch-doc"}})});
   const expectStatus=async(response:Response,status:number)=>{expect(response.status).toBe(status);await response.body?.cancel();};
   try {
     const page=await f.runtime.dispatchFetch(`${ISSUER}/admin?view=runtime&installation=lark-doc`,{headers});

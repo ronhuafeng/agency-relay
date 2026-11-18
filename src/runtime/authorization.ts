@@ -11,6 +11,7 @@ import {HttpError} from "../errors";
 import {httpOnlyLaxCookie} from "../auth/console-session";
 import {copyBytes} from "../proxy/byte-stream";
 import {headerMediaType,isRecord} from "../records";
+import {larkUserAuthorizationResponse} from "./connectors/lark-doc/user-routes";
 
 const BINDING_COOKIE="__Host-runtime-transaction";
 const CONSENT_PATH=/^\/runtime\/consent\/[a-f0-9-]{36}$/;
@@ -35,6 +36,8 @@ export async function runtimeAuthorizationResponse(request:Request,env:Env):Prom
       if(resource)return protocolResponse({resource:resource.resource,authorization_servers:[issuer],bearer_methods_supported:["header"],scopes_supported:[RUNTIME_SCOPE]});
     }
     if(url.origin!==issuer)return null;
+    const larkAuthorization=await larkUserAuthorizationResponse(request,env,url);
+    if(larkAuthorization)return larkAuthorization;
     if(request.method==="OPTIONS"&&!url.search&&["/runtime/register","/runtime/token"].includes(url.pathname)) {
       if(request.headers.get("Access-Control-Request-Method")!=="POST")return protocolResponse({error:"invalid_request"},405);
       return new Response(null,{status:204,headers:{"Access-Control-Allow-Origin":"*","Access-Control-Allow-Methods":"POST","Access-Control-Allow-Headers":"Content-Type","Cache-Control":"no-store"}});
@@ -64,16 +67,19 @@ export async function runtimeAuthorizationResponse(request:Request,env:Env):Prom
       const binding=cookie(request,BINDING_COOKIE);
       if(!binding)return consentFailure(403);
       let decision:"allow"|"deny"|undefined;
+      let reviewedTools:string|undefined;
       if(request.method==="POST") {
         if(headerMediaType(request.headers.get("Content-Type"))!=="application/x-www-form-urlencoded")return protocolResponse({error:"invalid_request"},400);
-        const form=uniqueFields(new URLSearchParams(await readOAuthBody(request)),["decision"]);
+        const form=uniqueFields(new URLSearchParams(await readOAuthBody(request)),["decision","feishu_tools"]);
         if(form.decision!=="allow"&&form.decision!=="deny")return protocolResponse({error:"invalid_request"},400);
         decision=form.decision;
+        reviewedTools=form.feishu_tools;
       }
-      const reply=await env.RUNTIME_OAUTH.getByName("organization").consent(url.pathname.split("/").at(-1)!,await oauthHash(env,binding),await browserSessionHash(env,request),decision);
+      const reply=await env.RUNTIME_OAUTH.getByName("organization").consent(url.pathname.split("/").at(-1)!,await oauthHash(env,binding),await browserSessionHash(env,request),decision,reviewedTools);
       if(reply.location)return new Response(null,{status:303,headers:{Location:reply.location,"Cache-Control":"no-store","Referrer-Policy":"no-referrer"}});
       if(reply.status!==200)return consentFailure(reply.status);
-      const data=reply.body as {id:string;client_name:string;resource:string;scope:string;email:string;redirect_uri:string};
+      const data=reply.body as {id:string;client_name:string;resource:string;scope:string;email:string;redirect_uri:string;
+        feishu_installation?:string;feishu_tools?:string[];feishu_policy_tag?:string};
       return new Response(consoleDocument({title:"授权客户端 · Agency Relay",email:data.email,
         main:createElement(RuntimeConsent,{...data,action:url.pathname})}),{headers:{
         // Native same-origin form POST needs a non-null Origin. No referrer is

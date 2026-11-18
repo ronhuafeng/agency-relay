@@ -49,10 +49,45 @@ expiry. Each credential version has its own cache. Automatic token renewal
 preserves Relay OAuth consent. Saving a different credential or header in the
 Feishu form is a rebind and requires fresh client consent.
 
-Feishu Docs exposes `fetch-doc` for documents the application can access.
-Previously stored manual TATs work until expiry. A saved app credential only
-confirms storage. The first successful tool call confirms upstream access.
-See [Feishu application access tokens](https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/authentication-management/access-token/tenant_access_token).
+In **Tool services → Feishu Docs → 飞书工具**, select the tools to enable.
+The console groups the tools published for the hosted endpoint
+`https://mcp.feishu.cn/mcp` by operation and shows their Feishu application
+scopes. The [OpenAPI MCP repository](https://github.com/larksuite/lark-openapi-mcp)
+defines a broader catalog for its own server. Publish the corresponding scopes
+in the Feishu app for the identity you intend to use. Initially, document search, document reading
+and member search are enabled. Save changes in Relay to apply them to later
+admissions. Grant added tools to a client through a new client consent.
+
+The Feishu tool tree uses the same MCP URL and shows the pinned upstream
+`AllToolsZh` catalog. Search by API name, business domain, or scope. Group
+checkboxes select the matching tools while a search is active. Save the
+complete selection once. Relay enables JSON endpoints when the tool definition matches a
+documented permission and supported identity. Entries without that evidence and
+tools that need custom SDK or file handlers remain visible without enable
+controls. To rebuild the pinned catalog, run
+`pnpm exec tsx scripts/update-feishu-openapi.ts`. Add `--read-api-docs`
+to refresh the per-method scope evidence from public Feishu API documents.
+
+For member authorization, register
+`https://<console-host>/runtime/feishu-user/callback` as an OAuth redirect URL
+in the bound Feishu app. Publish `contact:user.email:readonly`,
+`contact:user.employee:readonly`, `offline_access` and the user scopes for the
+enabled tools. Include the members in the app's availability range. Enable
+user token refresh if Feishu exposes that setting. Members connect or update
+their Feishu authorization under **My tool services → Feishu Docs**, then approve
+the tool list in their MCP client's existing login flow.
+
+Relay prefers UAT when it carries the tool's required scopes. A dual-identity
+tool may use TAT when the member token lacks those scopes. An existing binding
+with a manual TAT supports application-capable tools until that token expires.
+Feishu still checks object permissions for the selected identity. Relay refreshes
+each member's token on demand and stores the rotated tokens encrypted.
+For OpenAPI calls with TAT, Relay checks the scopes returned by the OAuth
+client-credentials exchange. A manual TAT does not supply scope evidence for
+OpenAPI tools. It remains usable for eligible hosted MCP tools.
+Reconnect when Feishu no longer accepts renewal. See
+[Feishu remote tools and permissions](https://open.feishu.cn/document/mcp_open_tools/developers-call-remote-mcp-server)
+and [Feishu user token refresh](https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/authentication-management/access-token/refresh-user-access-token-v3).
 
 Updating a path closes the old URL and invalidates client consent for that
 installation. The old path stays reserved. Members retain administrator-granted
@@ -60,8 +95,9 @@ access and must update the URL and authorize the client again. Changing the
 authentication header or binding a different upstream authority also invalidates
 consent. Use the operator API for an explicit future member access expiry.
 
-Native form bodies are limited to 16 KiB to allow percent encoding of a valid
-4096-byte credential. The decoded material limit and field validation stay the same.
+Native Runtime forms allow 16 KiB for percent encoding a valid 4096-byte credential.
+The Feishu installation form allows 128 KiB for the full list of tool IDs.
+The decoded credential limit stays the same.
 
 After an uncertain HTML operation, use its read-only recovery link. The `writing`
 state offers explicit abort-and-disable; `cleaning` offers exact cleanup recovery.

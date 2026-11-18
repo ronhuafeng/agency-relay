@@ -10,6 +10,46 @@ async function confirm(page:Page,form:Locator,label:string,script=true) {
   await form.getByRole("button",{name:label,exact:true}).click();
   if(script)await page.getByRole("alertdialog").getByRole("button",{name:label,exact:true}).click();
 }
+test.describe("Feishu tool selection",()=>{
+  test.use({runtime:"connectors",viewport:{width:390,height:900}});
+  test("searches the Radix tool tree, toggles only matching tools and saves the whole selection",async({page,worker})=>{
+    const configured=await worker.runtimeFixture!.admin("lark-doc",{action:"configure"});
+    expect(configured.status).toBe(200);
+    await configured.body?.cancel();
+    await page.goto("/admin?view=runtime&installation=lark-doc");
+    const section=page.getByRole("region",{name:"飞书工具",exact:true});
+    const search=section.getByRole("searchbox",{name:"搜索飞书工具"});
+    const fetchDoc=section.getByRole("checkbox",{name:/读取文档正文/});
+    const addComment=section.getByRole("checkbox",{name:/添加文档评论/});
+    const calendar=section.getByRole("checkbox",{name:"calendar.v4.calendar.get",exact:true});
+    const calendarList=section.getByRole("checkbox",{name:"calendar.v4.calendar.list",exact:true});
+    await expect(section.getByRole("checkbox",{name:"切换 飞书托管工具 的所有工具"})).toHaveAttribute("aria-checked","mixed");
+    await search.fill("fetch-doc");
+    await expect(fetchDoc).toBeChecked();
+    await fetchDoc.uncheck();
+    await search.fill("add-comments");
+    await expect(addComment).not.toBeChecked();
+    await addComment.check();
+    await search.fill("calendar.v4.calendar.get");
+    await expect(section).toContainText("calendar:calendar:readonly");
+    await section.getByRole("checkbox",{name:"切换 calendar 的匹配工具"}).check();
+    await expect(calendar).toBeChecked();
+    await search.fill("calendar.v4.calendar.list");
+    await expect(calendarList).not.toBeChecked();
+    await search.fill("unmatched-tool-fixture");
+    await expect(section.getByRole("status")).toHaveText("没有匹配的工具。");
+    await confirm(page,section.locator("form"),"保存工具设置");
+    await expect(page.getByRole("status").filter({hasText:"工具服务已更新"})).toBeVisible();
+    await page.reload();
+    await search.fill("calendar.v4.calendar.get");
+    await expect(calendar).toBeChecked();
+    await search.fill("fetch-doc");
+    await expect(fetchDoc).not.toBeChecked();
+    await search.fill("add-comments");
+    await expect(addComment).toBeChecked();
+    expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
+  });
+});
 for(const script of [true,false])test.describe(`Runtime personal native form, script ${script}`,()=>{
   test.use({identity:"member",script,viewport:{width:script?1440:390,height:900}});
   test("URL setup and own revoke preserve other consent and member privacy",async({page,worker,context})=>{

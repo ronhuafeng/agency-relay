@@ -6,6 +6,8 @@ import { isOrganizationLoginUser, organizationDomain, type LifecycleActor } from
 import { serviceAdminAuthorityBindings, serviceAdminAuthoritySql } from "../auth/service-accounts";
 import { isRuntimePath, requireRuntimeInstallation, resourceMatches, runtimeInstallations, RUNTIME_PROFILES, type RuntimeInstallationDeclaration } from "./profiles";
 import {isLarkAppCredential} from "./connectors/lark-doc/credentials";
+import {isLarkToolSelection,larkToolSelection} from "./connectors/lark-doc/profile";
+import type {LarkUserAuthority} from "./connectors/lark-doc/user-grants";
 import type {RuntimeCredentialMaterial} from "./credentials";
 
 interface InstallationRow {
@@ -13,6 +15,7 @@ interface InstallationRow {
   state:"disabled"|"enabled"|"retired"; revision:number; authority_revision:number;
   credential_ref:string|null; credential_revision:number|null; operation_id:string|null;
   credential_header:string|null;
+  feishu_tools:string|null;
   phase:"ready"|"writing"|"cleaning"; created_at:string; updated_at:string;
 }
 
@@ -52,6 +55,7 @@ export async function readRuntimeInstallation(env:Env,actor:LifecycleActor,id:st
   await assertAdmin(env,actor);
   return {id,resource:row?.resource??declared.resource,profile:declared.profile,label:row?.label??declared.label,
     editable_path:Boolean(declared.editablePath),credential_header:row?.credential_header??RUNTIME_PROFILES[declared.profile].credentialHeader,
+    ...(declared.profile==="lark.doc"?{feishu_tools:larkToolSelection(row?.feishu_tools??null)}:{}),
     state:row?.state??("unconfigured" as const),revision:row?.revision??0,authority_revision:row?.authority_revision??0,
     credential_ready:Boolean(row?.credential_ref && row.phase==="ready"),phase:row?.phase??"ready",operation_id:row?.operation_id??null};
 }
@@ -60,6 +64,7 @@ type InstallationChange = {expectedRevision:number;operationId:string} & (
   | {action:"supply";material?:string;appId?:string;appSecret?:string;authority:"same"|"rebind";credentialHeader?:string}
   | {action:"path";path:string}
   | {action:"rename";label:string}
+  | {action:"tools";names:unknown}
   | {action:"enable"|"disable"|"retire"|"recover"}
 );
 
@@ -164,6 +169,10 @@ export async function changeRuntimeInstallation(env:Env,actor:LifecycleActor,id:
     if(typeof input.label!=="string"||!input.label.trim()||input.label.length>64||/[\u0000-\u001f\u007f]/.test(input.label)) throw invalidRuntimeOperation();
     await update(env,actor,id,row.revision,"label=?,revision=revision+1,operation_id=?",[input.label.trim(),input.operationId],
       "state<>'retired' AND phase='ready'","runtime.rename",input.operationId,at);
+  } else if(input.action==="tools") {
+    if(row.profile!=="lark.doc"||!isLarkToolSelection(input.names))throw invalidRuntimeOperation();
+    await update(env,actor,id,row.revision,"feishu_tools=?,revision=revision+1,operation_id=?",[JSON.stringify(input.names),input.operationId],
+      "state<>'retired' AND phase='ready'","runtime.tools",input.operationId,at);
   } else throw changed();
   return readRuntimeInstallation(env,actor,id);
 }
@@ -236,7 +245,7 @@ export async function readRuntimeAuthority(env:Env,subject:string,id:string,now=
   const declared=requireRuntimeInstallation(env,id);
   const row=await env.DB.prepare(`SELECT i.id AS installation_id,i.resource,i.authority_revision,
       i.credential_ref,i.credential_revision,i.credential_header,i.profile,i.profile_revision,a.revision AS access_revision,u.id AS subject
-      ,u.canonical_email,u.login_capable,u.account_kind
+      ,u.canonical_email,u.login_capable,u.account_kind,u.console_session_epoch AS subject_epoch,i.feishu_tools
     FROM runtime_installations i JOIN runtime_installation_access a ON a.installation_id=i.id
       JOIN users u ON u.id=a.user_id
     WHERE i.id=? AND i.profile=? AND i.profile_revision=?
@@ -249,10 +258,10 @@ export async function readRuntimeAuthority(env:Env,subject:string,id:string,now=
           AND s.session_epoch=u.console_session_epoch AND s.expires_at>?)`:""}`)
     .bind(id,declared.profile,RUNTIME_PROFILES[declared.profile].revision,now.toISOString(),subject,organizationDomain(env)??"",
       ...(browser?[browser.email,browser.epoch,browser.hash,now.toISOString()]:[]))
-    .first<{installation_id:string;resource:string;authority_revision:number;credential_ref:string;credential_revision:number;credential_header:string|null;profile:string;profile_revision:number;access_revision:number;subject:string;canonical_email:string;login_capable:number;account_kind:string}>();
+    .first<{installation_id:string;resource:string;authority_revision:number;credential_ref:string;credential_revision:number;credential_header:string|null;profile:string;profile_revision:number;access_revision:number;subject:string;subject_epoch:number;canonical_email:string;login_capable:number;account_kind:string;feishu_tools:string|null}>();
   if(!row||!resourceMatches(declared,row.resource)||!isOrganizationLoginUser(env,row))return null;
-  const {canonical_email:_email,login_capable:_login,account_kind:_kind,...authority}=row;
-  return authority;
+  const {canonical_email:_email,login_capable:_login,account_kind:_kind,feishu_tools,...authority}=row;
+  return {...authority,...(row.profile==="lark.doc"?{feishu_tools:larkToolSelection(feishu_tools)}:{})};
 }
 
 /** Pre-login transaction captures installation authority, not member entitlement. */
@@ -269,10 +278,16 @@ export async function readRuntimeAuthorityRevision(env:Env,id:string,resource:st
 
 export type RuntimeAuthority=NonNullable<Awaited<ReturnType<typeof readRuntimeAuthority>>>;
 
+export function larkUserAuthority(row:RuntimeAuthority):LarkUserAuthority {
+  return {installation:row.installation_id,subject:row.subject,epoch:row.subject_epoch,access:row.access_revision,
+    authority:row.authority_revision,credential:row.credential_ref,credentialRevision:row.credential_revision};
+}
+
 export interface RuntimeMemberInstallation {
   id:string;label:string;resource:string;state:"enabled"|"disabled"|"retired";
   phase:"ready"|"writing"|"cleaning";credential_ready:boolean;
   authority_revision:number;access_revision:number;access_expires_at:string|null;
+  personal_feishu?: "connected"|"required"|"app_required";
 }
 
 /** One primary, own-subject permission read. Stored material and references never
@@ -296,6 +311,7 @@ export async function readRuntimeMemberInstallations(env:Env,subject:string,now=
     const declaration=declared.find(candidate=>candidate.id===row.id)!;
     declarationMismatch(row, declaration);
     return {id:row.id,label:row.label,resource:row.resource,state:row.state,phase:row.phase,
+      ...(declaration.profile==="lark.doc"?{personal_feishu:"app_required" as const}:{}),
       credential_ready:Boolean(row.credential_ready),authority_revision:row.authority_revision,
       access_revision:row.access_revision,access_expires_at:row.access_expires_at};
   });

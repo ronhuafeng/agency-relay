@@ -45,7 +45,7 @@ function loadConsoleHandler(): Promise<ConsoleHandler> {
 
 /** Real Mini routes, SSR, generated assets and SQL. Only external authority is replaced.
  * This is a Node request adapter, not evidence of deployed D1/Feishu/Workers behavior. */
-export async function startConsoleWorker(options: { measure?: boolean; runtime?: boolean } = {}) {
+export async function startConsoleWorker(options: { measure?: boolean; runtime?: boolean|"connectors" } = {}) {
   const timings: Array<{ kind: "html" | "script" | "other"; handlerMs: number }> = [];
   mkdirSync("tmp", { recursive: true });
   const handleRequest = await loadConsoleHandler();
@@ -108,7 +108,7 @@ export async function startConsoleWorker(options: { measure?: boolean; runtime?:
   };
   // Opt-in Runtime journeys use the actual Worker, D1 and both DO owners.
   // The existing Node fixture remains unchanged for all Provider console tests.
-  const runtimeFixture=options.runtime?await oauthFixture(undefined,{issuer:ORIGIN}):null;
+  const runtimeFixture=options.runtime?await oauthFixture(undefined,{issuer:ORIGIN,editablePaths:options.runtime==="connectors"}):null;
   for (const identity of ["member", "admin", "other", "backup"] as const) {
     db.sqlite.prepare(`INSERT INTO users (id, email, canonical_email, login_capable, account_kind, role, status, created_at, updated_at)
       VALUES (?, ?, ?, 1, 'human', ?, 'active', ?, ?)`).run(identity, `${identity}@example.test`, `${identity}@example.test`, ["admin", "backup"].includes(identity) ? "admin" : "user", NOW, NOW);

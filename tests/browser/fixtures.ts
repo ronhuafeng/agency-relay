@@ -1,7 +1,7 @@
 import { test as base, expect, type BrowserContext, type Locator, type Page } from "@playwright/test";
 import { NOW, ORIGIN, startConsoleWorker, type ConsoleWorker, type Identity } from "./worker";
 
-export const test = base.extend<{ worker: ConsoleWorker; identity: Identity; script: boolean; runtime: boolean }>({
+export const test = base.extend<{ worker: ConsoleWorker; identity: Identity; script: boolean; runtime: boolean|"connectors" }>({
   identity: ["admin", { option: true }],
   script: [true, { option: true }],
   runtime: [false,{option:true}],

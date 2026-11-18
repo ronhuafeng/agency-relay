@@ -26,6 +26,7 @@ import { TaskEditorView, readTaskEditor } from "../ui/task-editor";
 import { RoutesView, readRoutes } from "../ui/pages/routes";
 import { CreditTableView, readCreditTable } from "../ui/credit-table";
 import { PeopleCreateView, readPeopleCreate } from "../ui/people-create";
+import { FeishuToolTree, readNativeFeishuToolTree } from "../ui/feishu-tool-tree";
 
 // Radix locks document scroll under a modal by injecting a <style>. The document
 // policy admits only this response's nonce, which the nonce-bound bootstrap carries.
@@ -230,7 +231,18 @@ function prepareControls(scope: ParentNode): void {
   // Integration is a browser document boundary, not a React render. Finish the
   // small islands before layout so native fallback and enhanced controls cannot
   // paint as two different task layouts during in-document navigation.
-  if (controls.length) flushSync(() => controls.forEach(hydrateControl));
+  const trees=Array.from(scope.querySelectorAll<HTMLElement>("[data-feishu-tool-tree]"));
+  if(scope instanceof HTMLElement&&scope.hasAttribute("data-feishu-tool-tree"))trees.push(scope);
+  const nativeTrees=trees.filter(tree=>!hydrated.has(tree));
+  if (controls.length||nativeTrees.length) flushSync(() => {
+    controls.forEach(hydrateControl);
+    for(const tree of nativeTrees){
+      const groups=readNativeFeishuToolTree(tree);
+      const root=createRoot(tree);
+      hydrated.set(tree,root);
+      root.render(<FeishuToolTree groups={groups}/>);
+    }
+  });
   initializeMemberKeyRows(scope);
 }
 

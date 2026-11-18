@@ -58,6 +58,10 @@ export async function runtimeControlResponse(request:Request,env:Env,url:URL,ope
       keys(body,[...allowed,"label"]);
       return respond(await changeRuntimeInstallation(env,actor,id!,{...common,action:"rename",label:body.label as string},operator.now));
     }
+    if(body.action==="tools") {
+      keys(body,[...allowed,"names"]);
+      return respond(await changeRuntimeInstallation(env,actor,id!,{...common,action:"tools",names:body.names},operator.now));
+    }
     keys(body,allowed);
     if(body.action!=="enable"&&body.action!=="disable"&&body.action!=="retire"&&body.action!=="recover")throw invalidRuntimeOperation();
     return respond(await changeRuntimeInstallation(env,actor,id!,{...common,action:body.action},operator.now));

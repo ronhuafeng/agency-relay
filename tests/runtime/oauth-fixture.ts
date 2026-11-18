@@ -70,6 +70,7 @@ export async function oauthFixture(persist?:string,options:{upstream?:(request:R
           if(kind==='pending')this.ctx.storage.sql.exec('UPDATE pending SET expires=0 WHERE id=?',value);
           if(kind==='family')this.ctx.storage.sql.exec('UPDATE consents SET deadline=0 WHERE client=?',value);
           if(kind==='scope')this.ctx.storage.sql.exec("UPDATE consents SET scope='' WHERE client=?",value);
+          if(kind==='legacy-feishu-consent')this.ctx.storage.sql.exec("DELETE FROM lark_tool_consents WHERE id IN (SELECT id FROM consents WHERE client=?)",value);
           if(kind==='time')fixtureTime=Number(value);
           if(kind==='tick'){
             fixtureTime+=Number(value);
@@ -204,12 +205,20 @@ export async function pendingConsent(f:OAuthFixture,resource=RESOURCE,clientId?:
   if(begun.status!==303||!begun.headers.has("Set-Cookie"))throw new Error("Synthetic consent setup failed");
   const target=new URL(begun.headers.get("Location")!,f.issuer);
   const cookie=`${member?`${f.cookies.get(member)}; `:""}${begun.headers.get("Set-Cookie")!.split(";",1)[0]}`;
-  const decide=(decision="allow",origin=f.issuer)=>f.runtime.dispatchFetch(target.href,{method:"POST",headers:{Cookie:cookie,Origin:origin,"Content-Type":"application/x-www-form-urlencoded"},body:new URLSearchParams({decision}).toString(),redirect:"manual"});
-  return {clientId,query,cookie,target,verifier,decide};
+  const review=async()=>{
+    const reply=await f.runtime.dispatchFetch(target.href,{headers:{Cookie:cookie},redirect:"manual"});
+    if(reply.status!==200)throw new Error("Synthetic consent review failed");
+    return (await reply.text()).match(/name="feishu_tools" value="([^"]+)"/)?.[1]?.replaceAll("&quot;",'"');
+  };
+  const decide=(decision="allow",origin=f.issuer,reviewedTools?:string)=>f.runtime.dispatchFetch(target.href,{method:"POST",
+    headers:{Cookie:cookie,Origin:origin,"Content-Type":"application/x-www-form-urlencoded"},
+    body:new URLSearchParams({decision,...(reviewedTools?{feishu_tools:reviewedTools}:{})}).toString(),redirect:"manual"});
+  return {clientId,query,cookie,target,verifier,review,decide};
 }
 export async function authorizedTokens(f:OAuthFixture,resource=RESOURCE,member="member") {
   const pending=await pendingConsent(f,resource,undefined,member);
-  const response=await pending.decide();
+  const reviewed=await pending.review();
+  const response=await pending.decide("allow",f.issuer,reviewed);
   await response.body?.cancel();
   if(response.status!==303||!response.headers.has("Location"))throw new Error("Synthetic consent decision failed");
   const callback=new URL(response.headers.get("Location")!);

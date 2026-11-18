@@ -5,12 +5,13 @@ import {organizationDomain,type LifecycleActor} from "../auth/principal";
 import {runtimeInstallations} from "./profiles";
 import {changeRuntimeInstallation,configureRuntimeInstallation,readRuntimeInstallation,setRuntimeAccess} from "./installations";
 import {readRuntimeMember,runtimeBrowserSessionHash} from "./member";
+import {readLarkOpenApiDomains} from "./connectors/lark-doc/openapi";
 
 const invalid=()=>new HttpError(400,"Reopen the Runtime form and check its fields.","invalid_request_error","runtime_invalid_operation");
 
 /** Native HTML forms have the same bounded input and exact field grammar as the
  * Runtime API. Neither form contents nor storage exceptions are logged. */
-export async function readRuntimeForm(request:Request):Promise<Record<string,string>> {
+export async function readRuntimeForm(request:Request,maxBytes=16_384):Promise<Record<string,string>> {
   if(headerMediaType(request.headers.get("Content-Type"))!=="application/x-www-form-urlencoded")throw invalid();
   const reader=request.body?.getReader();if(!reader)throw invalid();
   const chunks:Uint8Array[]=[];let size=0;
@@ -19,11 +20,11 @@ export async function readRuntimeForm(request:Request):Promise<Record<string,str
   try {
     // A valid 4096-byte header value can occupy 12288 bytes after percent
     // encoding. Keep the native form bounded without reducing the API's limit.
-    for(;;){const part=await Promise.race([reader.read(),timeout]);if(part.done)break;size+=part.value.byteLength;if(size>16384)throw invalid();chunks.push(part.value);}
+    for(;;){const part=await Promise.race([reader.read(),timeout]);if(part.done)break;size+=part.value.byteLength;if(size>maxBytes)throw invalid();chunks.push(part.value);}
     const bytes=copyBytes(chunks,size);
     const params=new URLSearchParams(new TextDecoder("utf-8",{fatal:true}).decode(bytes));
     const body:Record<string,string>={};
-    for(const [key,value] of params){if(params.getAll(key).length!==1||key==="__proto__"||key==="constructor"||key==="prototype")throw invalid();body[key]=value;}
+    for(const [key,value] of params){if(Object.hasOwn(body,key)||key==="__proto__"||key==="constructor"||key==="prototype")throw invalid();body[key]=value;}
     return body;
   } catch {await reader.cancel().catch(()=>{});throw invalid();}
   finally {if(timer!==undefined)clearTimeout(timer);reader.releaseLock();}
@@ -51,6 +52,7 @@ export interface RuntimeAdminModel {
   search:string;
   page:number;
   more:boolean;
+  openApiDomains?:Awaited<ReturnType<typeof readLarkOpenApiDomains>>;
 }
 export async function readRuntimeAdmin(env:Env,actor:LifecycleActor,selectedId:string|null,search="",page=1):Promise<RuntimeAdminModel> {
   // Each read keeps its own authority checks; declared installations are independent of one another.
@@ -72,7 +74,9 @@ export async function readRuntimeAdmin(env:Env,actor:LifecycleActor,selectedId:s
     // Keep the final authorization check after the member read as well.
     await readRuntimeInstallation(env,actor,selected.id);
   }
-  return {installations,selectedId,members,search,page,more};
+  const openApiDomains=selected?.profile==="lark.doc"&&selected.state!=="unconfigured"
+    ?await readLarkOpenApiDomains():undefined;
+  return {installations,selectedId,members,search,page,more,openApiDomains};
 }
 
 /** HTML is an adapter to the existing lifecycle, not a second mutation service. */
@@ -99,6 +103,12 @@ export async function mutateRuntimeInstallation(env:Env,actor:LifecycleActor,id:
   if(body.action==="rename") {
     fields(body,[...allowed,"label"]);
     return changeRuntimeInstallation(env,actor,id,{...common,action:"rename",label:body.label},now);
+  }
+  if(body.action==="tools") {
+    const choices=Object.keys(body).filter(key=>key.startsWith("tool."));
+    fields(body,[...allowed,...choices]);
+    if(choices.some(key=>body[key]!=="1"))throw invalid();
+    return changeRuntimeInstallation(env,actor,id,{...common,action:"tools",names:choices.map(key=>key.slice(5))},now);
   }
   fields(body,allowed);
   if(!["enable","disable","retire","recover"].includes(body.action??""))throw invalid();
