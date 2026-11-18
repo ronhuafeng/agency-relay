@@ -77,7 +77,7 @@ export async function readRuntimeAdmin(env:Env,actor:LifecycleActor,selectedId:s
 
 /** HTML is an adapter to the existing lifecycle, not a second mutation service. */
 export async function mutateRuntimeInstallation(env:Env,actor:LifecycleActor,id:string,body:Record<string,string>,now:Date) {
-  if(body.action==="configure") {fields(body,["action","confirm"]);return configureRuntimeInstallation(env,actor,id,now);}
+  if(body.action==="configure") {fields(body,["action","confirm","path"]);return configureRuntimeInstallation(env,actor,id,now,body.path);}
   const revision=Number(body.expectedRevision);
   if(!/^\d+$/.test(body.expectedRevision??"")||!Number.isSafeInteger(revision))throw invalid();
   if(body.action==="access") {
@@ -88,8 +88,12 @@ export async function mutateRuntimeInstallation(env:Env,actor:LifecycleActor,id:
   const common={expectedRevision:revision,operationId:body.operationId??""};
   const allowed=["action","confirm","expectedRevision","operationId"];
   if(body.action==="supply") {
-    fields(body,[...allowed,"material","authority"]);
-    return changeRuntimeInstallation(env,actor,id,{...common,action:"supply",material:body.material,authority:body.authority as "same"|"rebind"},now);
+    fields(body,[...allowed,"material","authority","credentialHeader"]);
+    return changeRuntimeInstallation(env,actor,id,{...common,action:"supply",material:body.material,authority:body.authority as "same"|"rebind",credentialHeader:body.credentialHeader},now);
+  }
+  if(body.action==="path") {
+    fields(body,[...allowed,"path"]);
+    return changeRuntimeInstallation(env,actor,id,{...common,action:"path",path:body.path},now);
   }
   if(body.action==="rename") {
     fields(body,[...allowed,"label"]);

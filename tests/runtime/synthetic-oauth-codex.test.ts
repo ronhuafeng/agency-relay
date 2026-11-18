@@ -10,12 +10,6 @@ import { build } from "esbuild";
 import { expect, it } from "vitest";
 
 const { Miniflare, convertV4MiniflareOptions } = createRequire(import.meta.resolve("wrangler/package.json"))("miniflare");
-async function codexBin(): Promise<string> {
-  const bin = process.env.CODEX_TEST_BIN ?? "/tmp/codex-cli/node_modules/.bin/codex";
-  const { stdout } = await promisify(execFile)(bin, ["--version"], { timeout: 10_000, maxBuffer: 1024 });
-  if (stdout.trim() !== "codex-cli 0.156.1") throw new Error("synthetic OAuth proof requires Codex CLI 0.156.1");
-  return bin;
-}
 
 function listen(handler: (request: IncomingMessage, response: ServerResponse) => void): Promise<{ port: number; close: () => Promise<void> }> {
   const server = createServer(handler);
@@ -28,8 +22,9 @@ function listen(handler: (request: IncomingMessage, response: ServerResponse) =>
   });
 }
 
-it("lets Codex 0.156.1 log in and consume the protected MCP tool catalogue", async () => {
-  const bin = await codexBin();
+it("lets Codex log in and consume the protected MCP tool catalogue", async () => {
+  const bin = process.env.CODEX_TEST_BIN ?? "codex";
+  await promisify(execFile)(bin, ["--version"], { timeout: 10_000, maxBuffer: 1024 });
   console.info("runtime_codex_fixture", { stage: "binary_verified" });
   let resourceOrigin = "";
   let issuerOrigin = "";

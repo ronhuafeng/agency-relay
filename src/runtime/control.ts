@@ -39,14 +39,18 @@ export async function runtimeControlResponse(request:Request,env:Env,url:URL,ope
       return respond(await setRuntimeAccess(env,actor,id!,decodeURIComponent(subject),{state:body.state,expectedRevision:body.expectedRevision as number,expiresAt:body.expiresAt},operator.now));
     }
     if(body.action==="configure") {
-      keys(body,["action"]);
-      return respond(await configureRuntimeInstallation(env,actor,id!,operator.now));
+      keys(body,["action","path"]);
+      return respond(await configureRuntimeInstallation(env,actor,id!,operator.now,body.path as string|undefined));
     }
     const common={expectedRevision:body.expectedRevision as number,operationId:body.operationId as string};
     const allowed=["action","expectedRevision","operationId"];
     if(body.action==="supply") {
-      keys(body,[...allowed,"material","authority"]);
-      return respond(await changeRuntimeInstallation(env,actor,id!,{...common,action:"supply",material:body.material as string,authority:body.authority as "same"|"rebind"},operator.now));
+      keys(body,[...allowed,"material","authority","credentialHeader"]);
+      return respond(await changeRuntimeInstallation(env,actor,id!,{...common,action:"supply",material:body.material as string,authority:body.authority as "same"|"rebind",credentialHeader:body.credentialHeader as string|undefined},operator.now));
+    }
+    if(body.action==="path") {
+      keys(body,[...allowed,"path"]);
+      return respond(await changeRuntimeInstallation(env,actor,id!,{...common,action:"path",path:body.path as string},operator.now));
     }
     if(body.action==="rename") {
       keys(body,[...allowed,"label"]);

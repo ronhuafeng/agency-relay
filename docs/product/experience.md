@@ -262,9 +262,11 @@ OAuth tokens remain sensitive. Expired, revoked or lost client tokens need a new
 login when access still exists. Upstream credential failure, disabled service or
 pending cleanup needs administrator recovery, not repeated member OAuth login.
 
-Tool services in organization management operates the finite reviewed deployment
-declarations. Current revision guards own configure, rename, enable, disable,
-retire and credential changes. Same-authority material rotation and authority
+Tool services in organization management exposes the reviewed connectors on the
+configured MCP host. Administrators can create and change each resource path,
+configure the credential request header and bind a write-only credential.
+Changing the path closes the old URL, keeps member access and requires fresh
+client consent. Current revision guards also own enablement and retirement. Same-authority material rotation and authority
 rebind are distinct confirmed actions. The latter invalidates old consent without
 migrating upstream resources. Native forms and enhanced forms use the same lifecycle;
 credential fields are write-only and enhanced submission clears them immediately.
