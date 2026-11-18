@@ -78,12 +78,13 @@ export function RuntimeMemberPage({model,selectedId}:{readonly model:RuntimeMemb
 
 export const runtimeAdminHref=(id?:string,search="",page=1)=>`/admin?view=runtime${id?`&installation=${encodeURIComponent(id)}`:""}${search?`&q=${encodeURIComponent(search)}`:""}${page>1?`&page=${page}`:""}`;
 type Installation=RuntimeAdminModel["installations"][number];
-function RuntimeAction({installation,action,label,message,details,children,className,variant="outline"}:{readonly installation:Installation;readonly action:string;readonly label:string;readonly message:string;readonly details?:string;readonly children?:import("react").ReactNode;readonly className?:string;readonly variant?:"outline"|"default"|"destructive"}) {
+function RuntimeAction({installation,action,label,message,details,children,className,variant="outline"}:{readonly installation:Installation;readonly action:string;readonly label?:string;readonly message:string;readonly details?:string;readonly children?:import("react").ReactNode;readonly className?:string;readonly variant?:"outline"|"default"|"destructive"}) {
   const confirmation=`${installation.label}：${message}`;const confirmationDetails=`${installation.resource}。${details??""}`;
   return <form className={className} method="post" action={`/admin/ui/runtime-installations/${encodeURIComponent(installation.id)}`} data-confirmation={confirmation} data-confirmation-details={confirmationDetails}>
     <input type="hidden" name="action" value={action}/><input type="hidden" name="confirm" value="1"/>
     {action!=="configure"?<><input type="hidden" name="expectedRevision" value={installation.revision}/><input type="hidden" name="operationId" value={action==="recover"?installation.operation_id??"":crypto.randomUUID()}/></>:null}
-    {children}<ConfirmationFallback message={confirmation} details={confirmationDetails}/><Button type="submit" variant={variant}>{label}</Button>
+    {label ? <>{children}<ConfirmationFallback message={confirmation} details={confirmationDetails}/><Button type="submit" variant={variant}>{label}</Button></>
+      : <><ConfirmationFallback message={confirmation} details={confirmationDetails}/>{children}</>}
   </form>;
 }
 function RuntimePathField({installation}:{readonly installation:Installation}) {
@@ -93,26 +94,40 @@ function RuntimePathField({installation}:{readonly installation:Installation}) {
     <p className="caption" id={description}>以 / 和小写字母开头。随后可用小写字母、数字和连字符。</p></>;
 }
 
+const feishuDomainTitles: Readonly<Record<string,string>> = {
+  docx:"云文档", wiki:"知识库", bitable:"多维表格", calendar:"日历", contact:"通讯录", im:"消息",
+  drive:"云空间", sheets:"电子表格", task:"任务", approval:"审批", minutes:"妙记", mail:"邮箱",
+};
+const hostedToolOrder = new Map(["search-doc","fetch-doc","search-user","add-comments","list-docs","get-user"]
+  .map((name,index)=>[name,index]));
+
 function FeishuToolSelection({installation,domains}:{readonly installation:Installation;readonly domains:NonNullable<RuntimeAdminModel["openApiDomains"]>}) {
   const enabled=new Set(installation.feishu_tools);
+  const domainsByName=new Map(domains);
+  const orderedDomains=[...Object.keys(feishuDomainTitles).flatMap(name=>{
+    const tools=domainsByName.get(name);
+    return tools?[[name,tools] as const]:[];
+  }),...domains.filter(([name])=>!Object.hasOwn(feishuDomainTitles,name))];
   const groups:FeishuGroup[]=[{
     name:"hosted",title:"飞书托管工具",
-    tools:larkHostedTools.map(tool=>({
+    tools:[...larkHostedTools].sort((a,b)=>(hostedToolOrder.get(a.name)??hostedToolOrder.size)-(hostedToolOrder.get(b.name)??hostedToolOrder.size)).map(tool=>({
       name:tool.name,title:tool.label,description:tool.group?larkToolGroups[tool.group]:undefined,
       scopes:[...tool.scopes],supplementalScopes:tool.supplementalScopes?[...tool.supplementalScopes]:undefined,
       authority:`${tool.writes?"写入 · ":""}${larkToolIdentities[tool.identity]}`,enabled:enabled.has(tool.name),
     })),
-  },...domains.map(([name,tools])=>({name,title:name,tools:tools.map(tool=>{
+  },...orderedDomains.map(([name,tools])=>({name,title:feishuDomainTitles[name]??name,tools:tools.map(tool=>{
     const executable=larkToolsByName.get(tool.name);
     return {name:tool.name,title:tool.name,description:tool.description,docsUrl:tool.docsUrl,scopes:tool.scopes,alternatives:tool.alternatives,
       authority:executable?`${executable.highRisk?"高风险写入 · ":executable.writes?"写入 · ":""}${larkToolIdentities[executable.identity]}`
         :tool.scopes.length?"当前执行方式未接入":"核实应用权限后可接入",
       enabled:executable?enabled.has(tool.name):undefined};
   })}))];
-  return <section className="workspace-section" aria-label="飞书工具">
-    <h3>飞书工具</h3>
-    <p>保存后应用选中的工具。客户端需要重新授权新增工具。</p>
-    <RuntimeAction installation={installation} action="tools" label="保存工具设置" message="保存飞书工具设置？"
+  return <section className="feishu-tools-section" aria-labelledby="feishu-tools-title">
+    <div className="feishu-tools-intro">
+      <h3 id="feishu-tools-title">飞书工具</h3>
+      <p>选择客户端可申请使用的飞书工具。新增工具需要客户端重新授权。</p>
+    </div>
+    <RuntimeAction installation={installation} action="tools" message="保存飞书工具设置？"
       details="关闭的工具会停止接受新调用。新增工具需要成员授权。">
       <NativeFeishuToolTree groups={groups}/>
     </RuntimeAction>

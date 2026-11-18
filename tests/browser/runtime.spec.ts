@@ -12,7 +12,7 @@ async function confirm(page:Page,form:Locator,label:string,script=true) {
 }
 test.describe("Feishu tool selection",()=>{
   test.use({runtime:"connectors",viewport:{width:390,height:900}});
-  test("searches the Radix tool tree, toggles only matching tools and saves the whole selection",async({page,worker})=>{
+  test("filters Feishu tools, reviews permissions and saves only the staged changes",async({page,worker})=>{
     const configured=await worker.runtimeFixture!.admin("lark-doc",{action:"configure"});
     expect(configured.status).toBe(200);
     await configured.body?.cancel();
@@ -23,21 +23,36 @@ test.describe("Feishu tool selection",()=>{
     const addComment=section.getByRole("checkbox",{name:/添加文档评论/});
     const calendar=section.getByRole("checkbox",{name:"calendar.v4.calendar.get",exact:true});
     const calendarList=section.getByRole("checkbox",{name:"calendar.v4.calendar.list",exact:true});
-    await expect(section.getByRole("checkbox",{name:"切换 飞书托管工具 的所有工具"})).toHaveAttribute("aria-checked","mixed");
+    const domain=section.getByRole("combobox",{name:"业务域"});
+    const status=section.getByRole("combobox",{name:"工具状态"});
+    const save=section.getByRole("button",{name:"保存工具设置",exact:true});
+    await expect(domain).toHaveValue("hosted");
+    await expect(save).toBeDisabled();
+    await expect(section.getByRole("checkbox",{name:"批量启停本组 10 项"})).toHaveAttribute("aria-checked","mixed");
+    await status.selectOption("enabled");
+    await expect(addComment).toHaveCount(0);
+    await status.selectOption("all");
     await search.fill("fetch-doc");
     await expect(fetchDoc).toBeChecked();
+    await fetchDoc.uncheck();
+    await section.getByRole("button",{name:"放弃更改"}).click();
+    await expect(fetchDoc).toBeChecked();
+    await expect(save).toBeDisabled();
     await fetchDoc.uncheck();
     await search.fill("add-comments");
     await expect(addComment).not.toBeChecked();
     await addComment.check();
     await search.fill("calendar.v4.calendar.get");
-    await expect(section).toContainText("calendar:calendar:readonly");
-    await section.getByRole("checkbox",{name:"切换 calendar 的匹配工具"}).check();
+    await expect(domain).toHaveValue("");
+    await expect(section.getByText("calendar:calendar:readonly",{exact:true})).toHaveCount(0);
+    await section.getByRole("button",{name:"calendar.v4.calendar.get的权限详情",exact:true}).click();
+    await expect(section.getByText("calendar:calendar:readonly",{exact:true})).toBeVisible();
+    await section.getByRole("checkbox",{name:"批量启停当前结果 1 项"}).check();
     await expect(calendar).toBeChecked();
     await search.fill("calendar.v4.calendar.list");
     await expect(calendarList).not.toBeChecked();
     await search.fill("unmatched-tool-fixture");
-    await expect(section.getByRole("status")).toHaveText("没有匹配的工具。");
+    await expect(section.getByRole("list",{name:"飞书工具列表"})).toHaveCount(0);
     await confirm(page,section.locator("form"),"保存工具设置");
     await expect(page.getByRole("status").filter({hasText:"工具服务已更新"})).toBeVisible();
     await page.reload();
