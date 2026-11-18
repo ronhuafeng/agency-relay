@@ -89,6 +89,8 @@ export async function oauthFixture(persist?:string,options:{upstream?:(request:R
         holdRead(){this.hold=new Promise(resolve=>{this.release=resolve;});this.entered=false;return true;}
         releaseRead(){this.release?.();this.hold=undefined;return true;}
         readState(){return {entered:this.entered};}
+        advanceClock(ms){fixtureTime+=ms;return true;}
+        fetchLarkToken(request){return this.env.SYNTHETIC_UPSTREAM.fetch(request);}
         async read(...args){this.entered=true;if(this.hold)await this.hold;return super.read(...args);}
       }
       import {handleRequest} from './src/router';
@@ -103,6 +105,7 @@ export async function oauthFixture(persist?:string,options:{upstream?:(request:R
           const {kind,value}=await request.json();
           if(kind==='relay-framing')return Response.json({contentLength:relayContentLength});
           if(kind==='fail-installation-read'){installationReadFails=value==='true';return Response.json({done:true});}
+          if(kind==='advance-lark-token-clock')return Response.json({done:await env.RUNTIME_CREDENTIALS.getByName('lark-doc').advanceClock(Number(value))});
           const secrets=env.RUNTIME_CREDENTIALS.getByName('design');
           if(kind==='fail-write')return Response.json({done:await secrets.failWrite(value==='true')});
           if(kind==='fail-clean')return Response.json({done:await secrets.failClean(value==='true')});

@@ -5,6 +5,8 @@ import { HttpError } from "../errors";
 import { isOrganizationLoginUser, organizationDomain, type LifecycleActor } from "../auth/principal";
 import { serviceAdminAuthorityBindings, serviceAdminAuthoritySql } from "../auth/service-accounts";
 import { isRuntimePath, requireRuntimeInstallation, resourceMatches, runtimeInstallations, RUNTIME_PROFILES, type RuntimeInstallationDeclaration } from "./profiles";
+import {isLarkAppCredential} from "./connectors/lark-doc/credentials";
+import type {RuntimeCredentialMaterial} from "./credentials";
 
 interface InstallationRow {
   id:string; resource:string; profile:string; profile_revision:number; label:string;
@@ -55,7 +57,7 @@ export async function readRuntimeInstallation(env:Env,actor:LifecycleActor,id:st
 }
 
 type InstallationChange = {expectedRevision:number;operationId:string} & (
-  | {action:"supply";material:string;authority:"same"|"rebind";credentialHeader?:string}
+  | {action:"supply";material?:string;appId?:string;appSecret?:string;authority:"same"|"rebind";credentialHeader?:string}
   | {action:"path";path:string}
   | {action:"rename";label:string}
   | {action:"enable"|"disable"|"retire"|"recover"}
@@ -111,9 +113,18 @@ export async function changeRuntimeInstallation(env:Env,actor:LifecycleActor,id:
     if(input.operationId!==row.operation_id) throw changed();
     await finishCleanup(env,actor,row,at);
   } else if(input.action==="supply") {
-    if((input.authority!=="same"&&input.authority!=="rebind")||typeof input.material!=="string"||!/^[\x21-\x7e]{1,4096}$/.test(input.material)) throw invalidRuntimeOperation();
+    if(input.authority!=="same"&&input.authority!=="rebind")throw invalidRuntimeOperation();
     if(row.state==="retired"||row.phase!=="ready"||(input.authority==="same"&&!row.credential_ref)) throw changed();
     const declared=requireRuntimeInstallation(env,id);
+    let material:RuntimeCredentialMaterial;
+    if(input.appId!==undefined||input.appSecret!==undefined) {
+      const app={kind:"lark-app",appId:input.appId,appSecret:input.appSecret};
+      if(declared.profile!=="lark.doc"||input.authority!=="rebind"||input.material!==undefined||!isLarkAppCredential(app))throw invalidRuntimeOperation();
+      material=app;
+    } else {
+      if(typeof input.material!=="string"||!/^[\x21-\x7e]{1,4096}$/.test(input.material))throw invalidRuntimeOperation();
+      material=input.material;
+    }
     const currentHeader=row.credential_header??RUNTIME_PROFILES[declared.profile].credentialHeader;
     const credentialHeader=input.credentialHeader??currentHeader;
     if(!validRuntimeCredentialHeader(credentialHeader)
@@ -121,7 +132,7 @@ export async function changeRuntimeInstallation(env:Env,actor:LifecycleActor,id:
     const revision=row.revision+1; const ref=generateId("rtc");
     await update(env,actor,id,row.revision,"revision=?,authority_revision=authority_revision+?,operation_id=?,phase='writing'",
       [revision,input.authority==="rebind"?1:0,input.operationId],"state<>'retired' AND phase='ready'","runtime.credential.staged",input.operationId,at);
-    try { await env.RUNTIME_CREDENTIALS.getByName(id).put(id,ref,revision,input.material); }
+    try { await env.RUNTIME_CREDENTIALS.getByName(id).put(id,ref,revision,material); }
     catch { throw new HttpError(503,"Runtime credential operation is pending. Read its state before recovery.","server_error","runtime_credential_pending"); }
     await update(env,actor,id,revision,"credential_ref=?,credential_revision=?,credential_header=?,phase='cleaning'",[ref,revision,credentialHeader],
       "state<>'retired' AND phase='writing'","runtime.credential.bound",input.operationId,at);

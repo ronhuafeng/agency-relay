@@ -42,10 +42,16 @@ Bind a credential, enable the service and grant access to eligible members.
 
 The credential request header defaults to `X-Goog-Api-Key` for Stitch and
 `X-Lark-MCP-TAT` for Feishu Docs. Use the rebind form to change the header and
-save the corresponding credential together. Credentials are write-only. The
-Feishu connector uses an application token (TAT) and exposes `fetch-doc` for
-documents the application can access. Replace the TAT before its expiry using
-same-authority rotation when the application and its permissions are unchanged.
+save the corresponding credential together. Credentials are write-only. For
+Feishu Docs, enter the dedicated application's App ID and App Secret. The relay
+obtains and caches an application token (TAT) on demand and renews it near
+expiry. Each credential version has its own cache. Automatic token renewal
+preserves Relay OAuth consent. Saving a different credential or header in the
+Feishu form is a rebind and requires fresh client consent.
+
+Feishu Docs exposes `fetch-doc` for documents the application can access.
+Previously stored manual TATs work until expiry. A saved app credential only
+confirms storage. The first successful tool call confirms upstream access.
 See [Feishu application access tokens](https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/authentication-management/access-token/tenant_access_token).
 
 Updating a path closes the old URL and invalidates client consent for that
@@ -79,7 +85,8 @@ Legacy exact installations take `action` alone. Other installation
 commands take `action`, `expectedRevision` from a fresh read and a new
 `operationId` (1–96 ASCII letters, digits, `_` or `-`). `rename` also takes `label`.
 `path` takes the proposed `path`. `supply` takes write-only `material`, an optional
-`credentialHeader` and `authority`. `same` is an explicit
+`credentialHeader` and `authority`. Feishu rebind also accepts `appId` and
+`appSecret` in place of `material`. `same` is an explicit
 administrator declaration that the upstream account/workspace is unchanged;
 use `rebind` for a new header or upstream authority. Initial supply is a rebind.
 Credential headers use `X-` names or `Api-Key`. Reserved forwarding, routing

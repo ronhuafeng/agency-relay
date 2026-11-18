@@ -45,8 +45,10 @@ export async function runtimeControlResponse(request:Request,env:Env,url:URL,ope
     const common={expectedRevision:body.expectedRevision as number,operationId:body.operationId as string};
     const allowed=["action","expectedRevision","operationId"];
     if(body.action==="supply") {
-      keys(body,[...allowed,"material","authority","credentialHeader"]);
-      return respond(await changeRuntimeInstallation(env,actor,id!,{...common,action:"supply",material:body.material as string,authority:body.authority as "same"|"rebind",credentialHeader:body.credentialHeader as string|undefined},operator.now));
+      keys(body,[...allowed,"material","appId","appSecret","authority","credentialHeader"]);
+      return respond(await changeRuntimeInstallation(env,actor,id!,{...common,action:"supply",material:body.material as string|undefined,
+        appId:body.appId as string|undefined,appSecret:body.appSecret as string|undefined,authority:body.authority as "same"|"rebind",
+        credentialHeader:body.credentialHeader as string|undefined},operator.now));
     }
     if(body.action==="path") {
       keys(body,[...allowed,"path"]);

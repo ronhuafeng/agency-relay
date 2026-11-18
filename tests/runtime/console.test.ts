@@ -1,6 +1,62 @@
 import {expect,it} from "vitest";
 import {oauthFixture,authorizedTokens,resourceRequest,ISSUER,RESOURCE,OTHER_RESOURCE} from "./oauth-fixture";
 
+it("uses a Feishu app's cached TAT and renews it without changing client consent",async()=>{
+  const appId="cli_fixtureid";
+  const appSecret="fixture-app-credential";
+  let exchanges=0;
+  let exchangeAllowed=true;
+  const mcpCredentials:boolean[]=[];
+  const f=await oauthFixture(undefined,{editablePaths:true,upstream:async request=>{
+    if(request.url==="https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal") {
+      exchanges++;
+      const body=await request.json() as {app_id?:string;app_secret?:string};
+      expect(request.method).toBe("POST");
+      expect(body.app_id===appId&&body.app_secret===appSecret).toBe(true);
+      return exchangeAllowed?Response.json({code:0,tenant_access_token:`fixture-tat-${exchanges}`,expire:10})
+        :new Response(null,{status:302,headers:{Location:"https://unreviewed.example.test"}});
+    }
+    expect(request.url).toBe("https://mcp.feishu.cn/mcp");
+    mcpCredentials.push(request.headers.get("X-Lark-MCP-TAT")===`fixture-tat-${exchanges}`);
+    await request.body?.cancel();
+    return Response.json({jsonrpc:"2.0",id:1,result:{tools:[]}});
+  }});
+  const resource=`${new URL(RESOURCE).origin}/feishu-docs`;
+  const post=async(fields:Record<string,string>)=>{
+    const response=await f.runtime.dispatchFetch(`${ISSUER}/admin/ui/runtime-installations/lark-doc`,{
+      method:"POST",headers:{Cookie:f.cookies.get("admin")!,Origin:ISSUER,Accept:"text/html","Content-Type":"application/x-www-form-urlencoded"},
+      body:new URLSearchParams({...fields,confirm:"1"}).toString()
+    });
+    expect(response.status).toBe(200);
+    expect((await response.text()).includes(appSecret)).toBe(false);
+  };
+  const advance=async(ms:number)=>{const response=await f.expire("advance-lark-token-clock",String(ms));await response.body?.cancel();};
+  try {
+    await post({action:"configure"});
+    await post({action:"supply",expectedRevision:"1",operationId:"bind-app",authority:"rebind",appId,appSecret});
+    await post({action:"enable",expectedRevision:"2",operationId:"enable"});
+    await post({action:"access",expectedRevision:"0",subject:"member",state:"granted",expiresAt:""});
+    const {tokens}=await authorizedTokens(f,resource);
+    const request=async()=>{
+      const result=await f.runtime.dispatchFetch(resource,{method:"POST",headers:{Authorization:`Bearer ${tokens.access_token}`},body:"{}"});
+      const status=result.status;
+      await result.body?.cancel();
+      return status;
+    };
+    expect(exchanges).toBe(0);
+    const initial=await Promise.all([request(),request()]);
+    expect({initial,exchanges}).toEqual({initial:[200,200],exchanges:1});
+    await advance(11_000);
+    expect(await request()).toBe(200);
+    expect(exchanges).toBe(2);
+    exchangeAllowed=false;
+    await advance(11_000);
+    expect(await request()).toBe(503);
+    expect(exchanges).toBe(3);
+    expect(mcpCredentials).toEqual([true,true,true]);
+  } finally {await f.dispose();}
+},20000);
+
 it("configures both connectors through native forms and moves only the selected OAuth resource",async()=>{
   const dispatches:Array<{url:string;credential:boolean;tools:string|null;authorization:boolean}>=[];
   const f=await oauthFixture(undefined,{editablePaths:true,upstream:async request=>{
