@@ -152,7 +152,7 @@ for (const script of [true,false]) test.describe(`Runtime workspace script ${scr
     const same=page.locator('form:has(input[name="authority"][value="same"])');
     const rebind=page.locator('form:has(input[name="authority"][value="rebind"])');
     await expect(same).toBeVisible();await expect(rebind).toBeHidden();
-    await page.getByRole("radio",{name:"绑定新账号",exact:true}).focus();
+    await page.getByRole("radio",{name:"更改请求头或账号",exact:true}).focus();
     await page.keyboard.press("Space");
     await expect(rebind).toBeVisible();await expect(same).toBeHidden();
     await expect(rebind.locator('input[name="material"]')).toHaveAttribute("type","password");

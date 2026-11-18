@@ -1,5 +1,6 @@
 node_modules/
 .wrangler/
+.wrangler.production.json
 
 .dev.vars
 .dev.vars.*

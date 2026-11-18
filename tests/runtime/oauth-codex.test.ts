@@ -11,12 +11,11 @@ import {join} from "node:path";
 import {expect,it} from "vitest";
 import {oauthFixture,ISSUER,RESOURCE} from "./oauth-fixture";
 
-// Actual pinned client consumes production metadata/authorize/model/token and
+// A real client consumes production metadata/authorize/model/token and
 // protected admission. Only the identity and remote MCP task are synthetic.
-it("lets Codex 0.156.1 complete production OAuth consent and read the protected catalogue",async()=>{
-  const bin=process.env.CODEX_TEST_BIN??"/tmp/codex-cli/node_modules/.bin/codex";
-  const version=await promisify(execFile)(bin,["--version"],{timeout:10000,maxBuffer:1024});
-  if(version.stdout.trim()!=="codex-cli 0.156.1")throw new Error("Pinned Codex client is not prepared");
+it("lets Codex complete production OAuth consent and read the protected catalogue",async()=>{
+  const bin=process.env.CODEX_TEST_BIN??"codex";
+  await promisify(execFile)(bin,["--version"],{timeout:10000,maxBuffer:1024});
   const directory=await mkdtemp(join(tmpdir(),"relay-oauth-client-"));
   const sockets=new Set<Duplex>();
   const servers:ReturnType<typeof httpServer>[]=[];

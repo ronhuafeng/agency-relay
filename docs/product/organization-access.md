@@ -234,7 +234,8 @@ D1 metadata/binding transactions cannot atomically include TokenAuthority storag
 ### Runtime installation and member authority
 
 Runtime lifecycle uses the existing human identity. A Runtime Installation is a
-reviewed, deployment-declared resource, with one upstream credential and explicit
+reviewed connector on the deployment's MCP origin, with a current resource URL,
+one upstream credential and explicit
 Installation Access for each eligible human member. Neither an administrator
 role nor a Provider allowance supplies that access. Service accounts are not
 Runtime OAuth subjects in V1.
@@ -259,7 +260,8 @@ revision. Resource URIs are not reassigned to a different installation.
 | Display-name change | Preserve resource identity, access and consent. |
 | Same-authority Secret Rotation | Advance the operation revision; preserve Authority Revision only with an explicit administrator declaration that the account/workspace is unchanged. A key's shape cannot establish that fact. |
 | Disable or retire an installation | Advance both installation revisions and reject new admission; enable does not decrement either revision. |
-| Authority Rebind | Advance both installation revisions before the replacement can be admitted; old consent is invalid. |
+| Authority Rebind or credential request header change | Advance both installation revisions before the replacement can be admitted; old consent is invalid. |
+| Resource path change | Reserve the new resource, close the previous URL and advance both revisions in one D1 commit. Keep member access and reserve the previous URL. |
 | Revoke or regrant Installation Access | Advance that relation's revision; regrant does not revive old consent. |
 | Disable a human | In the same D1 commit, invalidate all existing Runtime access revisions for that human; re-enable retains those new revisions. Existing Provider and browser-session rules remain unchanged. |
 | Revoke Client Consent | Invalidate only that client's grant in the OAuth authority. Do not remove administrator-managed Installation Access or another client's consent. |
@@ -285,8 +287,8 @@ separate from Provider TokenAuthority. No Provider identity or ciphertext is
 migrated. A request already admitted may finish; revocation cannot undo an
 upstream tool action.
 
-The admission result carries the immutable profile/version, credential
-binding/operation revision and Authority Revision from that same D1 snapshot. Transport reads only that
+The admission result carries the immutable profile/version, exact resource,
+credential header, credential binding/operation revision and Authority Revision from that same D1 snapshot. Transport reads only that
 exact secret version, never an installation's latest/current replacement. If the
 admitted version has already been cleaned, fail closed without retry or fallback.
 Thus an admission for upstream authority A cannot use B after a concurrent rebind.

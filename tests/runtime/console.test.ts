@@ -1,6 +1,64 @@
 import {expect,it} from "vitest";
 import {oauthFixture,authorizedTokens,resourceRequest,ISSUER,RESOURCE,OTHER_RESOURCE} from "./oauth-fixture";
 
+it("configures both connectors through native forms and moves only the selected OAuth resource",async()=>{
+  const dispatches:Array<{url:string;credential:boolean;tools:string|null;authorization:boolean}>=[];
+  const f=await oauthFixture(undefined,{editablePaths:true,upstream:async request=>{
+    dispatches.push({url:request.url,credential:request.headers.get("X-Connector-Key")==="fixture-credential",
+      tools:request.headers.get("X-Lark-MCP-Allowed-Tools"),authorization:request.headers.has("Authorization")});
+    await request.body?.cancel();
+    return new Response("{}",{headers:{"Content-Type":"application/json"}});
+  }});
+  const origin=new URL(RESOURCE).origin;
+  const docs=`${origin}/project-docs`;
+  const moved=`${origin}/team-docs`;
+  const headers={Cookie:f.cookies.get("admin")!,Origin:ISSUER,Accept:"text/html","Content-Type":"application/x-www-form-urlencoded"};
+  const post=(id:string,fields:Record<string,string>)=>f.runtime.dispatchFetch(`${ISSUER}/admin/ui/runtime-installations/${id}`,{
+    method:"POST",headers,body:new URLSearchParams({...fields,confirm:"1"}).toString()
+  });
+  const send=async(id:string,fields:Record<string,string>)=>{
+    const response=await post(id,fields);
+    expect(response.status).toBe(200);
+    expect((await response.text()).includes("fixture-credential")).toBe(false);
+  };
+  const request=(resource:string,token?:string)=>f.runtime.dispatchFetch(resource,{method:"POST",headers:{
+    ...(token?{Authorization:`Bearer ${token}`} : {}),"X-Connector-Key":"client-header","X-Lark-MCP-Allowed-Tools":"create-doc"
+  },body:"{}"});
+  const expectStatus=async(response:Response,status:number)=>{expect(response.status).toBe(status);await response.body?.cancel();};
+  try {
+    const page=await f.runtime.dispatchFetch(`${ISSUER}/admin?view=runtime&installation=lark-doc`,{headers});
+    expect(page.status).toBe(200);
+    expect((await page.text()).includes('name="path"')).toBe(true);
+    await send("google-stitch",{action:"configure",path:"/google-stitch"});
+    const duplicate=await post("lark-doc",{action:"configure",path:"/google-stitch"});
+    expect(duplicate.status).toBe(409);
+    expect((await duplicate.text()).includes('data-error-code="runtime_path_taken"')).toBe(true);
+    await send("lark-doc",{action:"configure",path:"/project-docs"});
+    for(const id of ["google-stitch","lark-doc"]) {
+      await send(id,{action:"supply",expectedRevision:"1",operationId:"bind",authority:"rebind",credentialHeader:"X-Connector-Key",material:"fixture-credential"});
+      await send(id,{action:"enable",expectedRevision:"2",operationId:"enable"});
+      await send(id,{action:"access",expectedRevision:"0",subject:"member",state:"granted",expiresAt:""});
+    }
+    const stitch=await authorizedTokens(f,RESOURCE);
+    const lark=await authorizedTokens(f,docs);
+    await expectStatus(await post("lark-doc",{action:"supply",expectedRevision:"3",operationId:"header-rotation",
+      authority:"same",credentialHeader:"X-Other-Key",material:"fixture-credential"}),400);
+    await expectStatus(await request(docs,lark.tokens.access_token),200);
+    expect(dispatches).toEqual([{url:"https://mcp.feishu.cn/mcp",credential:true,tools:"fetch-doc",authorization:false}]);
+
+    const move={action:"path",expectedRevision:"3",operationId:"move",path:"/team-docs"};
+    await send("lark-doc",move);
+    await expectStatus(await request(docs,lark.tokens.access_token),404);
+    await expectStatus(await request(moved,lark.tokens.access_token),401);
+    const reuse=await post("google-stitch",{...move,path:"/project-docs"});
+    await expectStatus(reuse,409);
+    await expectStatus(await request(RESOURCE,stitch.tokens.access_token),200);
+    expect(dispatches[1]).toEqual({url:"https://stitch.googleapis.com/mcp",credential:true,tools:null,authorization:false});
+    const next=await authorizedTokens(f,moved);
+    await expectStatus(await request(moved,next.tokens.access_token),200);
+  } finally {await f.dispose();}
+},20000);
+
 it("shows permitted installations only to their member, not to another member or personal admin",async()=>{
   const fixture=await oauthFixture();
   try {

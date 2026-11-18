@@ -12,7 +12,7 @@ export const OTHER_RESOURCE="https://design.example.test/catalog";
 
 /** Actual Worker/D1 and production DO owner with test-only clock/expiry controls.
  * The external MCP service is synthetic; production owns every auth/path check. */
-export async function oauthFixture(persist?:string,options:{upstream?:(request:Request)=>Promise<Response>;immediateUpstream?:{body:number[]|null;headers:Record<string,string>};controlledTimers?:boolean;issuer?:string}={}) {
+export async function oauthFixture(persist?:string,options:{upstream?:(request:Request)=>Promise<Response>;immediateUpstream?:{body:number[]|null;headers:Record<string,string>};controlledTimers?:boolean;issuer?:string;editablePaths?:boolean}={}) {
   const issuer=options.issuer??ISSUER;
   const compiled=await build({
     stdin:{resolveDir:process.cwd(),sourcefile:"runtime-oauth-fixture.ts",contents:`
@@ -140,7 +140,8 @@ export async function oauthFixture(persist?:string,options:{upstream?:(request:R
   const bindings={
     ADMIN_DASHBOARD_HOST:new URL(issuer).hostname,CONSOLE_EMAIL_DOMAIN:"example.test",
     ADMIN_SECRET:"synthetic-operator",API_KEY_HASH_PEPPER:"synthetic-pepper",TOKEN_ENCRYPTION_KEY_V1:"synthetic-root",
-    RUNTIME_INSTALLATIONS:JSON.stringify([
+    RUNTIME_MCP_ORIGIN:options.editablePaths?new URL(RESOURCE).origin:"",
+    RUNTIME_INSTALLATIONS:JSON.stringify(options.editablePaths?[]:[
       {id:"design",resource:RESOURCE,profile:"google.stitch",label:"Design"},
       {id:"other",resource:OTHER_RESOURCE,profile:"synthetic.catalog",label:"Other"}
     ])
@@ -165,7 +166,7 @@ export async function oauthFixture(persist?:string,options:{upstream?:(request:R
     const cookies=new Map<string,string>();
     for(const id of ["member","other","admin"]) cookies.set(id,`__Host-mini-console=${await createConsoleSession(env,{id,email:`${id}@example.test`,sessionEpoch:0})}`);
     const admin=async(id:string,body:unknown)=>runtime.dispatchFetch(`https://api.trustedtunnel.app/admin/runtime-installations/${id}`,{method:"POST",headers:{Authorization:"Bearer synthetic-operator","Content-Type":"application/json"},body:JSON.stringify(body)}) as Promise<Response>;
-    if(!restored)for(const id of ["design","other"]) {
+    if(!restored&&!options.editablePaths)for(const id of ["design","other"]) {
       for(const body of [{action:"configure"},{action:"supply",expectedRevision:1,operationId:"initial",authority:"rebind",material:id==="design"?"synthetic-stitch-key":"synthetic-catalog-key"},{action:"enable",expectedRevision:2,operationId:"enable"}]) {
         const response=await admin(id,body);const ok=response.ok;await response.body?.cancel();if(!ok)throw new Error("Synthetic Runtime setup failed");
       }

@@ -1,5 +1,6 @@
 import {admitRuntimeRequest} from "./authorization";
 import {requireRuntimeInstallation,RUNTIME_PROFILES} from "./profiles";
+import {validRuntimeCredentialHeader} from "./installations";
 import {connectionHeaderNames} from "../proxy/adapter";
 import {cancelUnreadBody,clientDrivenStream,ByteStreamError,copyBytes,type ByteStreamEnd} from "../proxy/byte-stream";
 import type { AppDependencies } from "../types";
@@ -64,7 +65,10 @@ export async function relayRuntimeRequest(request:Request,env:Env,ctx:Pick<Execu
       .catch(error=>{throw error instanceof RelayFailure?error:new RelayFailure("upstream_credential_unavailable");});
     if(!material){finish("error","upstream_credential_unavailable");return runtimeFailure(503,"upstream_credential_unavailable");}
     const headers=projectHeaders(request.headers,true);
-    headers.set(profile.credentialHeader,material);
+    const credentialHeader=admission.credential_header??profile.credentialHeader;
+    if(!validRuntimeCredentialHeader(credentialHeader))throw new RelayFailure("upstream_credential_unavailable");
+    headers.set(credentialHeader,material);
+    if("allowedTools" in profile)headers.set("X-Lark-MCP-Allowed-Tools",profile.allowedTools);
     const upload=request.body?clientDrivenStream(request.body,abortController.signal,{
       maxBytes:MAX_UPLOAD_BYTES,idleMs:IDLE_MS,
       onChunk:chunk=>{requestBytes+=chunk.byteLength;if(awaitingHeaders)resetIdle();},

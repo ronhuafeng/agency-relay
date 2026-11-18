@@ -74,6 +74,7 @@ export async function startConsoleWorker(options: { measure?: boolean; runtime?:
     DB: db.binding,
     ADMIN_DASHBOARD_HOST: new URL(ORIGIN).hostname,
     CONSOLE_EMAIL_DOMAIN: "example.test",
+    RUNTIME_MCP_ORIGIN: "",
     RUNTIME_INSTALLATIONS: "[]",
     RUNTIME_CREDENTIALS: undefined as unknown as Env["RUNTIME_CREDENTIALS"],
     RUNTIME_OAUTH: undefined as unknown as Env["RUNTIME_OAUTH"],

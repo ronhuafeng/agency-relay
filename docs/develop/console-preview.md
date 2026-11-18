@@ -44,8 +44,9 @@ An unchanged model keeps its DOM; drafts and open controls defer changed data.
 
 The **Tool services / integrated Runtime** scenario uses the actual Worker,
 local D1 and Runtime OAuth/Credentials Durable Objects. It creates consent and a
-bounded transport fact through the production routes; only the external MCP task
-is synthetic. No production credential or provider is loaded. This scenario allows
+bounded transport fact for Stitch through the production routes. It exposes the
+unconfigured Feishu connector for editing. The external MCP task is synthetic.
+No production credential or provider is loaded. This scenario allows
 member setup/revoke and finite admin lifecycle review without a fixture-only consent
 screen. Source rebuild resets this synthetic Runtime state; refresh remains explicit.
 
@@ -77,8 +78,9 @@ appearance owners.
 
 `PREVIEW_ENV_FILE=/absolute/path/to/operator.env pnpm run console:preview:pull`
 reads the configured D1 database through Cloudflare's query API. The file must
-supply `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN_D1_READ` (or the existing
-`CLOUDFLARE_API_TOKEN`). This explicit download performs SELECTs only. The preview
+supply `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN_D1_READ` (or the existing
+`CLOUDFLARE_API_TOKEN`), and `WRANGLER_CONFIG_PATH` for the private config.
+This explicit download performs SELECTs only. The preview
 server itself loads no operator environment and has no remote database binding.
 
 Add `--email person@example.com` to download exactly one human account and its

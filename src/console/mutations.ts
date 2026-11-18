@@ -51,8 +51,8 @@ export async function routeDashboardUiMutation(
       // Actor/revision rejection can occur after staging across D1 and the DO.
       // Only input validation is known not to have written; all other uncertain
       // outcomes require a GET, never an automatic repeat of this POST.
-      if(!(error instanceof HttpError)||error.status!==400)return consoleUnknownOutcome(`/admin?view=runtime&installation=${runtime[1]}`,"工具服务操作结果尚未确认。请重新打开页面读取当前状态；不会自动重复提交。");
-      status=error.status;flash={kind:"runtime_error",installation_id:runtime[1]!,error_code:error.code ?? "unknown",message:"这次操作未完成。页面权限、配置版本或输入已改变；请查看当前状态后重新打开表单。"};
+      if(!(error instanceof HttpError)||(error.status!==400&&error.code!=="runtime_path_taken"))return consoleUnknownOutcome(`/admin?view=runtime&installation=${runtime[1]}`,"工具服务操作结果尚未确认。请重新打开页面读取当前状态；不会自动重复提交。");
+      status=error.status;flash={kind:"runtime_error",installation_id:runtime[1]!,error_code:error.code ?? "unknown",message:error.code==="runtime_path_taken"?"此路径已被占用或保留。请使用其他路径。":"输入无效，请检查表单。"};
     }
     return dashboardAfterMutation(env,url,admin,deps,requestContext,flash,status);
   }

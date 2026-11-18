@@ -28,35 +28,32 @@ The plan owns the slot type; the stored binding selects one physical account. Cl
 
 ## Runtime installations
 
-Runtime lifecycle is separate from Provider bindings. `RUNTIME_INSTALLATIONS` is
-a finite deployment declaration of `{id, resource, profile, label}` entries;
-an empty declaration closes Runtime. The reviewed `google.stitch` profile fixes
-the upstream and credential header in code. An entry cannot supply an arbitrary upstream URL
-or header. Declare an exact canonical HTTPS resource with one lowercase
-letter-led path segment (letters, digits and hyphens, at most 64 characters),
-without a query or fragment. The Stitch resource is
-`https://mcp.trustedtunnel.app/google-stitch`. Its path-specific OAuth metadata is
-`https://mcp.trustedtunnel.app/.well-known/oauth-protected-resource/google-stitch`.
-The full URL identifies the installation; sharing a host does not share consent.
-Changing a stored resource/profile identity fails closed; retirement retains it.
+Runtime deployment binds one MCP Custom Domain and sets its HTTPS origin in
+`RUNTIME_MCP_ORIGIN`. If that origin is absent, Runtime stays closed unless
+legacy exact `RUNTIME_INSTALLATIONS` are declared. Legacy declarations keep
+their fixed paths. Cloudflare owns the host and certificate. D1 owns the
+paths, enablement and access for Google Stitch and Feishu Docs on the configured
+MCP origin.
 
-A declaration advertises the resource and OAuth issuer but does not publish its
-host, create D1 installation state, store a credential, enable forwarding or grant
-member access. The MCP host uses a Worker Custom Domain; Cloudflare manages its
-DNS and certificate. Keep its declaration in `wrangler.jsonc` and confirm the
-actual host binding after deployment. Use the Runtime release issue for these
-distinct rollout steps. Do not add short-path aliases or redirect another URL
-onto the resource.
+In **Tool services**, choose a connector and create its configuration with an
+unused path. Paths consist of a slash and one lowercase letter-led segment
+(letters, digits and hyphens, 64 characters maximum). `/healthz` is reserved.
+Bind a credential, enable the service and grant access to eligible members.
 
-The protected operator API and same-origin administrator console share:
+The credential request header defaults to `X-Goog-Api-Key` for Stitch and
+`X-Lark-MCP-TAT` for Feishu Docs. Use the rebind form to change the header and
+save the corresponding credential together. Credentials are write-only. The
+Feishu connector uses an application token (TAT) and exposes `fetch-doc` for
+documents the application can access. Replace the TAT before its expiry using
+same-authority rotation when the application and its permissions are unchanged.
+See [Feishu application access tokens](https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/authentication-management/access-token/tenant_access_token).
 
-Open **Tool services** in organization management to select a deployment-declared
-installation. Its native HTML forms reuse the lifecycle below. Credentials remain
-write-only; member access is searched and paged on the server. UI access grants
-have no expiration; use the API for an explicit future `expiresAt`. Material
-rotation requires a same-authority declaration; binding a different account uses
-rebind. The confirmation describes shared tool authority and consent invalidation.
-No control edits the fixed upstream URL or credential header.
+Updating a path closes the old URL and invalidates client consent for that
+installation. The old path stays reserved. Members retain administrator-granted
+access and must update the URL and authorize the client again. Changing the
+authentication header or binding a different upstream authority also invalidates
+consent. Use the operator API for an explicit future member access expiry.
+
 Native form bodies are limited to 16 KiB to allow percent encoding of a valid
 4096-byte credential. The decoded material limit and field validation stay the same.
 
@@ -73,17 +70,20 @@ sign-in does not replay the rejected POST.
 | Operation | JSON endpoint |
 | --- | --- |
 | Declared inventory / one installation | `GET /admin/runtime-installations` / `GET /admin/runtime-installations/:id` |
-| Configure, enable, disable, rename, supply, retire, recover | `POST /admin/runtime-installations/:id` |
+| Configure, change path, enable, disable, rename, supply, retire, recover | `POST /admin/runtime-installations/:id` |
 | Read / grant / revoke human access | `GET/PUT /admin/runtime-installations/:id/access/:user_id` |
 | Reconcile a known operation | `GET /admin/runtime-installations/:id/operations/:operation_id` |
 
-`configure` takes only `action` and creates disabled metadata. Other installation
+`configure` takes `action` and optionally `path` and creates disabled metadata.
+Legacy exact installations take `action` alone. Other installation
 commands take `action`, `expectedRevision` from a fresh read and a new
 `operationId` (1–96 ASCII letters, digits, `_` or `-`). `rename` also takes `label`.
-`supply` takes write-only `material` and `authority`: `same` is an explicit
+`path` takes the proposed `path`. `supply` takes write-only `material`, an optional
+`credentialHeader` and `authority`. `same` is an explicit
 administrator declaration that the upstream account/workspace is unchanged;
-otherwise use `rebind`, which invalidates prior consent. Initial supply is a
-rebind. Material must be a nonempty printable ASCII header value, at most 4096
+use `rebind` for a new header or upstream authority. Initial supply is a rebind.
+Credential headers use `X-` names or `Api-Key`. Reserved forwarding, routing
+and connector policy headers are rejected. Material must be a nonempty printable ASCII header value, at most 4096
 bytes. JSON bodies are limited to 8192 bytes; extra fields are rejected.
 
 Access PUT takes `state` (`granted` or `revoked`), `expectedRevision` (zero for an

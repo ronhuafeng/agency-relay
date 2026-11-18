@@ -72,6 +72,13 @@ function RuntimeAction({installation,action,label,message,details,children,class
     {children}<ConfirmationFallback message={confirmation} details={confirmationDetails}/><Button type="submit" variant={variant}>{label}</Button>
   </form>;
 }
+function RuntimePathField({installation}:{readonly installation:Installation}) {
+  const description=`runtime-path-${installation.id}`;
+  return <><Field control={{label:"服务路径",name:"path",value:new URL(installation.resource).pathname,maxLength:65,
+    pattern:"/[a-z][a-z0-9\\-]{0,63}",describedBy:description,required:true}}/>
+    <p className="caption" id={description}>以 / 和小写字母开头。随后可用小写字母、数字和连字符。</p></>;
+}
+
 export function RuntimeAdminPage({model}:{readonly model:RuntimeAdminModel}) {
   const selected=model.installations.find(row=>row.id===model.selectedId);
   const editable=selected&&selected.phase==="ready"&&selected.state!=="unconfigured"&&selected.state!=="retired";
@@ -84,11 +91,11 @@ export function RuntimeAdminPage({model}:{readonly model:RuntimeAdminModel}) {
       <header className="runtime-installation-head">{editable?<RuntimeAction className="runtime-name-form" installation={selected} action="rename" label="保存名称" message="更改显示名称？" details="服务地址和上游权限不变。"><Field control={{label:"服务名称",name:"label",value:selected.label,maxLength:64,required:true}}/></RuntimeAction>:<h2>{selected.label}</h2>}<div className="runtime-installation-actions"><Badge data-tone={selected.state==="enabled"?"ok":undefined}>{selected.state==="unconfigured"?"尚未配置":installationState[selected.state]}</Badge>
         {editable&&selected.state==="enabled"?<RuntimeAction installation={selected} action="disable" label="停用服务" message="停用此服务？后续调用被拒绝，旧客户端授权失效。" details="凭据与成员权限保留；重新启用后客户端需要重新授权。"/>:editable&&selected.credential_ready?<RuntimeAction installation={selected} action="enable" label="启用服务" message="启用此服务？获准成员可使用团队共享上游账号的工具。" details="成员通过 OAuth 授权使用。启用不是上游健康或任务成功证明。"/>:null}
       </div></header>
-      <dl className="runtime-installation-facts"><div className="runtime-resource"><dt>服务地址</dt><dd><code>{selected.resource}</code></dd></div><div><dt>上游凭据</dt><dd>{selected.credential_ready?"已保存 · 未探测":"不可用或未确认"}</dd></div></dl>
+      <dl className="runtime-installation-facts"><div className="runtime-resource"><dt>{selected.state==="unconfigured"?"建议地址":"服务地址"}</dt><dd><code>{selected.resource}</code></dd></div><div><dt>上游凭据</dt><dd>{selected.credential_ready?"已保存 · 未探测":"不可用或未确认"}</dd></div><div><dt>凭据请求头</dt><dd><code>{selected.credential_header}</code></dd></div></dl>
       <p className="caption runtime-installation-diagnostics">{selected.profile} · 配置版本 {selected.revision} · 权限版本 {selected.authority_revision}</p>
-      {selected.phase!=="ready"?<section className="runtime-recovery" aria-label="服务恢复"><p role="alert">{selected.phase==="writing"?"凭据写入结果未确认。不要重新提交凭据。当前无法调用服务。":"权限变更已记录，但旧凭据清理待完成。当前无法调用服务。"}</p><RuntimeAction installation={selected} action="recover" label={selected.phase==="writing"?"放弃未确认凭据并停用":"重试清理"} message={selected.phase==="writing"?"放弃这次凭据写入？服务将停用，旧客户端授权失效。":"继续当前版本的凭据清理？"} details={selected.phase==="writing"?"全部凭据会被清除；不会重复写入候选凭据。":"不重新写入凭据，不恢复旧授权。"}/></section>:selected.state==="unconfigured"?<section className="runtime-recovery" aria-label="建立服务配置"><p>建立配置后，再绑定上游凭据并授予成员权限。</p><RuntimeAction installation={selected} action="configure" label="建立配置" message="建立此已审查服务的配置？" details="初始状态为停用，尚无上游凭据和成员权限。"/></section>:selected.state==="retired"?<p role="status">服务已退役。不能重新启用或写入凭据；新服务需要独立的已审查部署声明。</p>:!selected.credential_ready?<p className="runtime-recovery" role="status">先绑定上游凭据，再启用服务。</p>:null}
+      {selected.phase!=="ready"?<section className="runtime-recovery" aria-label="服务恢复"><p role="alert">{selected.phase==="writing"?"凭据写入结果未确认。不要重新提交凭据。当前无法调用服务。":"权限变更已记录，但旧凭据清理待完成。当前无法调用服务。"}</p><RuntimeAction installation={selected} action="recover" label={selected.phase==="writing"?"放弃未确认凭据并停用":"重试清理"} message={selected.phase==="writing"?"放弃这次凭据写入？服务将停用，旧客户端授权失效。":"继续当前版本的凭据清理？"} details={selected.phase==="writing"?"全部凭据会被清除；不会重复写入候选凭据。":"不重新写入凭据，不恢复旧授权。"}/></section>:selected.state==="unconfigured"?<section className="runtime-recovery" aria-label="建立服务配置"><p>建立配置后，再绑定上游凭据并授予成员权限。</p><RuntimeAction installation={selected} action="configure" label="建立配置" message="建立此已审查服务的配置？" details="初始状态为停用，尚无上游凭据和成员权限。">{selected.editable_path?<RuntimePathField installation={selected}/>:null}</RuntimeAction></section>:selected.state==="retired"?<p role="status">服务已退役。此服务的路径仍保留，无法再次启用。</p>:!selected.credential_ready?<p className="runtime-recovery" role="status">先绑定上游凭据，再启用服务。</p>:null}
       {selected.state!=="unconfigured"?<div className="runtime-admin-columns">
-        <section className="runtime-member-access" aria-label="成员使用权限"><header className="runtime-section-head"><h3>成员使用权限</h3><span className="caption">共享上游账号 · 含写入权限</span></header>
+        <section className="runtime-member-access" aria-label="成员使用权限"><header className="runtime-section-head"><h3>成员使用权限</h3><span className="caption">{selected.profile==="lark.doc"?"共享飞书应用权限 · 读取文档":"共享上游账号 · 可写入"}</span></header>
           <form method="get" action="/admin" role="search" aria-label="搜索可授权成员" data-dashboard-search="true" className="runtime-member-search"><input type="hidden" name="view" value="runtime"/><input type="hidden" name="installation" value={selected.id}/><Field control={{label:"组织邮箱或成员 ID",name:"q",value:model.search,maxLength:256}}/><Button type="submit" variant="outline">搜索成员</Button></form>
           <Table className="runtime-member-table" aria-label="成员工具权限"><TableHeader><TableRow><TableHead>成员</TableHead><TableHead>组织权限</TableHead><TableHead>操作</TableHead></TableRow></TableHeader><TableBody>{model.members.map(member=>{
             const confirmation=member.state==="granted"?`撤回 ${member.canonical_email??member.id} 的「${selected.label}」使用权限？后续调用被拒绝。`:`授予 ${member.canonical_email??member.id} 不设期限的「${selected.label}」使用权限？可使用团队共享上游账号的工具。`;
@@ -97,14 +104,19 @@ export function RuntimeAdminPage({model}:{readonly model:RuntimeAdminModel}) {
           })}</TableBody></Table>
           {!model.members.length?<p className="empty">没有匹配的成员。</p>:null}<nav className="runtime-member-pagination" aria-label="成员分页">{model.page>1?<TaskLink href={runtimeAdminHref(selected.id,model.search,model.page-1)}>上一页</TaskLink>:null}{model.more?<TaskLink href={runtimeAdminHref(selected.id,model.search,model.page+1)}>下一页</TaskLink>:null}</nav>
         </section>
-        {editable?<aside className="runtime-configuration" aria-label="服务配置"><section className="runtime-credential-panel" aria-label="上游凭据"><header className="runtime-section-head"><h3>上游凭据</h3><span className="caption">只写</span></header>
+        {editable?<aside className="runtime-configuration" aria-label="服务配置">
+          {selected.editable_path?<section className="runtime-credential-panel" aria-label="服务路径">
+            <h3>服务路径</h3>
+            <RuntimeAction installation={selected} action="path" label="保存路径" message="更改服务路径？旧地址将关闭，已有客户端授权失效。" details="获准成员需要在客户端更新地址并重新授权。旧路径继续保留。"><RuntimePathField installation={selected}/></RuntimeAction>
+          </section>:null}<section className="runtime-credential-panel" aria-label="上游凭据"><header className="runtime-section-head"><h3>上游凭据</h3><span className="caption">凭据只写</span></header>
+          {selected.profile==="lark.doc"?<p className="caption">使用飞书应用令牌（TAT）。令牌到期前，请在这里保存同一应用的新令牌。</p>:null}
           <div className="runtime-credential-editor">
-            {selected.credential_ready?<fieldset className="runtime-credential-modes"><legend className="sr-only">凭据操作</legend><label><input type="radio" name={`credential-mode-${selected.id}`} value="same" defaultChecked/>同一上游账号</label><label><input type="radio" name={`credential-mode-${selected.id}`} value="rebind"/>绑定新账号</label></fieldset>:null}
+            {selected.credential_ready?<fieldset className="runtime-credential-modes"><legend className="sr-only">凭据操作</legend><label><input type="radio" name={`credential-mode-${selected.id}`} value="same" defaultChecked/>同一上游账号</label><label><input type="radio" name={`credential-mode-${selected.id}`} value="rebind"/>更改请求头或账号</label></fieldset>:null}
             {selected.credential_ready?<div data-credential-mode="same"><RuntimeAction installation={selected} action="supply" label="更新凭据" variant="default" message="确认新凭据仍属于同一上游账号及同一权限？" details="保存后清理旧凭据，已有客户端授权保留。不要将不同上游账号当成材料轮换。"><input type="hidden" name="authority" value="same"/><Field control={{label:"新的凭据",name:"material",type:"password",required:true,autoComplete:"off",maxLength:4096}}/></RuntimeAction></div>:null}
-            <div data-credential-mode="rebind"><RuntimeAction installation={selected} action="supply" label="绑定上游凭据" variant="default" message="绑定此上游权限？旧客户端授权将失效。" details="旧上游资源和历史不会迁移。启用后获准成员使用新上游账号的共享工具权限。"><input type="hidden" name="authority" value="rebind"/><Field control={{label:"上游凭据",name:"material",type:"password",required:true,autoComplete:"off",maxLength:4096}}/></RuntimeAction></div>
+            <div data-credential-mode="rebind"><RuntimeAction installation={selected} action="supply" label="绑定上游凭据" variant="default" message="保存请求头和凭据？旧客户端授权将失效。" details="旧上游资源和历史不会迁移。启用后获准成员使用新上游账号的共享工具权限。"><input type="hidden" name="authority" value="rebind"/><Field control={{label:"凭据请求头名",name:"credentialHeader",value:selected.credential_header,required:true,maxLength:64}}/><Field control={{label:"上游凭据",name:"material",type:"password",required:true,autoComplete:"off",maxLength:4096}}/></RuntimeAction></div>
           </div>
         </section><section className="runtime-retirement" aria-label="退役服务"><RuntimeAction installation={selected} action="retire" label="永久退役服务" variant="destructive" message="永久退役此服务？不能重新启用，客户端授权立即失效。" details="后续调用被拒绝并清理上游凭据；不撤回已执行的上游操作。"/></section></aside>:null}
       </div>:null}
-    </section>:model.selectedId?<Card className="workspace-section" data-runtime-missing=""><h2>没有这个工具服务</h2><p className="caption">这个工具服务不存在或已不在部署配置中。没有选择其他服务。</p><TaskLink className="action-link" href={runtimeAdminHref()}>查看工具服务</TaskLink></Card>:model.installations.length?<p className="empty">选择一个工具服务，管理成员权限与上游凭据。</p>:null}
+    </section>:model.selectedId?<Card className="workspace-section" data-runtime-missing=""><h2>没有这个工具服务</h2><p className="caption">这个工具服务当前不可用。</p><TaskLink className="action-link" href={runtimeAdminHref()}>查看工具服务</TaskLink></Card>:model.installations.length?<p className="empty">选择一个工具服务，管理成员权限与上游凭据。</p>:null}
   </div>;
 }
