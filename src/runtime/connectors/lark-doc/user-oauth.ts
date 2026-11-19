@@ -39,9 +39,10 @@ export function logLarkUserFailure(stage:"callback_input"|"session"|"state"|"aut
 
 export async function larkUserToken(app:LarkAppCredential, request:TokenRequest, send:(request:Request)=>Promise<Response>):Promise<LarkUserTokens> {
   const started=Date.now();
-  const response=await send(new Request("https://accounts.feishu.cn/oauth/v3/token",{
-    method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded",Accept:"application/json"},
-    body:new URLSearchParams({...request,client_id:app.appId,client_secret:app.appSecret}),redirect:"manual",signal:AbortSignal.timeout(8000),
+  // Feishu's v2 endpoint accepts PKCE authorization codes. The v3 endpoint can reject them with 20049.
+  const response=await send(new Request("https://open.feishu.cn/open-apis/authen/v2/oauth/token",{
+    method:"POST",headers:{"Content-Type":"application/json",Accept:"application/json"},
+    body:JSON.stringify({...request,client_id:app.appId,client_secret:app.appSecret}),redirect:"manual",signal:AbortSignal.timeout(8000),
   }));
   const data=await readResponse(response);
   const scopes=typeof data.scope==="string"?data.scope.split(/\s+/).filter(Boolean):null;

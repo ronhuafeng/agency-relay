@@ -49,15 +49,17 @@ it("enforces live tool switches, per-client review and UAT-first routing across 
     const path=new URL(request.url).pathname;
     if(path.endsWith("/tenant_access_token/internal"))return Response.json({code:0,tenant_access_token:tenantGrant,expire:7200});
     if(path==="/oauth/v3/token") {
-      const form=request.headers.get("Content-Type")==="application/x-www-form-urlencoded"
-        ?Object.fromEntries(new URLSearchParams(await request.text()))
-        :await request.json() as Record<string,string>;
+      const body=await request.json() as Record<string,string>;
+      expect(body.grant_type).toBe("client_credentials");
+      expect(body.client_id==="cli_journey"&&body.client_secret==="fixture-app-secret").toBe(true);
+      return Response.json({code:0,access_token:"fixture-openapi-tenant",expires_in:10,
+        ...(appCalendarScope?{scope:"calendar:calendar:readonly"}:{})});
+    }
+    if(request.url==="https://open.feishu.cn/open-apis/authen/v2/oauth/token") {
+      expect(request.headers.get("Content-Type")).toBe("application/json");
+      const form=await request.json() as Record<string,string>;
       expect(form.client_id==="cli_journey"&&form.client_secret==="fixture-app-secret").toBe(true);
-      if(form.grant_type==="client_credentials")
-        return Response.json({code:0,access_token:"fixture-openapi-tenant",expires_in:10,
-          ...(appCalendarScope?{scope:"calendar:calendar:readonly"}:{})});
       if(form.grant_type==="authorization_code") {
-        expect(request.headers.get("Content-Type")).toBe("application/x-www-form-urlencoded");
         exchanges.push(form.code!);
         expect(createHash("sha256").update(form.code_verifier!).digest("base64url")===challenges.get(form.code!)).toBe(true);
         expect(form.redirect_uri).toBe(ISSUER+callbackPath);
