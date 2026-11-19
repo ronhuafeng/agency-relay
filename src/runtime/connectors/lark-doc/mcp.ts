@@ -56,7 +56,9 @@ export function larkToolPage(id:McpId,tools:Record<string,unknown>[],offset=0) {
     page.push(tool);
   }
   const next=offset+page.length;
-  return {response:Response.json({jsonrpc:"2.0",id,result:{tools:page,...(next<tools.length?{nextCursor:String(next)}:{})}}),toolCount:page.length};
+  const hasNextPage=next<tools.length;
+  return {response:Response.json({jsonrpc:"2.0",id,result:{tools:page,...(hasNextPage?{nextCursor:String(next)}:{})}}),
+    toolCount:page.length,hasNextPage};
 }
 
 export function larkToolIdentity(tool:LarkTool,memberScopes:readonly string[]|null,appOnly:boolean):"uat"|"tat"|null {

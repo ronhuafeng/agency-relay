@@ -11,14 +11,23 @@ For an ordinary member, expose only their own service/key state and sanitized re
 ## Runtime MCP discovery
 
 Filter Workers Logs on the custom event `runtime_mcp`. The protocol and
-authorization stages record handled rejections. Discovery records `initialize`
-and `tools/list`. For Feishu, look for the negotiated version in a JSON
-initialize response and the number of tools in the returned page. An empty
-Feishu page can report `lark_user_authorization_required` when no
-eligible identity remains and the member grant is unavailable. Stitch
-discovery uses the explicit `Mcp-Method` header when present and does not
-inspect the upstream body. The event fields exclude URLs, credentials, account
-identities and request or response content. Keep automatic invocation logs off.
+authorization stages record handled rejections. Feishu discovery records
+`initialize` and `tools/list`, including the negotiated protocol version,
+eligible tool counts by identity, the number returned, and whether another
+page exists. An empty page can report `lark_user_authorization_required`.
+Feishu `tools/call` records the catalog tool name for allowed calls. The event
+distinguishes Relay HTTP status, upstream HTTP status by UAT or TAT, bytes,
+timing and transport completion. A fully observed small JSON call response
+of up to 4 KiB can also report `result`, `tool_error` or `rpc_error`. Larger,
+incomplete or non-JSON responses leave the RPC outcome unobserved.
+
+Stitch discovery uses the explicit `Mcp-Method` header when present. The events
+exclude URLs, credentials, account identities, client-supplied tool names
+outside the consent and catalog, arguments and response content. Keep automatic
+invocation logs off. For an attended production check, open Workers Logs Live
+or use the project's Wrangler `tail --search runtime_mcp`. Display only these
+application event fields because raw live-tail envelopes can include sensitive
+invocation metadata.
 
 For a failed Feishu member callback, filter `runtime_lark_user` by time. The
 stage distinguishes session or state rejection, token exchange, identity

@@ -113,6 +113,8 @@ it("enforces live tool switches, per-client review and UAT-first routing across 
     }
     expect(selected).toEqual([rpc.params?.name]);
     if(rpc.params?.arguments?.query==="forbidden")return new Response(null,{status:403});
+    if(rpc.params?.arguments?.query==="synthetic-private-argument")return Response.json({jsonrpc:"2.0",id:rpc.id,
+      result:{isError:true,content:[{type:"text",text:"synthetic-private-result"}]}});
     return Response.json({jsonrpc:"2.0",id:rpc.id,result:{content:[]}});
   }});
   const session=(member:string)=>({Cookie:f.cookies.get(member)!});
@@ -184,6 +186,10 @@ it("enforces live tool switches, per-client review and UAT-first routing across 
     expect(rotations).toEqual([]);
     expect(await Promise.all((["search-doc","search-user"] as const).map(async name=>status(await rpc(personal,"tools/call",name))))).toEqual([200,200]);
     expect(rotations).toEqual(["member"]);
+    expect(await mcpLogs()).toEqual([
+      expect.objectContaining({stage:"call",method:"tools/call",http_status:200,uat_http_status:200}),
+      expect.objectContaining({stage:"call",method:"tools/call",http_status:200,uat_http_status:200}),
+    ]);
     const initialized=await f.runtime.dispatchFetch(resource,{method:"POST",
       headers:{Authorization:`Bearer ${personal}`,"Content-Type":"application/json"},
       body:JSON.stringify({jsonrpc:"2.0",id:1,method:"initialize",params:{protocolVersion:"2025-11-25",capabilities:{},
@@ -198,12 +204,28 @@ it("enforces live tool switches, per-client review and UAT-first routing across 
     expect(await status(await rpc("synthetic-unissued-bearer", "tools/list",undefined,{"Mcp-Method":"tools/list","Mcp-Protocol-Version":result.protocolVersion}))).toBe(401);
     expect(await mcpLogs()).toMatchObject([
       {stage:"discovery",method:"initialize",http_status:200,protocol_version:"2025-03-26"},
-      {stage:"discovery",method:"tools/list",http_status:200,protocol_version:"2025-03-26",tool_count:3},
+      {stage:"discovery",method:"tools/list",http_status:200,protocol_version:"2025-03-26",tool_count:3,
+        eligible_uat_tools:3,eligible_tat_tools:0,uat_http_status:200,has_next_page:false,terminal:"completed"},
       {stage:"protocol",method:"tools/list",http_status:400,protocol_version:"unknown",error:"runtime_transport_unsupported"},
       {stage:"authorization",method:"tools/list",http_status:401,protocol_version:"2025-03-26",error:"invalid_token"},
     ]);
-    expect(await status(await rpc(personal,"tools/call","fetch-doc"))).toBe(200);
-    expect(await status(await rpc(other,"tools/call","fetch-doc"))).toBe(200);
+    const failedCall=await rpc(personal,"tools/call","fetch-doc",{},"synthetic-private-argument");
+    expect(await failedCall.json()).toMatchObject({result:{isError:true}});
+    const unknownCall=await rpc(personal,"tools/call","synthetic-private-tool");
+    expect(await status(unknownCall)).toBe(400);
+    const callLogs=await mcpLogs();
+    expect(callLogs).toMatchObject([
+      {stage:"call",method:"tools/call",tool:"fetch-doc",http_status:200,uat_http_status:200,rpc_outcome:"tool_error",
+        terminal:"completed",request_bytes:expect.any(Number),response_bytes:expect.any(Number)},
+      {stage:"call",method:"tools/call",http_status:400,error:"lark_mcp_tool_unavailable",terminal:"error"},
+    ]);
+    expect(JSON.stringify(callLogs)).not.toContain("synthetic-private");
+    const appCall=await rpc(other,"tools/call","fetch-doc");
+    expect(appCall.status).toBe(200);
+    expect(await appCall.json()).toMatchObject({result:{content:[]}});
+    expect(await mcpLogs()).toMatchObject([
+      {stage:"call",method:"tools/call",tool:"fetch-doc",http_status:200,tat_http_status:200,rpc_outcome:"result"},
+    ]);
     expect(await names(await rpc(other,"tools/list"))).toEqual(["search-doc","fetch-doc","search-user"]);
     expect(calls.filter(call=>call.tool).sort((a,b)=>a.actor.localeCompare(b.actor)||a.tool!.localeCompare(b.tool!))).toEqual([
       {actor:"app",method:"tools/call",tool:"fetch-doc"},{actor:"member",method:"tools/call",tool:"fetch-doc"},

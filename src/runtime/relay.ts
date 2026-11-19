@@ -16,7 +16,7 @@ const MCP_HEADERS=new Set(["mcp-protocol-version","mcp-method","mcp-name"]);
 const MAX_UPLOAD_BYTES=8*1024*1024;
 const IDLE_MS=60000;
 const DEFINITE_RESPONSE_BYTES=65536;
-const LOGGED_INITIALIZE_LIMIT=4096;
+const LOGGED_JSON_LIMIT=4096;
 class RelayFailure extends Error {constructor(readonly code:RuntimeTransportError){super(code);}}
 
 /** Admission and transport. Only Feishu discovery can dispatch twice.
@@ -28,10 +28,15 @@ export async function relayRuntimeRequest(request:Request,env:Env,ctx:Pick<Execu
   const profile=RUNTIME_PROFILES[installation.profile];
   const started=deps.now().getTime();
   const feishu=admission.profile==="lark.doc";
-  let method=feishu?undefined:mcpDiscoveryMethod(request.headers.get("Mcp-Method"));
+  let method:ReturnType<typeof mcpDiscoveryMethod>|"tools/call"=feishu?undefined:mcpDiscoveryMethod(request.headers.get("Mcp-Method"));
   let version:unknown=request.headers.get("Mcp-Protocol-Version");
   let httpStatus:number|undefined;
   let toolCount:number|undefined;
+  let hasNextPage:boolean|undefined;
+  let toolName:string|undefined;
+  let rpcOutcome:ReturnType<typeof larkRpcOutcome>;
+  let eligible:{uat:number;tat:number}|undefined;
+  const identityStatuses:{uat?:number;tat?:number}={};
   let discoveryError:RuntimeTransportError|undefined;
   let status:number|null=null;
   let attempted=false;
@@ -64,8 +69,11 @@ export async function relayRuntimeRequest(request:Request,env:Env,ctx:Pick<Execu
     request.signal.removeEventListener("abort",clientAbort);
     abortController.abort();
     const duration=Math.max(0,deps.now().getTime()-started);
-    if(method&&httpStatus!==undefined)logRuntimeMcp({connector:installation.profile,stage:"discovery",method,
-      protocol_version:version,http_status:httpStatus,duration_ms:duration,tool_count:toolCount,error:error??discoveryError});
+    if(method&&httpStatus!==undefined)logRuntimeMcp({connector:installation.profile,stage:method==="tools/call"?"call":"discovery",method,
+      protocol_version:version,http_status:httpStatus,duration_ms:duration,tool_count:toolCount,error:error??discoveryError,
+      tool:toolName,terminal:kind,request_bytes:requestBytes,response_bytes:bytes,headers_ms:headersMs??undefined,
+      uat_http_status:identityStatuses.uat,tat_http_status:identityStatuses.tat,eligible_uat_tools:eligible?.uat,
+      eligible_tat_tools:eligible?.tat,has_next_page:hasNextPage,rpc_outcome:rpcOutcome});
     const recording=env.RUNTIME_OAUTH.getByName("organization").completeLease(admission.lease_id,{
       attempted,upstream_status:status,terminal:kind,error,duration_ms:duration,
       headers_ms:headersMs,request_bytes_observed:requestBytes,response_bytes_observed:bytes
@@ -94,9 +102,14 @@ export async function relayRuntimeRequest(request:Request,env:Env,ctx:Pick<Execu
         return tool&&(message.method==="list"||name===message.tool)?[tool]:[];
       })
       :[];
-    if(message?.method==="call"&&!selected.length){
-      finish("error","lark_mcp_tool_unavailable");
-      return larkMcpFailure(400,message.id,-32601,"lark_mcp_tool_unavailable");
+    if(message?.method==="call"){
+      method="tools/call";
+      toolName=selected[0]?.name;
+      if(!toolName){
+        httpStatus=400;
+        finish("error","lark_mcp_tool_unavailable");
+        return larkMcpFailure(400,message.id,-32601,"lark_mcp_tool_unavailable");
+      }
     }
     const secrets=env.RUNTIME_CREDENTIALS.getByName(installation.id);
     const readCredential=<T>(read:Promise<T>)=>Promise.race([read,aborted])
@@ -115,7 +128,9 @@ export async function relayRuntimeRequest(request:Request,env:Env,ctx:Pick<Execu
     const apiApp=apiAppTools.length?await readCredential(secrets.readLarkOpenApiTenant(larkAuthority)):null;
     const apiAppNames=new Set(apiApp?apiAppTools.filter(tool=>hasLarkToolScopes(tool,apiApp.scopes)).map(tool=>tool.name):[]);
     tools.tat=tools.tat.filter(name=>!larkToolsByName.get(name)?.openApi||apiAppNames.has(name));
+    if(message?.method==="list"||message?.method==="call")eligible={uat:tools.uat.length,tat:tools.tat.length};
     if(message?.method==="call"&&!tools.uat.length&&!tools.tat.length) {
+      httpStatus=403;
       finish("error","lark_user_authorization_required");
       return larkMcpFailure(403,message.id,-32000,"lark_user_authorization_required");
     }
@@ -136,13 +151,14 @@ export async function relayRuntimeRequest(request:Request,env:Env,ctx:Pick<Execu
       onEnd:(kind,error)=>{if(kind==="error")stop(error instanceof ByteStreamError&&error.code==="byte_limit_exceeded"?"request_too_large":error instanceof ByteStreamError?"stream_idle_timeout":"upstream_transport_failed");}
     }):null;
     if(abortController.signal.aborted)throw new RelayFailure(failure??"client_request_aborted");
-    const dispatch=async(input:string|Request,outgoing?:Headers)=>{
+    const dispatch=async(input:string|Request,outgoing?:Headers,identity?:"uat"|"tat")=>{
       if(!attempted){awaitingHeaders=true;resetIdle();}
       attempted=true;
       const response=await (typeof input==="string"
         ?deps.fetch(input,{method:"POST",headers:outgoing,body:upload,redirect:"manual",signal:abortController.signal})
         :deps.fetch(input));
       if(status===null){status=response.status;headersMs=Math.max(0,deps.now().getTime()-started);}
+      if(identity)identityStatuses[identity]=response.status;
       return response;
     };
     let upstream:Response;
@@ -151,12 +167,12 @@ export async function relayRuntimeRequest(request:Request,env:Env,ctx:Pick<Execu
       const hosted=(names:readonly string[])=>names.filter(name=>!larkToolsByName.get(name)?.openApi);
       const appNames=app?hosted(tools.tat):[],memberNames=hosted(tools.uat);
       const listRequests=[
-        ...(memberNames.length?[{headers:headersFor(LARK_UAT_HEADER,member?.accessToken,memberNames),names:memberNames}]:[]),
-        ...(appNames.length?[{headers:headersFor(appHeader,app,appNames),names:appNames}]:[]),
+        ...(memberNames.length?[{headers:headersFor(LARK_UAT_HEADER,member?.accessToken,memberNames),names:memberNames,identity:"uat" as const}]:[]),
+        ...(appNames.length?[{headers:headersFor(appHeader,app,appNames),names:appNames,identity:"tat" as const}]:[]),
       ];
-      const replies=await Promise.race([Promise.all(listRequests.map(async({headers,names})=>{
+      const replies=await Promise.race([Promise.all(listRequests.map(async({headers,names,identity})=>{
         headers.set("Accept","application/json");
-        return readLarkToolList(await dispatch(profile.upstream,headers),id,names,abortController.signal);
+        return readLarkToolList(await dispatch(profile.upstream,headers,identity),id,names,abortController.signal);
       })),aborted]);
       const discovered=new Map(replies.flat().map(tool=>[tool.name,tool]));
       const schemas=selected.some(tool=>tool.openApi&&(tools.uat.includes(tool.name)||apiAppNames.has(tool.name)))
@@ -171,6 +187,7 @@ export async function relayRuntimeRequest(request:Request,env:Env,ctx:Pick<Execu
       }),message.offset);
       upstream=page.response;
       toolCount=page.toolCount;
+      hasNextPage=page.hasNextPage;
       if(toolCount===0&&!member&&!appOnly&&!tools.tat.length&&selected.some(tool=>tool.identity!=="tat")) {
         discoveryError="lark_user_authorization_required";
       }
@@ -179,10 +196,11 @@ export async function relayRuntimeRequest(request:Request,env:Env,ctx:Pick<Execu
       if(!token)throw new RelayFailure("upstream_credential_unavailable");
       const apiRequest=openApiRequest(selected[0].openApi,message.arguments,token,abortController.signal);
       if(!apiRequest){
+        httpStatus=400;
         finish("error","lark_mcp_invalid_request");
         return larkMcpFailure(400,message.id,-32602,"lark_mcp_invalid_request");
       }
-      const result=await Promise.race([dispatch(apiRequest),aborted]);
+      const result=await Promise.race([dispatch(apiRequest,undefined,tools.uat.length?"uat":"tat"),aborted]);
       if(result.status>=300&&result.status<400){
         void cancelUnreadBody(result);
         throw new RelayFailure("upstream_redirect_rejected");
@@ -190,7 +208,7 @@ export async function relayRuntimeRequest(request:Request,env:Env,ctx:Pick<Execu
       upstream=await Promise.race([openApiResult(result,message.id,abortController.signal),aborted]);
     } else {
       const headers=tools.uat.length?headersFor(LARK_UAT_HEADER,member?.accessToken,tools.uat):headersFor(appHeader,app,tools.tat);
-      upstream=await Promise.race([dispatch(profile.upstream,headers),aborted]);
+      upstream=await Promise.race([dispatch(profile.upstream,headers,feishu?(tools.uat.length?"uat":"tat"):undefined),aborted]);
     }
     awaitingHeaders=false;
     if(idleTimer!==undefined){clearTimeout(idleTimer);idleTimer=undefined;}
@@ -201,20 +219,25 @@ export async function relayRuntimeRequest(request:Request,env:Env,ctx:Pick<Execu
     const responseHeaders=projectHeaders(upstream.headers,false);
     responseHeaders.set("Cache-Control","no-store");
     responseHeaders.set("Referrer-Policy","no-referrer");
-    const initializeJson=feishu&&method==="initialize"&&upstream.ok&&headerMediaType(upstream.headers.get("Content-Type"))==="application/json";
-    const initializeBytes=initializeJson?new Uint8Array(LOGGED_INITIALIZE_LIMIT):undefined;
+    const observeJson=feishu&&(method==="initialize"||method==="tools/call")&&upstream.ok&&
+      headerMediaType(upstream.headers.get("Content-Type"))==="application/json";
+    const observation=observeJson?new Uint8Array(LOGGED_JSON_LIMIT):undefined;
+    const observe=(body:Uint8Array)=>{
+      if(method==="initialize")version=negotiatedLarkVersion(body)??version;
+      if(method==="tools/call")rpcOutcome=larkRpcOutcome(body,message?.id);
+    };
     const framed=await frameUpstreamBody(upstream,abortController.signal,(chunk)=>{
       const offset=bytes;
       bytes=Math.min(Number.MAX_SAFE_INTEGER,bytes+chunk.byteLength);
-      if(initializeBytes&&bytes<=initializeBytes.length)initializeBytes.set(chunk,offset);
+      if(observation&&bytes<=observation.length)observation.set(chunk,offset);
     },(kind,error)=>{
-      if(kind==="completed"&&initializeBytes&&bytes<=initializeBytes.length)version=negotiatedLarkVersion(initializeBytes.subarray(0,bytes))??version;
+      if(kind==="completed"&&observation&&bytes<=observation.length)observe(observation.subarray(0,bytes));
       const code=failure??(error instanceof ByteStreamError?"stream_idle_timeout":kind==="error"?"upstream_transport_failed":null);
       finish(code&&code!=="client_request_aborted"?"error":kind,code);
     });
     if(framed.kind==="definite"){
       bytes=framed.bytes.byteLength;
-      if(initializeJson&&bytes<=LOGGED_INITIALIZE_LIMIT)version=negotiatedLarkVersion(framed.bytes)??version;
+      if(observation&&bytes<=observation.length)observe(framed.bytes);
       responseHeaders.set("Content-Length",String(framed.bytes.byteLength));
       finish("completed");
       return new Response(framed.bytes,{status:upstream.status,statusText:upstream.statusText,headers:responseHeaders});
@@ -231,6 +254,16 @@ export async function relayRuntimeRequest(request:Request,env:Env,ctx:Pick<Execu
 function negotiatedLarkVersion(bytes:Uint8Array):unknown {
   try {return asRecord(asRecord(JSON.parse(new TextDecoder().decode(bytes)))?.result)?.protocolVersion;}
   catch {return undefined;}
+}
+
+function larkRpcOutcome(bytes:Uint8Array,id:unknown):"result"|"tool_error"|"rpc_error"|undefined {
+  try {
+    const response=asRecord(JSON.parse(new TextDecoder().decode(bytes)));
+    if(response?.jsonrpc!=="2.0"||response.id!==id)return;
+    if(asRecord(response.error))return "rpc_error";
+    const result=asRecord(response.result);
+    if(result)return result.isError===true?"tool_error":"result";
+  }catch { /* A partial or unrecognized reply has no confirmed RPC outcome. */ }
 }
 
 async function frameUpstreamBody(upstream:Response,signal:AbortSignal,onChunk:(chunk:Uint8Array)=>void,onEnd:(kind:ByteStreamEnd,error?:unknown)=>void):Promise<{kind:"definite";bytes:Uint8Array<ArrayBuffer>}|{kind:"open";stream:ReadableStream<Uint8Array>}> {
