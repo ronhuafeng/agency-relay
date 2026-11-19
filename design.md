@@ -237,10 +237,9 @@ The format follows the [Google design.md specification](https://github.com/googl
 
 ## Colors
 
-The console uses cool gray, white task surfaces, dark ink, and cyan in light mode. The page background is the canvas, ruled with a quiet dot grid
-that carries no meaning. Readable content never sits directly on the grid: a task
-object, a chart, a ledger and a collection are each one sheet, with the surface
-colour and one boundary. A page, and a section that only groups sheets, has no
+The console uses a solid canvas in each theme. Light mode uses cool gray,
+white task surfaces, dark ink, and cyan. Each task object, chart, ledger and
+collection uses one surface with one boundary. A page, and a section that only groups sheets, has no
 extra frame. Use the foreground ink for names and facts; muted text is secondary, not a
 substitute for a missing label. Light mode stays cool and light, with calm boundaries around sheets.
 Input and control outlines are ink-toned and stronger than section dividers; rows inside a

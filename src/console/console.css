@@ -248,8 +248,7 @@ td.actions{white-space:nowrap}
 
 html { background:var(--background); color:var(--foreground); font:14px/1.5 var(--font-sans); scroll-padding-top:var(--dashboard-scroll-inset,calc(var(--header-h) + 16px)); -webkit-font-smoothing:antialiased; }
 html, body { max-width:100%; }
-/* The canvas is ruled paper: a quiet dot grid that task sheets sit on. It carries no meaning. */
-body { margin:0; min-width:0; background:var(--background) radial-gradient(color-mix(in srgb,var(--foreground) 11%,transparent) 1px,transparent 1.5px) 0 0/16px 16px; }
+body { margin:0; min-width:0; background:var(--background); }
 button,input,select,textarea { font:inherit; }
 input,select,textarea { scroll-margin-block:100px; }
 input::placeholder,textarea::placeholder { color:var(--muted-foreground); opacity:1; }
