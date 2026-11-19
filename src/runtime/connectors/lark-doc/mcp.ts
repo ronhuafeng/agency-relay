@@ -13,6 +13,7 @@ export interface LarkMcpRequest {
   tool?:string;
   arguments?:unknown;
   offset?:number;
+  initialize?:true;
   invalid?:true;
 }
 
@@ -38,14 +39,14 @@ export async function readLarkMcpRequest(request:Request,signal:AbortSignal,onBy
     const hostedBody=new TextEncoder().encode(JSON.stringify({...message,params})).buffer;
     return {bytes:hostedBody,id,method:"list",offset:Number(cursor)};
   }
-  if(message.method!=="tools/call")return {bytes,id,method:"protocol"};
+  if(message.method!=="tools/call")return {bytes,id,method:"protocol",initialize:message.method==="initialize"?true:undefined};
   const name=isRecord(message.params)?message.params.name:null;
   const headerName=request.headers.get("Mcp-Name");
   if(id===null||typeof name!=="string"||(headerName!==null&&headerName!==name))return invalid(bytes,id);
   return {bytes,id,method:"call",tool:name,arguments:isRecord(message.params)?message.params.arguments:undefined};
 }
 
-export function larkToolPage(id:McpId,tools:Record<string,unknown>[],offset=0):Response {
+export function larkToolPage(id:McpId,tools:Record<string,unknown>[],offset=0) {
   const page:Record<string,unknown>[]=[];
   const encoder=new TextEncoder();
   let size=0;
@@ -55,7 +56,7 @@ export function larkToolPage(id:McpId,tools:Record<string,unknown>[],offset=0):R
     page.push(tool);
   }
   const next=offset+page.length;
-  return Response.json({jsonrpc:"2.0",id,result:{tools:page,...(next<tools.length?{nextCursor:String(next)}:{})}});
+  return {response:Response.json({jsonrpc:"2.0",id,result:{tools:page,...(next<tools.length?{nextCursor:String(next)}:{})}}),toolCount:page.length};
 }
 
 export function larkToolIdentity(tool:LarkTool,memberScopes:readonly string[]|null,appOnly:boolean):"uat"|"tat"|null {

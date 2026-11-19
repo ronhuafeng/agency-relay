@@ -8,6 +8,16 @@ Distinguish console session authentication, email-to-user resolution, current ro
 
 For an ordinary member, expose only their own service/key state and sanitized recovery. Internal account IDs, provider-team inventories and global logs are administrator/operator diagnostics.
 
+## Runtime MCP discovery
+
+Filter Workers Logs on the custom event `runtime_mcp`. The protocol and
+authorization stages record handled rejections. Discovery records `initialize`
+and `tools/list`. For Feishu, look for the negotiated version in a JSON
+initialize response and the number of tools in the returned page. Stitch
+discovery uses the explicit `Mcp-Method` header when present and does not
+inspect the upstream body. The event fields exclude URLs, credentials, account
+identities and request or response content. Keep automatic invocation logs off.
+
 ## Codex 502 and transport
 
 Check Worker `codex_upstream_transport_error` and sanitized error name/message; determine whether upstream status is absent. Confirm whether the bound account's `getFreshAccessToken` succeeded before classifying credential versus transport failure.

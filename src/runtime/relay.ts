@@ -8,6 +8,8 @@ import type {RuntimeTransportError} from "./oauth";
 import {LARK_REQUEST_LIMIT,hasLarkToolScopes,larkRequestLimitError,larkToolIdentity,larkToolPage,readLarkMcpRequest,readLarkToolList} from "./connectors/lark-doc/mcp";
 import {LARK_UAT_HEADER,larkToolsByName} from "./connectors/lark-doc/profile";
 import {openApiRequest,openApiResult,readLarkOpenApiSchemas} from "./connectors/lark-doc/openapi";
+import {logRuntimeMcp,mcpDiscoveryMethod} from "./mcp-logs";
+import {asRecord,headerMediaType} from "../records";
 
 const CONTENT_HEADERS=new Set(["accept","accept-encoding","accept-language","content-type","content-encoding","content-language"]);
 const MCP_HEADERS=new Set(["mcp-protocol-version","mcp-method","mcp-name"]);
@@ -24,6 +26,11 @@ export async function relayRuntimeRequest(request:Request,env:Env,ctx:Pick<Execu
   const installation=requireRuntimeInstallation(env,admission.installation_id);
   const profile=RUNTIME_PROFILES[installation.profile];
   const started=deps.now().getTime();
+  const feishu=admission.profile==="lark.doc";
+  let method=feishu?undefined:mcpDiscoveryMethod(request.headers.get("Mcp-Method"));
+  let version:unknown=request.headers.get("Mcp-Protocol-Version");
+  let httpStatus:number|undefined;
+  let toolCount:number|undefined;
   let status:number|null=null;
   let attempted=false;
   let bytes=0;
@@ -54,15 +61,17 @@ export async function relayRuntimeRequest(request:Request,env:Env,ctx:Pick<Execu
     clearTimeout(leaseTimer);if(idleTimer!==undefined)clearTimeout(idleTimer);
     request.signal.removeEventListener("abort",clientAbort);
     abortController.abort();
+    const duration=Math.max(0,deps.now().getTime()-started);
+    if(method&&httpStatus!==undefined)logRuntimeMcp({connector:installation.profile,stage:"discovery",method,
+      protocol_version:version,http_status:httpStatus,duration_ms:duration,tool_count:toolCount,error:error??undefined});
     const recording=env.RUNTIME_OAUTH.getByName("organization").completeLease(admission.lease_id,{
-      attempted,upstream_status:status,terminal:kind,error,duration_ms:Math.max(0,deps.now().getTime()-started),
+      attempted,upstream_status:status,terminal:kind,error,duration_ms:duration,
       headers_ms:headersMs,request_bytes_observed:requestBytes,response_bytes_observed:bytes
     }).catch(()=>{console.error(JSON.stringify({event:"runtime_terminal_record_unavailable"}));});
     try{ctx.waitUntil(recording);}catch{/* Recording cannot replace transport. */}
   };
   try{
     if(admission.profile!==installation.profile||admission.profile_revision!==profile.revision){finish("error","runtime_profile_unavailable");return runtimeFailure(503,"runtime_profile_unavailable");}
-    const feishu=admission.profile==="lark.doc";
     const length=request.headers.get("Content-Length");
     if(length!==null&&/^\d+$/.test(length)&&Number(length)>(feishu?LARK_REQUEST_LIMIT:MAX_UPLOAD_BYTES)){
       finish("error","request_too_large");return runtimeFailure(413,"request_too_large");
@@ -70,9 +79,13 @@ export async function relayRuntimeRequest(request:Request,env:Env,ctx:Pick<Execu
     const message=feishu?await Promise.race([readLarkMcpRequest(request,abortController.signal,count=>{requestBytes+=count;}),aborted])
       .catch(error=>{throw error instanceof RelayFailure?error:new RelayFailure(larkRequestLimitError(error));}):null;
     if(message?.invalid){
+      logRuntimeMcp({connector:installation.profile,stage:"protocol",method:mcpDiscoveryMethod(request.headers.get("Mcp-Method")),
+        protocol_version:version,http_status:400,error:"lark_mcp_invalid_request"});
       finish("error","lark_mcp_invalid_request");
       return larkMcpFailure(400,message.id,-32600,"lark_mcp_invalid_request");
     }
+    if(message?.initialize)method="initialize";
+    if(message?.method==="list")method="tools/list";
     const selected=message&&message.method!=="protocol"
       ?(admission.feishu_tools??[]).flatMap(name=>{
         const tool=larkToolsByName.get(name);
@@ -150,10 +163,12 @@ export async function relayRuntimeRequest(request:Request,env:Env,ctx:Pick<Execu
         if(schemas&&tool.openApi&&Object.hasOwn(schemas,tool.name)&&(tools.uat.includes(tool.name)||apiAppNames.has(tool.name)))
           discovered.set(tool.name,{name:tool.name,description:tool.description,inputSchema:schemas[tool.name]});
       }
-      upstream=larkToolPage(id,selected.flatMap(tool=>{
+      const page=larkToolPage(id,selected.flatMap(tool=>{
         const definition=discovered.get(tool.name);
         return definition?[definition]:[];
       }),message.offset);
+      upstream=page.response;
+      toolCount=page.toolCount;
     } else if(message?.method==="call"&&message.id!==null&&selected[0]?.openApi) {
       const token=tools.uat.length?member?.accessToken:apiApp?.value;
       if(!token)throw new RelayFailure("upstream_credential_unavailable");
@@ -174,7 +189,9 @@ export async function relayRuntimeRequest(request:Request,env:Env,ctx:Pick<Execu
     }
     awaitingHeaders=false;
     if(idleTimer!==undefined){clearTimeout(idleTimer);idleTimer=undefined;}
+    if(method==="initialize")version=upstream.headers.get("Mcp-Protocol-Version");
     const error=upstream.status>=300&&upstream.status<400?"upstream_redirect_rejected":upstream.status===401||upstream.status===403?"upstream_credential_unavailable":upstream.headers.has("Mcp-Session-Id")?"runtime_transport_unsupported":null;
+    httpStatus=error?502:upstream.status;
     if(error){void cancelUnreadBody(upstream);finish("error",error);return runtimeFailure(502,error);}
     const responseHeaders=projectHeaders(upstream.headers,false);
     responseHeaders.set("Cache-Control","no-store");
@@ -185,6 +202,10 @@ export async function relayRuntimeRequest(request:Request,env:Env,ctx:Pick<Execu
     });
     if(framed.kind==="definite"){
       bytes=framed.bytes.byteLength;
+      if(feishu&&method==="initialize"&&upstream.ok&&headerMediaType(upstream.headers.get("Content-Type"))==="application/json") {
+        try {version=asRecord(asRecord(JSON.parse(new TextDecoder().decode(framed.bytes)))?.result)?.protocolVersion;}
+        catch {version=undefined;}
+      }
       responseHeaders.set("Content-Length",String(framed.bytes.byteLength));
       finish("completed");
       return new Response(framed.bytes,{status:upstream.status,statusText:upstream.statusText,headers:responseHeaders});
@@ -192,8 +213,9 @@ export async function relayRuntimeRequest(request:Request,env:Env,ctx:Pick<Execu
     return new Response(framed.stream,{status:upstream.status,statusText:upstream.statusText,headers:responseHeaders});
   }catch(error){
     const code=error instanceof RelayFailure?error.code:failure??"upstream_transport_failed";
+    httpStatus=code==="client_request_aborted"?499:code==="request_too_large"?413:code==="lark_mcp_invalid_request"?400:code==="stream_idle_timeout"||code==="lease_expired"?504:code==="upstream_credential_unavailable"?503:502;
     finish(code==="client_request_aborted"?"cancelled":"error",code);
-    return runtimeFailure(code==="client_request_aborted"?499:code==="request_too_large"?413:code==="lark_mcp_invalid_request"?400:code==="stream_idle_timeout"||code==="lease_expired"?504:code==="upstream_credential_unavailable"?503:502,code);
+    return runtimeFailure(httpStatus,code);
   }
 }
 

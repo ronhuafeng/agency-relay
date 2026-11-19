@@ -12,6 +12,7 @@ import {httpOnlyLaxCookie} from "../auth/console-session";
 import {copyBytes} from "../proxy/byte-stream";
 import {headerMediaType,isRecord} from "../records";
 import {larkUserAuthorizationResponse} from "./connectors/lark-doc/user-routes";
+import {logRuntimeMcp,mcpAuthorizationError,mcpDiscoveryMethod} from "./mcp-logs";
 
 const BINDING_COOKIE="__Host-runtime-transaction";
 const CONSENT_PATH=/^\/runtime\/consent\/[a-f0-9-]{36}$/;
@@ -133,18 +134,28 @@ export async function admitRuntimeRequest(request:Request,env:Env):Promise<Runti
       return protocolResponse({error:"invalid_request"},404);
     }
     if(request.method!=="POST")return protocolResponse({error:"invalid_request"},405);
-    if(request.headers.has("Upgrade")||request.headers.has("Mcp-Session-Id")||request.headers.has("Last-Event-ID"))return protocolResponse({error:"runtime_transport_unsupported"},400);
     const version=request.headers.get("Mcp-Protocol-Version");
+    const method=mcpDiscoveryMethod(request.headers.get("Mcp-Method"));
     // Feishu's hosted server negotiates this version during initialize.
     const feishuVersion=installation.profile==="lark.doc"&&version==="2025-03-26";
     // Absent during legacy initialize is forwarded, not invented by the relay.
-    if(version!==null&&!feishuVersion&&version!=="2024-11-05"&&version!=="2025-06-18"&&version!=="2025-11-25"&&version!=="2026-07-28")return protocolResponse({error:"runtime_transport_unsupported"},400);
-    if(request.headers.has("Origin")&&request.headers.get("Origin")!==url.origin)return protocolResponse({error:"access_denied"},403);
+    const unsupported=version!==null&&!feishuVersion&&version!=="2024-11-05"&&version!=="2025-06-18"&&version!=="2025-11-25"&&version!=="2026-07-28";
+    if(unsupported||request.headers.has("Upgrade")||request.headers.has("Mcp-Session-Id")||request.headers.has("Last-Event-ID")) {
+      logRuntimeMcp({connector:installation.profile,stage:"protocol",method,protocol_version:version,http_status:400,error:"runtime_transport_unsupported"});
+      return protocolResponse({error:"runtime_transport_unsupported"},400);
+    }
+    if(request.headers.has("Origin")&&request.headers.get("Origin")!==url.origin) {
+      logRuntimeMcp({connector:installation.profile,stage:"authorization",method,protocol_version:version,http_status:403,error:"access_denied"});
+      return protocolResponse({error:"access_denied"},403);
+    }
     const header=request.headers.get("Authorization")??"";
     const token=/^Bearer ([A-Za-z0-9_-]{20,256})$/i.exec(header)?.[1];
     const admitted=token?await env.RUNTIME_OAUTH.getByName("organization").admit(token,installation.resource):null;
     if(admitted&&"installation_id" in admitted)return admitted;
     const response=protocolResponse(admitted?.body??{error:"invalid_token"},admitted?.status??401);
+    // An anonymous OAuth discovery challenge is normal traffic.
+    if(header)logRuntimeMcp({connector:installation.profile,stage:"authorization",method,protocol_version:version,
+      http_status:response.status,error:mcpAuthorizationError(admitted?.body.error??"invalid_token")});
     if(response.status===401)response.headers.set("WWW-Authenticate",`Bearer resource_metadata="${resourceMetadataUrl(installation.resource)}", error="invalid_token"`);
     if(admitted?.body.error==="insufficient_scope")response.headers.set("WWW-Authenticate",`Bearer error="insufficient_scope", scope="${RUNTIME_SCOPE}"`);
     return response;

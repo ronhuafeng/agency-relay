@@ -17,9 +17,10 @@ it("returns every discoverable tool across bounded catalog pages",async()=>{
   const seen:string[]=[];
   let cursor:string|undefined="0";
   while(cursor!==undefined){
-    const reply=larkToolPage(1,available,Number(cursor));
+    const {response:reply,toolCount}=larkToolPage(1,available,Number(cursor));
     const result=(await reply.json() as {result:{tools:Array<{name:string}>;nextCursor?:string}}).result;
     expect(result.tools).toHaveLength(1);
+    expect(toolCount).toBe(1);
     if(result.nextCursor!==undefined)expect(Number(result.nextCursor)).toBeGreaterThan(Number(cursor));
     seen.push(result.tools[0]!.name);
     cursor=result.nextCursor;
