@@ -33,6 +33,7 @@ it("enforces live tool switches, per-client review and UAT-first routing across 
   const exchanges:string[]=[];
   const rotations:string[]=[];
   const apiActors:string[]=[];
+  let finishInitialize:(()=>void)|undefined;
   let calendarScope=false;
   let appCalendarScope=false;
   const calls:Array<{actor:string;method:string;tool?:string}>=[];
@@ -44,7 +45,7 @@ it("enforces live tool switches, per-client review and UAT-first routing across 
   const credentials=(member:string,version:number)=>({code:0,access_token:`fixture-access-${member}-${version}`,
     refresh_token:`fixture-refresh-${member}-${version}`,expires_in:version===0?30:version===1?120:7200,refresh_token_expires_in:86400,
     scope:member==="member"?`${scopes} docx:document:readonly task:task:read im:chat:read${calendarScope?" calendar:calendar:read":""}`:scopes});
-  const f=await oauthFixture(undefined,{editablePaths:true,upstream:async request=>{
+  const f=await oauthFixture(undefined,{editablePaths:true,captureMcpLogs:true,upstream:async request=>{
     const path=new URL(request.url).pathname;
     if(path.endsWith("/tenant_access_token/internal"))return Response.json({code:0,tenant_access_token:tenantGrant,expire:7200});
     if(path==="/oauth/v3/token") {
@@ -90,8 +91,15 @@ it("enforces live tool switches, per-client review and UAT-first routing across 
     if(rpc.method==="initialize") {
       expect(app).toBe(true);
       expect(rpc.params?.protocolVersion).toBe("2025-11-25");
-      return Response.json({jsonrpc:"2.0",id:rpc.id,result:{protocolVersion:"2025-03-26",capabilities:{tools:{}},
-        serverInfo:{name:"Synthetic Feishu",version:"1"}}});
+      const response=new TextEncoder().encode(JSON.stringify({jsonrpc:"2.0",id:rpc.id,
+        result:{protocolVersion:"2025-03-26",capabilities:{tools:{}},serverInfo:{name:"Synthetic Feishu",version:"1"}}}));
+      return new Response(new ReadableStream<Uint8Array>({
+        start(controller){
+          controller.enqueue(response);
+          finishInitialize=()=>{finishInitialize=undefined;controller.close();};
+        },
+        cancel(){finishInitialize=undefined;},
+      }),{headers:{"Content-Type":"application/json"}});
     }
     calls.push({actor:app?"app":member!,method:rpc.method,...(rpc.params?.name?{tool:rpc.params.name}:{})});
     if(rpc.method==="tools/list") {
@@ -138,6 +146,7 @@ it("enforces live tool switches, per-client review and UAT-first routing across 
     expect(response.status).toBe(200);
     return (await response.json() as {result:{tools:Array<{name:string}>}}).result.tools.map(tool=>tool.name);
   };
+  const mcpLogs=async()=>(await f.expire("mcp-logs","")).json();
   try {
     for(const change of [{action:"configure"},{action:"supply",authority:"rebind",operationId:"bind-app",expectedRevision:1,
       appId:"cli_journey",appSecret:"fixture-app-secret"},{action:"enable",operationId:"enable",expectedRevision:2}]) {
@@ -174,11 +183,20 @@ it("enforces live tool switches, per-client review and UAT-first routing across 
       headers:{Authorization:`Bearer ${personal}`,"Content-Type":"application/json"},
       body:JSON.stringify({jsonrpc:"2.0",id:1,method:"initialize",params:{protocolVersion:"2025-11-25",capabilities:{},
         clientInfo:{name:"Synthetic client",version:"1"}}})});
+    finishInitialize?.();
     expect(initialized.status).toBe(200);
     const {result}=await initialized.json() as {result:{protocolVersion:string}};
     expect(result.protocolVersion).toBe("2025-03-26");
     expect(await names(await rpc(personal,"tools/list",undefined,{"Mcp-Protocol-Version":result.protocolVersion})))
       .toEqual(["search-doc","fetch-doc","search-user"]);
+    expect(await status(await rpc(personal,"tools/list",undefined,{"Mcp-Method":"tools/list","Mcp-Protocol-Version":"synthetic-version"}))).toBe(400);
+    expect(await status(await rpc("synthetic-unissued-bearer", "tools/list",undefined,{"Mcp-Method":"tools/list","Mcp-Protocol-Version":result.protocolVersion}))).toBe(401);
+    expect(await mcpLogs()).toMatchObject([
+      {stage:"discovery",method:"initialize",http_status:200,protocol_version:"2025-03-26"},
+      {stage:"discovery",method:"tools/list",http_status:200,protocol_version:"2025-03-26",tool_count:3},
+      {stage:"protocol",method:"tools/list",http_status:400,protocol_version:"unknown",error:"runtime_transport_unsupported"},
+      {stage:"authorization",method:"tools/list",http_status:401,protocol_version:"2025-03-26",error:"invalid_token"},
+    ]);
     expect(await status(await rpc(personal,"tools/call","fetch-doc"))).toBe(200);
     expect(await status(await rpc(other,"tools/call","fetch-doc"))).toBe(200);
     expect(await names(await rpc(other,"tools/list"))).toEqual(["search-doc","fetch-doc","search-user"]);
@@ -203,7 +221,10 @@ it("enforces live tool switches, per-client review and UAT-first routing across 
     expect(await status(await delayed)).toBe(403);
     expect(await status(await rpc(other,"tools/call","search-doc"))).toBe(403);
     expect(calls).toHaveLength(before);
-    expect(await names(await rpc(other,"tools/list"))).toEqual([]);
+    await mcpLogs();
+    expect(await names(await rpc(other,"tools/list",undefined,{"Mcp-Protocol-Version":"2025-03-26"}))).toEqual([]);
+    expect(await mcpLogs()).toMatchObject([{stage:"discovery",method:"tools/list",http_status:200,tool_count:0,
+      error:"lark_user_authorization_required"}]);
     expect(await status(await rpc(personal,"tools/call","search-doc"))).toBe(200);
 
     const stale=await pendingConsent(f,resource);
@@ -266,5 +287,5 @@ it("enforces live tool switches, per-client review and UAT-first routing across 
     expect(await status(savedAll)).toBe(200);
     const settings=await f.db.prepare("SELECT json_array_length(feishu_tools) AS count FROM runtime_installations WHERE id='lark-doc'").first();
     expect(settings?.count).toBe(larkTools.length);
-  } finally {release();await f.dispose();}
+  } finally {finishInitialize?.();release();await f.dispose();}
 },20000);

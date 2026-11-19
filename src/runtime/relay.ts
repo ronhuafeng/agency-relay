@@ -16,6 +16,7 @@ const MCP_HEADERS=new Set(["mcp-protocol-version","mcp-method","mcp-name"]);
 const MAX_UPLOAD_BYTES=8*1024*1024;
 const IDLE_MS=60000;
 const DEFINITE_RESPONSE_BYTES=65536;
+const LOGGED_INITIALIZE_LIMIT=4096;
 class RelayFailure extends Error {constructor(readonly code:RuntimeTransportError){super(code);}}
 
 /** Admission and transport. Only Feishu discovery can dispatch twice.
@@ -31,6 +32,7 @@ export async function relayRuntimeRequest(request:Request,env:Env,ctx:Pick<Execu
   let version:unknown=request.headers.get("Mcp-Protocol-Version");
   let httpStatus:number|undefined;
   let toolCount:number|undefined;
+  let discoveryError:RuntimeTransportError|undefined;
   let status:number|null=null;
   let attempted=false;
   let bytes=0;
@@ -63,7 +65,7 @@ export async function relayRuntimeRequest(request:Request,env:Env,ctx:Pick<Execu
     abortController.abort();
     const duration=Math.max(0,deps.now().getTime()-started);
     if(method&&httpStatus!==undefined)logRuntimeMcp({connector:installation.profile,stage:"discovery",method,
-      protocol_version:version,http_status:httpStatus,duration_ms:duration,tool_count:toolCount,error:error??undefined});
+      protocol_version:version,http_status:httpStatus,duration_ms:duration,tool_count:toolCount,error:error??discoveryError});
     const recording=env.RUNTIME_OAUTH.getByName("organization").completeLease(admission.lease_id,{
       attempted,upstream_status:status,terminal:kind,error,duration_ms:duration,
       headers_ms:headersMs,request_bytes_observed:requestBytes,response_bytes_observed:bytes
@@ -169,6 +171,9 @@ export async function relayRuntimeRequest(request:Request,env:Env,ctx:Pick<Execu
       }),message.offset);
       upstream=page.response;
       toolCount=page.toolCount;
+      if(toolCount===0&&!member&&!appOnly&&!tools.tat.length&&selected.some(tool=>tool.identity!=="tat")) {
+        discoveryError="lark_user_authorization_required";
+      }
     } else if(message?.method==="call"&&message.id!==null&&selected[0]?.openApi) {
       const token=tools.uat.length?member?.accessToken:apiApp?.value;
       if(!token)throw new RelayFailure("upstream_credential_unavailable");
@@ -196,16 +201,20 @@ export async function relayRuntimeRequest(request:Request,env:Env,ctx:Pick<Execu
     const responseHeaders=projectHeaders(upstream.headers,false);
     responseHeaders.set("Cache-Control","no-store");
     responseHeaders.set("Referrer-Policy","no-referrer");
-    const framed=await frameUpstreamBody(upstream,abortController.signal,(chunk)=>{bytes=Math.min(Number.MAX_SAFE_INTEGER,bytes+chunk.byteLength);},(kind,error)=>{
+    const initializeJson=feishu&&method==="initialize"&&upstream.ok&&headerMediaType(upstream.headers.get("Content-Type"))==="application/json";
+    const initializeBytes=initializeJson?new Uint8Array(LOGGED_INITIALIZE_LIMIT):undefined;
+    const framed=await frameUpstreamBody(upstream,abortController.signal,(chunk)=>{
+      const offset=bytes;
+      bytes=Math.min(Number.MAX_SAFE_INTEGER,bytes+chunk.byteLength);
+      if(initializeBytes&&bytes<=initializeBytes.length)initializeBytes.set(chunk,offset);
+    },(kind,error)=>{
+      if(kind==="completed"&&initializeBytes&&bytes<=initializeBytes.length)version=negotiatedLarkVersion(initializeBytes.subarray(0,bytes))??version;
       const code=failure??(error instanceof ByteStreamError?"stream_idle_timeout":kind==="error"?"upstream_transport_failed":null);
       finish(code&&code!=="client_request_aborted"?"error":kind,code);
     });
     if(framed.kind==="definite"){
       bytes=framed.bytes.byteLength;
-      if(feishu&&method==="initialize"&&upstream.ok&&headerMediaType(upstream.headers.get("Content-Type"))==="application/json") {
-        try {version=asRecord(asRecord(JSON.parse(new TextDecoder().decode(framed.bytes)))?.result)?.protocolVersion;}
-        catch {version=undefined;}
-      }
+      if(initializeJson&&bytes<=LOGGED_INITIALIZE_LIMIT)version=negotiatedLarkVersion(framed.bytes)??version;
       responseHeaders.set("Content-Length",String(framed.bytes.byteLength));
       finish("completed");
       return new Response(framed.bytes,{status:upstream.status,statusText:upstream.statusText,headers:responseHeaders});
@@ -219,6 +228,10 @@ export async function relayRuntimeRequest(request:Request,env:Env,ctx:Pick<Execu
   }
 }
 
+function negotiatedLarkVersion(bytes:Uint8Array):unknown {
+  try {return asRecord(asRecord(JSON.parse(new TextDecoder().decode(bytes)))?.result)?.protocolVersion;}
+  catch {return undefined;}
+}
 
 async function frameUpstreamBody(upstream:Response,signal:AbortSignal,onChunk:(chunk:Uint8Array)=>void,onEnd:(kind:ByteStreamEnd,error?:unknown)=>void):Promise<{kind:"definite";bytes:Uint8Array<ArrayBuffer>}|{kind:"open";stream:ReadableStream<Uint8Array>}> {
   if(!upstream.body)return {kind:"definite",bytes:new Uint8Array(new ArrayBuffer(0))};

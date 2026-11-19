@@ -12,7 +12,7 @@ export const OTHER_RESOURCE="https://design.example.test/catalog";
 
 /** Actual Worker/D1 and production DO owner with test-only clock/expiry controls.
  * The external MCP service is synthetic; production owns every auth/path check. */
-export async function oauthFixture(persist?:string,options:{upstream?:(request:Request)=>Promise<Response>;immediateUpstream?:{body:number[]|null;headers:Record<string,string>};controlledTimers?:boolean;issuer?:string;editablePaths?:boolean}={}) {
+export async function oauthFixture(persist?:string,options:{upstream?:(request:Request)=>Promise<Response>;immediateUpstream?:{body:number[]|null;headers:Record<string,string>};controlledTimers?:boolean;issuer?:string;editablePaths?:boolean;captureMcpLogs?:boolean}={}) {
   const issuer=options.issuer??ISSUER;
   const compiled=await build({
     stdin:{resolveDir:process.cwd(),sourcefile:"runtime-oauth-fixture.ts",contents:`
@@ -27,6 +27,14 @@ export async function oauthFixture(persist?:string,options:{upstream?:(request:R
       const timers=new Map();let nextTimer=0;
       globalThis.__nativeSetTimeout=setTimeout;
       globalThis.__nativeClearTimeout=clearTimeout;
+      const mcpLogs=[];
+      if(${options.captureMcpLogs===true}) {
+        const log=console.log.bind(console);
+        console.log=(...args)=>{
+          if(args[0]?.event==='runtime_mcp')mcpLogs.push(args[0]);
+          else log(...args);
+        };
+      }
       if(${options.controlledTimers===true}) {
         globalThis.setTimeout=(callback,delay=0)=>{const id=++nextTimer;timers.set(id,{at:fixtureTime+delay,callback});return id;};
         globalThis.clearTimeout=id=>timers.delete(id);
@@ -104,6 +112,7 @@ export async function oauthFixture(persist?:string,options:{upstream?:(request:R
       export default {async fetch(request,env,ctx){
         if(new URL(request.url).hostname==='fixture.internal') {
           const {kind,value}=await request.json();
+          if(kind==='mcp-logs')return Response.json(mcpLogs.splice(0));
           if(kind==='relay-framing')return Response.json({contentLength:relayContentLength});
           if(kind==='fail-installation-read'){installationReadFails=value==='true';return Response.json({done:true});}
           if(kind==='advance-lark-token-clock')return Response.json({done:await env.RUNTIME_CREDENTIALS.getByName('lark-doc').advanceClock(Number(value))});

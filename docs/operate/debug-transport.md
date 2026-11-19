@@ -13,7 +13,9 @@ For an ordinary member, expose only their own service/key state and sanitized re
 Filter Workers Logs on the custom event `runtime_mcp`. The protocol and
 authorization stages record handled rejections. Discovery records `initialize`
 and `tools/list`. For Feishu, look for the negotiated version in a JSON
-initialize response and the number of tools in the returned page. Stitch
+initialize response and the number of tools in the returned page. An empty
+Feishu page can report `lark_user_authorization_required` when no
+eligible identity remains and the member grant is unavailable. Stitch
 discovery uses the explicit `Mcp-Method` header when present and does not
 inspect the upstream body. The event fields exclude URLs, credentials, account
 identities and request or response content. Keep automatic invocation logs off.
