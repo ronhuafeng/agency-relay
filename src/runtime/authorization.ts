@@ -80,7 +80,7 @@ export async function runtimeAuthorizationResponse(request:Request,env:Env):Prom
       }
       const reply=await env.RUNTIME_OAUTH.getByName("organization").consent(url.pathname.split("/").at(-1)!,await oauthHash(env,binding),await browserSessionHash(env,request),decision,reviewedService);
       if(reply.location)return new Response(null,{status:303,headers:{Location:reply.location,"Cache-Control":"no-store","Referrer-Policy":"no-referrer"}});
-      if(reply.status!==200)return consentFailure(reply.status);
+      if(reply.status!==200)return consentFailure(reply.status,reply.body.error==="client_consent_limit"?url.pathname:undefined);
       const data=reply.body as {id:string;client_name:string;resource:string;scope:string;email:string;redirect_uri:string;
         feishu_installation?:string;feishu_tools?:string[];feishu_service_tag?:string};
       return new Response(consoleDocument({title:"授权客户端 · Agency Relay",email:data.email,
@@ -113,8 +113,8 @@ export async function runtimeAuthorizationResponse(request:Request,env:Env):Prom
   }
 }
 
-function consentFailure(status:number):Response {
-  return new Response(consoleDocument({title:"授权未完成 · Agency Relay",main:createElement(RuntimeConsentFailure,{status})}),{
+function consentFailure(status:number,retryPath?:string):Response {
+  return new Response(consoleDocument({title:"授权未完成 · Agency Relay",main:createElement(RuntimeConsentFailure,{status,retryPath})}),{
     status,headers:{"Content-Type":"text/html; charset=utf-8","Cache-Control":"no-store","Referrer-Policy":"no-referrer",
       "Content-Security-Policy":"default-src 'none'; style-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
       "X-Frame-Options":"DENY","X-Content-Type-Options":"nosniff","X-Robots-Tag":"noindex, nofollow"}

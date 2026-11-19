@@ -25,7 +25,12 @@ export function RuntimeConsent({client_name,resource,scope,action,email,feishu_i
   </section>;
 }
 
-export function RuntimeConsentFailure({status}:{readonly status:number}) {
+export function RuntimeConsentFailure({status,retryPath}:{readonly status:number;readonly retryPath?:string}) {
+  if(retryPath)return <section className="gate"><h1>客户端授权已达上限</h1>
+    <p className="lede">此工具服务已有 5 个客户端授权。</p>
+    <p>到<a href={runtimeMemberHref()} target="_blank" rel="noreferrer">我的工具服务</a>撤销一个不用的客户端，再返回授权确认页。</p>
+    <Button asChild variant="outline"><a href={retryPath}>返回授权确认</a></Button>
+  </section>;
   return <section className="gate"><h1>本次授权未完成</h1>
     <p className="lede">{status===503?"目前无法确认服务权限。":status===403?"本次授权的身份或权限已变更。":"本次授权已过期或无效。"}</p>
     <p>请回到客户端重新开始授权。不会自动重试、切换上游账号或恢复旧权限。</p>

@@ -316,6 +316,26 @@ it("keeps Deny, console role and alternate credential domains distinct from Runt
   } finally {await f.dispose();}
 },20000);
 
+it("keeps a pending consent usable after a member frees a client authorization slot",async()=>{
+  const f=await oauthFixture();try {
+    for(let i=0;i<5;i++)await authorizedTokens(f);
+    const pending=await pendingConsent(f);
+    const full=await pending.decide();
+    expect(full.status).toBe(429);
+    expect(await full.text()).toContain(`href="${pending.target.pathname}"`);
+    const headers={Cookie:f.cookies.get("member")!,Origin:ISSUER};
+    const inventory=await f.runtime.dispatchFetch(`${ISSUER}/runtime/clients`,{headers});
+    const {consents}=await inventory.json() as {consents:{id:string}[]};
+    expect(consents).toHaveLength(5);
+    const revoked=await f.runtime.dispatchFetch(`${ISSUER}/runtime/clients/${consents[0]!.id}`,{method:"DELETE",headers});
+    expect(revoked.status).toBe(200);
+    await pending.review();
+    const allowed=await pending.decide();
+    expect(allowed.status).toBe(303);
+    expect(new URL(allowed.headers.get("Location")!).searchParams.has("code")).toBe(true);
+  } finally {await f.dispose();}
+},20000);
+
 it("lists only the member's client consents and revokes one without revoking another",async()=>{
   const f=await oauthFixture();try {
     const a=await authorizedTokens(f),b=await authorizedTokens(f,OTHER_RESOURCE);

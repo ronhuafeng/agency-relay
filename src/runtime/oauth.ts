@@ -158,9 +158,6 @@ export class RuntimeOAuth extends DurableObject<Env> {
       if(decision==="allow"&&authority.feishu_tools&&(!authority.feishu_tools.length||
         reviewedService!==serviceTag))return invalid(403,"access_denied");
       return this.ctx.storage.transaction(async()=>{
-        this.ctx.storage.sql.exec("DELETE FROM pending WHERE id=?",id);
-        this.ctx.storage.sql.exec(`UPDATE consents SET revoked=1 WHERE subject=? AND installation=?
-          AND (access_revision<>? OR authority_revision<>?)`,principal.id,pending.installation,authority.access_revision,authority.authority_revision);
         const consent:Consent={id:crypto.randomUUID(),subject:principal.id,client:client.id,installation:pending.installation,
           resource:authority.resource,access_revision:authority.access_revision,authority_revision:authority.authority_revision,
           deadline:Date.now()+FAMILY_MS,revoked:0,created:Date.now(),scope:RUNTIME_SCOPE,
@@ -169,7 +166,10 @@ export class RuntimeOAuth extends DurableObject<Env> {
         const count=this.ctx.storage.sql.exec<{count:number}>(`SELECT count(*) AS count FROM consents
           WHERE subject=? AND installation=? AND client<>? AND revoked=0 AND deadline>?
             AND access_revision=? AND authority_revision=?`,principal.id,pending.installation,client.id,Date.now(),authority.access_revision,authority.authority_revision).one().count;
-        if(decision!=="deny"&&count>=5)return invalid(429);
+        if(decision!=="deny"&&count>=5)return invalid(429,"client_consent_limit");
+        this.ctx.storage.sql.exec("DELETE FROM pending WHERE id=?",id);
+        this.ctx.storage.sql.exec(`UPDATE consents SET revoked=1 WHERE subject=? AND installation=?
+          AND (access_revision<>? OR authority_revision<>?)`,principal.id,pending.installation,authority.access_revision,authority.authority_revision);
         const model=this.model(client,consent,deadline);
         const server=new OAuth2Server({model,authorizationCodeLifetime:120,authenticateHandler:{handle:async()=>({id:principal.id})}});
         const response=new OAuth2Server.Response();
