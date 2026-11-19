@@ -1,5 +1,5 @@
 import {canonicalMailbox} from "../../../auth/principal";
-import {base64UrlEncode} from "../../../crypto";
+import {pkceChallengeS256} from "../../../crypto";
 import type {LarkAppCredential} from "./credentials";
 
 const IDENTITY_SCOPES = ["contact:user.email:readonly", "contact:user.employee:readonly", "offline_access"];
@@ -16,10 +16,10 @@ export interface LarkUserTokens {
 export type LarkUserAccess = Pick<LarkUserTokens,"accessToken"|"scopes">;
 
 export async function larkAuthorizeUrl(appId: string, redirect: string, state: string, verifier: string, scopes:readonly string[]): Promise<string> {
-  const challenge = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier));
+  const challenge = await pkceChallengeS256(verifier);
   const destination = new URL("https://accounts.feishu.cn/open-apis/authen/v1/authorize");
   destination.search = new URLSearchParams({client_id:appId,redirect_uri:redirect,state,response_type:"code",scope:[...new Set([...IDENTITY_SCOPES,...scopes])].join(" "),
-    code_challenge:base64UrlEncode(new Uint8Array(challenge)),code_challenge_method:"S256",prompt:"consent"}).toString();
+    code_challenge:challenge,code_challenge_method:"S256",prompt:"consent"}).toString();
   return destination.href;
 }
 
@@ -40,8 +40,8 @@ export function logLarkUserFailure(stage:"callback_input"|"session"|"state"|"aut
 export async function larkUserToken(app:LarkAppCredential, request:TokenRequest, send:(request:Request)=>Promise<Response>):Promise<LarkUserTokens> {
   const started=Date.now();
   const response=await send(new Request("https://accounts.feishu.cn/oauth/v3/token",{
-    method:"POST",headers:{"Content-Type":"application/json",Accept:"application/json"},
-    body:JSON.stringify({...request,client_id:app.appId,client_secret:app.appSecret}),redirect:"manual",signal:AbortSignal.timeout(8000),
+    method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded",Accept:"application/json"},
+    body:new URLSearchParams({...request,client_id:app.appId,client_secret:app.appSecret}),redirect:"manual",signal:AbortSignal.timeout(8000),
   }));
   const data=await readResponse(response);
   const scopes=typeof data.scope==="string"?data.scope.split(/\s+/).filter(Boolean):null;
