@@ -85,7 +85,13 @@ it("enforces live tool switches, per-client review and UAT-first routing across 
     expect(Boolean(app)!==Boolean(member)).toBe(true);
     expect(request.headers.has("Authorization")).toBe(false);
     const selected=request.headers.get("X-Lark-MCP-Allowed-Tools")?.split(",")??[];
-    const rpc=await request.json() as {id:number;method:string;params?:{name?:string;arguments?:{query?:string}}};
+    const rpc=await request.json() as {id:number;method:string;params?:{name?:string;protocolVersion?:string;arguments?:{query?:string}}};
+    if(rpc.method==="initialize") {
+      expect(app).toBe(true);
+      expect(rpc.params?.protocolVersion).toBe("2025-11-25");
+      return Response.json({jsonrpc:"2.0",id:rpc.id,result:{protocolVersion:"2025-03-26",capabilities:{tools:{}},
+        serverInfo:{name:"Synthetic Feishu",version:"1"}}});
+    }
     calls.push({actor:app?"app":member!,method:rpc.method,...(rpc.params?.name?{tool:rpc.params.name}:{})});
     if(rpc.method==="tools/list") {
       const names=[...selected,"update-doc"];
@@ -163,7 +169,15 @@ it("enforces live tool switches, per-client review and UAT-first routing across 
     expect(rotations).toEqual([]);
     expect(await Promise.all((["search-doc","search-user"] as const).map(async name=>status(await rpc(personal,"tools/call",name))))).toEqual([200,200]);
     expect(rotations).toEqual(["member"]);
-    expect(await names(await rpc(personal,"tools/list"))).toEqual(["search-doc","fetch-doc","search-user"]);
+    const initialized=await f.runtime.dispatchFetch(resource,{method:"POST",
+      headers:{Authorization:`Bearer ${personal}`,"Content-Type":"application/json"},
+      body:JSON.stringify({jsonrpc:"2.0",id:1,method:"initialize",params:{protocolVersion:"2025-11-25",capabilities:{},
+        clientInfo:{name:"Synthetic client",version:"1"}}})});
+    expect(initialized.status).toBe(200);
+    const {result}=await initialized.json() as {result:{protocolVersion:string}};
+    expect(result.protocolVersion).toBe("2025-03-26");
+    expect(await names(await rpc(personal,"tools/list",undefined,{"Mcp-Protocol-Version":result.protocolVersion})))
+      .toEqual(["search-doc","fetch-doc","search-user"]);
     expect(await status(await rpc(personal,"tools/call","fetch-doc"))).toBe(200);
     expect(await status(await rpc(other,"tools/call","fetch-doc"))).toBe(200);
     expect(await names(await rpc(other,"tools/list"))).toEqual(["search-doc","fetch-doc","search-user"]);
