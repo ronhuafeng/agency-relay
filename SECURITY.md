@@ -110,15 +110,18 @@ not the production registration policy. The `runtime.use` scope grants
 installation use. A consent screen must state the upstream authority
 consequence. All token material stays out of audit and diagnostics.
 
-Feishu requires explicit client consent for the permitted tools, including
-their application-identity fallback. The member connects a matching Feishu account through the
+Feishu requires explicit client consent for the exact service installation.
+The confirmation covers the tools administrators enable over time, including
+write operations and application-identity fallback. The member connects a matching Feishu account through the
 console's one-use OAuth callback with PKCE and exact session binding.
 The installation's credential owner encrypts each member's token pair.
 The member, access revision, session epoch and installation credential version
 bind that grant. A durable fence prevents replay of a potentially spent
 refresh token. A late code exchange or refresh cannot recreate a disconnected
-grant. Relay uses one Feishu identity per tool call and checks both the saved
-client consent and current tool policy before dispatch.
+grant. Relay uses one Feishu identity per tool call. Discovery and calls use
+the current installation tool policy and Feishu permissions. Existing valid
+Feishu grants use that policy on their next request. The grant still binds the
+client, resource, member access revision and installation authority revision.
 
 The canonical console origin owns `/.well-known/oauth-authorization-server`,
 `/runtime/register`, `/runtime/authorize`, `/runtime/token`, the exact opaque

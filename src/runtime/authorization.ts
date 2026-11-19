@@ -69,19 +69,20 @@ export async function runtimeAuthorizationResponse(request:Request,env:Env):Prom
       const binding=cookie(request,BINDING_COOKIE);
       if(!binding)return consentFailure(403);
       let decision:"allow"|"deny"|undefined;
-      let reviewedTools:string|undefined;
+      let reviewedService:string|undefined;
       if(request.method==="POST") {
         if(headerMediaType(request.headers.get("Content-Type"))!=="application/x-www-form-urlencoded")return protocolResponse({error:"invalid_request"},400);
-        const form=uniqueFields(new URLSearchParams(await readOAuthBody(request)),["decision","feishu_tools"]);
+        const form=uniqueFields(new URLSearchParams(await readOAuthBody(request)),["decision","feishu_service","feishu_tools"]);
         if(form.decision!=="allow"&&form.decision!=="deny")return protocolResponse({error:"invalid_request"},400);
-        decision=form.decision;
-        reviewedTools=form.feishu_tools;
+        // Old Allow forms described tool-specific consent. Show the service grant before accepting it.
+        if(form.decision==="deny"||!Object.hasOwn(form,"feishu_tools"))decision=form.decision;
+        reviewedService=form.feishu_service;
       }
-      const reply=await env.RUNTIME_OAUTH.getByName("organization").consent(url.pathname.split("/").at(-1)!,await oauthHash(env,binding),await browserSessionHash(env,request),decision,reviewedTools);
+      const reply=await env.RUNTIME_OAUTH.getByName("organization").consent(url.pathname.split("/").at(-1)!,await oauthHash(env,binding),await browserSessionHash(env,request),decision,reviewedService);
       if(reply.location)return new Response(null,{status:303,headers:{Location:reply.location,"Cache-Control":"no-store","Referrer-Policy":"no-referrer"}});
       if(reply.status!==200)return consentFailure(reply.status);
       const data=reply.body as {id:string;client_name:string;resource:string;scope:string;email:string;redirect_uri:string;
-        feishu_installation?:string;feishu_tools?:string[];feishu_policy_tag?:string};
+        feishu_installation?:string;feishu_tools?:string[];feishu_service_tag?:string};
       return new Response(consoleDocument({title:"授权客户端 · Agency Relay",email:data.email,
         main:createElement(RuntimeConsent,{...data,action:url.pathname})}),{headers:{
         // Native same-origin form POST needs a non-null Origin. No referrer is

@@ -6,7 +6,6 @@ import {readConsoleSessionPrincipalByHash} from "../auth/console-session";
 import type {ConsolePrincipal} from "../auth/principal";
 import {larkUserAuthority,readRuntimeAuthority,readRuntimeAuthorityRevision,readRuntimeMemberInstallations,type RuntimeAuthority,type RuntimeMemberInstallation} from "./installations";
 import {runtimeResources,RUNTIME_SCOPE} from "./profiles";
-import {larkToolSelection} from "./connectors/lark-doc/profile";
 import type {LarkPermissionNotice} from "./connectors/lark-doc/permissions";
 
 type ClientConsentView={id:string;client_id:string;client_name:string;resource:string;scope:string;created_at:string;expires_at:string};
@@ -135,7 +134,7 @@ export class RuntimeOAuth extends DurableObject<Env> {
     },unavailable());
   }
 
-  async consent(id:string,binding:string,session:string|null,decision?:"allow"|"deny",reviewedTools?:string):Promise<OAuthReply> {
+  async consent(id:string,binding:string,session:string|null,decision?:"allow"|"deny",reviewedService?:string):Promise<OAuthReply> {
     return this.gate(async(deadline)=>{
       const stored=this.ctx.storage.sql.exec<{data:string}>("SELECT data FROM pending WHERE id=? AND expires>?",id,Date.now()).toArray()[0];
       if(!stored)return invalid();
@@ -152,12 +151,12 @@ export class RuntimeOAuth extends DurableObject<Env> {
         pending.principal=principal;pending.accessRevision=authority.access_revision;
         this.ctx.storage.sql.exec("UPDATE pending SET data=? WHERE id=?",JSON.stringify(pending),id);
       }
-      const policyTag=authority.feishu_tools&&decision!=="deny"
-        ?await this.hash(`feishu-tools:${JSON.stringify(authority.feishu_tools)}`):undefined;
+      const serviceTag=authority.feishu_tools&&decision!=="deny"
+        ?await this.hash(`feishu-service-consent:${id}`):undefined;
       if(!decision)return {status:200,body:{id,client_name:client.name,resource:authority.resource,scope:RUNTIME_SCOPE,email:principal.email,redirect_uri:pending.query.redirect_uri!,
-        ...(authority.feishu_tools&&policyTag?{feishu_installation:authority.installation_id,feishu_tools:authority.feishu_tools,feishu_policy_tag:policyTag}:{})}};
+        ...(authority.feishu_tools&&serviceTag?{feishu_installation:authority.installation_id,feishu_tools:authority.feishu_tools,feishu_service_tag:serviceTag}:{})}};
       if(decision==="allow"&&authority.feishu_tools&&(!authority.feishu_tools.length||
-        reviewedTools!==policyTag))return invalid(403,"access_denied");
+        reviewedService!==serviceTag))return invalid(403,"access_denied");
       return this.ctx.storage.transaction(async()=>{
         this.ctx.storage.sql.exec("DELETE FROM pending WHERE id=?",id);
         this.ctx.storage.sql.exec(`UPDATE consents SET revoked=1 WHERE subject=? AND installation=?
@@ -165,6 +164,7 @@ export class RuntimeOAuth extends DurableObject<Env> {
         const consent:Consent={id:crypto.randomUUID(),subject:principal.id,client:client.id,installation:pending.installation,
           resource:authority.resource,access_revision:authority.access_revision,authority_revision:authority.authority_revision,
           deadline:Date.now()+FAMILY_MS,revoked:0,created:Date.now(),scope:RUNTIME_SCOPE,
+          // Retain the snapshot as the existing Feishu grant marker and for code rollback.
           feishu_tools:authority.feishu_tools?JSON.stringify(authority.feishu_tools):null};
         const count=this.ctx.storage.sql.exec<{count:number}>(`SELECT count(*) AS count FROM consents
           WHERE subject=? AND installation=? AND client<>? AND revoked=0 AND deadline>?
@@ -240,9 +240,7 @@ export class RuntimeOAuth extends DurableObject<Env> {
         const lease={id:crypto.randomUUID(),expires:now+10*MINUTE};
         this.ctx.storage.sql.exec("INSERT INTO relay_leases(id,subject,installation,consent,authority_revision,profile,profile_revision,started,expires) VALUES(?,?,?,?,?,?,?,?,?)",
           lease.id,authority.subject,authority.installation_id,consent.id,authority.authority_revision,authority.profile,authority.profile_revision,now,lease.expires);
-        const approved=consent.feishu_tools===null?null:larkToolSelection(consent.feishu_tools);
-        return {...authority,client_authorization_id:consent.id,lease_id:lease.id,lease_expires_at:lease.expires,
-          ...(approved?{feishu_tools:authority.feishu_tools?.filter(tool=>approved.includes(tool))??[]}:{})};
+        return {...authority,client_authorization_id:consent.id,lease_id:lease.id,lease_expires_at:lease.expires};
       });
     },unavailable());
   }

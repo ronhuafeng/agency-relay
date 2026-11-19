@@ -56,7 +56,8 @@ scopes. The [OpenAPI MCP repository](https://github.com/larksuite/lark-openapi-m
 defines a broader catalog for its own server. Publish the corresponding scopes
 in the Feishu app for the identity you intend to use. Initially, document search, document reading
 and member search are enabled. Save changes in Relay to apply them to later
-admissions. Grant added tools to a client through a new client consent.
+admissions. Existing clients can refresh the tool list to discover added tools
+when their Feishu identity has the required permissions.
 
 The Feishu tool tree uses the same MCP URL and shows the pinned upstream
 `AllToolsZh` catalog. Search by API name, business domain, or scope. Group

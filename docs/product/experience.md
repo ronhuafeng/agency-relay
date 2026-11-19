@@ -232,10 +232,11 @@ Show the thirty-day maximum and explain that browser logout does not revoke the
 client. Long untrusted names and resource addresses must remain readable on a
 narrow screen without pushing decision controls out of view.
 
-Feishu Docs consent lists the exact tools, including write operations and
-which tools can use application identity as a fallback. Members connect a
-Feishu account that matches their Relay organization email. Members can update
-Feishu scopes and renew client consent when administrators add tools.
+Feishu Docs consent grants access to the service. It describes write operations
+and application identity fallback, and displays the tools currently enabled.
+Members connect a Feishu account that matches their Relay organization email.
+Tool changes take effect for existing grants on the next client refresh.
+Members can update their Feishu scopes when a tool needs additional permissions.
 Disabling a tool removes it from discovery and prevents new calls.
 Disconnecting removes access through the member's credential.
 

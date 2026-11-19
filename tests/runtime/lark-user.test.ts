@@ -264,7 +264,7 @@ it("enforces live tool switches, per-client review and UAT-first routing across 
       expect(text).not.toContain(unwanted);
       expect(text).not.toContain("synthetic");
     }
-    const memberPage=await f.runtime.dispatchFetch(`${ISSUER}/admin?area=me&view=integrations&installation=lark-doc`,{headers:session("member")});
+    const memberPage=await f.runtime.dispatchFetch(`${ISSUER}/admin?area=me&view=integrations&installation=lark-doc&section=diagnostics`,{headers:session("member")});
     const memberHtml=await memberPage.text();
     expect(memberHtml).toContain('aria-label="飞书权限提示"');
     expect(memberHtml).toContain("无权访问这份文档");
@@ -294,10 +294,15 @@ it("enforces live tool switches, per-client review and UAT-first routing across 
     expect(save.status).toBe(200);
     const html=await save.text();
     expect(html.includes("查看和添加评论")&&html.includes("docs:document.comment:create")).toBe(true);
-    expect(await status(await stale.decide("allow",ISSUER,reviewed))).toBe(403);
-    expect(await names(await rpc(personal,"tools/list"))).toEqual(["search-doc"]);
+    const oldForm=await stale.decide("allow",ISSUER,undefined,"legacy-tool-policy-tag");
+    expect(oldForm.status).toBe(200);
+    expect(oldForm.headers.has("Location")).toBe(false);
+    expect(await oldForm.text()).toContain('name="feishu_service"');
+    expect(await status(await stale.decide("allow",ISSUER,reviewed))).toBe(303);
+    // Keep the original access token and its original stored tool snapshot.
+    expect(await names(await rpc(personal,"tools/list"))).toEqual(["search-doc","add-comments"]);
     expect(await status(await rpc(personal,"tools/call","fetch-doc"))).toBe(400);
-    expect(await status(await rpc(personal,"tools/call","add-comments"))).toBe(400);
+    expect(await status(await rpc(personal,"tools/call","add-comments"))).toBe(200);
     const latest=await authorizedTokens(f,resource);
     const updated=latest.tokens.access_token;
     expect(await names(await rpc(updated,"tools/list"))).toEqual(["search-doc","add-comments"]);
@@ -314,11 +319,12 @@ it("enforces live tool switches, per-client review and UAT-first routing across 
         "tool.search-doc":"1","tool.add-comments":"1"})
     });
     expect(await status(openApiSwitch)).toBe(200);
-    expect(await status(await calendarCall(personal,"calendar-example"))).toBe(400);
+    expect(await names(await rpc(personal,"tools/list"))).not.toContain(calendar);
     calendarScope=true;
     const updatedScopes=["offline_access","search:docs:read","docs:document.comment:create","calendar:calendar:readonly"];
     expect(await finish(await start("member","member",updatedScopes),"member")).toContain("installation=lark-doc");
     expect(await finish(await start("other","other",updatedScopes),"other")).toContain("installation=lark-doc");
+    expect(await names(await rpc(personal,"tools/list"))).toContain(calendar);
     const reviewedMember=(await authorizedTokens(f,resource)).tokens.access_token;
     const reviewedOther=(await authorizedTokens(f,resource,"other")).tokens.access_token;
     const list=await rpc(reviewedMember,"tools/list");

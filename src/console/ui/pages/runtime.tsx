@@ -101,7 +101,7 @@ function RuntimeMemberConfiguration({installation, ready}: {readonly installatio
         </li>
       </ol>
       <p className="caption">已验证 Codex CLI 0.156.1。配置文件本身不授予使用权限。本地 OAuth token 是敏感凭据，由客户端保存，请勿提交或共享。</p>
-      <p className="caption">{installation.personal_feishu ? "授权页会显示工具和调用身份。管理员启用新工具后，重新登录客户端即可授权新增工具。" : "使用的是组织共享上游账号。工具可能读取或修改共享资源，Agency Relay 不提供工具级只读或对象隔离。"}</p>
+      <p className="caption">{installation.personal_feishu ? "管理员调整工具后，请在客户端刷新工具列表。如果飞书权限不足，请更新飞书账号授权。" : "使用的是组织共享上游账号。工具可能读取或修改共享资源，Agency Relay 不提供工具级只读或对象隔离。"}</p>
     </section>
     {ready && installation.personal_feishu === "connected" ? <FeishuAccountActions installation={installation} /> : null}
   </>;
@@ -204,10 +204,10 @@ function FeishuToolSelection({installation,domains}:{readonly installation:Insta
   return <section className="feishu-tools-section" aria-labelledby="feishu-tools-title">
     <div className="feishu-tools-intro">
       <h3 id="feishu-tools-title">飞书工具</h3>
-      <p>选择客户端可申请使用的飞书工具。新增工具需要客户端重新授权。</p>
+      <p>选择客户端可使用的飞书工具。保存后，已授权的客户端刷新列表即可看到更新。</p>
     </div>
     <RuntimeAction installation={installation} action="tools" message="保存飞书工具设置？"
-      details="关闭的工具会停止接受新调用。新增工具需要成员授权。">
+      details="关闭的工具会停止接受新调用。已授权的客户端可使用新增工具，Relay 仍会检查飞书权限。">
       <NativeFeishuToolTree groups={groups}/>
     </RuntimeAction>
   </section>;

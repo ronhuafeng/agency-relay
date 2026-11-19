@@ -88,8 +88,9 @@ operator must perform the initial cutover. Before allowing path or header
 changes, use a recovery version that understands the new configuration.
 
 Apply `0043` before releasing Feishu tool selection. It preserves the configured
-URL, credential binding and member access. Existing Feishu clients must complete
-the new tool consent. Verify the enabled tool list from the console and confirm
+URL, credential binding and member access. After a service-level consent release,
+existing valid Feishu clients discover enabled tools through their next refresh.
+Verify the enabled tool list from the console and confirm
 the Stitch URL and authority revision through readback.
 
 Repository Secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` authorize

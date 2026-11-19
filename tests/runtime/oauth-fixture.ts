@@ -217,11 +217,11 @@ export async function pendingConsent(f:OAuthFixture,resource=RESOURCE,clientId?:
   const review=async()=>{
     const reply=await f.runtime.dispatchFetch(target.href,{headers:{Cookie:cookie},redirect:"manual"});
     if(reply.status!==200)throw new Error("Synthetic consent review failed");
-    return (await reply.text()).match(/name="feishu_tools" value="([^"]+)"/)?.[1]?.replaceAll("&quot;",'"');
+    return (await reply.text()).match(/name="feishu_service" value="([^"]+)"/)?.[1]?.replaceAll("&quot;",'"');
   };
-  const decide=(decision="allow",origin=f.issuer,reviewedTools?:string)=>f.runtime.dispatchFetch(target.href,{method:"POST",
+  const decide=(decision="allow",origin=f.issuer,reviewedService?:string,legacyTools?:string)=>f.runtime.dispatchFetch(target.href,{method:"POST",
     headers:{Cookie:cookie,Origin:origin,"Content-Type":"application/x-www-form-urlencoded"},
-    body:new URLSearchParams({decision,...(reviewedTools?{feishu_tools:reviewedTools}:{})}).toString(),redirect:"manual"});
+    body:new URLSearchParams({decision,...(reviewedService?{feishu_service:reviewedService}:{}),...(legacyTools?{feishu_tools:legacyTools}:{})}).toString(),redirect:"manual"});
   return {clientId,query,cookie,target,verifier,review,decide};
 }
 export async function authorizedTokens(f:OAuthFixture,resource=RESOURCE,member="member") {
