@@ -28,7 +28,7 @@ function DashboardPage({model}: {readonly model: AdminDashboardPageModel}) {
     case "credentials": return <AccountsPage model={model} />;
     case "access": return <PeoplePage model={model} />;
     case "setup": return <SetupPage model={model} />;
-    case "audit": return <RequestHistory model={model.history} />;
+    case "audit": return <RequestHistory model={model.history} completion={model.completion} />;
     case "usage": return <UsagePage model={model} />;
     case "surfaces": return <RoutesIsland routes={model.routes} />;
     case "quotas": return <QuotasPage defaults={model.defaults} />;

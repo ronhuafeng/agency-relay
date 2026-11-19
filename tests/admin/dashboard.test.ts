@@ -1135,7 +1135,7 @@ describe("Dashboard", () => {
     expect(setupHtml).toContain('placeholder="搜索账号或密钥"');
   });
 
-  it("uses one exact-filtered request inventory without aggregate reads", async () => {
+  it("uses one exact-filtered request inventory and does not chart without a Responses plan", async () => {
     const { env, db } = dashboardFixture();
     db.seedAudits(
       ...Array.from({ length: 9 }, (_, index) => ({
@@ -1169,7 +1169,9 @@ describe("Dashboard", () => {
     expect(document.querySelectorAll('[data-request-record]')).toHaveLength(10);
     expect(document.querySelector('.request-filter-actions .info-popover button')?.getAttribute('aria-label')).toBe('记录范围');
     expect(document.querySelectorAll('#activity-summary')).toHaveLength(0);
-    expect(db.preparedSql.some((sql) => sql.includes("GROUP BY") && sql.includes("route_profile_id"))).toBe(false);
+    expect(document.querySelector('[data-completion-state="needs-plan"]')).not.toBeNull();
+    expect(db.preparedSql.some((sql) => /group by\s+(?:[\w.]+\.)?route_profile_id/i.test(sql))).toBe(false);
+    expect(db.preparedSql.some((sql) => sql.includes("completion_bucket"))).toBe(false);
     expect(
       db.preparedSql.some(
         (sql) =>

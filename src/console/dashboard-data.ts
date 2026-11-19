@@ -6,6 +6,7 @@ import type { UsageTrendsModel } from "./ui/usage-trends";
 import { readServiceOwner, type ServiceOwner } from "../auth/service-delegation";
 import { listMemberKeys, type PublicApiKey } from "../auth/api-keys";
 import { readControlAudit, type ControlAuditRow } from "./control-audit";
+import { readCompletionTime, type CompletionTimeModel } from "./completion-time";
 import { readRequestHistory, type RequestHistoryModel } from "./request-history";
 import { isOrganizationLoginUser, organizationDomain } from "../auth/principal";
 import type { AdminIdentity } from "../auth/authenticate";
@@ -226,6 +227,7 @@ export interface AdminDashboardSetupModel extends AdminDashboardPageModelBase {
 export interface AdminDashboardAuditModel extends AdminDashboardPageModelBase {
   view: "audit";
   history: RequestHistoryModel;
+  completion: CompletionTimeModel;
 }
 
 export interface AdminDashboardQuotasModel extends AdminDashboardPageModelBase {
@@ -435,8 +437,13 @@ export async function loadDashboard(input: AdminDashboardInput, base: DashboardL
     const detail = input.url.searchParams.has("record");
     // Use the same validated address as the document and its history entry.
     // Native GET forms can send empty fields and a different query order.
-    const history = await readRequestHistory(input.env, new URL(base.canonicalUrl, input.url));
-    model = { ...base, view, history, ...(detail ? { documentTitle: "请求记录详情 · Agency Relay 控制台" } : {}) };
+    // The interval read reports its own failure; a history failure still fails the page.
+    const historyUrl = new URL(base.canonicalUrl, input.url);
+    const [history, completion] = await Promise.all([
+      readRequestHistory(input.env, historyUrl),
+      readCompletionTime(input.env, historyUrl, input.now)
+    ]);
+    model = { ...base, view, history, completion, ...(detail ? { documentTitle: "请求记录详情 · Agency Relay 控制台" } : {}) };
     break;
     }
     case "quotas": {
