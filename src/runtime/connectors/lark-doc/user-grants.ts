@@ -1,6 +1,6 @@
 import {base64UrlEncode,decryptJson,encryptJson,hmacSha256Hex} from "../../../crypto";
 import type {LarkAppCredential} from "./credentials";
-import {larkAuthorizeUrl,larkUserToken,verifyLarkMember,type LarkUserAccess,type LarkUserTokens} from "./user-oauth";
+import {larkAuthorizeUrl,larkUserToken,logLarkUserFailure,verifyLarkMember,type LarkUserAccess,type LarkUserTokens} from "./user-oauth";
 
 export interface LarkUserAuthority {
   installation: string;
@@ -59,14 +59,18 @@ export class LarkUserGrants {
     const reserved=this.storage.sql.exec(`UPDATE lark_user_flows SET exchanging=1
       WHERE subject=? AND state_hash=? AND session_hash=? AND fingerprint=? AND expires>? AND exchanging=0 RETURNING subject`,
     authority.subject,hash,browser.sessionHash,fingerprintValue,Date.now()).toArray();
-    if(!reserved.length)return false;
+    if(!reserved.length)return logLarkUserFailure("state");
+    let stage:"app_credential"|"token"|"identity"|"grant"="app_credential";
     try {
       const app=await this.loadApp(authority);
-      if(!app)return false;
+      if(!app)return logLarkUserFailure(stage);
+      stage="token";
       const material=await larkUserToken(app,{grant_type:"authorization_code",code,redirect_uri:callback,code_verifier:verifier},this.send);
-      if(!await verifyLarkMember(material.accessToken,browser.email,this.send))return false;
+      stage="identity";
+      if(!await verifyLarkMember(material.accessToken,browser.email,this.send))return logLarkUserFailure(stage);
+      stage="grant";
       const encrypted=await this.seal(authority,hash,material);
-      if(!await stillAuthorized())return false;
+      if(!await stillAuthorized())return logLarkUserFailure("authority");
       const saved=this.storage.sql.exec(`INSERT INTO lark_user_grants
         (subject,generation,fingerprint,app_revision,access_expires,refresh_expires,iv,ciphertext)
         SELECT ?,?,?,?,?,?,?,? WHERE EXISTS (SELECT 1 FROM lark_user_flows WHERE subject=? AND state_hash=? AND expires>?)
@@ -74,7 +78,9 @@ export class LarkUserGrants {
           access_expires=excluded.access_expires,refresh_expires=excluded.refresh_expires,refreshing=0,iv=excluded.iv,ciphertext=excluded.ciphertext
         RETURNING subject`,authority.subject,hash,fingerprintValue,authority.credentialRevision,material.accessExpiresAt,material.refreshExpiresAt,
       encrypted.iv,encrypted.ciphertext,authority.subject,hash,Date.now()).toArray();
-      return saved.length===1;
+      return saved.length===1||logLarkUserFailure(stage);
+    } catch(error) {
+      return logLarkUserFailure(stage,error);
     } finally {
       this.storage.sql.exec("DELETE FROM lark_user_flows WHERE subject=? AND state_hash=?",authority.subject,hash);
     }

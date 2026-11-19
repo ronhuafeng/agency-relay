@@ -20,6 +20,12 @@ discovery uses the explicit `Mcp-Method` header when present and does not
 inspect the upstream body. The event fields exclude URLs, credentials, account
 identities and request or response content. Keep automatic invocation logs off.
 
+For a failed Feishu member callback, filter `runtime_lark_user` by time. The
+stage distinguishes session or state rejection, token exchange, identity
+verification and grant storage. Provider failures include an HTTP status and a
+numeric provider code when available. The event excludes authorization codes,
+tokens, user identifiers and provider response text.
+
 ## Codex 502 and transport
 
 Check Worker `codex_upstream_transport_error` and sanitized error name/message; determine whether upstream status is absent. Confirm whether the bound account's `getFreshAccessToken` succeeded before classifying credential versus transport failure.

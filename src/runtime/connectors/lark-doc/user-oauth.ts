@@ -26,6 +26,17 @@ export async function larkAuthorizeUrl(appId: string, redirect: string, state: s
 type TokenRequest = {grant_type:"authorization_code";code:string;redirect_uri:string;code_verifier:string}
   | {grant_type:"refresh_token";refresh_token:string};
 
+export class LarkUserOAuthError extends Error {
+  constructor(readonly reason:"provider_rejected"|"token_shape"|"refresh_unavailable"|"missing_scopes",
+    readonly status?:number,readonly providerCode?:number) {super(reason);}
+}
+
+export function logLarkUserFailure(stage:"callback_input"|"session"|"state"|"authority"|"app_credential"|"token"|"identity"|"grant",cause?:unknown):false {
+  const failure=cause instanceof LarkUserOAuthError?cause:undefined;
+  console.log({event:"runtime_lark_user",stage,reason:failure?.reason,http_status:failure?.status,provider_code:failure?.providerCode});
+  return false;
+}
+
 export async function larkUserToken(app:LarkAppCredential, request:TokenRequest, send:(request:Request)=>Promise<Response>):Promise<LarkUserTokens> {
   const started=Date.now();
   const response=await send(new Request("https://accounts.feishu.cn/oauth/v3/token",{
@@ -34,10 +45,9 @@ export async function larkUserToken(app:LarkAppCredential, request:TokenRequest,
   }));
   const data=await readResponse(response);
   const scopes=typeof data.scope==="string"?data.scope.split(/\s+/).filter(Boolean):null;
-  if (!token(data.access_token)||!token(data.refresh_token)||!lifetime(data.expires_in)||!lifetime(data.refresh_token_expires_in)
-    ||!scopes) {
-    throw new Error("Feishu did not return a refreshable member token and its scopes");
-  }
+  if(!token(data.access_token)||!lifetime(data.expires_in))throw new LarkUserOAuthError("token_shape");
+  if(!token(data.refresh_token)||!lifetime(data.refresh_token_expires_in))throw new LarkUserOAuthError("refresh_unavailable");
+  if(!scopes)throw new LarkUserOAuthError("missing_scopes");
   return {accessToken:data.access_token,refreshToken:data.refresh_token,accessExpiresAt:started+data.expires_in*1000,
     refreshExpiresAt:started+data.refresh_token_expires_in*1000,scopes};
 }
@@ -55,12 +65,11 @@ export async function verifyLarkMember(accessToken:string, email:string, send:(r
 }
 
 async function readResponse(response:Response):Promise<Record<string,unknown>> {
-  if(!response.ok) {
-    await response.body?.cancel();
-    throw new Error("Feishu authorization unavailable");
+  const data=await response.json<Record<string,unknown>|null>().catch(()=>null);
+  if(!response.ok||!data||data.code!==0) {
+    const code=data?.code;
+    throw new LarkUserOAuthError("provider_rejected",response.status,typeof code==="number"&&Number.isSafeInteger(code)?code:undefined);
   }
-  const data=await response.json<Record<string,unknown>|null>();
-  if(!data||data.code!==0)throw new Error("Feishu authorization rejected");
   return data;
 }
 

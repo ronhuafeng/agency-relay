@@ -6,7 +6,7 @@ import {memberHref} from "../../../console/member-href";
 import {larkUserAuthority,readRuntimeAuthority} from "../../installations";
 import {runtimeBrowserSessionHash} from "../../member";
 import {runtimeInstallations} from "../../profiles";
-import {LARK_USER_CALLBACK} from "./user-oauth";
+import {LARK_USER_CALLBACK,logLarkUserFailure} from "./user-oauth";
 import {larkTools} from "./profile";
 
 const ROOT="/runtime/feishu-user";
@@ -35,20 +35,20 @@ export async function larkUserAuthorizationResponse(request:Request,env:Env,url:
   }
   const sessionHash=await runtimeBrowserSessionHash(env,request);
   const principal=sessionHash?await readConsoleSessionPrincipalByHash(env,sessionHash):null;
-  if(!principal||!sessionHash)return redirect(failed);
+  if(!principal||!sessionHash){if(isCallback)logLarkUserFailure("session");return redirect(failed);}
   const secrets=env.RUNTIME_CREDENTIALS.getByName(installation);
   if(action?.[2]==="disconnect") {
     await secrets.disconnectLarkUser(installation,principal.id);
     return redirect(returnTo);
   }
   const current=await readRuntimeAuthority(env,principal.id,installation,new Date(),{hash:sessionHash,email:principal.email,epoch:principal.sessionEpoch});
-  if(!current||current.profile!=="lark.doc")return redirect(failed);
+  if(!current||current.profile!=="lark.doc"){if(isCallback)logLarkUserFailure("authority");return redirect(failed);}
   const authority=larkUserAuthority(current);
   const callback=`${url.origin}${LARK_USER_CALLBACK}`;
   const browser={sessionHash,email:principal.email};
   if(isCallback) {
     const codes=url.searchParams.getAll("code");
-    if(codes.length!==1||! /^[\x21-\x7e]{1,2048}$/.test(codes[0]!)||url.searchParams.has("error"))return redirect(failed);
+    if(codes.length!==1||! /^[\x21-\x7e]{1,2048}$/.test(codes[0]!)||url.searchParams.has("error")){logLarkUserFailure("callback_input");return redirect(failed);}
     const connected=await secrets.finishLarkUser(authority,browser,callback,state[0]!,codes[0]!).catch(()=>false);
     return redirect(connected?returnTo:failed);
   }
