@@ -1,3 +1,4 @@
+import type {RuntimeSection} from "../console/runtime-location";
 import {HttpError} from "../errors";
 import {copyBytes} from "../proxy/byte-stream";
 import {headerMediaType} from "../records";
@@ -48,21 +49,26 @@ export async function revokeRuntimeClient(request:Request,env:Env,id:string) {
 export interface RuntimeAdminModel {
   installations:Awaited<ReturnType<typeof readRuntimeInstallation>>[];
   selectedId:string|null;
+  section:RuntimeSection;
   members:Array<{id:string;canonical_email:string;status:string;state:"granted"|"revoked"|null;revision:number;expires_at:string|null}>;
   search:string;
   page:number;
   more:boolean;
   openApiDomains?:Awaited<ReturnType<typeof readLarkOpenApiDomains>>;
 }
-export async function readRuntimeAdmin(env:Env,actor:LifecycleActor,selectedId:string|null,search="",page=1):Promise<RuntimeAdminModel> {
+export async function readRuntimeAdmin(env:Env,actor:LifecycleActor,selectedId:string|null,requestedSection:RuntimeSection|null,search="",page=1):Promise<RuntimeAdminModel> {
   // Each read keeps its own authority checks; declared installations are independent of one another.
   const installations=await Promise.all(runtimeInstallations(env).map(declared=>readRuntimeInstallation(env,actor,declared.id)));
   // An unknown selection is a missing object, not a failed read: the page keeps the
   // declared services and names the absence without selecting a substitute.
   const selected=installations.find(row=>row.id===selectedId);
+  const configured=selected&&selected.state!=="unconfigured";
+  const hasTools=configured&&selected.profile==="lark.doc"&&selected.phase==="ready"&&selected.state!=="retired";
+  const section:RuntimeSection=requestedSection==="tools"&&hasTools?"tools":
+    configured&&(requestedSection==="members"||(!requestedSection&&(search||page>1)))?"members":"settings";
   const members:RuntimeAdminModel["members"]=[];
   let more=false;
-  if(selected&&selected.state!=="unconfigured") {
+  if(selected&&section==="members") {
     const escaped=search.replace(/[\\%_]/g,value=>`\\${value}`);
     const result=await env.DB.prepare(`SELECT u.id,u.canonical_email,u.status,a.state,COALESCE(a.revision,0) AS revision,a.expires_at
       FROM users u LEFT JOIN runtime_installation_access a ON a.user_id=u.id AND a.installation_id=?
@@ -74,9 +80,9 @@ export async function readRuntimeAdmin(env:Env,actor:LifecycleActor,selectedId:s
     // Keep the final authorization check after the member read as well.
     await readRuntimeInstallation(env,actor,selected.id);
   }
-  const openApiDomains=selected?.profile==="lark.doc"&&selected.state!=="unconfigured"
+  const openApiDomains=section==="tools"
     ?await readLarkOpenApiDomains():undefined;
-  return {installations,selectedId,members,search,page,more,openApiDomains};
+  return {installations,selectedId,section,members,search,page,more,openApiDomains};
 }
 
 /** HTML is an adapter to the existing lifecycle, not a second mutation service. */

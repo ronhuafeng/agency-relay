@@ -2,15 +2,15 @@
 /* Standard shadcn components share the console's semantic theme tokens. */
 :is([data-slot=button],[data-variant][data-size]:not([data-slot=switch])), [data-slot=pagination-link] {
   min-height:var(--control-target); min-width:var(--control-target); height:auto; border-radius:var(--radius);
-  font:var(--typography-label); letter-spacing:var(--typography-label-letter-spacing); padding:var(--space-2) 14px; transition:none;
+  font:var(--typography-label); letter-spacing:var(--typography-label-letter-spacing); padding:var(--space-2) var(--space-4); transition:none;
 }
 :is([data-slot=button],[data-variant][data-size]:not([data-slot=switch])):is([data-size=icon],[data-size=icon-sm],[data-size=icon-xs],[data-size=icon-lg]) { width:var(--control-target); padding:10px; }
 :is(a,button,input,select,textarea,summary,[tabindex]):focus-visible { outline:3px solid var(--ring); outline-offset:4px; }
 :is([data-slot=button],[data-variant][data-size]:not([data-slot=switch])):is([data-variant=default],[data-variant=destructive]) {
-  border:2px solid var(--pixel); box-shadow:2px 2px 0 var(--pixel);
+  border:2px solid var(--pixel); box-shadow:var(--shadow-soft);
 }
-/* Secondary actions are printed outlines: an ink hairline and a paper-toned offset, never the ink shadow of a primary action. */
-:is([data-slot=button],[data-variant][data-size]:not([data-slot=switch])):is([data-variant=outline],[data-variant=secondary]) { border:1px solid color-mix(in srgb,var(--foreground) 62%,var(--border)); box-shadow:2px 2px 0 var(--line-soft); }
+/* Secondary actions are printed outlines: an ink hairline and a surface-toned offset, never the ink shadow of a primary action. */
+:is([data-slot=button],[data-variant][data-size]:not([data-slot=switch])):is([data-variant=outline],[data-variant=secondary]) { border:1px solid var(--input); box-shadow:2px 2px 0 var(--line-soft); }
 :is([data-slot=button],[data-variant][data-size]:not([data-slot=switch])):is([data-variant=outline],[data-variant=secondary]):hover:not(:disabled) { background:var(--accent); border-color:var(--foreground); }
 :is([data-slot=button],[data-variant][data-size]:not([data-slot=switch])):disabled { box-shadow:none; }
 :is([data-slot=button],[data-variant][data-size]:not([data-slot=switch]))[data-variant=default] { background:var(--primary); color:var(--primary-foreground); }
@@ -28,11 +28,11 @@
 [data-slot=input-group-addon][data-align=inline-end] { padding-right:0; }
 [data-slot=input-group-addon][data-align=inline-end]:not(:has(button)) { padding-right:var(--space-3); white-space:nowrap; }
 [data-slot=input-group] :is([data-slot=button],[data-variant][data-size]:not([data-slot=switch])) { margin:0; border-radius:0; }
-/* A task surface is a sheet on the page: one calm boundary and a paper-toned hard offset. */
+/* A task surface is a sheet on the page: one calm boundary and a surface-toned hard offset. */
 [data-slot=card] { gap:0; padding:0; border:1px solid var(--border); border-radius:var(--radius); box-shadow:3px 3px 0 var(--line-soft); background:var(--card); color:var(--foreground); min-width:0; }
-[data-slot=card-header] { display:flex; flex-wrap:wrap; padding:12px 16px; align-items:center; gap:8px 12px; border-bottom:1px dashed var(--border); }
+[data-slot=card-header] { display:flex; flex-wrap:wrap; padding:var(--space-3) var(--space-4); align-items:center; gap:var(--space-2) var(--space-3); border-bottom:1px dashed var(--border); }
 [data-slot=card-header] h3 { font:var(--typography-section-title); letter-spacing:var(--typography-section-title-letter-spacing); }
-[data-slot=card-content] { padding:16px; min-width:0; }
+[data-slot=card-content] { padding:var(--space-4); min-width:0; }
 [data-slot=field] { gap:8px; min-width:0; }
 [data-slot=field-label] { font:var(--typography-label); letter-spacing:var(--typography-label-letter-spacing); }
 [data-slot=avatar] { width:28px; height:28px; display:inline-grid; place-items:center; background:var(--secondary); border:1px solid var(--foreground); border-radius:var(--radius); color:var(--foreground); font:700 12px/1 var(--font-mono); }
@@ -104,11 +104,14 @@
 [data-slot=input-group] :is([data-slot=input],[data-slot=input-group-control]):focus-visible { outline:0; }
 [data-slot=tabs-list] { display:flex; flex-wrap:wrap; align-items:stretch; gap:4px; height:auto; min-height:var(--control-target); max-width:100%; }
 [data-slot=tabs-list][data-variant=line] { padding:0; border-bottom:1px solid var(--border); background:transparent; }
-[data-slot=tabs-trigger] { display:inline-flex; flex:0 0 auto; align-items:center; justify-content:center; gap:8px; height:auto; min-height:var(--control-target); min-width:var(--control-target); padding:8px 12px; border:0; color:var(--muted-foreground); font:600 14px/1.5 var(--font-sans); border-radius:var(--rounded-none); }
+[data-slot=tabs-trigger] { display:inline-flex; flex:0 0 auto; align-items:center; justify-content:center; gap:8px; height:auto; min-height:var(--control-target); min-width:var(--control-target); padding:8px 12px; border:0; color:var(--muted-foreground); font:var(--typography-label); border-radius:var(--rounded-none); }
 [data-slot=tabs-trigger]:hover { background:var(--secondary); color:var(--foreground); }
 /* The current view is an index tab: ink text over a full-width cyan block, not a tinted pill. */
 [data-slot=tabs-trigger][data-state=active] { background:transparent; color:var(--foreground); font-weight:700; box-shadow:none; }
 [data-slot=tabs-list][data-variant=line] [data-slot=tabs-trigger]::after { bottom:-1px; height:4px; background:var(--primary); border:1px solid var(--foreground); }
+[data-slot=tabs-list][data-variant=line] a[data-slot=tabs-trigger] { position:relative; text-decoration:none; }
+[data-slot=tabs-list][data-variant=line] a[data-slot=tabs-trigger][aria-current=page] { color:var(--foreground); font-weight:700; }
+[data-slot=tabs-list][data-variant=line] a[data-slot=tabs-trigger][aria-current=page]::after { position:absolute; inset-inline:0; content:""; }
 [data-slot=tabs-content] { padding-top:16px; outline-offset:4px; }
 [data-slot=alert-dialog-header] { grid-template-rows: auto 1fr; }
 [data-slot=alert-dialog-header]:has([data-slot=alert-dialog-media]) { grid-template-rows: auto auto 1fr; }

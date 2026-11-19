@@ -1,3 +1,4 @@
+import { isRuntimeSection } from "./runtime-location";
 import { parseUsageTrendRange, parseUsageQuery } from "./usage-query";
 import { parseRequestHistoryQuery, REQUEST_HISTORY_FIELDS, RequestHistoryDateRangeError, requestHistoryFilterOptions } from "./request-history";
 import { isDashboardPageToken } from "./dashboard-page";
@@ -99,9 +100,14 @@ export async function adminDashboardResponse(input: AdminDashboardInput): Promis
     const value = input.url.searchParams.get(key)?.trim();
     if (value) inventoryQuery.set(key, key === "kind" && value === "all" ? "human" : value);
   }
+  const runtimeQuery = new URLSearchParams();
+  if (view === "runtime") for (const key of ["installation", "section"]) {
+    const value = input.url.searchParams.get(key);
+    if (value) runtimeQuery.set(key, value);
+  }
   const base = {
     appEnabled: input.url.hostname === input.env.ADMIN_DASHBOARD_HOST,
-    canonicalUrl: `${input.url.pathname}?view=${view}${view === "overview" || view === "usage" ? `&range=${range.key}` : ""}${view==="runtime"&&input.url.searchParams.has("installation")?`&installation=${encodeURIComponent(input.url.searchParams.get("installation")!)}`:""}${requestedPerson === null ? "" : `&person=${encodeURIComponent(requestedPerson)}`}${task ? `&task=${task}` : ""}${requestedKey === null ? "" : `&key=${encodeURIComponent(requestedKey)}`}${requestedAccount === null ? "" : `&account=${encodeURIComponent(requestedAccount)}`}${inventoryQuery.size ? `&${inventoryQuery}` : ""}`,
+    canonicalUrl: `${input.url.pathname}?view=${view}${view === "overview" || view === "usage" ? `&range=${range.key}` : ""}${runtimeQuery.size ? `&${runtimeQuery}` : ""}${requestedPerson === null ? "" : `&person=${encodeURIComponent(requestedPerson)}`}${task ? `&task=${task}` : ""}${requestedKey === null ? "" : `&key=${encodeURIComponent(requestedKey)}`}${requestedAccount === null ? "" : `&account=${encodeURIComponent(requestedAccount)}`}${inventoryQuery.size ? `&${inventoryQuery}` : ""}`,
     documentTitle: `${requestedAccount !== null ? "连接详情" : task === "add-account" ? "添加上游连接" : task === "sync-configuration" ? "生成配置文件" : requestedKey !== null ? view === "setup" ? "客户端配置" : "密钥详情" : task === "give-access" ? "创建密钥" : task === "add-person" ? "添加成员" : task === "add-service" ? "创建服务账号" : dashboardViewTitle(view)} · Agency Relay 控制台`,
     operatorId: input.identity.userId ?? null,
     operatorLabel: input.identity.email ?? "已登录的管理员",
@@ -143,11 +149,13 @@ function parseDashboardRange(url: URL, now: Date): DashboardRange {
     throw new DashboardInputError("invalid request history query");
   }
   const entries = [...url.searchParams.entries()];
-  const allowed = new Set(["range", "view", "plan", "status", "limit", "model", "person", "task", "key", "account", "kind", "q", "page", "page_size", "key_q", "key_page", "installation", ...REQUEST_HISTORY_FIELDS]);
+  const allowed = new Set(["range", "view", "plan", "status", "limit", "model", "person", "task", "key", "account", "kind", "q", "page", "page_size", "key_q", "key_page", "installation", "section", ...REQUEST_HISTORY_FIELDS]);
   if (
     entries.some(([key]) => !allowed.has(key))
     || (url.searchParams.has("installation")&&(url.searchParams.get("view")!=="runtime"||url.searchParams.getAll("installation").length!==1||!/^[a-z][a-z0-9-]{0,63}$/.test(url.searchParams.get("installation")!)))
-    || (url.searchParams.get("view")==="runtime"&&entries.some(([key])=>!["view","range","installation","q","page"].includes(key)))
+    || (url.searchParams.has("section") && (url.searchParams.get("view") !== "runtime" || !url.searchParams.has("installation")
+      || url.searchParams.getAll("section").length !== 1 || !isRuntimeSection(url.searchParams.get("section")!)))
+    || (url.searchParams.get("view")==="runtime"&&entries.some(([key])=>!["view","range","installation","section","q","page"].includes(key)))
     || (["overview", "usage"].includes(url.searchParams.get("view") ?? "overview") && url.searchParams.getAll("range").length > 1)
     || url.searchParams.getAll("view").length > 1
     || url.searchParams.getAll("person").length > 1

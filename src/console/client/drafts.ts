@@ -15,6 +15,7 @@ export interface Drafts {
 const fields: Readonly<Record<string, readonly string[]>> = {
   person: ["id", "email"], service: ["display_name"], "service-name": ["display_name"], "service-classify": ["display_name"], account: ["label"],
   access: ["name", "clients", "expires_at_utc", "codex_credential_account_id", "grok_credential_account_id", "xai_credential_account_id"],
+  "runtime-rename": ["label"], "runtime-path": ["path"], "runtime-tools": [],
   binding: ["credential_account_id"], replacement: ["expires_at_utc"], credit: ["mode", "monthly_allowance"], "credit-defaults":["codex","grok","xai"], sync: ["client"]
 };
 function forms(root: ParentNode): HTMLFormElement[] {
@@ -26,7 +27,8 @@ function key(form: HTMLFormElement): string {
 function controls(form: HTMLFormElement): DraftField[] {
   const allowed = fields[form.dataset.dashboardDraft ?? ""] ?? [];
   return Array.from(form.elements).filter((field): field is DraftField =>
-    (field instanceof HTMLInputElement || field instanceof HTMLSelectElement) && allowed.includes(field.name) &&
+    (field instanceof HTMLInputElement || field instanceof HTMLSelectElement) && (allowed.includes(field.name)
+      || form.dataset.dashboardDraft === "runtime-tools" && field.type === "checkbox" && field.name.startsWith("tool.")) &&
     ["text", "email", "number", "datetime-local", "select-one", "checkbox"].includes(field.type) &&
     (!field.disabled || form.dataset.dashboardDraft === "credit" && field.name === "monthly_allowance"));
 }

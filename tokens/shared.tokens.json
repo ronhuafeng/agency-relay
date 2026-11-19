@@ -27,7 +27,7 @@
       "$value": {
         "fontFamily": "{font.sans}",
         "fontSize": {
-          "value": 20,
+          "value": 24,
           "unit": "px"
         },
         "fontWeight": 750,
@@ -63,7 +63,7 @@
           "unit": "px"
         },
         "fontWeight": 400,
-        "lineHeight": 1.5,
+        "lineHeight": 1.5714285714285714,
         "letterSpacing": {
           "value": 0,
           "unit": "px"

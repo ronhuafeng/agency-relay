@@ -1,3 +1,4 @@
+import {runtimeAdminHref} from "./runtime-location";
 import { wantsHtml } from "./request";
 import { type JsonObject, ownerInput, publicService, publicCreditState, readJsonObject, publicCodexAuth, stringField, nullableStringField, creditPolicyField, requiredNonNegativeIntegerField, stringArrayField, requireConfirmation, operatorMutationContext, codexTokenAuthority } from "../control/input";
 import { invalidRuntimeOperation } from "../runtime/installations";
@@ -44,17 +45,28 @@ export async function routeDashboardUiMutation(
     if(url.search)throw invalidRuntimeOperation();
     const feishu=runtimeInstallations(env).some(service=>service.id===runtime[1]&&service.profile==="lark.doc");
     const body=await readRuntimeForm(request,feishu?128*1024:undefined);
+    const section=body.action==="access"?"members":body.action==="tools"?"tools":"settings";
+    let search="";
+    let page=1;
+    if(section==="members") {
+      const {returnSearch,returnPage}=body;
+      search=returnSearch&&returnSearch.length<=256&&!/[\u0000-\u001f\u007f]/.test(returnSearch)?returnSearch.trim():"";
+      page=returnPage&&isDashboardPageToken(returnPage)?Number(returnPage):1;
+      delete body.returnSearch;
+      delete body.returnPage;
+    }
+    const return_url=runtimeAdminHref(runtime[1],section,search,page);
     let flash:DashboardMutationFlash;
     let status=200;
     try {
       await mutateRuntimeInstallation(env,credentialActor(operator),runtime[1]!,body,operator.now);
-      flash={kind:"runtime_changed",installation_id:runtime[1]!,message:"工具服务已更新。"};
+      flash={kind:"runtime_changed",return_url,message:"工具服务已更新。"};
     } catch(error) {
       // Actor/revision rejection can occur after staging across D1 and the DO.
       // Only input validation is known not to have written; all other uncertain
       // outcomes require a GET, never an automatic repeat of this POST.
-      if(!(error instanceof HttpError)||(error.status!==400&&error.code!=="runtime_path_taken"))return consoleUnknownOutcome(`/admin?view=runtime&installation=${runtime[1]}`,"工具服务操作结果尚未确认。请重新打开页面读取当前状态；不会自动重复提交。");
-      status=error.status;flash={kind:"runtime_error",installation_id:runtime[1]!,error_code:error.code ?? "unknown",message:error.code==="runtime_path_taken"?"此路径已被占用或保留。请使用其他路径。":"输入无效，请检查表单。"};
+      if(!(error instanceof HttpError)||(error.status!==400&&error.code!=="runtime_path_taken"))return consoleUnknownOutcome(return_url,"工具服务操作结果尚未确认。请重新打开页面读取当前状态；不会自动重复提交。");
+      status=error.status;flash={kind:"runtime_error",return_url,error_code:error.code ?? "unknown",message:error.code==="runtime_path_taken"?"此路径已被占用或保留。请使用其他路径。":"输入无效，请检查表单。"};
     }
     return dashboardAfterMutation(env,url,admin,deps,requestContext,flash,status);
   }
@@ -554,7 +566,7 @@ async function dashboardAfterMutation(
   const pageUrl = new URL(url.origin);
   pageUrl.pathname = "/admin";
   pageUrl.searchParams.set("view", view);
-  if("installation_id" in flash)pageUrl.searchParams.set("installation",flash.installation_id);
+  if(flash.kind==="runtime_changed"||flash.kind==="runtime_error")pageUrl.search=new URL(flash.return_url,url).search;
   if (view === "credentials") {
     const account = dashboardAccountForMutation(flash);
     if (account) pageUrl.searchParams.set("account", account);

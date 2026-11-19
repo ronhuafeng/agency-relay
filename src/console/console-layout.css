@@ -27,11 +27,11 @@ body { font:var(--typography-body); letter-spacing:var(--typography-body-letter-
 .console-help-popover .table-scroll { margin-top:12px; }
 .table-wrap :is(th,td) { position:relative; }
 .shell main.console-main { max-width:none; padding:16px clamp(16px,2vw,24px) 32px; gap:16px; container-type:inline-size; container-name:console-main; }
-.nav-rail { width:var(--rail); background:var(--secondary); padding-inline:12px; }
+.nav-rail { width:var(--rail); background:var(--card); padding-inline:var(--space-3); }
 .nav-context { padding:14px 10px 8px; font-size:11px; font-weight:600; }
 .nav-rail a { gap:10px; min-height:44px; padding:10px 12px; font-size:14px; }
 /* The current page is a pressed key on the rail: an ink-edged sheet with the cyan index strip. */
-.nav-rail a[aria-current=page] { border:1px solid var(--pixel); padding:9px 11px; background:linear-gradient(90deg,var(--primary) 0 5px,var(--card) 5px); color:var(--foreground); box-shadow:var(--shadow-soft); }
+.nav-rail a[aria-current=page] { border:1px solid var(--pixel); padding:9px 11px; background:linear-gradient(90deg,var(--primary) 0 5px,var(--accent) 5px); color:var(--foreground); box-shadow:var(--shadow-soft); }
 .console-nav-group[data-slot=sidebar-group] { padding:8px 0; }
 .nav-rail:not([data-member-nav]) .console-nav-group,.nav-rail:not([data-member-nav]) .console-nav-group [data-slot=sidebar-menu] { display:contents; }
 .console-nav-group [data-slot=sidebar-group-label] { height:28px; padding:0 12px; color:var(--muted-foreground); font-size:11px; font-weight:650; }
@@ -656,7 +656,7 @@ table.member-quota-table [data-slot=progress] { height:6px; margin-top:8px; }
 @media(min-width:1400px) { .shell main.console-main { padding-inline:24px; } }
 @media(max-width:999px) {
   .shell main.console-main { padding:16px 16px 32px; }
-  .nav-rail { width:100%; padding:4px 16px; background:var(--secondary); }
+  .nav-rail { width:100%; padding:var(--space-1) var(--space-4); }
   .nav-rail .nav-toggle-label { border:0; padding:0; gap:8px; }
   .nav-toggle-label>span:first-child { font-size:12px; color:var(--muted-foreground); }
   .nav-toggle-label strong { font-size:13px; }

@@ -17,6 +17,9 @@ test.describe("Feishu tool selection",()=>{
     expect(configured.status).toBe(200);
     await configured.body?.cancel();
     await page.goto("/admin?view=runtime&installation=lark-doc");
+    await page.getByRole("link",{name:"工具权限",exact:true}).click();
+    await expect(page.getByRole("link",{name:"工具权限",exact:true})).toHaveAttribute("aria-current","page");
+    await expect(page.getByRole("region",{name:"服务配置",exact:true})).toHaveCount(0);
     const section=page.getByRole("region",{name:"飞书工具",exact:true});
     const search=section.getByRole("searchbox",{name:"搜索飞书工具"});
     const fetchDoc=section.getByRole("checkbox",{name:/读取文档正文/});
@@ -39,6 +42,11 @@ test.describe("Feishu tool selection",()=>{
     await expect(fetchDoc).toBeChecked();
     await expect(save).toBeDisabled();
     await fetchDoc.uncheck();
+    await page.getByRole("link",{name:"成员权限",exact:true}).click();
+    await expect(page.getByRole("table",{name:"成员工具权限"})).toBeVisible();
+    await page.getByRole("link",{name:"工具权限",exact:true}).click();
+    await expect(search).toBeVisible();
+    await expect(fetchDoc).not.toBeChecked();
     await search.fill("add-comments");
     await expect(addComment).not.toBeChecked();
     await addComment.check();
@@ -159,6 +167,8 @@ test("uncertain credential write clears input and recovers without repeating sup
   const f=worker.runtimeFixture!;
   const failure=await f.expire("fail-write","true");await failure.body?.cancel();
   await page.goto("/admin?view=runtime&installation=design");
+  await page.getByRole("link",{name:"成员权限",exact:true}).click();
+  await expect(page.getByRole("link",{name:"工具权限",exact:true})).toHaveCount(0);
   const member=page.getByRole("table",{name:"成员工具权限"}).getByRole("row").filter({hasText:"other@example.test"});
   await member.getByRole("button",{name:"授予权限",exact:true}).click();
   const accessConfirmation=page.getByRole("alertdialog");
@@ -167,6 +177,7 @@ test("uncertain credential write clears input and recovers without repeating sup
   await expect(accessConfirmation).toContainText("https://design.example.test/google-stitch");
   await accessConfirmation.getByRole("button",{name:"取消",exact:true}).click();
   expect(await f.db.prepare("SELECT state FROM runtime_installation_access WHERE installation_id='design' AND user_id='other'").first()).toBeNull();
+  await page.getByRole("link",{name:"服务配置",exact:true}).click();
   await page.getByRole("radio",{name:"同一上游账号",exact:true}).check();
   const form=page.locator('form:has(input[name="authority"][value="same"])');
   await form.locator('input[name="material"]').fill("synthetic-replacement-not-for-production");

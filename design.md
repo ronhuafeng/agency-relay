@@ -1,32 +1,32 @@
 ---
 version: alpha
 name: Agency Relay Console
-description: Cyan pixel workspaces printed on warm ruled paper, with deep indigo dark surfaces and crisp task sheets.
+description: Cyan pixel controls on a cool gray canvas, with white light surfaces and deep indigo dark surfaces.
 colors:
   primary: "#00dbe9"
-  on-primary: "#00262b"
-  background: "#f3f1ea"
-  surface: "#fffefa"
-  on-surface: "#17160f"
-  muted: "#5e594c"
-  border: "#d3cdbc"
-  input-border: "#625c4e"
-  secondary: "#eae7dc"
-  accent: "#c8f1f4"
-  success: "#17753a"
-  warning: "#8a5300"
+  on-primary: "#002a2f"
+  background: "#eaedf2"
+  surface: "#ffffff"
+  on-surface: "#0f172a"
+  muted: "#526174"
+  border: "#cbd5e1"
+  input-border: "#182131"
+  secondary: "#f1f5f9"
+  accent: "#d9f6f8"
+  success: "#15803d"
+  warning: "#995c00"
   error: "#b4233e"
   on-error: "#ffffff"
   dark-primary: "#00dbe9"
-  dark-on-primary: "#00262b"
-  dark-background: "#0e0b1f"
-  dark-surface: "#191530"
-  dark-on-surface: "#f1eef9"
-  dark-muted: "#b8b2cf"
-  dark-border: "#554d6e"
+  dark-on-primary: "#002a2f"
+  dark-background: "#0f0b21"
+  dark-surface: "#1c182f"
+  dark-on-surface: "#f0edf8"
+  dark-muted: "#b9b4cd"
+  dark-border: "#5e566f"
   dark-input-border: "#8a81a3"
-  dark-secondary: "#231e3a"
-  dark-accent: "#0f3f4a"
+  dark-secondary: "#28233c"
+  dark-accent: "#103c48"
   dark-success: "#68e6a0"
   dark-warning: "#ffd078"
   dark-error: "#ff9bb0"
@@ -34,7 +34,7 @@ colors:
 typography:
   page-title:
     fontFamily: 'system-ui, "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif'
-    fontSize: 20px
+    fontSize: 24px
     fontWeight: 750
     lineHeight: 1.25
   section-title:
@@ -46,7 +46,7 @@ typography:
     fontFamily: 'system-ui, "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif'
     fontSize: 14px
     fontWeight: 400
-    lineHeight: 1.5
+    lineHeight: 1.5714285714285714
   label:
     fontFamily: 'system-ui, "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif'
     fontSize: 14px
@@ -237,13 +237,12 @@ The format follows the [Google design.md specification](https://github.com/googl
 
 ## Colors
 
-The console reads as a printed technical manual: warm paper, ink, and cyan as the
-one spot colour. The page background is the canvas, ruled with a quiet dot grid
+The console uses cool gray, white task surfaces, dark ink, and cyan in light mode. The page background is the canvas, ruled with a quiet dot grid
 that carries no meaning. Readable content never sits directly on the grid: a task
 object, a chart, a ledger and a collection are each one sheet, with the surface
 colour and one boundary. A page, and a section that only groups sheets, has no
 extra frame. Use the foreground ink for names and facts; muted text is secondary, not a
-substitute for a missing label. Light mode stays warm and light, with calm boundaries around sheets.
+substitute for a missing label. Light mode stays cool and light, with calm boundaries around sheets.
 Input and control outlines are ink-toned and stronger than section dividers; rows inside a
 sheet are separated by dashed hairlines, and a table head sits on one ink rule. Align the desktop brand row with the first content row while
 keeping the navigation surface continuous.
@@ -275,10 +274,10 @@ Do not turn an internal UUID into the largest item in a row when a useful identi
 exists. Legacy objects without a human identity need a truthful label and a
 secondary stable identifier.
 
-A visible 20px title names a creation or consequential task; narrow screens use 18px.
+A visible 24px title names a creation or consequential task. Compact task views use their established heading size.
 Inventory and report pages retain an accessible heading without repeating the navigation label.
 Section titles are usually 14–16px; exact object titles use 18px. Large numbers are reserved for a useful
-metric, such as remaining allowance. Body text is 14px, with 12–13px metadata.
+metric, such as remaining allowance. Body text is 14px with a 22px line height. Metadata uses 12–13px text.
 Phone inputs use at least 16px. Long names wrap; full timestamps and identifiers
 remain available when shortened for scanning. Local review uses the current
 platform's fonts. Reference screenshots are compared only within a matching
@@ -370,13 +369,13 @@ defined in the product contract.
 
 ## Elevation & Depth
 
-Depth is printed, never blurred. A sheet has a calm boundary and a paper-toned hard
+Depth is printed, never blurred. A sheet has a calm boundary and a surface-toned hard
 offset, so it reads as lying on the canvas. Do not add another frame around the page
 or around a section that only groups sheets; internal rows use the dashed divider.
 The ink shadow (`--shadow-soft`, DTCG `shadow.pixel`) is reserved for what the user
 presses or is on: primary and destructive buttons, the current navigation entry and
 the phone navigation capsule. Pressed buttons move into it and lose it. Secondary
-buttons have an ink hairline and a paper-toned offset, never the ink shadow. Overview
+buttons have an ink hairline and a surface-toned offset, never the ink shadow. Overview
 tiles are links: an ink outline, whose offset turns cyan on hover. The page heading has no
 enclosing frame. Menus, popovers and dialogs use an ink outline and `--shadow-overlay`. Exact values come from
 the generated tokens above. These hard edges preserve the theme; do not replace
@@ -580,7 +579,7 @@ state near its affected task; routine success does not demand another banner.
 ## Do's and Don'ts
 
 - Keep cyan action emphasis and pixel feedback across the whole shell and tasks.
-- Keep light mode fully light and warm, including selected navigation and popovers;
+- Keep light mode fully light and cool, including selected navigation and popovers;
   configuration source previews keep their dark code surface in both themes. Use the
   separate indigo token set for dark mode.
 - Group by user activity; make identity, useful facts and the next action scannable.

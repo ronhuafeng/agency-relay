@@ -1,3 +1,4 @@
+import {isRuntimeSection} from "./runtime-location";
 import { readAssignedServiceImpact, type AssignedServiceImpact } from "./service-owner-impact";
 import { parseUsageTrendRange, parseUsageQuery } from "./usage-query";
 import type { UsageTrendsModel } from "./ui/usage-trends";
@@ -49,8 +50,8 @@ export function dashboardViewTitle(view: DashboardViewKey): string {
 }
 
 export type DashboardMutationFlash =
-  | {kind:"runtime_changed";installation_id:string;message:string}
-  | {kind:"runtime_error";installation_id:string;message:string;error_code?:string}
+  | {kind:"runtime_changed";return_url:string;message:string}
+  | {kind:"runtime_error";return_url:string;message:string;error_code?:string}
   | { kind: "key_created"; token: string; key_id: string; key_prefix: string; user_id: string; email?: string | null; scopes: string[] }
   | {
       kind: "key_replacement_created";
@@ -257,7 +258,8 @@ export async function loadDashboard(input: AdminDashboardInput, base: DashboardL
   let model: AdminDashboardPageModel;
   switch (view) {
     case "runtime": {
-      model={...base,view,...await readRuntimeAdmin(input.env,credentialActor({actor:input.identity,requestId:input.requestId}),input.url.searchParams.get("installation"),input.url.searchParams.get("q")?.trim()??"",Number(input.url.searchParams.get("page")??"1"))};
+      const section=input.url.searchParams.get("section");
+      model={...base,view,...await readRuntimeAdmin(input.env,credentialActor({actor:input.identity,requestId:input.requestId}),input.url.searchParams.get("installation"),section&&isRuntimeSection(section)?section:null,input.url.searchParams.get("q")?.trim()??"",Number(input.url.searchParams.get("page")??"1"))};
       break;
     }
     case "overview": {

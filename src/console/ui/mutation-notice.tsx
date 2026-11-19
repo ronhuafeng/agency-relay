@@ -19,7 +19,7 @@ export function SetupPackage({result}: {readonly result: SetupResult}) {
   </section>;
 }
 export function MutationNotice({flash}: {readonly flash: DashboardMutationFlash | null | undefined}) {
-  if(flash?.kind==="runtime_changed"||flash?.kind==="runtime_error")return <section className="mutation-flash" role={flash.kind==="runtime_error"?"alert":"status"}><p data-error-code={flash.kind==="runtime_error" ? flash.error_code : undefined}>{flash.message}</p><a data-dashboard-link="" href={`/admin?view=runtime&installation=${encodeURIComponent(flash.installation_id)}`}>查看当前工具服务</a></section>;
+  if(flash?.kind==="runtime_changed"||flash?.kind==="runtime_error")return <section className="mutation-flash" role={flash.kind==="runtime_error"?"alert":"status"}><p data-error-code={flash.kind==="runtime_error" ? flash.error_code : undefined}>{flash.message}</p><a data-dashboard-link="" href={flash.return_url}>查看当前工具服务</a></section>;
   if (flash?.kind === "key_replacement_error") return <section className="mutation-flash" role="alert" data-mutation-input-error=""><h2>密钥没有更换</h2><p data-error-code={flash.error_code}>{flash.message}</p><p className="panel-caption">请修改到期时间后重新确认。原密钥和绑定没有更改。</p></section>;
   if (flash?.kind === "credential_task_error") {
     const href = `/admin?view=credentials${flash.provider && flash.account_id ? `&account=${encodeURIComponent(`${flash.provider}:${flash.account_id}`)}` : ""}`;

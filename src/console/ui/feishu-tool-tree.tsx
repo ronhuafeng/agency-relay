@@ -1,4 +1,4 @@
-import { useId, useMemo, useState } from "react";
+import { useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Ban, BookOpen, CalendarDays, ChevronDown, ContactRound, FileText, Folder, Grid3X3, MessagesSquare, Search, Table2, Workflow } from "lucide-react";
 import { Button } from "./components/button";
 import { Checkbox } from "./components/checkbox";
@@ -157,6 +157,18 @@ export function FeishuToolTree({ groups }: { groups: FeishuGroup[] }) {
   const [openTool, setOpenTool] = useState<string>();
   const saved = useMemo(() => new Set(groups.flatMap(group => group.tools.filter(tool => tool.enabled).map(tool => tool.name))), [groups]);
   const [selected, setSelected] = useState(saved);
+  const payload = useRef<HTMLDivElement>(null);
+  const selectableNames = useMemo(() => groups.flatMap(group => group.tools
+    .filter(tool => tool.enabled !== undefined).map(tool => tool.name)), [groups]);
+  useLayoutEffect(() => {
+    const controls = payload.current;
+    const form = controls?.closest("form");
+    if (!controls || !form) return;
+    const restore = () => setSelected(new Set(Array.from(
+      controls.querySelectorAll<HTMLInputElement>("input:checked"), input => input.name.slice("tool.".length))));
+    form.addEventListener("console:restore", restore);
+    return () => form.removeEventListener("console:restore", restore);
+  }, []);
   const query = search.trim().toLowerCase();
   const domain = query ? searchDomain : browseDomain;
   const filtered = query !== "" || status !== "all";
@@ -215,7 +227,9 @@ export function FeishuToolTree({ groups }: { groups: FeishuGroup[] }) {
       </NativeSelect>
       <p className="feishu-toolbar-summary caption">{changeSummary}</p>
     </div>
-    {[...selected].map(name => <input key={name} type="hidden" name={`tool.${name}`} value="1"/>)}
+    <div ref={payload} hidden>
+      {selectableNames.map(name => <input key={name} type="checkbox" name={`tool.${name}`} value="1" checked={selected.has(name)} readOnly/>)}
+    </div>
     <div className="feishu-tool-workspace">
       <div className="feishu-domain-picker">
         <label htmlFor="feishu-domain">业务域</label>
@@ -266,7 +280,7 @@ export function FeishuToolTree({ groups }: { groups: FeishuGroup[] }) {
     <div className="feishu-tool-actions">
       <p role="status">{changeSummary}</p>
       <div>
-        <Button type="button" variant="ghost" disabled={!dirty} onClick={() => setSelected(saved)}>放弃更改</Button>
+        <Button type="button" variant="ghost" data-discard-draft="" disabled={!dirty} onClick={() => setSelected(saved)}>放弃更改</Button>
         <Button type="submit" disabled={!dirty}>保存工具设置</Button>
       </div>
     </div>

@@ -1,3 +1,4 @@
+import { isRuntimeSection } from "./runtime-location";
 /** Only stable console GET locations may survive authentication. Never a callback,
  * action/API URL, external origin, or arbitrary query payload. Authority remains
  * with the destination's current server-side role and object checks. */
@@ -16,7 +17,7 @@ const adminFields: Record<string, readonly string[]> = {
   access: ['kind', 'person', 'key', 'task', 'q', 'page', 'page_size', 'key_q', 'key_page'],
   setup: ['person', 'key', 'task', 'q', 'page'], usage: ['person', 'plan', 'model', 'q'],
   audit: ['record', 'audit_from', 'audit_to', 'audit_plan', 'audit_user', 'audit_result', 'audit_request', 'audit_cursor', 'audit_direction'],
-  surfaces: [], quotas: [], 'control-audit': [],runtime:['installation','q','page']
+  surfaces: [], quotas: [], 'control-audit': [],runtime:['installation','section','q','page']
 };
 export function isSafePublicId(value: string): boolean {
   return /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/.test(value) && !/^(?:cfwd_|sk-|Bearer)/i.test(value);
@@ -59,7 +60,8 @@ export function consoleReturnTarget(value: string): string | null {
   if (!fields || [...query.keys()].some(field => !['view', 'range', ...fields].includes(field))) return null;
   if (query.has('kind') && !['all', 'human', 'admin', 'service', 'legacy_unresolved'].includes(query.get('kind')!)) return null;
   if(query.has('installation')&&!/^[a-z][a-z0-9-]{0,63}$/.test(query.get('installation')!))return null;
-  if(view==='runtime'&&(query.has('q')||query.has('page'))&&!query.has('installation'))return null;
+  if(view==='runtime'&&(query.has('q')||query.has('page')||query.has('section'))&&!query.has('installation'))return null;
+  if(query.has('section')&&!isRuntimeSection(query.get('section')!))return null;
   if (query.has('page_size') && !DASHBOARD_PEOPLE_PAGE_SIZES.some(size => String(size) === query.get('page_size'))) return null;
   if (['overview', 'usage'].includes(view) && query.has('range') && !['1d', '7d', '30d'].includes(query.get('range')!)) return null;
   for (const field of ['person', 'key', 'plan', 'model']) if (query.has(field) && !query.get(field)?.trim()) return null;
