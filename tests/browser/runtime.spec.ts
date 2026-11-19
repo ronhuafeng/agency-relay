@@ -72,6 +72,31 @@ test.describe("Feishu tool selection",()=>{
     await expect(addComment).toBeChecked();
     expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
   });
+  test("saves the union of two bulk-selected domains in one submission",async({page,worker})=>{
+    const fixture=worker.runtimeFixture!;
+    const configured=await fixture.admin("lark-doc",{action:"configure"});
+    expect(configured.status).toBe(200);
+    await configured.body?.cancel();
+    await page.goto("/admin?view=runtime&installation=lark-doc&section=tools");
+    const section=page.getByRole("region",{name:"飞书工具",exact:true});
+    const domain=section.getByRole("combobox",{name:"业务域"});
+    const bulk=section.getByRole("checkbox",{name:/批量启停本组/});
+    await domain.selectOption("bitable");
+    await bulk.check();
+    await domain.selectOption("sheets");
+    await bulk.check();
+    await confirm(page,section.locator("form"),"保存工具设置");
+    await expect(page.getByRole("status").filter({hasText:"工具服务已更新"})).toBeVisible();
+    const row=await fixture.db.prepare("SELECT feishu_tools FROM runtime_installations WHERE id='lark-doc'").first<{feishu_tools:string}>();
+    const saved=JSON.parse(row!.feishu_tools) as string[];
+    expect(saved).toEqual(expect.arrayContaining(["bitable.v1.appTable.list","sheets.v3.spreadsheet.get","search-doc"]));
+    expect(worker.requests.filter(request=>request.method==="POST"&&request.path==="/admin/ui/runtime-installations/lark-doc")).toHaveLength(1);
+    await page.reload();
+    for(const name of ["bitable","sheets"]) {
+      await domain.selectOption(name);
+      await expect(bulk).toBeChecked();
+    }
+  });
 });
 for(const script of [true,false])test.describe(`Runtime personal native form, script ${script}`,()=>{
   test.use({identity:"member",script,viewport:{width:script?1440:390,height:900}});
