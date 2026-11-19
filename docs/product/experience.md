@@ -239,6 +239,14 @@ Feishu scopes and renew client consent when administrators add tools.
 Disabling a tool removes it from discovery and prevents new calls.
 Disconnecting removes access through the member's credential.
 
+Feishu permission notices name the affected tool and any verified missing
+scopes. Application scope failures direct the administrator to Feishu Open
+Platform. Member scope failures direct the member to update Feishu authorization
+in Relay. Document access failures identify the calling identity and direct the
+member to request access to the document or knowledge base. The member can see
+these facts in the latest transfer for their installation. A generic upstream
+failure or an omitted tool alone does not identify a permission problem.
+
 Login preserves only an opaque, browser-bound transaction. A changed identity or
 authority cannot silently adopt a replacement after login. Expired, invalid or
 unavailable consent shows a safe recovery: return to the client and start a new

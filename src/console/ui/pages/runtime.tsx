@@ -12,6 +12,7 @@ import {formatNumber} from "../../format";
 import type {RuntimeAdminModel} from "../../../runtime/console";
 import {larkHostedTools,larkToolGroups,larkToolIdentities,larkToolsByName} from "../../../runtime/connectors/lark-doc/profile";
 import {NativeFeishuToolTree,type FeishuGroup} from "../feishu-tool-tree";
+import {larkPermissionMessage} from "../../../runtime/connectors/lark-doc/permissions";
 
 export const runtimeMemberHref=(id?:string)=>`${memberHref("integrations")}${id?`&installation=${encodeURIComponent(id)}`:""}`;
 const installationState={enabled:"已启用",disabled:"已停用",retired:"已退役"};
@@ -69,7 +70,9 @@ export function RuntimeMemberPage({model,selectedId}:{readonly model:RuntimeMemb
     <ClientConsents model={model} installation={selected}/>
     <section className="workspace-section" aria-label="最近传输"><h3>最近传输</h3>{fact?<><p><time dateTime={fact.finished_at}>{utc(fact.finished_at)}</time> · {fact.attempted?`上游 HTTP ${fact.upstream_status??"未记录"}`:"未向上游发送"} · {fact.terminal==="completed"?"传输结束":fact.terminal==="cancelled"?"传输取消":"传输异常"}</p>
       <p className="caption">时长 {formatNumber(fact.duration_ms)} ms · 请求已观测 {formatNumber(fact.request_bytes_observed)} bytes · 响应已观测 {formatNumber(fact.response_bytes_observed)} bytes{fact.authority_revision!==selected.authority_revision?" · 旧权限版本的记录":""}</p>
-      {fact.error?<p role="status">{fact.error==="lark_user_authorization_required"?"请连接飞书账号并检查该工具所需的权限。":fact.error==="upstream_credential_unavailable"?"上游凭据不可用，请联系管理员，不需要反复登录。":"传输没有正常结束。先查看当前授权与服务状态，不会自动重试工具操作。"}</p>:null}</>:<p>尚无传输记录。</p>}
+      {fact.feishu_permissions?.length?<ul aria-label="飞书权限提示">{fact.feishu_permissions.map(notice=>
+        <li key={`${notice.tool}:${notice.kind}`}>{larkPermissionMessage(notice)}</li>)}</ul>:
+        fact.error?<p role="status">{fact.error==="lark_user_authorization_required"?"请连接飞书账号并检查该工具所需的权限。":fact.error==="upstream_credential_unavailable"?"上游凭据不可用，请联系管理员，不需要反复登录。":"传输没有正常结束。先查看当前授权与服务状态，不会自动重试工具操作。"}</p>:null}</>:<p>尚无传输记录。</p>}
       <p className="caption">HTTP 状态和传输结束不是工具任务成功证明；这里不统计服务额度、模型用量或金额。</p>
     </section>
   </section>:selectedId?<section className="gate" role="alert"><h2>没有这个工具服务</h2><p>该服务不存在或你目前无使用权限。不会选择另一个服务。</p><a href={runtimeMemberHref()}>查看我的工具服务</a></section>:null;

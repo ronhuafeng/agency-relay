@@ -1,6 +1,8 @@
 import executable from "./openapi-executable.json";
 import {isRecord} from "../../../records";
 import {clientDrivenStream} from "../../../proxy/byte-stream";
+import {larkPermissionResult,larkProviderPermission,type LarkPermissionNotice} from "./permissions";
+import type {LarkTool} from "./profile";
 
 type TokenType="user"|"tenant";
 interface OpenApiExecution {
@@ -73,14 +75,22 @@ export function openApiRequest(definition:OpenApiExecution,args:unknown,token:st
     ...(args.data===undefined?{}:{body:JSON.stringify(args.data)})});
 }
 
-export async function openApiResult(response:Response,id:string|number,signal:AbortSignal):Promise<Response> {
-  if(response.status===204)return Response.json({jsonrpc:"2.0",id,result:{content:[]}});
+export async function openApiResult(response:Response,id:string|number,signal:AbortSignal,tool:LarkTool,identity:"uat"|"tat"):
+Promise<{response:Response;notice?:LarkPermissionNotice}> {
+  if(response.status===204)return {response:Response.json({jsonrpc:"2.0",id,result:{content:[]}})};
   if(!response.body||!response.ok){
-    void response.body?.cancel();
-    return Response.json({jsonrpc:"2.0",id,result:{isError:true,content:[{type:"text",text:`Feishu OpenAPI HTTP ${response.status}`}]}});
+    if(response.body&&(response.status===400||response.status===403)){
+      const stream=clientDrivenStream(response.body,signal,{maxBytes:4096,idleMs:1500});
+      const body=await new Response(stream).json<unknown>().catch(()=>null);
+      const notice=larkProviderPermission(body,tool,identity);
+      if(notice)return {response:larkPermissionResult(id,notice),notice};
+    }else void response.body?.cancel();
+    return {response:Response.json({jsonrpc:"2.0",id,result:{isError:true,content:[{type:"text",text:`Feishu OpenAPI HTTP ${response.status}`}]}})};
   }
   const stream=clientDrivenStream(response.body,signal,{maxBytes:4*1024*1024,idleMs:60_000});
   const body:unknown=await new Response(stream).json();
   if(!isRecord(body)||typeof body.code!=="number")throw new Error("Invalid Feishu OpenAPI response");
-  return Response.json({jsonrpc:"2.0",id,result:{...(body.code===0?{}:{isError:true}),content:[{type:"text",text:JSON.stringify(body)}]}});
+  const notice=larkProviderPermission(body,tool,identity);
+  if(notice)return {response:larkPermissionResult(id,notice),notice};
+  return {response:Response.json({jsonrpc:"2.0",id,result:{...(body.code===0?{}:{isError:true}),content:[{type:"text",text:JSON.stringify(body)}]}})};
 }

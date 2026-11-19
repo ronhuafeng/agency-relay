@@ -11,7 +11,7 @@ export function isLarkAppCredential(value: unknown): value is LarkAppCredential 
     && typeof appSecret === "string" && /^[\x21-\x7e]{1,256}$/.test(appSecret);
 }
 
-interface TenantToken { value: string; expiresAt: number; scopes: string[] }
+interface TenantToken { value: string; expiresAt: number; scopes: string[] | null }
 
 /** One cache per encrypted credential version. The object can discard it at any time. */
 export class LarkTenantTokenCache {
@@ -65,7 +65,7 @@ export class LarkTenantTokenCache {
       || typeof expire !== "number" || !Number.isSafeInteger(expire) || expire <= 0) {
       throw new Error("Feishu token exchange unavailable");
     }
-    const scopes=this.scoped&&typeof result.scope==="string"?result.scope.split(/\s+/).filter(Boolean):[];
+    const scopes=this.scoped&&typeof result.scope==="string"?result.scope.split(/\s+/).filter(Boolean):null;
     return {value,expiresAt:started+Math.min(expire,7200)*1000,scopes};
   }
 }

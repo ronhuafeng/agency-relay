@@ -7,6 +7,7 @@ import type {ConsolePrincipal} from "../auth/principal";
 import {larkUserAuthority,readRuntimeAuthority,readRuntimeAuthorityRevision,readRuntimeMemberInstallations,type RuntimeAuthority,type RuntimeMemberInstallation} from "./installations";
 import {runtimeResources,RUNTIME_SCOPE} from "./profiles";
 import {larkToolSelection} from "./connectors/lark-doc/profile";
+import type {LarkPermissionNotice} from "./connectors/lark-doc/permissions";
 
 type ClientConsentView={id:string;client_id:string;client_name:string;resource:string;scope:string;created_at:string;expires_at:string};
 export interface RuntimeMemberModel {
@@ -22,6 +23,7 @@ export interface RuntimeTransportFacts {
   attempted:boolean;upstream_status:number|null;terminal:"completed"|"cancelled"|"error";
   error:RuntimeTransportError|null;duration_ms:number;headers_ms:number|null;
   request_bytes_observed:number;response_bytes_observed:number;
+  feishu_permissions?:readonly LarkPermissionNotice[];
 }
 type RegisteredClient = {id:string;name:string;redirect:string;expires:number};
 interface Pending {
@@ -255,7 +257,8 @@ export class RuntimeOAuth extends DurableObject<Env> {
         profile:lease.profile,profile_revision:lease.profile_revision,authority_revision:lease.authority_revision,
         started_at:new Date(lease.started).toISOString(),finished_at:new Date().toISOString(),
         attempted:facts.attempted,upstream_status:facts.upstream_status,terminal:facts.terminal,error:facts.error,
-        duration_ms:facts.duration_ms,headers_ms:facts.headers_ms,request_bytes_observed:facts.request_bytes_observed,response_bytes_observed:facts.response_bytes_observed};
+        duration_ms:facts.duration_ms,headers_ms:facts.headers_ms,request_bytes_observed:facts.request_bytes_observed,response_bytes_observed:facts.response_bytes_observed,
+        ...(lease.profile==="lark.doc"&&facts.feishu_permissions?.length?{feishu_permissions:facts.feishu_permissions}:{})};
       this.ctx.storage.sql.exec("DELETE FROM relay_leases WHERE id=?",id);
       // A delayed completion cannot replace a newer admitted request's facts.
       this.ctx.storage.sql.exec(`INSERT INTO relay_activity VALUES(?,?,?,?,?) ON CONFLICT(subject,installation)
@@ -306,7 +309,8 @@ export class RuntimeOAuth extends DurableObject<Env> {
         activity.push({installation:row.installation,authority_revision:fact.authority_revision,client_authorization_id:fact.client_authorization_id,
           started_at:fact.started_at,finished_at:fact.finished_at,attempted:fact.attempted,upstream_status:fact.upstream_status,
           terminal:fact.terminal,error:fact.error,duration_ms:fact.duration_ms,headers_ms:fact.headers_ms,
-          request_bytes_observed:fact.request_bytes_observed,response_bytes_observed:fact.response_bytes_observed});
+          request_bytes_observed:fact.request_bytes_observed,response_bytes_observed:fact.response_bytes_observed,
+          ...(fact.feishu_permissions?.length?{feishu_permissions:fact.feishu_permissions}:{})});
       }
       const current=await this.bounded(readConsoleSessionPrincipalByHash(this.env,session!),deadline);
       if(!current||current.id!==principal.id||current.email!==principal.email||current.role!==principal.role||current.sessionEpoch!==principal.sessionEpoch)

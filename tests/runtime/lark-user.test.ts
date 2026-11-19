@@ -36,6 +36,7 @@ it("enforces live tool switches, per-client review and UAT-first routing across 
   let finishInitialize:(()=>void)|undefined;
   let calendarScope=false;
   let appCalendarScope=false;
+  let calendarProviderDenial=false;
   const calls:Array<{actor:string;method:string;tool?:string}>=[];
   let holdRotation=false;
   let markHeld!:()=>void;
@@ -53,7 +54,7 @@ it("enforces live tool switches, per-client review and UAT-first routing across 
       expect(body.grant_type).toBe("client_credentials");
       expect(body.client_id==="cli_journey"&&body.client_secret==="fixture-app-secret").toBe(true);
       return Response.json({code:0,access_token:"fixture-openapi-tenant",expires_in:10,
-        ...(appCalendarScope?{scope:"calendar:calendar:readonly"}:{})});
+        scope:appCalendarScope?"calendar:calendar:readonly":""});
     }
     if(request.url==="https://open.feishu.cn/open-apis/authen/v2/oauth/token") {
       expect(request.headers.get("Content-Type")).toBe("application/json");
@@ -83,6 +84,9 @@ it("enforces live tool switches, per-client review and UAT-first routing across 
       expect(request.headers.has("X-Lark-MCP-Allowed-Tools")).toBe(false);
       const bearer=request.headers.get("Authorization")??"";
       apiActors.push(bearer==="Bearer fixture-openapi-tenant"?"app":/^Bearer fixture-access-member-\d+$/.test(bearer)?"member":"unexpected");
+      if(calendarProviderDenial)return Response.json({code:99991672,error:{permission_violations:[
+        {type:"action_scope_required",subject:"calendar:calendar:readonly"},
+      ]}},{status:400});
       return Response.json({code:0,data:{calendar:{summary:"Synthetic calendar"}}});
     }
     expect(request.url).toBe("https://mcp.feishu.cn/mcp");
@@ -115,6 +119,14 @@ it("enforces live tool switches, per-client review and UAT-first routing across 
     if(rpc.params?.arguments?.query==="forbidden")return new Response(null,{status:403});
     if(rpc.params?.arguments?.query==="synthetic-private-argument")return Response.json({jsonrpc:"2.0",id:rpc.id,
       result:{isError:true,content:[{type:"text",text:"synthetic-private-result"}]}});
+    if(rpc.params?.arguments?.query==="missing-app-scope")return Response.json({code:99991672,error:{
+      permission_violations:[{type:"action_scope_required",subject:"wiki:node:read"},
+        {type:"action_scope_required",subject:"synthetic:private:field"}],
+      log_id:"synthetic-private-provider-id"}},{status:403});
+    if(rpc.params?.arguments?.query==="missing-member-scope")return Response.json({jsonrpc:"2.0",id:rpc.id,error:{
+      code:-32000,data:{code:99991679,error:{permission_violations:[{type:"action_scope_required",subject:"wiki:node:read"}]}}}});
+    if(rpc.params?.arguments?.query==="document-access-denied")return Response.json({jsonrpc:"2.0",id:rpc.id,result:{
+      isError:true,content:[{type:"text",text:JSON.stringify({code:1770032,msg:"synthetic-private-document-detail"})}]}});
     return Response.json({jsonrpc:"2.0",id:rpc.id,result:{content:[]}});
   }});
   const session=(member:string)=>({Cookie:f.cookies.get(member)!});
@@ -238,6 +250,26 @@ it("enforces live tool switches, per-client review and UAT-first routing across 
     expect(await status(await rpc(personal,"tools/call","search-doc",{"Mcp-Name":"fetch-doc"}))).toBe(400);
     expect(await status(await rpc(personal,"tools/call","update-doc"))).toBe(400);
     expect(calls).toHaveLength(before);
+    for(const [query,required,unwanted] of [
+      ["missing-app-scope",["fetch-doc","wiki:node:read","请管理员","飞书开放平台"],"更新飞书授权"],
+      ["missing-member-scope",["fetch-doc","wiki:node:read","成员授权","更新飞书授权"],"请管理员在飞书开放平台"],
+      ["document-access-denied",["fetch-doc","无权访问这份文档","重新连接不会改变文档权限"],"更新飞书授权"],
+    ] as const){
+      const response=await rpc(personal,"tools/call","fetch-doc",{},query);
+      expect(response.status).toBe(200);
+      const result=(await response.json() as {result:{isError:boolean;content:{text:string}[]}}).result;
+      expect(result.isError).toBe(true);
+      const text=result.content.map(item=>item.text).join(" ");
+      for(const word of required)expect(text).toContain(word);
+      expect(text).not.toContain(unwanted);
+      expect(text).not.toContain("synthetic");
+    }
+    const memberPage=await f.runtime.dispatchFetch(`${ISSUER}/admin?area=me&view=integrations&installation=lark-doc`,{headers:session("member")});
+    const memberHtml=await memberPage.text();
+    expect(memberHtml).toContain('aria-label="飞书权限提示"');
+    expect(memberHtml).toContain("无权访问这份文档");
+    expect(memberHtml).not.toContain("synthetic-private-document-detail");
+    const beforeDisconnect=calls.length;
     await status(await f.expire("advance-lark-token-clock",String(120_000)));
     holdRotation=true;
     const delayed=rpc(other,"tools/call","search-doc");
@@ -247,7 +279,7 @@ it("enforces live tool switches, per-client review and UAT-first routing across 
     } finally {release();}
     expect(await status(await delayed)).toBe(403);
     expect(await status(await rpc(other,"tools/call","search-doc"))).toBe(403);
-    expect(calls).toHaveLength(before);
+    expect(calls).toHaveLength(beforeDisconnect);
     await mcpLogs();
     expect(await names(await rpc(other,"tools/list",undefined,{"Mcp-Protocol-Version":"2025-03-26"}))).toEqual([]);
     expect(await mcpLogs()).toMatchObject([{stage:"discovery",method:"tools/list",http_status:200,tool_count:0,
@@ -294,7 +326,21 @@ it("enforces live tool switches, per-client review and UAT-first routing across 
     expect(toolList.result.tools.map(tool=>tool.name).sort()).toEqual(["add-comments",calendar,"search-doc"]);
     expect(Boolean(toolList.result.tools.find(tool=>tool.name===calendar)?.inputSchema?.properties?.path)).toBe(true);
     expect((await names(await rpc(reviewedOther,"tools/list"))).includes(calendar)).toBe(false);
-    expect(await status(await calendarCall(reviewedOther,"calendar-example"))).toBe(403);
+    const memberData=await f.runtime.dispatchFetch(`${ISSUER}/runtime/integrations`,{headers:session("other")});
+    expect(await memberData.json()).toMatchObject({activity:[expect.objectContaining({installation:"lark-doc",
+      feishu_permissions:expect.arrayContaining([
+        expect.objectContaining({tool:calendar,kind:"member_scope",anyOf:true,scopes:expect.arrayContaining(["calendar:calendar:readonly"])}),
+        expect.objectContaining({tool:calendar,kind:"app_scope",identity:"tat",anyOf:true}),
+      ])})]});
+    const missing=await calendarCall(reviewedOther,"calendar-example");
+    expect(missing.status).toBe(200);
+    const missingResult=(await missing.json() as {result:{isError:boolean;content:{text:string}[]}}).result;
+    expect(missingResult.isError).toBe(true);
+    expect(missingResult.content.map(item=>item.text)).toEqual([
+      expect.stringContaining("更新飞书授权"),
+      expect.stringContaining("请管理员在飞书开放平台开通应用身份权限"),
+    ]);
+    expect(missingResult.content.every(item=>item.text.includes(calendar)&&item.text.includes("calendar:calendar:readonly"))).toBe(true);
     const content=await calendarCall(reviewedMember,"calendar-example");
     expect(content.status).toBe(200);
     expect((await content.text()).includes("Synthetic calendar")).toBe(true);
@@ -304,6 +350,11 @@ it("enforces live tool switches, per-client review and UAT-first routing across 
     expect((await names(await rpc(reviewedOther,"tools/list"))).includes(calendar)).toBe(true);
     expect(await status(await calendarCall(reviewedOther,"calendar-example"))).toBe(200);
     expect(apiActors).toEqual(["member","app"]);
+    calendarProviderDenial=true;
+    const providerDenial=await calendarCall(reviewedMember,"calendar-example");
+    expect(providerDenial.status).toBe(200);
+    expect(await providerDenial.json()).toMatchObject({result:{isError:true,content:[{type:"text",
+      text:expect.stringContaining("请管理员在飞书开放平台开通用户身份权限")}]}});
 
     const all=new URLSearchParams({action:"tools",confirm:"1",expectedRevision:"5",operationId:"all-tools"});
     for(const tool of larkTools)all.set(`tool.${tool.name}`,"1");
