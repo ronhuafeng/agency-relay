@@ -267,6 +267,11 @@ transport facts; its own unexpired recorded client authorization remains availab
 to revoke. Direct links never select a substitute. Browser login, access, recorded
 consent, credential metadata readiness and last transport are separate facts.
 
+The member tool list provides an explicit link to each service. The service detail
+has separate configuration, client authorization and diagnostics sections with
+stable URLs. The list also exposes all recorded client authorizations, including
+those for services the member can no longer access.
+
 The exact installation task provides a URL-only `[mcp_servers.<id>]` configuration
 and `codex mcp login <id>`. Merge the snippet into an existing configuration; trusted
 project configuration and local OAuth token storage follow the

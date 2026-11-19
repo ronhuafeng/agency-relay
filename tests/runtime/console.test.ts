@@ -275,17 +275,24 @@ it("keeps a confirmed access write known when the installation page cannot be re
 it("offers URL-only setup and distinct authorization facts in the actual personal page",async()=>{
   const fixture=await oauthFixture();
   try {
-    const response=await fixture.runtime.dispatchFetch(`${ISSUER}/admin?area=me&view=integrations&installation=design`,{
-      headers:{Cookie:fixture.cookies.get("member")!,Accept:"text/html"}
-    });
+    const target=`${ISSUER}/admin?area=me&view=integrations&installation=design`;
+    const headers={Cookie:fixture.cookies.get("member")!,Accept:"text/html"};
+    const response=await fixture.runtime.dispatchFetch(target,{headers});
     const html=await response.text();
     expect(response.status).toBe(200);
     expect(html.includes('[mcp_servers.design]')).toBe(true);
     expect(html.includes(`url = &quot;${RESOURCE}&quot;`)).toBe(true);
     expect(html.includes("codex mcp login design")).toBe(true);
     expect(html.includes("本地 OAuth token")).toBe(true);
-    expect(html.includes("尚无客户端授权")).toBe(true);
-    expect(html.includes("尚无传输记录")).toBe(true);
+    expect(html).not.toContain("尚无客户端授权");
+    expect(html).not.toContain("尚无传输记录");
+    for(const [section,empty] of [["clients","尚无客户端授权"],["diagnostics","尚无传输记录"]]){
+      const page=await fixture.runtime.dispatchFetch(`${target}&section=${section}`,{headers});
+      expect(page.status).toBe(200);
+      const body=await page.text();
+      expect(body).toContain(empty);
+      expect(body).not.toContain("codex mcp login design");
+    }
     expect(html.includes("synthetic-stitch-key")).toBe(false);
     expect(html.includes("synthetic-catalog-key")).toBe(false);
   } finally {await fixture.dispose();}

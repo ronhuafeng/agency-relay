@@ -18,7 +18,8 @@ import { SidebarGroup, SidebarGroupLabel, SidebarMenu, SidebarMenuButton, Sideba
 import { Badge } from "./ui/components/badge";
 import { consoleDataRevision, unchangedConsoleRead } from "./console-revision";
 import {readRuntimeMember} from "../runtime/member";
-import {RuntimeMemberPage,runtimeMemberHref} from "./ui/pages/runtime";
+import {RuntimeMemberPage} from "./ui/pages/runtime";
+import {isRuntimeMemberSection,runtimeMemberHref,type RuntimeMemberSection} from "./runtime-location";
 import {verifyConsoleAccess} from "../auth/authenticate";
 import {consoleHtmlResponse,consoleLifecycleOutcome,randomNonce} from "./dashboard";
 import {
@@ -52,9 +53,13 @@ export async function memberConsoleResponse(input: {
     return html(404, input.requestId, createElement(MemberMissingPage), input.principal, null, input.service);
   }
   const view = requested;
+  const installation = input.url.searchParams.get("installation");
+  const section = input.url.searchParams.get("section");
+  const runtimeSection = section === null ? "configuration" : isRuntimeMemberSection(section) ? section : null;
   if(view==="integrations"&&(input.service||[...input.url.searchParams].some(([field,value])=>
-    !["area","view","installation"].includes(field)||input.url.searchParams.getAll(field).length!==1
-      ||field==="installation"&&!/^[a-z][a-z0-9-]{0,63}$/.test(value))))
+    !["area","view","installation","section"].includes(field)||input.url.searchParams.getAll(field).length!==1
+      ||field==="installation"&&!/^[a-z][a-z0-9-]{0,63}$/.test(value))
+      ||(section!==null&&(!installation||!runtimeSection))))
     return html(404,input.requestId,createElement(MemberMissingPage),input.principal,null,input.service);
   let trend: UsageTrendRange | undefined;
   if (view === "usage") {
@@ -66,9 +71,9 @@ export async function memberConsoleResponse(input: {
     catch { return html(400, input.requestId, createElement(ReadError, {title: "时间范围不正确", message: "请选择最近 1 天、7 天或 30 天。显式日期查询请使用此账号的用量 API。", retryUrl: memberHref("usage", undefined, input.service?.id), retryLabel: "打开最近 7 天", requestId: input.requestId}), input.principal, view, input.service); }
   }
   const search = trend ? parseUsageSearch(input.url) : "";
-  const readUrl = view==="setup" && input.url.searchParams.has("client") ? `${memberHref("setup",undefined,input.service?.id)}&client=${encodeURIComponent(input.url.searchParams.get("client")!)}` : view==="integrations"?runtimeMemberHref(input.url.searchParams.get("installation")??undefined):trend ? `${memberHref("usage", undefined, input.service?.id)}&range=${trend.key}${search ? `&q=${encodeURIComponent(search)}` : ""}` : memberHref(view, view === "keys" ? input.url.searchParams.get("key") ?? undefined : undefined, input.service?.id);
+  const readUrl = view==="setup" && input.url.searchParams.has("client") ? `${memberHref("setup",undefined,input.service?.id)}&client=${encodeURIComponent(input.url.searchParams.get("client")!)}` : view==="integrations"?runtimeMemberHref(installation??undefined,runtimeSection??undefined):trend ? `${memberHref("usage", undefined, input.service?.id)}&range=${trend.key}${search ? `&q=${encodeURIComponent(search)}` : ""}` : memberHref(view, view === "keys" ? input.url.searchParams.get("key") ?? undefined : undefined, input.service?.id);
   try {
-    const {body, data} = await renderView(input, view, trend);
+    const {body, data} = await renderView(input, view, trend, runtimeSection ?? "configuration");
     if(view==="integrations")await assertRuntimePageActor(input);
     const notice=input.runtimeRevoked?createElement("p",{role:"status"},"客户端授权已撤销。后续调用会被拒绝；浏览器登录、其他客户端和已经执行的上游操作不变。"):null;
     if (input.service) await delegatedService(input.env, input.principal, input.service.id);
@@ -158,10 +163,10 @@ async function renderView(input: {
   principal: ConsolePrincipal;
   service?: ServiceContext;
   now: Date;
-}, view: MemberView, trend?: UsageTrendRange): Promise<{body: ReactNode; data: unknown}> {
+}, view: MemberView, trend: UsageTrendRange | undefined, runtimeSection: RuntimeMemberSection): Promise<{body: ReactNode; data: unknown}> {
   if(view==="integrations") {
     const model=await readRuntimeMember(input.env,input.request);
-    return {body:createElement(RuntimeMemberPage,{model,selectedId:input.url.searchParams.get("installation")}),data:model};
+    return {body:createElement(RuntimeMemberPage,{model,selectedId:input.url.searchParams.get("installation"),section:runtimeSection}),data:model};
   }
   if (view === "quota") {
     let states: ReadFact<Awaited<ReturnType<typeof listSurfaceCreditStates>>>;

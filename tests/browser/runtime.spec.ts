@@ -79,11 +79,16 @@ for(const script of [true,false])test.describe(`Runtime personal native form, sc
     const f=worker.runtimeFixture!;
     const auth=await authorizedTokens(f);
     await page.goto("/admin?area=me&view=integrations");
-    await page.getByRole("link",{name:"Design",exact:true}).click();
+    await page.getByRole("link",{name:"打开 Design",exact:true}).click();
     await expect(page.getByRole("heading",{name:"Design",exact:true})).toBeVisible();
+    await expect(page.getByRole("heading",{name:"我的工具服务",exact:true})).toHaveCount(0);
     expect(await page.locator('#runtime-detail pre').allTextContents()).toEqual([
       '[mcp_servers.design]\nurl = "https://design.example.test/google-stitch"\n',"codex mcp login design"
     ]);
+    await page.getByRole("link",{name:"诊断",exact:true}).click();
+    await expect(page.getByRole("region",{name:"最近传输",exact:true})).toBeVisible();
+    await expect(page.getByRole("region",{name:"Codex MCP 配置"})).toHaveCount(0);
+    await page.getByRole("link",{name:"客户端授权",exact:true}).click();
     await expect(page.getByRole("table",{name:"已记录的客户端授权"})).toContainText("Synthetic client");
     const revoke=page.getByRole("table",{name:"已记录的客户端授权"}).locator("form");
     if(script){
@@ -95,6 +100,9 @@ for(const script of [true,false])test.describe(`Runtime personal native form, sc
     }
     await confirm(page,revoke,"撤销授权",script);
     await expect(page.getByRole("status").filter({hasText:"客户端授权已撤销"})).toBeVisible();
+    await expect(page.getByRole("link",{name:"客户端授权",exact:true})).toHaveAttribute("aria-current","page");
+    await page.getByRole("link",{name:"返回我的工具服务",exact:true}).click();
+    await expect(page.getByRole("link",{name:"打开 Design",exact:true})).toBeVisible();
     const denied=await resourceRequest(f,auth.tokens.access_token);expect(denied.status).toBe(401);await denied.body?.cancel();
     expect(worker.requests.filter(r=>r.method==="POST"&&r.path.startsWith("/me/ui/runtime-clients/")).length).toBe(1);
     await authenticate(context,worker,"other");
@@ -113,6 +121,7 @@ for(const identity of ["admin","member"] as const)for(const script of [true,fals
     const auth=identity==="member"?await authorizedTokens(f):null;
     const target=identity==="admin"?"/admin?view=runtime&installation=design":"/admin?area=me&view=integrations";
     await page.goto(target);
+    if(auth)await page.locator("summary").filter({hasText:"所有客户端授权"}).click();
     if(script)await expect(page.locator('[data-confirmation-fallback]:not([hidden])')).toHaveCount(0);
     const form=identity==="admin"?page.locator('form:has(input[name="action"][value="disable"])'):
       page.getByRole("table",{name:"已记录的客户端授权"}).locator("form");
@@ -133,7 +142,10 @@ for(const identity of ["admin","member"] as const)for(const script of [true,fals
     await page.goto(destination.searchParams.get("return")!);
     if(identity==="admin"){await expect(page.getByRole("region",{name:"Design 管理",exact:true})).toBeVisible();await expect(page.getByRole("textbox",{name:"服务名称",exact:true})).toHaveValue("Design");}
     else await expect(page.getByRole("heading",{name:"我的工具服务",exact:true})).toBeVisible();
-    if(auth)await expect(page.getByRole("table",{name:"已记录的客户端授权"})).toContainText("Synthetic client");
+    if(auth){
+      await page.locator("summary").filter({hasText:"所有客户端授权"}).click();
+      await expect(page.getByRole("table",{name:"已记录的客户端授权"})).toContainText("Synthetic client");
+    }
     expect(worker.requests.filter(r=>r.method==="POST"&&(r.path.startsWith("/me/ui/runtime-clients/")||r.path==="/admin/ui/runtime-installations/design")).length).toBe(1);
   });
 });
@@ -159,6 +171,7 @@ test("real consent Allow returns to the native client and records its own author
     await expect(page.getByRole("heading",{name:"Design",exact:true})).toBeVisible();
     expect(exchanged).toBe(true);
     expect(callbackHasReferrer).toBe(false);
+    await page.getByRole("link",{name:"客户端授权",exact:true}).click();
     await expect(page.getByRole("table",{name:"已记录的客户端授权"})).toContainText("Synthetic client");
   } finally {clearCallback();}
 });

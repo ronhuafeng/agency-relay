@@ -32,6 +32,8 @@ it.each([
   '/?view=usage&range=30d', '/admin?view=access&person=member&q=example%40test&range=all#credits',
   '/admin?view=runtime&installation=google-stitch&section=members&q=example&page=2',
   '/admin?view=runtime&installation=lark-doc&section=tools',
+  '/admin?area=me&view=integrations&installation=lark-doc&section=clients',
+  '/admin?area=me&view=integrations&installation=lark-doc&section=diagnostics',
   '/admin?view=access&task=add-service', '/admin?view=credentials&account=codex%3Atest&page=2',
   ...['10','20','40'].map(size => `/admin?view=access&kind=admin&q=operator&page=2&page_size=${size}#people-list`),
   '/admin?view=setup&person=member&key=key-one#content', '/admin?view=setup&key=key-one',
@@ -46,6 +48,8 @@ it.each([
 it.each([
   '/admin?view=runtime&section=members', '/admin?view=runtime&installation=lark-doc&section=unknown',
   '/admin?view=runtime&installation=lark-doc&section=tools&section=members', '/admin?view=access&section=members',
+  '/admin?area=me&view=integrations&section=clients',
+  '/admin?area=me&view=integrations&installation=lark-doc&section=members',
   '/admin?view=access&kind=unknown', '/admin?view=usage&kind=human', '//evil.invalid/', '/admin/../admin', '/me/service-accounts/../admin', '/me/service-accounts/svc%2Fkeys',
   ...['0','15','10.0','', '9999999'].map(size => `/admin?view=access&page_size=${size}`),
   '/admin?view=access&page_size=10&page_size=20', '/admin?view=setup&page_size=20', '/admin?view=quotas&page_size=20',

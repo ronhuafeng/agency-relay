@@ -3,7 +3,7 @@ import { wantsHtml, isAdminDashboardPage, isOwnConsolePath } from "./request";
 import { type JsonObject, nullableStringField } from "../control/input";
 import { invalidRuntimeOperation } from "../runtime/installations";
 import { revokeRuntimeClient } from "../runtime/console";
-import { runtimeMemberHref } from "./ui/pages/runtime";
+import { runtimeMemberHref } from "./runtime-location";
 import { delegatedService, listDelegatedServices, type ServiceContext } from "../auth/service-delegation";
 import { assertKeyActorAuthority } from "../auth/key-authority";
 import { consoleLoginHref, consoleReturnTarget } from "./return-target";
@@ -113,7 +113,7 @@ export async function authorizeConsole(
         if(error instanceof HttpError&&[400,401,403,404].includes(error.status))throw error;
         return consoleUnknownOutcome(runtimeMemberHref());
       }
-      return memberConsoleResponse({request,env,url:new URL(runtimeMemberHref(installation),url),principal,now:currentTime(),requestId:requestContext.requestId,runtimeRevoked:true});
+      return memberConsoleResponse({request,env,url:new URL(runtimeMemberHref(installation,"clients"),url),principal,now:currentTime(),requestId:requestContext.requestId,runtimeRevoked:true});
     }
     return ownKeyResponse(request, env, url, principal, {
       subject: null,

@@ -14,21 +14,27 @@ export async function createPreviewFixture(scenario: Scenario, preferredEmail?: 
     const {oauthFixture,authorizedTokens,resourceRequest}=await import("../../tests/runtime/oauth-fixture");
     const f=await oauthFixture(undefined,{issuer:PREVIEW_ORIGIN,editablePaths:true});
     try {
-      for(const body of [
-        {action:"configure"},
-        {action:"supply",expectedRevision:1,operationId:"preview-bind",authority:"rebind",material:"synthetic-preview-key"},
-        {action:"enable",expectedRevision:2,operationId:"preview-enable"},
-      ]) {
-        const response=await f.admin("google-stitch",body);
-        await response.body?.cancel();
-        if(!response.ok)throw new Error("Runtime preview setup failed");
+      const credentials = {
+        "google-stitch": {material:"synthetic-preview-key"},
+        "lark-doc": {appId:"cli_previewfixture",appSecret:"synthetic-preview-app"}
+      };
+      for (const [id, material] of Object.entries(credentials)) {
+        for (const body of [
+          {action:"configure"},
+          {action:"supply",expectedRevision:1,operationId:"preview-bind",authority:"rebind",...material},
+          {action:"enable",expectedRevision:2,operationId:"preview-enable"},
+        ]) {
+          const response = await f.admin(id, body);
+          await response.body?.cancel();
+          if (!response.ok) throw new Error("Runtime preview setup failed");
+        }
+        const access = await f.runtime.dispatchFetch(`${PREVIEW_ORIGIN}/admin/ui/runtime-installations/${id}`,{
+          method:"POST",headers:{Cookie:f.cookies.get("admin")!,Origin:PREVIEW_ORIGIN,Accept:"text/html","Content-Type":"application/x-www-form-urlencoded"},
+          body:new URLSearchParams({action:"access",confirm:"1",subject:"member",state:"granted",expectedRevision:"0",expiresAt:""}).toString()
+        });
+        await access.body?.cancel();
+        if (!access.ok) throw new Error("Runtime preview access setup failed");
       }
-      const access=await f.runtime.dispatchFetch(`${PREVIEW_ORIGIN}/admin/ui/runtime-installations/google-stitch`,{
-        method:"POST",headers:{Cookie:f.cookies.get("admin")!,Origin:PREVIEW_ORIGIN,Accept:"text/html","Content-Type":"application/x-www-form-urlencoded"},
-        body:new URLSearchParams({action:"access",confirm:"1",subject:"member",state:"granted",expectedRevision:"0",expiresAt:""}).toString()
-      });
-      await access.body?.cancel();
-      if(!access.ok)throw new Error("Runtime preview access setup failed");
       const client=await authorizedTokens(f);
       const response=await resourceRequest(f,client.tokens.access_token);await response.body?.cancel();
       return {env:f.env,cookies:f.cookies,dispatchRequest:async request=>f.runtime.dispatchFetch(request.url,{method:request.method,headers:Object.fromEntries(request.headers),...(request.body?{body:await request.arrayBuffer()}:{}),redirect:"manual"}),close:f.dispose};

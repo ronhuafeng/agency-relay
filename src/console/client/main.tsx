@@ -225,6 +225,23 @@ function hydrateControl(node: HTMLScriptElement): void {
 
 function prepareControls(scope: ParentNode): void {
   hideFallbacks(scope);
+  if (navigator.clipboard) {
+    scope.querySelectorAll<HTMLButtonElement>("button[data-runtime-copy][hidden]").forEach(button => {
+      const snippet = button.closest("[data-runtime-snippet]");
+      const code = snippet?.querySelector("code");
+      const status = snippet?.querySelector('[role="status"]');
+      if (!code || !status) return;
+      button.hidden = false;
+      button.addEventListener("click", async () => {
+        try {
+          await navigator.clipboard.writeText(code.textContent ?? "");
+          status.textContent = "已复制";
+        } catch {
+          status.textContent = "无法自动复制，请选择并复制文本。";
+        }
+      });
+    });
+  }
   const scripts = Array.from(scope.querySelectorAll<HTMLScriptElement>("script[data-ui-props]"));
   if (scope instanceof HTMLScriptElement && scope.matches("[data-ui-props]")) scripts.push(scope);
   const controls = scripts.filter(node => !consumed.has(node) && Boolean(node.textContent));

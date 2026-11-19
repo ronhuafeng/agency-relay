@@ -44,8 +44,9 @@ An unchanged model keeps its DOM; drafts and open controls defer changed data.
 
 The **Tool services / integrated Runtime** scenario uses the actual Worker,
 local D1 and Runtime OAuth/Credentials Durable Objects. It creates consent and a
-bounded transport fact for Stitch through the production routes. It exposes the
-unconfigured Feishu connector for editing. The external MCP task is synthetic.
+bounded transport fact for Stitch through the production routes. It also gives the
+member access to the Feishu Docs connector with a synthetic app and no linked
+personal Feishu account. The external MCP task is synthetic.
 No production credential or provider is loaded. This scenario allows
 member setup/revoke and finite admin lifecycle review without a fixture-only consent
 screen. Source rebuild resets this synthetic Runtime state; refresh remains explicit.
