@@ -76,7 +76,8 @@ existing Wrangler route array), and `vars` with exactly
 `ADMIN_DASHBOARD_HOST`, `CONSOLE_EMAIL_DOMAIN`, `CODEX_EGRESS_BASE_URL`, and
 `RUNTIME_MCP_ORIGIN`. Optional `codexEgressTransport` (`public` by default, or `vpc`) and
 `codexEgressServiceId` (the production VPC Service UUID, required for `vpc`) select
-Codex egress; the template's placeholder VPC Service never reaches production. Include the MCP and console Custom Domains in `routes`.
+Codex egress. The public template declares no VPC Service because local `wrangler dev`
+cannot emulate one; the `CODEX_EGRESS` binding exists only in the production configuration. Include the MCP and console Custom Domains in `routes`.
 The MCP origin is HTTPS without a trailing slash. The candidate archive contains
 the local template. The production file and Wrangler command output stay on
 the release runner. Public results omit production configuration values.
