@@ -3,7 +3,7 @@ import { errorCause, HttpError } from "../errors";
 import { connectionHeaderNames } from "../proxy/adapter";
 import { cancelUnreadBody } from "../proxy/byte-stream";
 import { headerMediaType } from "../records";
-import { assertCodexEgressBaseUrl } from "../proxy/origin";
+import { resolveCodexEgressTransport } from "./egress-transport";
 import {
   noteObservationParseFailure,
   noteObservedUsage,
@@ -126,14 +126,16 @@ export async function forwardModels(
     backendRequestHeaders(request.headers, freshToken),
     options.fallbackIdentityVersion ?? null
   );
-  const target = codexTarget(env, "/models", projected.search);
+  // Resolve the only allowed egress transport before any credential material is attached.
+  const egress = resolveCodexEgressTransport(env, deps);
+  const target = codexEgressTarget("/models", projected.search);
   const headers = egressRequestHeaders(projected.headers, env);
   const observation = createTransportObservation();
   const reportTerminal = createTerminalReporter(observation, options, () => true);
 
   let upstream: Response;
   try {
-    upstream = await deps.fetch(target, {
+    upstream = await egress.fetch(target, {
       method: "GET",
       headers,
       redirect: "manual",
@@ -170,12 +172,13 @@ export async function fetchCodexAccountResource(
   path: CodexAccountEgressPath,
   signal?: AbortSignal
 ): Promise<Response> {
-  const target = codexTarget(env, path);
+  const egress = resolveCodexEgressTransport(env, deps);
+  const target = codexEgressTarget(path);
   const headers = egressRequestHeaders(
     backendRequestHeaders(new Headers({ Accept: "application/json" }), freshToken),
     env
   );
-  return rejectCodexRedirect(await deps.fetch(target, {
+  return rejectCodexRedirect(await egress.fetch(target, {
     method: "GET",
     headers,
     redirect: "manual",
@@ -337,13 +340,14 @@ async function fetchCodex(
     backendRequestHeaders(request.headers, freshToken),
     fallbackIdentityVersion
   );
-  const target = codexTarget(env, path, projected.search);
+  const egress = resolveCodexEgressTransport(env, deps);
+  const target = codexEgressTarget(path, projected.search);
   const headers = egressRequestHeaders(projected.headers, env, observation.transport_trace_id);
 
   let response: Response;
   try {
     onUpstreamAttempt?.();
-    response = await deps.fetch(target, {
+    response = await egress.fetch(target, {
       method: "POST",
       headers,
       body,
@@ -581,14 +585,11 @@ function elapsedMs(deps: AppDependencies, requestContext: RequestContext): numbe
   return Math.max(0, deps.now().getTime() - requestContext.startedAt);
 }
 
-function codexTarget(
-  env: Env,
+function codexEgressTarget(
   path: "/models" | "/responses" | CodexAccountEgressPath | CodexChatGptBackendPath,
   search = ""
 ): string {
-  // Validate origin before any bearer, account id, egress secret, or manifest is attached.
-  const baseUrl = assertCodexEgressBaseUrl(env.CODEX_EGRESS_BASE_URL);
-  return `${baseUrl}${path}${search}`;
+  return `${path}${search}`;
 }
 
 function backendRequestHeaders(incoming: Headers, freshToken: FreshAccessToken): Headers {

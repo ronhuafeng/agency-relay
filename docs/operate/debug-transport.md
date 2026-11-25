@@ -39,7 +39,7 @@ tokens, user identifiers and provider response text.
 
 Check Worker `codex_upstream_transport_error` and sanitized error name/message; determine whether upstream status is absent. Confirm whether the bound account's `getFreshAccessToken` succeeded before classifying credential versus transport failure.
 
-Check public egress `/healthz`, shim/cloudflared service health and `egress_request_accepted` in the relevant window. Correlate Worker `worker_request_outcome` with egress outcome using the transport trace ID when available. Keep `global_fetch_strictly_public` enabled for Worker calls to the same-zone tunnel hostname.
+Check readiness `codex_egress_transport` first: it names the path the Worker actually uses. With `vpc`, a sanitized `ProxyError: <code>` in the transport error (for example `connection_refused`, `destination_unavailable`, `dns_error`, `connection_read_timeout`) locates the failure between the Worker and the shim, and the VPC Service Metrics show connection errors; public `/healthz` does not prove the VPC path. Check shim/cloudflared service health and `egress_request_accepted` in the relevant window. Correlate Worker `worker_request_outcome` with egress outcome using the transport trace ID when available. Keep `global_fetch_strictly_public` enabled for Worker calls to the same-zone tunnel hostname.
 
 Do not blame the ChatGPT account when the egress never accepted the request. Health proves reachability, not a completed model task. Current egress infrastructure and rollback are owned by [release.md](release.md).
 

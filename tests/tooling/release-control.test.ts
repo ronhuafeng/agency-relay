@@ -48,3 +48,48 @@ it("requires authoritative 100 percent deployment rather than upload success", (
   expect(() => assertDeployment({id:"deployment",versions:[{version_id:"other",percentage:100}]}, "expected")).toThrow();
   expect(() => assertDeployment({id:"deployment",versions:[{version_id:"expected",percentage:50},{version_id:"old",percentage:50}]}, "expected")).toThrow();
 });
+
+it("selects the Codex egress transport and VPC Service only from explicit production settings", () => {
+  const base = {name:"agency-relay-local", routes:[], compatibility_date:"2026-06-24", compatibility_flags:["global_fetch_strictly_public"],
+    vars:{CODEX_EGRESS_TRANSPORT:"public",RUNTIME_INSTALLATIONS:"[]"}, secrets:{required:["KEY"]},
+    d1_databases:[{binding:"DB",database_id:"local",migrations_dir:"migrations"}],durable_objects:{bindings:[]},
+    vpc_services:[{binding:"CODEX_EGRESS",service_id:"00000000-0000-4000-8000-000000000001"}]};
+  const settings = {name:"relay-primary",databaseName:"relay",databaseId:"1b26b984-8450-4220-bae0-330609b7cb9c",
+    routes:[{pattern:"mcp.example.test",custom_domain:true}, {pattern:"console.example.test",custom_domain:true}, {pattern:"api.example.test/*",zone_name:"example.test"}],
+    vars:{ADMIN_DASHBOARD_HOST:"console.example.test",CONSOLE_EMAIL_DOMAIN:"example.test",CODEX_EGRESS_BASE_URL:"https://egress.example.test",RUNTIME_MCP_ORIGIN:"https://mcp.example.test"}};
+  const serviceId = "6d1f8a3e-2b4c-4d5e-8f90-1a2b3c4d5e6f";
+
+  // Default: public transport, and the template placeholder never reaches production.
+  const publicConfig = productionConfig(base, settings);
+  expect(publicConfig.vars.CODEX_EGRESS_TRANSPORT).toBe("public");
+  expect(publicConfig).not.toHaveProperty("vpc_services");
+
+  const vpcConfig = productionConfig(base, {...settings, codexEgressTransport:"vpc", codexEgressServiceId:serviceId});
+  expect(vpcConfig.vars.CODEX_EGRESS_TRANSPORT).toBe("vpc");
+  expect(vpcConfig.vpc_services).toEqual([{binding:"CODEX_EGRESS",service_id:serviceId}]);
+
+  for (const invalid of [
+    {codexEgressTransport:"vpc"},
+    {codexEgressTransport:"auto", codexEgressServiceId:serviceId},
+    {codexEgressTransport:"vpc", codexEgressServiceId:"not-a-uuid"},
+    {codexEgressServiceId:42},
+  ]) expect(() => productionConfig(base, {...settings, ...invalid})).toThrow();
+});
+
+it("requires the exact VPC Service binding before cutover", () => {
+  const config = { name: "fixture", compatibility_date: "2026-06-24", compatibility_flags: ["global_fetch_strictly_public"], vars: {}, secrets: { required: [] }, d1_databases: [], durable_objects: {bindings:[]},
+    vpc_services: [{binding:"CODEX_EGRESS", service_id:"6d1f8a3e-2b4c-4d5e-8f90-1a2b3c4d5e6f"}] };
+  const version = { id: "new", annotations: {"workers/message":"release sha"}, resources: {script_runtime:{compatibility_date:config.compatibility_date,compatibility_flags:config.compatibility_flags}, bindings:[
+    {name:"CODEX_EGRESS",type:"vpc_service",service_id:"6d1f8a3e-2b4c-4d5e-8f90-1a2b3c4d5e6f"},
+  ]}};
+  expect(() => assertVersion(version, config, "sha", version)).not.toThrow();
+  const otherService = structuredClone(version);
+  otherService.resources.bindings[0].service_id = "00000000-0000-4000-8000-000000000002";
+  expect(() => assertVersion(otherService, config, "sha", version)).toThrow("VPC Service binding mismatch");
+  const otherName = structuredClone(version);
+  otherName.resources.bindings[0].name = "PROBE";
+  expect(() => assertVersion(otherName, config, "sha", version)).toThrow("VPC Service binding mismatch");
+  const otherType = structuredClone(version);
+  otherType.resources.bindings[0].type = "service";
+  expect(() => assertVersion(otherType, config, "sha", version)).toThrow("VPC Service binding mismatch");
+});

@@ -3,7 +3,7 @@ import { appendFileSync, readFileSync, readdirSync, writeFileSync } from "node:f
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-interface Binding { name: string; type: string; text?: string; id?: string; namespace_id?: string; class_name?: string }
+interface Binding { name: string; type: string; text?: string; id?: string; namespace_id?: string; class_name?: string; service_id?: string }
 interface Runtime { compatibility_date: string; compatibility_flags: string[] }
 interface Version { id: string; annotations: Record<string, string>; resources: { bindings: Binding[]; script_runtime: Runtime } }
 interface Deployment { id: string; versions: { version_id: string; percentage: number }[] }
@@ -12,20 +12,26 @@ interface Config {
   vars: Record<string, string>; secrets: { required: string[] };
   d1_databases: { binding: string; database_id: string }[];
   durable_objects: { bindings: { name: string; class_name: string }[] };
+  vpc_services?: { binding: string; service_id: string; remote?: boolean }[];
 }
 
 type ProductionRoute = { pattern: string; zone_name?: string; custom_domain?: true };
 const privateVariables = ["ADMIN_DASHBOARD_HOST", "CONSOLE_EMAIL_DOMAIN", "CODEX_EGRESS_BASE_URL", "RUNTIME_MCP_ORIGIN"] as const;
+const CODEX_EGRESS_BINDING = "CODEX_EGRESS";
+const uuid = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
 
 export function productionConfig(base: Config, input: unknown) {
   const invalid = () => new Error("Invalid private production Worker configuration");
   if (!input || typeof input !== "object" || Array.isArray(input)) throw invalid();
   const settings = input as Record<string, unknown>;
-  const { name, databaseName, databaseId, routes, vars } = settings;
-  if (Object.keys(settings).some(key => !["name", "databaseName", "databaseId", "routes", "vars"].includes(key)) ||
+  const { name, databaseName, databaseId, routes, vars, codexEgressTransport = "public", codexEgressServiceId } = settings;
+  if (Object.keys(settings).some(key => !["name", "databaseName", "databaseId", "routes", "vars", "codexEgressTransport", "codexEgressServiceId"].includes(key)) ||
+      (codexEgressTransport !== "public" && codexEgressTransport !== "vpc") ||
+      (codexEgressServiceId !== undefined && (typeof codexEgressServiceId !== "string" || !uuid.test(codexEgressServiceId))) ||
+      (codexEgressTransport === "vpc" && codexEgressServiceId === undefined) ||
       typeof name !== "string" || !/^[a-z0-9-]{1,63}$/.test(name) || name === base.name ||
       typeof databaseName !== "string" || !/^[a-zA-Z0-9_-]{1,63}$/.test(databaseName) ||
-      typeof databaseId !== "string" || !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(databaseId) ||
+      typeof databaseId !== "string" || !uuid.test(databaseId) ||
       !Array.isArray(routes) || routes.length < 3 || !vars || typeof vars !== "object" || Array.isArray(vars)) throw invalid();
   const variables = vars as Record<string, unknown>;
   if (Object.keys(variables).length !== privateVariables.length ||
@@ -47,7 +53,12 @@ export function productionConfig(base: Config, input: unknown) {
   if (new Set(checkedRoutes.map(route=>route.pattern)).size !== checkedRoutes.length ||
       ![values.ADMIN_DASHBOARD_HOST,values.RUNTIME_MCP_ORIGIN.slice(8)].every(domain=>
         checkedRoutes.some(route=>route.custom_domain && route.pattern === domain))) throw invalid();
-  return { ...base, name, routes: checkedRoutes, vars: { ...base.vars, ...values },
+  // The template's VPC Service ID is a placeholder: production uses its own Service or none.
+  const { vpc_services: _template, ...rest } = base;
+  const vpcServices = typeof codexEgressServiceId === "string"
+    ? { vpc_services: [{ binding: CODEX_EGRESS_BINDING, service_id: codexEgressServiceId }] } : {};
+  return { ...rest, ...vpcServices, name, routes: checkedRoutes,
+    vars: { ...base.vars, ...values, CODEX_EGRESS_TRANSPORT: codexEgressTransport as string },
     d1_databases: base.d1_databases.map(db => db.binding === "DB" ? {...db,database_name:databaseName,database_id:databaseId} : db) };
 }
 export function assertVersion(version: Version, config: Config, sha: string, previous?: Version): void {
@@ -65,6 +76,9 @@ export function assertVersion(version: Version, config: Config, sha: string, pre
   }
   for (const db of config.d1_databases) {
     if (!bindings.some(b => b.name === db.binding && b.type === "d1" && b.id === db.database_id)) throw new Error("D1 binding mismatch");
+  }
+  for (const vpc of config.vpc_services ?? []) {
+    if (!bindings.some(b => b.name === vpc.binding && b.type === "vpc_service" && b.service_id === vpc.service_id)) throw new Error("VPC Service binding mismatch");
   }
   for (const object of config.durable_objects.bindings) {
     const binding = bindings.find(b => b.name === object.name && b.type === "durable_object_namespace" && b.class_name === object.class_name);

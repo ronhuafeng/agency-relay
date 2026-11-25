@@ -20,7 +20,7 @@ import { getUser } from "../auth/access-store";
 import { listApiKeySurfaceCredentials, type SurfaceCredentialSelection } from "../auth/bindings";
 import { HttpError, adminRouteNotFound, codexAuthNotFound, jsonResponse, methodNotAllowed, requiredTrimmedString, serviceNotFound, subscriptionNotFound, userNotFound } from "../errors";
 import { CODEX_API_HOSTNAME, EXECUTION_PLAN_SET_VERSION, isChatgptProductionSlot, listExecutionPlans } from "../plans/execution-plans";
-import { assertCodexEgressBaseUrl } from "../proxy/origin";
+import { codexEgressReadiness } from "../codex/egress-transport";
 import { subscriptionKindForPlan } from "../plans/audit";
 import { getSubscriptionAccount, listSubscriptionAccounts, publicSubscriptionAccount, type CapabilitySource, type SubscriptionEnvironment } from "../auth/subscription-accounts";
 import { type AppDependencies, type RequestContext } from "../types";
@@ -548,13 +548,8 @@ async function routeAdminReadiness(env: Env, deps: AppDependencies): Promise<Res
   }
 
   const codexAuths = database === "available" ? await listCodexAuths(env).catch(() => []) : [];
-  let egressConfigured: "configured" | "invalid" | "missing" = "missing";
-  try {
-    assertCodexEgressBaseUrl(env.CODEX_EGRESS_BASE_URL);
-    egressConfigured = env.CODEX_EGRESS_SECRET ? "configured" : "missing";
-  } catch {
-    egressConfigured = env.CODEX_EGRESS_BASE_URL?.trim() ? "invalid" : "missing";
-  }
+  const egress = codexEgressReadiness(env);
+  const egressConfigured = egress.status;
 
   const attempts = database === "available"
     ? await queryRequestAttemptState(env).catch(() => [])
@@ -633,6 +628,7 @@ async function routeAdminReadiness(env: Env, deps: AppDependencies): Promise<Res
       }
     },
     codex_egress: egressConfigured,
+    codex_egress_transport: egress.transport,
     production_ready: database === "available"
       && tokenAuthority === "available"
       && egressConfigured === "configured",

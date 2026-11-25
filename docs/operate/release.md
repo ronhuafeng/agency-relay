@@ -74,7 +74,9 @@ repository secret `WRANGLER_PRODUCTION_SETTINGS`. Supply a JSON
 object with `name` (Worker name), `databaseName`, `databaseId`, `routes` (the
 existing Wrangler route array), and `vars` with exactly
 `ADMIN_DASHBOARD_HOST`, `CONSOLE_EMAIL_DOMAIN`, `CODEX_EGRESS_BASE_URL`, and
-`RUNTIME_MCP_ORIGIN`. Include the MCP and console Custom Domains in `routes`.
+`RUNTIME_MCP_ORIGIN`. Optional `codexEgressTransport` (`public` by default, or `vpc`) and
+`codexEgressServiceId` (the production VPC Service UUID, required for `vpc`) select
+Codex egress; the template's placeholder VPC Service never reaches production. Include the MCP and console Custom Domains in `routes`.
 The MCP origin is HTTPS without a trailing slash. The candidate archive contains
 the local template. The production file and Wrangler command output stay on
 the release runner. Public results omit production configuration values.
@@ -157,6 +159,30 @@ public egress `/healthz`. Health checks prove reachability, not a completed
 Provider task. Record the exact release and readback evidence in the maintenance
 commit or owning issue, not a separate current-version ledger. Do not silently
 restore a version excluded by the security advisory if recovery is needed.
+
+### Workers VPC transport
+
+The Worker can reach the shim through the `CODEX_EGRESS` Workers VPC Service binding
+instead of the public tunnel hostname. The production VPC Service is an `http`
+Service on the existing `egress-sg` tunnel targeting `127.0.0.1:8789`; the binding
+URL host is not routed and only sets `Host`. The connector must stay on cloudflared
+2025.7.0 or later with the QUIC protocol and outbound UDP 7844.
+
+Creating or editing a VPC Service requires Connectivity Directory Admin; attaching
+it to a Worker requires Bind, and any account member with Bind can attach it to any
+Worker, so `CODEX_EGRESS_SECRET` remains the egress authentication. Granting the
+release token VPC binding permission is an explicit operator decision. `wrangler vpc
+service update` replaces the whole configuration: read the full Service back after
+every write.
+
+Cutover is an operator change: create the production Service and read it back, set
+`codexEgressTransport: "vpc"` and `codexEgressServiceId` in the private production
+settings, upload, verify the `vpc_service` binding and variables, deploy, then run a
+bounded smoke whose transport trace correlates the Worker outcome with egress
+acceptance and outcome. Readiness reports `codex_egress_transport`. Rollback is a
+release with `codexEgressTransport: "public"` or the previous version; it needs no
+change on `egress-sg` while the public hostname is retained. Removing that hostname
+is a separate change.
 
 ## Rollback
 
