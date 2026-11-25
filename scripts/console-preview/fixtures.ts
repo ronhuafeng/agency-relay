@@ -51,6 +51,8 @@ export async function createPreviewFixture(scenario: Scenario, preferredEmail?: 
     RUNTIME_CREDENTIALS: undefined as unknown as Env["RUNTIME_CREDENTIALS"],
     RUNTIME_OAUTH: undefined as unknown as Env["RUNTIME_OAUTH"],
     TOKEN_ENCRYPTION_KEY_V1: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+    CODEX_EGRESS_TRANSPORT: "public",
+    CODEX_EGRESS: undefined as unknown as Env["CODEX_EGRESS"],
     ADMIN_SECRET: "local-preview-only", CODEX_EGRESS_SECRET: "local-preview-only",
     CODEX_EGRESS_BASE_URL: "https://provider.invalid", CODEX_OAUTH_TOKEN_URL: "https://provider.invalid/token",
     CODEX_CLIENT_ID: "local-preview", FEISHU_APP_ID: "local-preview", FEISHU_APP_SECRET: "local-preview",

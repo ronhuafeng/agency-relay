@@ -30,6 +30,7 @@
   },
   "vars": {
     "CODEX_EGRESS_BASE_URL": "https://egress.example.test",
+    "CODEX_EGRESS_TRANSPORT": "public",
     "CODEX_OAUTH_TOKEN_URL": "https://auth.openai.com/oauth/token",
     "CODEX_CLIENT_ID": "app_EMoamEEZ73f0CkXaXp7hrann",
     "ADMIN_DASHBOARD_HOST": "console.example.test",
@@ -48,6 +49,12 @@
       "FEISHU_APP_SECRET"
     ]
   },
+  "vpc_services": [
+    {
+      "binding": "CODEX_EGRESS",
+      "service_id": "00000000-0000-4000-8000-000000000001"
+    }
+  ],
   "d1_databases": [
     {
       "binding": "DB",

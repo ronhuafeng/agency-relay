@@ -374,6 +374,8 @@ function fixture(options: Parameters<typeof createTestD1>[0] = {}) {
     DB: db.binding, API_KEY_HASH_PEPPER: "synthetic-pepper", TOKEN_ENCRYPTION_KEY_V1: "synthetic-encryption",
     CONSOLE_EMAIL_DOMAIN: "example.test", ADMIN_DASHBOARD_HOST: "admin.example.test", ADMIN_SECRET: "synthetic-admin",
     REQUEST_AUDIT_RETENTION_DAYS: "30",
+    CODEX_EGRESS_TRANSPORT: "public",
+    CODEX_EGRESS: undefined as unknown as Env["CODEX_EGRESS"],
     CODEX_EGRESS_BASE_URL: "https://codex-egress-us-west1-a.trustedtunnel.app", CODEX_EGRESS_SECRET: "synthetic-egress",
     CODEX_OAUTH_TOKEN_URL: "https://oauth.example.test/token", CODEX_CLIENT_ID: "synthetic-client",
     TOKEN_AUTHORITY: {

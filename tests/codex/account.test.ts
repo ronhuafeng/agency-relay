@@ -237,6 +237,8 @@ function deps(fetchImpl: typeof fetch): AppDependencies {
 function env(): Env {
   return {
     CODEX_EGRESS_BASE_URL: "https://codex-egress-us-west1-a.trustedtunnel.app",
+    CODEX_EGRESS_TRANSPORT: "public",
+    CODEX_EGRESS: undefined as unknown as Env["CODEX_EGRESS"],
     CODEX_EGRESS_SECRET: "egress-secret"
   } as Env;
 }
