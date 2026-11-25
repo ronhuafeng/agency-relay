@@ -82,7 +82,6 @@ export async function startConsoleWorker(options: { measure?: boolean; runtime?:
     TOKEN_ENCRYPTION_KEY_V1: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
     ADMIN_SECRET: "browser-fixture-operator-not-for-production",
     CODEX_EGRESS_TRANSPORT: "public",
-    CODEX_EGRESS: undefined as unknown as Env["CODEX_EGRESS"],
     CODEX_EGRESS_SECRET: "browser-fixture-egress-not-for-production",
     CODEX_EGRESS_BASE_URL: "https://provider.invalid",
     CODEX_OAUTH_TOKEN_URL: "https://provider.invalid/token",

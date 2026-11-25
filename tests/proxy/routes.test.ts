@@ -1932,7 +1932,6 @@ async function makeFixture(
     ADMIN_SECRET: "admin-secret",
     CODEX_EGRESS_BASE_URL: "https://codex-egress-us-west1-a.trustedtunnel.app",
     CODEX_EGRESS_TRANSPORT: "public",
-    CODEX_EGRESS: undefined as unknown as Env["CODEX_EGRESS"],
     CODEX_EGRESS_SECRET: "codex-egress-secret",
     CODEX_OAUTH_TOKEN_URL: "https://auth.example.test/token",
     CODEX_CLIENT_ID: "client",

@@ -23,6 +23,17 @@ export interface CodexEgressTransport {
   fetch(pathAndSearch: string, init: RequestInit): Promise<Response>;
 }
 
+declare global {
+  interface Env {
+    /**
+     * Workers VPC Service binding to the Codex egress shim. Production-only: the public
+     * template declares none (local `wrangler dev` cannot emulate VPC Services), and
+     * release control adds it from private settings.
+     */
+    CODEX_EGRESS?: Fetcher;
+  }
+}
+
 type CodexEgressEnv = Pick<Env, "CODEX_EGRESS_TRANSPORT" | "CODEX_EGRESS_BASE_URL"> & {
   CODEX_EGRESS?: unknown;
 };

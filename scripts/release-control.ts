@@ -53,7 +53,7 @@ export function productionConfig(base: Config, input: unknown) {
   if (new Set(checkedRoutes.map(route=>route.pattern)).size !== checkedRoutes.length ||
       ![values.ADMIN_DASHBOARD_HOST,values.RUNTIME_MCP_ORIGIN.slice(8)].every(domain=>
         checkedRoutes.some(route=>route.custom_domain && route.pattern === domain))) throw invalid();
-  // The template's VPC Service ID is a placeholder: production uses its own Service or none.
+  // VPC Services are production-only: the template declares none, and none is inherited.
   const { vpc_services: _template, ...rest } = base;
   const vpcServices = typeof codexEgressServiceId === "string"
     ? { vpc_services: [{ binding: CODEX_EGRESS_BINDING, service_id: codexEgressServiceId }] } : {};
