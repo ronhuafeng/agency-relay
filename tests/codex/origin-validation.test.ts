@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { normalizeError } from "../../src/errors";
-import { assertCodexEgressBaseUrl, CODEX_EGRESS_HOSTNAME, isStrictHttpsOrigin } from "../../src/proxy/origin";
+import { isStrictHttpsOrigin } from "../../src/proxy/origin";
 
-describe("Codex egress origin and public errors", () => {
-  it("accepts only the fixed Codex egress HTTPS origin", () => {
-    expect(CODEX_EGRESS_HOSTNAME).toBe("codex-egress-us-west1-a.trustedtunnel.app");
-    expect(assertCodexEgressBaseUrl(`https://${CODEX_EGRESS_HOSTNAME}`)).toBe(`https://${CODEX_EGRESS_HOSTNAME}`);
-    expect(isStrictHttpsOrigin(`https://${CODEX_EGRESS_HOSTNAME}`)).toBe(true);
-    expect(() => assertCodexEgressBaseUrl("https://evil.example")).toThrow();
+describe("Provider origins and public errors", () => {
+  it("accepts only a bare HTTPS origin", () => {
+    expect(isStrictHttpsOrigin("https://provider.example")).toBe(true);
+    for (const rejected of ["http://provider.example", "https://user:pw@provider.example", "https://provider.example/path", "https://provider.example/?q=1", "not a url"]) {
+      expect(isStrictHttpsOrigin(rejected)).toBe(false);
+    }
   });
 
   it("redacts unknown exception messages from public errors", () => {

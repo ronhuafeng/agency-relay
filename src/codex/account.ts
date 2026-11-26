@@ -2,7 +2,6 @@ import { fetchCodexAccountResource } from "./adapter";
 import { cancelUnreadBody } from "../proxy/byte-stream";
 import { asRecord, stringOrNull as stringValue } from "../records";
 import type { CodexAccountEgressPath } from "./adapter";
-import type { AppDependencies } from "../types";
 import type { FreshAccessToken } from "./types";
 
 // Protocol baseline: openai/codex@1bbdb32789e1f79932df44941236ea3658f6e965.
@@ -109,16 +108,14 @@ export interface CodexResetCredit {
 
 export async function readCodexAccountSnapshot(
   env: Env,
-  deps: AppDependencies,
   freshToken: FreshAccessToken,
   signal?: AbortSignal
 ): Promise<CodexAccountSnapshot> {
   const [usage, profile, resetCredits] = await Promise.all([
-    readResource(env, deps, freshToken, "/account/usage", parseUsage, signal),
-    readResource(env, deps, freshToken, "/account/profile", parseTokenActivity, signal),
+    readResource(env, freshToken, "/account/usage", parseUsage, signal),
+    readResource(env, freshToken, "/account/profile", parseTokenActivity, signal),
     readResource(
       env,
-      deps,
       freshToken,
       "/account/rate-limit-reset-credits",
       parseResetCredits,
@@ -138,7 +135,6 @@ export function unavailableCodexAccountSnapshot(): CodexAccountSnapshot {
 
 async function readResource<T>(
   env: Env,
-  deps: AppDependencies,
   freshToken: FreshAccessToken,
   path: CodexAccountEgressPath,
   parse: (value: unknown) => T | null,
@@ -148,7 +144,7 @@ async function readResource<T>(
     const resourceSignal = signal
       ? AbortSignal.any([signal, AbortSignal.timeout(ACCOUNT_RESOURCE_TIMEOUT_MS)])
       : AbortSignal.timeout(ACCOUNT_RESOURCE_TIMEOUT_MS);
-    const response = await fetchCodexAccountResource(env, deps, freshToken, path, resourceSignal);
+    const response = await fetchCodexAccountResource(env, freshToken, path, resourceSignal);
     if (!response.ok) {
       await cancelUnreadBody(response);
       return { status: "unavailable" };

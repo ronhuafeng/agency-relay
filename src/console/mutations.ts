@@ -68,7 +68,7 @@ export async function routeDashboardUiMutation(
       if(!(error instanceof HttpError)||(error.status!==400&&error.code!=="runtime_path_taken"))return consoleUnknownOutcome(return_url,"工具服务操作结果尚未确认。请重新打开页面读取当前状态；不会自动重复提交。");
       status=error.status;flash={kind:"runtime_error",return_url,error_code:error.code ?? "unknown",message:error.code==="runtime_path_taken"?"此路径已被占用或保留。请使用其他路径。":"输入无效，请检查表单。"};
     }
-    return dashboardAfterMutation(env,url,admin,deps,requestContext,flash,status);
+    return dashboardAfterMutation(env,url,admin,requestContext,flash,status);
   }
   const body = await readDashboardBody(request);
 
@@ -105,13 +105,13 @@ export async function routeDashboardUiMutation(
         flash = {kind:"credential_cleanup",provider:provider!,account_id:accountId!,token_cleanup:completion.token_cleanup};
       }
       if (!wantsHtml(request)) return jsonResponse(result);
-      return dashboardAfterMutation(env,url,admin,deps,requestContext,flash,200,undefined,...mutationReturn(body));
+      return dashboardAfterMutation(env,url,admin,requestContext,flash,200,undefined,...mutationReturn(body));
     } catch (error) {
       if (retirementTask?.[3] === "cleanup" && error instanceof HttpError && error.status === 403 && wantsHtml(request)) {
         return consoleUnknownOutcome(`/admin?view=credentials&account=${encodeURIComponent(`${provider}:${accountId}`)}`);
       }
       assertHtmlMutationError(error, request, [400, 409, 422]);
-      return dashboardAfterMutation(env,url,admin,deps,requestContext,{kind:"credential_task_error",provider,account_id:accountId,surface_grant:grant,...consoleError(error.code)},error.status,undefined,...mutationReturn(body));
+      return dashboardAfterMutation(env,url,admin,requestContext,{kind:"credential_task_error",provider,account_id:accountId,surface_grant:grant,...consoleError(error.code)},error.status,undefined,...mutationReturn(body));
     }
   }
 
@@ -119,14 +119,14 @@ export async function routeDashboardUiMutation(
     const email = nullableStringField(body, "email") ?? "";
     try {
       const user = await createOrganizationUser(operator, email);
-      if (wantsHtml(request)) return dashboardAfterMutation(env, url, admin, deps, requestContext, { kind: "user_created", user_id: user.id, email: user.email });
+      if (wantsHtml(request)) return dashboardAfterMutation(env, url, admin, requestContext, { kind: "user_created", user_id: user.id, email: user.email });
       return jsonResponse({ user }, { status: 201 });
     } catch (error) {
       if (error instanceof HttpError && error.status === 403 && wantsHtml(request)) {
         return consoleLifecycleOutcome({ rejected: true, href: "/login", label: "重新登录", message: "你的登录身份或管理员权限已改变，这次添加成员没有执行。请重新登录并查看当前状态。" });
       }
       assertHtmlMutationError(error, request, [400, 409]);
-      return dashboardAfterMutation(env, url, admin, deps, requestContext, {
+      return dashboardAfterMutation(env, url, admin, requestContext, {
         kind: "user_create_error", email, ...consoleError(error.code)
       }, error.status);
     }
@@ -139,10 +139,10 @@ export async function routeDashboardUiMutation(
       requireConfirmation(body,"Change service owner; credentials unchanged");
       const owner = await assignServiceOwner(operator,id,ownerInput(body));
       if (!wantsHtml(request)) return jsonResponse({owner,credentials_unchanged:true});
-      return dashboardAfterMutation(env,url,admin,deps,requestContext,{kind:"service_owner_changed",user_id:id},200,stringField(body,"person_return"));
+      return dashboardAfterMutation(env,url,admin,requestContext,{kind:"service_owner_changed",user_id:id},200,stringField(body,"person_return"));
     } catch (error) {
       assertHtmlMutationError(error, request, [400, 403, 409]);
-      return dashboardAfterMutation(env,url,admin,deps,requestContext,{kind:"service_error",user_id:id,action:"owner",display_name:"",...consoleError(error.code)},error.status,stringField(body,"person_return"));
+      return dashboardAfterMutation(env,url,admin,requestContext,{kind:"service_error",user_id:id,action:"owner",display_name:"",...consoleError(error.code)},error.status,stringField(body,"person_return"));
     }
   }
   const serviceMatch = /^\/admin\/ui\/services(?:\/([^/]+)\/(name|classify))?$/.exec(url.pathname);
@@ -156,11 +156,11 @@ export async function routeDashboardUiMutation(
         : action === "rename" ? await renameServiceAccount(operator, id!, displayName)
         : await classifyServiceAccount(operator, id!, { display_name: displayName, expected_updated_at: requiredTrimmedString(body, "expected_updated_at") });
       if (!wantsHtml(request)) return jsonResponse({ user: publicService(user) }, { status: action === "create" ? 201 : 200 });
-      return dashboardAfterMutation(env, url, admin, deps, requestContext, { kind: "service_changed", user_id: user.id, action, display_name: user.display_name! }, 200, stringField(body, "person_return"));
+      return dashboardAfterMutation(env, url, admin, requestContext, { kind: "service_changed", user_id: user.id, action, display_name: user.display_name! }, 200, stringField(body, "person_return"));
     } catch (error) {
       if (error instanceof HttpError && error.status === 403 && wantsHtml(request)) return consoleLifecycleOutcome({ rejected: true, href: "/login", label: "重新登录", message: "管理员身份已改变，这次服务账号操作没有执行。请重新登录后查看当前状态。" });
       assertHtmlMutationError(error, request, [400, 409]);
-      return dashboardAfterMutation(env, url, admin, deps, requestContext, { kind: "service_error", user_id: id, action, display_name: displayName, ...consoleError(error.code) }, error.status, stringField(body, "person_return"));
+      return dashboardAfterMutation(env, url, admin, requestContext, { kind: "service_error", user_id: id, action, display_name: displayName, ...consoleError(error.code) }, error.status, stringField(body, "person_return"));
     }
   }
 
@@ -175,7 +175,7 @@ export async function routeDashboardUiMutation(
       credential_bindings: formCredentialBindings(body, scopes)
     });
     if (wantsHtml(request)) {
-      return dashboardAfterMutation(env, url, admin, deps, requestContext, {
+      return dashboardAfterMutation(env, url, admin, requestContext, {
         kind: "key_created",
         token: created.token,
         key_id: created.id,
@@ -199,10 +199,10 @@ export async function routeDashboardUiMutation(
       if (!(error instanceof HttpError) || !wantsHtml(request) || !["invalid_expires_at", "expiry_in_past", "expiry_too_far", "invalid_expires_at_utc", "ambiguous_expiry"].includes(error.code ?? "")) throw error;
       const key = await getApiKeyById(env, keyId);
       if (!key) throw error;
-      return dashboardAfterMutation(env, url, admin, deps, requestContext, {kind:"key_replacement_error", key_id:keyId, user_id:key.user_id, ...consoleError(error.code)}, error.status, stringField(body, "key_return"));
+      return dashboardAfterMutation(env, url, admin, requestContext, {kind:"key_replacement_error", key_id:keyId, user_id:key.user_id, ...consoleError(error.code)}, error.status, stringField(body, "key_return"));
     }
     if (wantsHtml(request)) {
-      return dashboardAfterMutation(env, url, admin, deps, requestContext, {
+      return dashboardAfterMutation(env, url, admin, requestContext, {
         kind: "key_replacement_created",
         token: result.replacement.token,
         key_id: result.replacement.id,
@@ -228,7 +228,7 @@ export async function routeDashboardUiMutation(
       credential_account_id: requiredTrimmedString(body, "credential_account_id")
     });
     if (wantsHtml(request)) {
-      return dashboardAfterMutation(env, url, admin, deps, requestContext, {
+      return dashboardAfterMutation(env, url, admin, requestContext, {
         kind: "credential_binding",
         key_id: keyId,
         surface_grant: result.surface_grant
@@ -242,7 +242,7 @@ export async function routeDashboardUiMutation(
     requireConfirmation(body, "Revoke");
     const result = await revokeApiKey(operator, decodeURIComponent(revokeMatch[1]));
     if (wantsHtml(request)) {
-      return dashboardAfterMutation(env, url, admin, deps, requestContext, {
+      return dashboardAfterMutation(env, url, admin, requestContext, {
         kind: "key_revoked",
         key_id: result.id,
         key_prefix: result.key_prefix,
@@ -280,7 +280,7 @@ export async function routeDashboardUiMutation(
         return consoleLifecycleOutcome({ rejected: true, href: "/login", label: "重新登录", message: "你的登录身份或管理员权限已改变，这次管理操作没有执行。请重新登录并查看当前状态。" });
       }
       assertHtmlMutationError(error, request, [400, 409]);
-      return dashboardAfterMutation(env, url, admin, deps, requestContext, {
+      return dashboardAfterMutation(env, url, admin, requestContext, {
         kind: "user_lifecycle_error", user_id: userId, action, email: stringField(body, "email") ?? "", ...consoleError(error.code)
       }, error.status, returnUrl);
     }
@@ -292,7 +292,7 @@ export async function routeDashboardUiMutation(
     if (userId === admin.userId && flash.kind === "user_role" && flash.role === "user") {
       return consoleLifecycleOutcome({ href: "/admin?view=keys", label: "打开我的密钥", message: "你现在是普通成员，组织管理权限已结束。个人密钥、额度和历史不变。" });
     }
-    return dashboardAfterMutation(env, url, admin, deps, requestContext, flash, 200, returnUrl);
+    return dashboardAfterMutation(env, url, admin, requestContext, flash, 200, returnUrl);
   }
 
   if (url.pathname === "/admin/ui/credit-defaults") {
@@ -303,16 +303,16 @@ export async function routeDashboardUiMutation(
         expected_monthly_allowance:requiredNonNegativeIntegerField(body,`expected_${surface}`)
       })));
       if (!wantsHtml(request)) return jsonResponse({defaults});
-      return dashboardAfterMutation(env,url,admin,deps,requestContext,{kind:"credit_default",defaults});
+      return dashboardAfterMutation(env,url,admin,requestContext,{kind:"credit_default",defaults});
     } catch (error) {
       assertHtmlMutationError(error, request, [400, 409]);
-      return dashboardAfterMutation(env,url,admin,deps,requestContext,{kind:"credit_default_error",...consoleError(error.code)},error.status);
+      return dashboardAfterMutation(env,url,admin,requestContext,{kind:"credit_default_error",...consoleError(error.code)},error.status);
     }
   }
 
   const creditDefaultUi = /^\/admin\/ui\/credit-defaults\/(codex|grok|xai)$/.exec(url.pathname);
   if (creditDefaultUi) {
-    if (wantsHtml(request)) return dashboardAfterMutation(env, url, admin, deps, requestContext, {
+    if (wantsHtml(request)) return dashboardAfterMutation(env, url, admin, requestContext, {
       kind: "credit_default_error", message: "旧额度表单已停用，这次没有保存。请在当前设置中重新确认额度。"
     }, 409);
     requireConfirmation(body, "Default change");
@@ -329,7 +329,7 @@ export async function routeDashboardUiMutation(
     const userId = decodeURIComponent(userCreditMatch[1]);
     const surface = userCreditMatch[2] as CreditSurfaceId;
     const email = (await getUser(env, userId))?.email ?? null;
-    const creditPolicyPage = (state: Pick<SurfaceCreditState, "mode" | "monthly_allowance" | "source">) => dashboardAfterMutation(env, url, admin, deps, requestContext, {
+    const creditPolicyPage = (state: Pick<SurfaceCreditState, "mode" | "monthly_allowance" | "source">) => dashboardAfterMutation(env, url, admin, requestContext, {
       kind: "credit_policy",
       user_id: userId,
       email,
@@ -359,7 +359,7 @@ export async function routeDashboardUiMutation(
   if (url.pathname === "/admin/ui/codex-auths") {
     const auth = await createCodexCredentialAccount(operator, { label: requiredTrimmedString(body, "label") });
     if (wantsHtml(request)) {
-      return dashboardAfterMutation(env, url, admin, deps, requestContext, {
+      return dashboardAfterMutation(env, url, admin, requestContext, {
         kind: "codex_created",
         auth_id: auth.id
       }, 200, undefined, ...mutationReturn(body));
@@ -375,7 +375,7 @@ export async function routeDashboardUiMutation(
       provider_account_ref: null
     });
     if (wantsHtml(request)) {
-      return dashboardAfterMutation(env, url, admin, deps, requestContext, {
+      return dashboardAfterMutation(env, url, admin, requestContext, {
         kind: "grok_created",
         account_id: account.id
       }, 200, undefined, ...mutationReturn(body));
@@ -390,7 +390,7 @@ export async function routeDashboardUiMutation(
     requireConfirmation(body, state === "paused" ? "Pause" : "Resume");
     const auth = await setCodexAdmission(operator, authId, state);
     if (wantsHtml(request)) {
-      return dashboardAfterMutation(env, url, admin, deps, requestContext, {
+      return dashboardAfterMutation(env, url, admin, requestContext, {
         kind: "codex_admission", auth_id: auth.id, admission_state: auth.admission_state
       }, 200, undefined, ...mutationReturn(body));
     }
@@ -401,7 +401,7 @@ export async function routeDashboardUiMutation(
     const authId = decodeURIComponent(codexUiMatch[1]);
     const result = await beginCodexCredentialOAuth(operator, authId, nullableStringField(body, "redirect_uri"));
     if (wantsHtml(request)) {
-      return dashboardAfterMutation(env, url, admin, deps, requestContext, {
+      return dashboardAfterMutation(env, url, admin, requestContext, {
         kind: "codex_oauth_started",
         auth_id: authId,
         session_id: result.session_id,
@@ -422,7 +422,7 @@ export async function routeDashboardUiMutation(
       callback_url: nullableStringField(body, "callback_url") ?? stringField(body, "callback") ?? null
     }, authId);
     if (wantsHtml(request)) {
-      return dashboardAfterMutation(env, url, admin, deps, requestContext, {
+      return dashboardAfterMutation(env, url, admin, requestContext, {
         kind: "codex_imported",
         auth_id: result.auth_id
       }, 200, undefined, ...mutationReturn(body));
@@ -441,12 +441,12 @@ export async function routeDashboardUiMutation(
         "reauth_required", "missing_refresh_token", "codex_token_refresh_failed",
         "invalid_token_response", "missing_access_token", "codex_auth_inactive", "credential_lifecycle_changed"
       ].includes(error.code ?? "")) throw error;
-      return dashboardAfterMutation(env, url, admin, deps, requestContext, {
+      return dashboardAfterMutation(env, url, admin, requestContext, {
         kind: "codex_refresh_error", auth_id: authId, ...consoleError(error.code)
       }, error.status, undefined, ...mutationReturn(body));
     }
     if (wantsHtml(request)) {
-      return dashboardAfterMutation(env, url, admin, deps, requestContext, {
+      return dashboardAfterMutation(env, url, admin, requestContext, {
         kind: "codex_refreshed",
         auth_id: result.auth_id
       }, 200, undefined, ...mutationReturn(body));
@@ -464,7 +464,7 @@ export async function routeDashboardUiMutation(
       throw error;
     }
     if (wantsHtml(request)) {
-      return dashboardAfterMutation(env, url, admin, deps, requestContext, {
+      return dashboardAfterMutation(env, url, admin, requestContext, {
         kind: "credential_disconnected", provider:"codex", account_id:result.auth_id, token_cleanup:result.token_cleanup
       }, 200, undefined, ...mutationReturn(body));
     }
@@ -479,7 +479,7 @@ export async function routeDashboardUiMutation(
       nullableStringField(body, "redirect_uri")
     );
     if (wantsHtml(request)) {
-      return dashboardAfterMutation(env, url, admin, deps, requestContext, {
+      return dashboardAfterMutation(env, url, admin, requestContext, {
         kind: "grok_oauth_started",
         account_id: result.account_id,
         session_id: result.session_id,
@@ -504,7 +504,7 @@ export async function routeDashboardUiMutation(
       }
     );
     if (wantsHtml(request)) {
-      return dashboardAfterMutation(env, url, admin, deps, requestContext, {
+      return dashboardAfterMutation(env, url, admin, requestContext, {
         kind: "grok_imported",
         account_id: result.account_id
       }, 200, undefined, ...mutationReturn(body));
@@ -517,7 +517,7 @@ export async function routeDashboardUiMutation(
     requireConfirmation(body, "Refresh");
     const result = await refreshGrokCredential(operator, decodeURIComponent(grokRefreshMatch[1]));
     if (wantsHtml(request)) {
-      return dashboardAfterMutation(env, url, admin, deps, requestContext, {
+      return dashboardAfterMutation(env, url, admin, requestContext, {
         kind: "grok_refreshed",
         account_id: result.account_id
       }, 200, undefined, ...mutationReturn(body));
@@ -538,7 +538,7 @@ export async function routeDashboardUiMutation(
       if (error instanceof HttpError && error.status === 403 && wantsHtml(request)) return consoleUnknownOutcome(`/admin?view=credentials&account=${encodeURIComponent(`grok:${accountId}`)}`);
       throw error;
     }
-    return dashboardAfterMutation(env, url, admin, deps, requestContext, {
+    return dashboardAfterMutation(env, url, admin, requestContext, {
       kind: "credential_disconnected", provider:"grok", account_id:accountId, token_cleanup:result.token_cleanup
     }, 200, undefined, ...mutationReturn(body));
   }
@@ -550,7 +550,6 @@ async function dashboardAfterMutation(
   env: Env,
   url: URL,
   admin: AdminIdentity,
-  deps: AppDependencies,
   requestContext: RequestContext,
   flash: DashboardMutationFlash,
   status = 200,
@@ -629,7 +628,7 @@ async function dashboardAfterMutation(
       if (flash.kind === "codex_refresh_error" || flash.kind === "codex_admission") return unavailableCodexAccountSnapshot();
       try {
         const freshToken = readTokenResult(await codexTokenAuthority(env, authId).getFreshAccessToken());
-        return await readCodexAccountSnapshot(env, deps, freshToken);
+        return await readCodexAccountSnapshot(env, freshToken);
       } catch {
         return unavailableCodexAccountSnapshot();
       }

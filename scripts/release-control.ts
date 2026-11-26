@@ -16,7 +16,7 @@ interface Config {
 }
 
 type ProductionRoute = { pattern: string; zone_name?: string; custom_domain?: true };
-const privateVariables = ["ADMIN_DASHBOARD_HOST", "CONSOLE_EMAIL_DOMAIN", "CODEX_EGRESS_BASE_URL", "RUNTIME_MCP_ORIGIN"] as const;
+const privateVariables = ["ADMIN_DASHBOARD_HOST", "CONSOLE_EMAIL_DOMAIN", "RUNTIME_MCP_ORIGIN"] as const;
 const CODEX_EGRESS_BINDING = "CODEX_EGRESS";
 const uuid = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
 
@@ -24,11 +24,9 @@ export function productionConfig(base: Config, input: unknown) {
   const invalid = () => new Error("Invalid private production Worker configuration");
   if (!input || typeof input !== "object" || Array.isArray(input)) throw invalid();
   const settings = input as Record<string, unknown>;
-  const { name, databaseName, databaseId, routes, vars, codexEgressTransport = "public", codexEgressServiceId } = settings;
-  if (Object.keys(settings).some(key => !["name", "databaseName", "databaseId", "routes", "vars", "codexEgressTransport", "codexEgressServiceId"].includes(key)) ||
-      (codexEgressTransport !== "public" && codexEgressTransport !== "vpc") ||
-      (codexEgressServiceId !== undefined && (typeof codexEgressServiceId !== "string" || !uuid.test(codexEgressServiceId))) ||
-      (codexEgressTransport === "vpc" && codexEgressServiceId === undefined) ||
+  const { name, databaseName, databaseId, routes, vars, codexEgressServiceId } = settings;
+  if (Object.keys(settings).some(key => !["name", "databaseName", "databaseId", "routes", "vars", "codexEgressServiceId"].includes(key)) ||
+      typeof codexEgressServiceId !== "string" || !uuid.test(codexEgressServiceId) ||
       typeof name !== "string" || !/^[a-z0-9-]{1,63}$/.test(name) || name === base.name ||
       typeof databaseName !== "string" || !/^[a-zA-Z0-9_-]{1,63}$/.test(databaseName) ||
       typeof databaseId !== "string" || !uuid.test(databaseId) ||
@@ -39,7 +37,6 @@ export function productionConfig(base: Config, input: unknown) {
   const host = /^[a-z0-9-]+(?:\.[a-z0-9-]+)+$/;
   const values = variables as Record<(typeof privateVariables)[number], string>;
   if (!host.test(values.ADMIN_DASHBOARD_HOST) || !host.test(values.CONSOLE_EMAIL_DOMAIN) ||
-      !values.CODEX_EGRESS_BASE_URL.startsWith("https://") || !host.test(values.CODEX_EGRESS_BASE_URL.slice(8)) ||
       !values.RUNTIME_MCP_ORIGIN.startsWith("https://") || !host.test(values.RUNTIME_MCP_ORIGIN.slice(8))) throw invalid();
   const checkedRoutes = routes.map((route: unknown): ProductionRoute => {
     if (!route || typeof route !== "object" || Array.isArray(route)) throw invalid();
@@ -55,10 +52,8 @@ export function productionConfig(base: Config, input: unknown) {
         checkedRoutes.some(route=>route.custom_domain && route.pattern === domain))) throw invalid();
   // VPC Services are production-only: the template declares none, and none is inherited.
   const { vpc_services: _template, ...rest } = base;
-  const vpcServices = typeof codexEgressServiceId === "string"
-    ? { vpc_services: [{ binding: CODEX_EGRESS_BINDING, service_id: codexEgressServiceId }] } : {};
-  return { ...rest, ...vpcServices, name, routes: checkedRoutes,
-    vars: { ...base.vars, ...values, CODEX_EGRESS_TRANSPORT: codexEgressTransport as string },
+  return { ...rest, vpc_services: [{ binding: CODEX_EGRESS_BINDING, service_id: codexEgressServiceId }],
+    name, routes: checkedRoutes, vars: { ...base.vars, ...values },
     d1_databases: base.d1_databases.map(db => db.binding === "DB" ? {...db,database_name:databaseName,database_id:databaseId} : db) };
 }
 export function assertVersion(version: Version, config: Config, sha: string, previous?: Version): void {

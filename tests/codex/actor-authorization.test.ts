@@ -10,7 +10,7 @@ import {
   type Fixture
 } from "../router/fixture";
 
-const EGRESS = "https://codex-egress-us-west1-a.trustedtunnel.app";
+const EGRESS = "http://codex-egress.internal";
 const CODEX = "https://api.trustedtunnel.app";
 const ACTOR_HEADER = "x-openai-actor-authorization";
 const ACTOR_SECRET = "caller-spoofed-test-actor-secret";

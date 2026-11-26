@@ -154,11 +154,13 @@ describe("ChatGPT account admission", () => {
     }
     const forwarded: string[] = [];
     const waits: Promise<unknown>[] = [];
+    const upstream = async (url: RequestInfo | URL) => { forwarded.push(String(url)); return Response.json({ models: [] }); };
+    f.env.CODEX_EGRESS = { fetch: upstream } as unknown as Fetcher;
     const request = (key: string, host: string) => handleRequest(new Request(`https://${host}/v1/models`, {
       headers: { Authorization: `Bearer ${tokens.get(key)}` }
     }), f.env, { waitUntil: work => { waits.push(work); } }, {
       now: () => NOW,
-      fetch: async (url) => { forwarded.push(String(url)); return Response.json({ models: [] }); }
+      fetch: upstream
     });
     try {
       await commitCodexAdmission(f.env, ACTOR, "account_a", "paused", NOW);
@@ -215,11 +217,13 @@ describe("ChatGPT account admission", () => {
     } as unknown as Env["TOKEN_AUTHORITY"];
     const forwarded: string[] = [];
     const waits: Promise<unknown>[] = [];
+    const upstream = async (url: RequestInfo | URL) => { forwarded.push(String(url)); return Response.json({ models: [] }); };
+    f.env.CODEX_EGRESS = { fetch: upstream } as unknown as Fetcher;
     const request = () => handleRequest(new Request("https://api.trustedtunnel.app/v1/models", {
       headers: { Authorization: `Bearer ${token}` }
     }), f.env, { waitUntil: work => { waits.push(work); } }, {
       now: () => NOW,
-      fetch: async url => { forwarded.push(String(url)); return Response.json({ models: [] }); }
+      fetch: upstream
     });
     const admitted = request();
     let primaryFailure: unknown;
@@ -374,8 +378,7 @@ function fixture(options: Parameters<typeof createTestD1>[0] = {}) {
     DB: db.binding, API_KEY_HASH_PEPPER: "synthetic-pepper", TOKEN_ENCRYPTION_KEY_V1: "synthetic-encryption",
     CONSOLE_EMAIL_DOMAIN: "example.test", ADMIN_DASHBOARD_HOST: "admin.example.test", ADMIN_SECRET: "synthetic-admin",
     REQUEST_AUDIT_RETENTION_DAYS: "30",
-    CODEX_EGRESS_TRANSPORT: "public",
-    CODEX_EGRESS_BASE_URL: "https://codex-egress-us-west1-a.trustedtunnel.app", CODEX_EGRESS_SECRET: "synthetic-egress",
+    CODEX_EGRESS_SECRET: "synthetic-egress",
     CODEX_OAUTH_TOKEN_URL: "https://oauth.example.test/token", CODEX_CLIENT_ID: "synthetic-client",
     TOKEN_AUTHORITY: {
       idFromName: (name: string) => name,

@@ -31,7 +31,7 @@ describe("codex adapter", () => {
   it("projects one Codex fallback identity before signing the egress header manifest", async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       expect(String(input)).toBe(
-        "https://codex-egress-us-west1-a.trustedtunnel.app/models?future=a%20b&client_version=1.2.3"
+        "http://codex-egress.internal/models?future=a%20b&client_version=1.2.3"
       );
       const headers = new Headers(init?.headers);
       expect(headers.get("Originator")).toBe("codex_cli_rs");
@@ -50,7 +50,7 @@ describe("codex adapter", () => {
     await forwardModels(new Request(
       "https://api.trustedtunnel.app/v1/models?client_version=broken&future=a%20b",
       { headers: { Originator: "codex_cli_rs", "User-Agent": "third-party/9.0.0" } }
-    ), env(), deps(fetchMock), token(), {
+    ), env({}, fetchMock), token(), {
       upstreamClientIdentity: "codex_cli",
       fallbackIdentityVersion: "1.2.3"
     });
@@ -60,7 +60,7 @@ describe("codex adapter", () => {
     const expected = new TextEncoder().encode('{"models":[{"slug":"future-model"}]}');
     const outcomes: CodexProviderTerminalOutcome[] = [];
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-      expect(String(input)).toBe("https://codex-egress-us-west1-a.trustedtunnel.app/models?client_version=0.144.0%2Bdev&channel=future");
+      expect(String(input)).toBe("http://codex-egress.internal/models?client_version=0.144.0%2Bdev&channel=future");
       expect(init?.method).toBe("GET");
       expect(init?.body).toBeUndefined();
       const headers = new Headers(init?.headers);
@@ -113,9 +113,8 @@ describe("codex adapter", () => {
         }
       }
     ), env({
-      CODEX_EGRESS_BASE_URL: "https://codex-egress-us-west1-a.trustedtunnel.app",
       CODEX_EGRESS_SECRET: "egress-secret"
-    }), deps(fetchMock), token(), {
+    }, fetchMock), token(), {
       onTerminal: (outcome) => outcomes.push(outcome)
     });
 
@@ -158,8 +157,7 @@ describe("codex adapter", () => {
 
     await expect(forwardModels(
       new Request("https://example.test/v1/models"),
-      env(),
-      deps(fetchMock),
+      env({}, fetchMock),
       token(),
       { onTerminal: (outcome) => outcomes.push(outcome) }
     )).rejects.toMatchObject({
@@ -184,8 +182,7 @@ describe("codex adapter", () => {
     try {
       await expect(forwardModels(
         new Request("https://example.test/v1/models"),
-        env(),
-        deps(vi.fn(async () => { throw new Error("network failed"); })),
+        env({}, vi.fn(async () => { throw new Error("network failed"); })),
         token(),
         { onTerminal: (outcome) => outcomes.push(outcome) }
       )).rejects.toMatchObject({ code: "codex_upstream_transport_error" });
@@ -218,8 +215,8 @@ describe("codex adapter", () => {
 
       await expect(forwardResponses(
         new Request("https://example.test/v1/responses", { method: "POST" }),
-        env(),
-        deps(fetchMock),
+        env({}, fetchMock),
+        deps(),
         requestContext(),
         token(),
         stream(new Uint8Array()),
@@ -248,8 +245,7 @@ describe("codex adapter", () => {
     });
 
     await expect(fetchCodexAccountResource(
-      env(),
-      deps(fetchMock),
+      env({}, fetchMock),
       token(),
       "/account/profile"
     )).rejects.toMatchObject({
@@ -284,7 +280,7 @@ describe("codex adapter", () => {
     const response = await forwardResponses(new Request("https://example.test/v1/responses", {
       method: "POST",
       headers: { "session-id": "caller-session" }
-    }), env(), deps(fetchMock), requestContext(), token(), stream(expected));
+    }), env({}, fetchMock), deps(), requestContext(), token(), stream(expected));
 
     await expect(response.text()).resolves.toBe(completedSse);
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -303,34 +299,25 @@ describe("codex adapter", () => {
       new Request("https://example.test/v1/models", {
         headers: { "Chatgpt-Account-Id": "forged-client-account" }
       }),
-      env(),
-      deps(fetchMock),
+      env({}, fetchMock),
       freshToken
     );
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  it("requires the manifest egress path instead of falling back to Backend direct", async () => {
-    const fetchMock = vi.fn();
-    await expect(forwardModels(
-      new Request("https://example.test/v1/models"),
-      env({ CODEX_EGRESS_BASE_URL: "" }),
-      deps(fetchMock),
-      token()
-    )).rejects.toMatchObject({ status: 500, code: "missing_codex_egress_base_url" });
-    expect(fetchMock).not.toHaveBeenCalled();
-  });
-
-  it("rejects a non-approved egress origin before attaching credentials", async () => {
-    const fetchMock = vi.fn();
-    await expect(forwardModels(
-      new Request("https://example.test/v1/models"),
-      env({ CODEX_EGRESS_BASE_URL: "https://attacker.example", CODEX_EGRESS_SECRET: "egress-secret" }),
-      deps(fetchMock),
-      token()
-    )).rejects.toMatchObject({ status: 500, code: "invalid_codex_egress_base_url" });
-    expect(fetchMock).not.toHaveBeenCalled();
+  it("requires the VPC egress binding instead of falling back to global fetch", async () => {
+    const globalFetch = vi.spyOn(globalThis, "fetch");
+    try {
+      await expect(forwardModels(
+        new Request("https://example.test/v1/models"),
+        env(),
+        token()
+      )).rejects.toMatchObject({ status: 500, code: "missing_codex_egress_binding" });
+      expect(globalFetch).not.toHaveBeenCalled();
+    } finally {
+      globalFetch.mockRestore();
+    }
   });
 
   it.each([
@@ -402,7 +389,7 @@ describe("codex adapter", () => {
       waitUntil: (promise: Promise<void>) => waits.push(promise)
     };
 
-    const response = await forwardResponses(request(), env(), deps(fetchMock), requestContext(), token(), stream(new Uint8Array()), options);
+    const response = await forwardResponses(request(), env({}, fetchMock), deps(), requestContext(), token(), stream(new Uint8Array()), options);
 
     expect(response.status).toBe(scenario.status);
     expect(response.statusText).toBe(scenario.statusText);
@@ -442,7 +429,7 @@ describe("codex adapter", () => {
     const observations: Array<Record<string, unknown>> = [];
     const waits: Promise<unknown>[] = [];
     const response = await forwardResponses(
-      request(), env(), deps(vi.fn(async () => sseResponse(REASONING_SUMMARY_SSE))), requestContext(), token(),
+      request(), env({}, vi.fn(async () => sseResponse(REASONING_SUMMARY_SSE))), deps(), requestContext(), token(),
       stream(new TextEncoder().encode('{"model":"gpt-5.4"}')),
       {
         onTerminal: collectTerminal(captured, observations),
@@ -481,7 +468,7 @@ describe("codex adapter", () => {
     const captured: CapturedResponseUsage[] = [];
     const waits: Promise<unknown>[] = [];
     const response = await forwardResponses(
-      request(), env(), deps(vi.fn(async () => sseResponse(body))), requestContext(), token(),
+      request(), env({}, vi.fn(async () => sseResponse(body))), deps(), requestContext(), token(),
       stream(new Uint8Array()),
       {
         onTerminal: collectTerminal(captured),
@@ -507,8 +494,8 @@ describe("codex adapter", () => {
     const waits: Promise<unknown>[] = [];
     const response = await forwardResponses(
       request(),
-      env(),
-      deps(vi.fn(async () => sseResponse(body))),
+      env({}, vi.fn(async () => sseResponse(body))),
+      deps(),
       requestContext(),
       token(),
       stream(new Uint8Array()),
@@ -537,8 +524,8 @@ describe("codex adapter", () => {
     });
     const response = await forwardResponses(
       incoming,
-      env(),
-      deps(vi.fn(async () => new Response(stream(new TextEncoder().encode(REASONING_SUMMARY_SSE))))),
+      env({}, vi.fn(async () => new Response(stream(new TextEncoder().encode(REASONING_SUMMARY_SSE))))),
+      deps(),
       requestContext(),
       token(),
       stream(new TextEncoder().encode('{"model":"gpt-5.4","stream":true}')),
@@ -567,8 +554,8 @@ describe("codex adapter", () => {
     const captured: CapturedResponseUsage[] = [];
     const response = await forwardResponses(
       request(),
-      env(),
-      deps(vi.fn(async () => new Response(stream(new TextEncoder().encode(REASONING_SUMMARY_SSE))))),
+      env({}, vi.fn(async () => new Response(stream(new TextEncoder().encode(REASONING_SUMMARY_SSE))))),
+      deps(),
       requestContext(),
       token(),
       stream(new TextEncoder().encode('{"model":"gpt-5.4","stream":true}')),
@@ -596,11 +583,11 @@ describe("codex adapter", () => {
     });
     const response = await forwardResponses(
       incoming,
-      env(),
-      deps(vi.fn(async () => new Response(
+      env({}, vi.fn(async () => new Response(
         stream(new TextEncoder().encode("rejected")),
         { status: 422 }
       ))),
+      deps(),
       requestContext(),
       token(),
       stream(new TextEncoder().encode('{"model":"gpt-5.4","stream":true}'))
@@ -618,8 +605,8 @@ describe("codex adapter", () => {
     const waits: Promise<unknown>[] = [];
     const response = await forwardResponses(
       request(),
-      env(),
-      deps(vi.fn(async () => new Response(body, { headers: { "Content-Type": "application/json" } }))),
+      env({}, vi.fn(async () => new Response(body, { headers: { "Content-Type": "application/json" } }))),
+      deps(),
       requestContext(),
       token(),
       stream(new Uint8Array()),
@@ -661,8 +648,8 @@ describe("codex adapter", () => {
     const waits: Promise<unknown>[] = [];
     const response = await forwardResponses(
       request(),
-      env(),
-      deps(vi.fn(async () => new Response(body, { headers: { "Content-Type": "application/json" } }))),
+      env({}, vi.fn(async () => new Response(body, { headers: { "Content-Type": "application/json" } }))),
+      deps(),
       requestContext(),
       token(),
       stream(new Uint8Array()),
@@ -716,13 +703,13 @@ describe("codex adapter", () => {
     const waits: Promise<unknown>[] = [];
     const response = await forwardResponses(
       request(),
-      env(),
-      deps(vi.fn(async () => new Response(stream(scenario.compressed), {
+      env({}, vi.fn(async () => new Response(stream(scenario.compressed), {
         headers: {
           "Content-Type": scenario.contentType,
           "Content-Encoding": scenario.encoding
         }
       }))),
+      deps(),
       requestContext(),
       token(),
       stream(new Uint8Array()),
@@ -794,8 +781,8 @@ describe("codex adapter", () => {
     }
     const response = await forwardResponses(
       request(),
-      env(),
-      deps(vi.fn(async () => new Response(stream(scenario.body), { headers }))),
+      env({}, vi.fn(async () => new Response(stream(scenario.body), { headers }))),
+      deps(),
       requestContext(),
       token(),
       stream(new Uint8Array()),
@@ -821,11 +808,11 @@ describe("codex adapter", () => {
     const observations: Array<Record<string, unknown>> = [];
     const response = await forwardResponses(
       request(),
-      env(),
-      deps(vi.fn(async () => new Response(null, {
+      env({}, vi.fn(async () => new Response(null, {
         status: 204,
         headers: { "Content-Type": "application/json" }
       }))),
+      deps(),
       requestContext(),
       token(),
       stream(new Uint8Array()),
@@ -849,8 +836,8 @@ describe("codex adapter", () => {
     const observations: Array<Record<string, unknown>> = [];
     const response = await forwardResponses(
       request(),
-      env(),
-      deps(vi.fn(async () => new Response(stream(body), { headers: { "Content-Type": "application/json" } }))),
+      env({}, vi.fn(async () => new Response(stream(body), { headers: { "Content-Type": "application/json" } }))),
+      deps(),
       requestContext(),
       token(),
       stream(new Uint8Array()),
@@ -875,7 +862,7 @@ describe("codex adapter", () => {
       error: { message: "unavailable", type: "upstream_error", code: "unavailable" }
     }, { status: 503 }));
     const unavailableResponse = await forwardResponses(
-      request(), env(), deps(unavailable), requestContext(), token(), stream(new Uint8Array())
+      request(), env({}, unavailable), deps(), requestContext(), token(), stream(new Uint8Array())
     );
     expect(unavailableResponse.status).toBe(503);
     await expect(unavailableResponse.json()).resolves.toEqual({
@@ -887,7 +874,7 @@ describe("codex adapter", () => {
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
     try {
       await expect(forwardResponses(
-        request(), env(), deps(transport), requestContext(), token(), stream(new Uint8Array())
+        request(), env({}, transport), deps(), requestContext(), token(), stream(new Uint8Array())
       )).rejects.toMatchObject({
         status: 502,
         code: "codex_upstream_transport_error",
@@ -919,7 +906,7 @@ describe("codex adapter", () => {
     const pending = forwardResponses(new Request("https://example.test/v1/responses", {
       method: "POST",
       signal: controller.signal
-    }), env(), deps(fetchMock), requestContext(), token(), stream(new Uint8Array()));
+    }), env({}, fetchMock), deps(), requestContext(), token(), stream(new Uint8Array()));
 
     await fetchStarted;
     controller.abort();
@@ -934,8 +921,7 @@ describe("codex adapter", () => {
     const waits: Promise<unknown>[] = [];
     const response = await forwardResponses(
       request(),
-      env(),
-      deps(vi.fn(async () => new Response(new ReadableStream<Uint8Array>({
+      env({}, vi.fn(async () => new Response(new ReadableStream<Uint8Array>({
         start(controller) {
           controller.enqueue(new TextEncoder().encode("event: response.created\ndata: {}\n\n"));
         },
@@ -943,6 +929,7 @@ describe("codex adapter", () => {
           upstreamCancel(reason);
         }
       }), { headers: { "Content-Type": "text/event-stream" } }))),
+      deps(),
       requestContext(),
       token(),
       stream(new Uint8Array()),
@@ -975,8 +962,7 @@ describe("codex adapter", () => {
     ];
     const response = await forwardResponses(
       request(),
-      env(),
-      deps(vi.fn(async () => new Response(new ReadableStream<Uint8Array>({
+      env({}, vi.fn(async () => new Response(new ReadableStream<Uint8Array>({
         pull(controller) {
           if (pulls < chunks.length) {
             controller.enqueue(new TextEncoder().encode(chunks[pulls]));
@@ -986,6 +972,7 @@ describe("codex adapter", () => {
           }
         }
       }), { headers: { "Content-Type": "text/event-stream" } }))),
+      deps(),
       requestContext(),
       token(),
       stream(new Uint8Array()),
@@ -1004,8 +991,8 @@ describe("codex adapter", () => {
     const waits: Promise<unknown>[] = [];
     const response = await forwardResponses(
       request(),
-      env(),
-      deps(vi.fn(async () => sseResponse(completedSse))),
+      env({}, vi.fn(async () => sseResponse(completedSse))),
+      deps(),
       requestContext(),
       token(),
       stream(new Uint8Array()),
@@ -1021,8 +1008,8 @@ describe("codex adapter", () => {
   it("keeps a completed client stream intact when waitUntil registration fails", async () => {
     const response = await forwardResponses(
       request(),
-      env(),
-      deps(vi.fn(async () => sseResponse(completedSse))),
+      env({}, vi.fn(async () => sseResponse(completedSse))),
+      deps(),
       requestContext(),
       token(),
       stream(new Uint8Array()),
@@ -1037,13 +1024,13 @@ describe("codex adapter", () => {
     const registerWaitUntil = vi.fn(() => { throw new Error("registration failed"); });
     const response = await forwardResponses(
       request(),
-      env(),
-      deps(vi.fn(async () => new Response(new ReadableStream<Uint8Array>({
+      env({}, vi.fn(async () => new Response(new ReadableStream<Uint8Array>({
         pull(controller) {
           controller.enqueue(new TextEncoder().encode("data: partial\n\n"));
         },
         cancel: upstreamCancel
       }), { headers: { "Content-Type": "text/event-stream" } }))),
+      deps(),
       requestContext(),
       token(),
       stream(new Uint8Array()),
@@ -1063,12 +1050,12 @@ describe("codex adapter", () => {
     const observations: Array<Record<string, unknown>> = [];
     const response = await forwardResponses(
       request(),
-      env(),
-      deps(vi.fn(async () => new Response(new ReadableStream<Uint8Array>({
+      env({}, vi.fn(async () => new Response(new ReadableStream<Uint8Array>({
         pull(controller) {
           controller.error(new Error("upstream body failed"));
         }
       }), { headers: { "Content-Type": "text/event-stream" } }))),
+      deps(),
       requestContext(),
       token(),
       stream(new Uint8Array()),
@@ -1107,14 +1094,14 @@ describe("codex adapter", () => {
         "OpenAI-Beta": "responses_websockets=2026-02-06",
         "X-OpenAI-Subagent": "compact"
       }
-    }), env(), deps(fetchMock), requestContext(), token(), stream(new Uint8Array()));
+    }), env({}, fetchMock), deps(), requestContext(), token(), stream(new Uint8Array()));
     expect(response.headers.get("X-Codex-Turn-State")).toBe("turn-state-out");
     await response.text();
   });
 
   it("routes once through configured egress", async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-      expect(String(input)).toBe("https://codex-egress-us-west1-a.trustedtunnel.app/responses?future=%2f");
+      expect(String(input)).toBe("http://codex-egress.internal/responses?future=%2f");
       const headers = new Headers(init?.headers);
       expect(headers.get("Authorization")).toBe("Bearer codex_access");
       expect(headers.get("X-Codex-Egress-Secret")).toBe("egress-secret");
@@ -1122,8 +1109,8 @@ describe("codex adapter", () => {
     });
     const response = await forwardResponses(
       new Request("https://example.test/v1/responses?future=%2f", { method: "POST" }),
-      env({ CODEX_EGRESS_BASE_URL: "https://codex-egress-us-west1-a.trustedtunnel.app", CODEX_EGRESS_SECRET: "egress-secret" }),
-      deps(fetchMock),
+      env({ CODEX_EGRESS_SECRET: "egress-secret" }, fetchMock),
+      deps(),
       requestContext(),
       token(),
       stream(new Uint8Array())
@@ -1160,14 +1147,19 @@ function token(): FreshAccessToken {
   };
 }
 
-function deps(fetchMock: AppDependencies["fetch"]): AppDependencies {
-  return { fetch: fetchMock, now: () => new Date("2026-07-12T00:00:00.000Z") };
+// Codex egress leaves only through the CODEX_EGRESS VPC binding, the external seam these
+// tests replace. Global fetch must never carry Codex egress.
+function deps(): AppDependencies {
+  return { fetch: unexpectedGlobalFetch, now: () => new Date("2026-07-12T00:00:00.000Z") };
 }
 
-function env(overrides: Partial<Env> = {}): Env {
+function unexpectedGlobalFetch(): Promise<Response> {
+  throw new Error("Codex egress must not use global fetch");
+}
+
+function env(overrides: Partial<Env> = {}, egressFetch?: AppDependencies["fetch"]): Env {
   return {
-    CODEX_EGRESS_BASE_URL: "https://codex-egress-us-west1-a.trustedtunnel.app",
-    CODEX_EGRESS_TRANSPORT: "public",
+    CODEX_EGRESS: egressFetch ? ({ fetch: egressFetch } as unknown as Fetcher) : undefined,
     CODEX_EGRESS_SECRET: "egress-secret",
     CODEX_OAUTH_TOKEN_URL: "https://auth.openai.test/oauth/token",
     CODEX_CLIENT_ID: "client",

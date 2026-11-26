@@ -266,7 +266,6 @@ describe("router admission", () => {
   it("creates a user, creates a key, authenticates models, then rejects revoked key", async () => {
     const fixture = makeFixture({
       env: {
-        CODEX_EGRESS_BASE_URL: "https://codex-egress-us-west1-a.trustedtunnel.app",
         CODEX_EGRESS_SECRET: "egress-secret"
       }
     });
@@ -299,7 +298,7 @@ describe("router admission", () => {
     expect(modelsBody.models.map((model) => model.slug)).toEqual(["upstream-model"]);
     expect(fixture.fetchCalls).toHaveLength(1);
     expect(fixture.fetchCalls[0]).toMatchObject({
-      url: `https://codex-egress-us-west1-a.trustedtunnel.app/models?client_version=${TEST_IDENTITY_VERSION}`,
+      url: `http://codex-egress.internal/models?client_version=${TEST_IDENTITY_VERSION}`,
       method: "GET",
       authorization: "Bearer shared_access"
     });

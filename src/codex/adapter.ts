@@ -116,7 +116,6 @@ function createTerminalReporter(
 export async function forwardModels(
   request: Request,
   env: Env,
-  deps: AppDependencies,
   freshToken: FreshAccessToken,
   options: ForwardOptions = {}
 ): Promise<Response> {
@@ -127,7 +126,7 @@ export async function forwardModels(
     options.fallbackIdentityVersion ?? null
   );
   // Resolve the only allowed egress transport before any credential material is attached.
-  const egress = resolveCodexEgressTransport(env, deps);
+  const egress = resolveCodexEgressTransport(env);
   const target = codexEgressTarget("/models", projected.search);
   const headers = egressRequestHeaders(projected.headers, env);
   const observation = createTransportObservation();
@@ -167,12 +166,11 @@ export async function forwardModels(
 
 export async function fetchCodexAccountResource(
   env: Env,
-  deps: AppDependencies,
   freshToken: FreshAccessToken,
   path: CodexAccountEgressPath,
   signal?: AbortSignal
 ): Promise<Response> {
-  const egress = resolveCodexEgressTransport(env, deps);
+  const egress = resolveCodexEgressTransport(env);
   const target = codexEgressTarget(path);
   const headers = egressRequestHeaders(
     backendRequestHeaders(new Headers({ Accept: "application/json" }), freshToken),
@@ -340,7 +338,7 @@ async function fetchCodex(
     backendRequestHeaders(request.headers, freshToken),
     fallbackIdentityVersion
   );
-  const egress = resolveCodexEgressTransport(env, deps);
+  const egress = resolveCodexEgressTransport(env);
   const target = codexEgressTarget(path, projected.search);
   const headers = egressRequestHeaders(projected.headers, env, observation.transport_trace_id);
 

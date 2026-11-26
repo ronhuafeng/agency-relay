@@ -73,11 +73,10 @@ an ignored `.wrangler.production.json` from that verified template and the
 repository secret `WRANGLER_PRODUCTION_SETTINGS`. Supply a JSON
 object with `name` (Worker name), `databaseName`, `databaseId`, `routes` (the
 existing Wrangler route array), and `vars` with exactly
-`ADMIN_DASHBOARD_HOST`, `CONSOLE_EMAIL_DOMAIN`, `CODEX_EGRESS_BASE_URL`, and
-`RUNTIME_MCP_ORIGIN`. Optional `codexEgressTransport` (`public` by default, or `vpc`) and
-`codexEgressServiceId` (the production VPC Service UUID, required for `vpc`) select
-Codex egress. The public template declares no VPC Service because local `wrangler dev`
-cannot emulate one; the `CODEX_EGRESS` binding exists only in the production configuration. Include the MCP and console Custom Domains in `routes`.
+`ADMIN_DASHBOARD_HOST`, `CONSOLE_EMAIL_DOMAIN` and `RUNTIME_MCP_ORIGIN`, plus
+`codexEgressServiceId`, the production Codex egress VPC Service UUID. The public
+template declares no VPC Service because local `wrangler dev` cannot emulate one; the
+`CODEX_EGRESS` binding exists only in the production configuration. Include the MCP and console Custom Domains in `routes`.
 The MCP origin is HTTPS without a trailing slash. The candidate archive contains
 the local template. The production file and Wrangler command output stay on
 the release runner. Public results omit production configuration values.
@@ -104,7 +103,7 @@ its authority to bypass a blocked preflight.
 
 Use one computed Git SHA for artifact identity. Upload a version with message exactly `release $GIT_SHA`, inspect version bindings/secrets-presence/compatibility flags, deploy the intended version to 100% traffic with the same annotation, and read back deployment status.
 
-Full `wrangler deploy` can require access to every routed zone, including the dashboard custom domain. Prefer version upload/deploy for code when appropriate; route changes require an identity authorized for the affected zones. Keep `global_fetch_strictly_public` for the same-zone tunnel path.
+Full `wrangler deploy` can require access to every routed zone, including the dashboard custom domain. Prefer version upload/deploy for code when appropriate; route changes require an identity authorized for the affected zones. Release control requires the `global_fetch_strictly_public` runtime flag for provider fetches.
 
 Durable Object class lifecycle changes require `wrangler deploy`; `versions upload`
 cannot apply them. This command publishes the version and switches traffic, so
@@ -114,7 +113,7 @@ migration. A forward recovery build must retain the new class/binding and curren
 schema while restoring the required behavior. Do not delete the namespace to
 recover code. See [Cloudflare's lifecycle deployment contract](https://developers.cloudflare.com/workers/versions-and-deployments/gradual-deployments/with-durable-objects/#durable-object-class-lifecycle-changes).
 
-Reachability smoke includes Worker and egress `/healthz`, operator `/admin/readiness`, and the affected exact client surface. Models reachability is not a completed task. Changed Responses/transport paths require their owning bounded semantic evidence, not unrelated clients' release state.
+Reachability smoke includes Worker `/healthz`, operator `/admin/readiness` with `codex_egress: configured`, and the affected exact client surface. Models reachability is not a completed task. Changed Responses/transport paths require their owning bounded semantic evidence, not unrelated clients' release state.
 
 ## Diagnose before modifying authority
 
@@ -128,12 +127,10 @@ The production Codex egress node is accessed through the operator's SSH alias
 `egress-sg`. Use that alias for maintenance; resolve its address and SSH identity
 from the operator's private configuration, not a hardcoded IP or key path.
 
-The Worker-facing origin and the SSH node are separate identities. A hostname
-containing `us-west1-a` does not establish that traffic reaches the SSH host
-`egress-us-west1-a`. Do not select a maintenance target from the origin's name.
-Before an update, read back the Tunnel connector, local service and active
-artifact directory on `egress-sg`. Re-branding the repository does not move the
-node or change the configured Worker-facing origin.
+The Worker reaches this node only through the `CODEX_EGRESS` Workers VPC Service on
+its tunnel; the node has no public Worker-facing hostname. Do not select a maintenance
+target from a historical origin name. Before an update, read back the Tunnel connector,
+local service and active artifact directory on `egress-sg`.
 
 Use release-identified directories, with `current` selecting the active release.
 Runtime files are `server.mjs`, `node-transport-adapter.mjs`,
@@ -155,16 +152,16 @@ shim restart or a Worker deployment. Stopping a connector can interrupt active
 SSE requests; do not promise connection continuity from replica count alone.
 
 After restart, verify the running process executable's version, both services'
-active/enabled state, Tunnel `/ready`, local shim `/healthz`, and the configured
-public egress `/healthz`. Health checks prove reachability, not a completed
+active/enabled state, Tunnel `/ready`, local shim `/healthz`, and operator readiness
+`codex_egress: configured`. Health checks prove reachability, not a completed
 Provider task. Record the exact release and readback evidence in the maintenance
 commit or owning issue, not a separate current-version ledger. Do not silently
 restore a version excluded by the security advisory if recovery is needed.
 
 ### Workers VPC transport
 
-The Worker can reach the shim through the `CODEX_EGRESS` Workers VPC Service binding
-instead of the public tunnel hostname. The production VPC Service is an `http`
+The Worker reaches the shim only through the `CODEX_EGRESS` Workers VPC Service
+binding; a missing binding fails closed. The production VPC Service is an `http`
 Service on the existing `egress-sg` tunnel targeting `127.0.0.1:8789`; the binding
 URL host is not routed and only sets `Host`. The connector must stay on cloudflared
 2025.7.0 or later with the QUIC protocol and outbound UDP 7844.
@@ -176,14 +173,12 @@ release token VPC binding permission is an explicit operator decision. `wrangler
 service update` replaces the whole configuration: read the full Service back after
 every write.
 
-Cutover is an operator change: create the production Service and read it back, set
-`codexEgressTransport: "vpc"` and `codexEgressServiceId` in the private production
-settings, upload, verify the `vpc_service` binding and variables, deploy, then run a
-bounded smoke whose transport trace correlates the Worker outcome with egress
-acceptance and outcome. Readiness reports `codex_egress_transport`. Rollback is a
-release with `codexEgressTransport: "public"` or the previous version; it needs no
-change on `egress-sg` while the public hostname is retained. Removing that hostname
-is a separate change.
+Replacing the Service is an operator change: create the new Service and read it back,
+set `codexEgressServiceId` in the private production settings, upload, verify the
+`vpc_service` binding, deploy, then run a bounded smoke whose transport trace
+correlates the Worker outcome with egress acceptance and outcome. There is no public
+egress path to roll back to; recover with a previous VPC-bound version or by
+restoring the Service, tunnel or shim.
 
 ## Rollback
 

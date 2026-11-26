@@ -81,7 +81,7 @@ export async function routeAdmin(request: Request, env: Env, url: URL, deps: App
       loadCodexAccount: async (authId) => {
         try {
           const freshToken = readTokenResult(await codexTokenAuthority(env, authId).getFreshAccessToken());
-          return await readCodexAccountSnapshot(env, deps, freshToken, request.signal);
+          return await readCodexAccountSnapshot(env, freshToken, request.signal);
         } catch {
           return unavailableCodexAccountSnapshot();
         }
@@ -548,8 +548,7 @@ async function routeAdminReadiness(env: Env, deps: AppDependencies): Promise<Res
   }
 
   const codexAuths = database === "available" ? await listCodexAuths(env).catch(() => []) : [];
-  const egress = codexEgressReadiness(env);
-  const egressConfigured = egress.status;
+  const egressConfigured = codexEgressReadiness(env);
 
   const attempts = database === "available"
     ? await queryRequestAttemptState(env).catch(() => [])
@@ -628,7 +627,6 @@ async function routeAdminReadiness(env: Env, deps: AppDependencies): Promise<Res
       }
     },
     codex_egress: egressConfigured,
-    codex_egress_transport: egress.transport,
     production_ready: database === "available"
       && tokenAuthority === "available"
       && egressConfigured === "configured",

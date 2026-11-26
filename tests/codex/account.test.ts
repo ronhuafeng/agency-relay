@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
 import { readCodexAccountSnapshot } from "../../src/codex/account";
-import type { AppDependencies } from "../../src/types";
 import type { FreshAccessToken } from "../../src/codex/types";
 import egressProtocol from "../../deploy/codex-egress-shim/egress-protocol.json";
 import {
@@ -35,22 +34,21 @@ describe("Codex account snapshot", () => {
     });
 
     const snapshotPromise = readCodexAccountSnapshot(
-      env(),
-      deps(fetchMock as typeof fetch),
+      env({}, fetchMock as typeof fetch),
       token()
     );
 
     expect(fetchMock).toHaveBeenCalledTimes(3);
     expect(transportTraceIds.size).toBe(3);
     expect([...pending.keys()].sort()).toEqual([
-      "https://codex-egress-us-west1-a.trustedtunnel.app/account/profile",
-      "https://codex-egress-us-west1-a.trustedtunnel.app/account/rate-limit-reset-credits",
-      "https://codex-egress-us-west1-a.trustedtunnel.app/account/usage"
+      "http://codex-egress.internal/account/profile",
+      "http://codex-egress.internal/account/rate-limit-reset-credits",
+      "http://codex-egress.internal/account/usage"
     ]);
 
-    pending.get("https://codex-egress-us-west1-a.trustedtunnel.app/account/usage")?.(Response.json(CODEX_USAGE_RESPONSE));
-    pending.get("https://codex-egress-us-west1-a.trustedtunnel.app/account/profile")?.(Response.json(CODEX_PROFILE_RESPONSE));
-    pending.get("https://codex-egress-us-west1-a.trustedtunnel.app/account/rate-limit-reset-credits")?.(Response.json(CODEX_RESET_CREDITS_RESPONSE));
+    pending.get("http://codex-egress.internal/account/usage")?.(Response.json(CODEX_USAGE_RESPONSE));
+    pending.get("http://codex-egress.internal/account/profile")?.(Response.json(CODEX_PROFILE_RESPONSE));
+    pending.get("http://codex-egress.internal/account/rate-limit-reset-credits")?.(Response.json(CODEX_RESET_CREDITS_RESPONSE));
 
     await expect(snapshotPromise).resolves.toMatchObject({
       usage: {
@@ -119,7 +117,7 @@ describe("Codex account snapshot", () => {
       return Response.json({ available_count: 1 });
     });
 
-    await expect(readCodexAccountSnapshot(env(), deps(fetchMock), token())).resolves.toMatchObject({
+    await expect(readCodexAccountSnapshot(env({}, fetchMock), token())).resolves.toMatchObject({
       usage: {
         status: "available",
         data: {
@@ -157,7 +155,7 @@ describe("Codex account snapshot", () => {
       return Response.json(CODEX_RESET_CREDITS_RESPONSE);
     });
 
-    const snapshot = await readCodexAccountSnapshot(env(), deps(fetchMock), token());
+    const snapshot = await readCodexAccountSnapshot(env({}, fetchMock), token());
 
     expect(snapshot.usage).toEqual({ status: "unavailable" });
     expect(snapshot.profile.status).toBe("available");
@@ -202,7 +200,7 @@ describe("Codex account snapshot", () => {
       return Response.json({ available_count: 321, credits: resetCredits });
     });
 
-    const snapshot = await readCodexAccountSnapshot(env(), deps(fetchMock), token());
+    const snapshot = await readCodexAccountSnapshot(env({}, fetchMock), token());
 
     expect(snapshot.usage.status).toBe("available");
     if (snapshot.usage.status !== "available") {
@@ -230,14 +228,9 @@ describe("Codex account snapshot", () => {
   });
 });
 
-function deps(fetchImpl: typeof fetch): AppDependencies {
-  return { fetch: fetchImpl, now: () => new Date("2026-07-15T12:00:00.000Z") };
-}
-
-function env(): Env {
+function env(_overrides: Partial<Env> = {}, egressFetch?: typeof fetch): Env {
   return {
-    CODEX_EGRESS_BASE_URL: "https://codex-egress-us-west1-a.trustedtunnel.app",
-    CODEX_EGRESS_TRANSPORT: "public",
+    CODEX_EGRESS: egressFetch ? ({ fetch: egressFetch } as unknown as Fetcher) : undefined,
     CODEX_EGRESS_SECRET: "egress-secret"
   } as Env;
 }
