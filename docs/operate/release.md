@@ -176,6 +176,35 @@ configuration change, and run a bounded smoke whose transport trace correlates t
 Worker outcome with egress acceptance and outcome. Recover with a previous VPC-bound
 version or by restoring the Service, tunnel or shim.
 
+### Deploy or roll back the egress shim
+
+A shim release is the four runtime files built from one commit, stored in
+`~/codex-egress-shim/releases/<full SHA>/` on `egress-sg`. `current` is a symlink to
+the active release, and `codex-egress-shim.service` runs `current/server.mjs`.
+
+1. On a clean checkout of the commit to deploy, run `pnpm install --frozen-lockfile`,
+   `pnpm run egress:build` and `pnpm run egress:test`. The build must leave
+   `git status` clean, because the committed `.mjs` files are what get deployed.
+2. Read back the node: `readlink ~/codex-egress-shim/current` (this is the rollback
+   target), both units active, and `curl -s 127.0.0.1:8789/healthz` returning `ok`.
+3. Create `releases/<SHA>/` and copy `server.mjs`, `node-transport-adapter.mjs`,
+   `transport-lifecycle.mjs` and `egress-protocol.json` into it. Never overwrite an
+   existing release directory. Compare `sha256sum` on the node with the checkout.
+4. Switch and restart:
+   `ln -sfn ~/codex-egress-shim/releases/<SHA> ~/codex-egress-shim/current`, then
+   `sudo systemctl restart codex-egress-shim.service`. A restart ends in-flight SSE
+   streams, so choose a quiet window.
+5. Verify: the unit is active, `/healthz` returns `ok`, `readlink current` names the
+   new SHA, and one bounded request shows `egress_request_accepted` and
+   `egress_transport_outcome` with `transport_trace_status: ok` in the shim journal.
+6. If the change also needs a Worker release, approve it as described above.
+7. To roll back, point `current` at the previous release directory, restart, and
+   repeat step 5.
+
+When a unit file under `deploy/codex-egress-shim/` changes, install it to
+`/etc/systemd/system/` and run `sudo systemctl daemon-reload` before the restart.
+Record the deployed SHA and the readback in the owning issue.
+
 ## Rollback
 
 Roll traffic by an explicit prior version ID with a clear annotation. Worker code rollback does not roll back D1 schema, secrets, TokenAuthority state, revoked keys, changed emails, or external provider effects.
