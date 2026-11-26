@@ -5,6 +5,9 @@ on:
       artifact_id:
         type: string
         required: true
+      approve_config_change:
+        type: boolean
+        default: false
 permissions:
   contents: read
 concurrency:
@@ -12,7 +15,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   deploy:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -49,6 +52,8 @@ jobs:
           WRANGLER_PRODUCTION_SETTINGS: ${{ secrets.WRANGLER_PRODUCTION_SETTINGS }}
         run: pnpm exec tsx scripts/release-control.ts prepare
       - name: Read current version, bindings and D1 ledger
+        env:
+          RELEASE_CONFIG_CHANGE_APPROVED: ${{ inputs.approve_config_change }}
         run: |
           mkdir -p tmp
           pnpm exec tsx scripts/release-control.ts preflight

@@ -4,6 +4,12 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      approve_config_change:
+        description: Release main even though its deployment configuration differs from production
+        type: boolean
+        default: false
 permissions:
   contents: read
 env:
@@ -140,11 +146,12 @@ jobs:
     with:
       artifact_id: ${{ needs.build.outputs.artifact_id }}
   release:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
     needs: [build, source-integrity, design-enforcement, runtime-contracts, browser]
     uses: ./.github/workflows/release.yml
     with:
       artifact_id: ${{ needs.build.outputs.artifact_id }}
+      approve_config_change: ${{ github.event_name == 'workflow_dispatch' && inputs.approve_config_change }}
     permissions:
       contents: write
     secrets: inherit

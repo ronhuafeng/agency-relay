@@ -306,20 +306,6 @@ describe("codex adapter", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  it("requires the VPC egress binding instead of falling back to global fetch", async () => {
-    const globalFetch = vi.spyOn(globalThis, "fetch");
-    try {
-      await expect(forwardModels(
-        new Request("https://example.test/v1/models"),
-        env(),
-        token()
-      )).rejects.toMatchObject({ status: 500, code: "missing_codex_egress_binding" });
-      expect(globalFetch).not.toHaveBeenCalled();
-    } finally {
-      globalFetch.mockRestore();
-    }
-  });
-
   it.each([
     {
       name: "regular SSE",

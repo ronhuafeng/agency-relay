@@ -12,7 +12,7 @@ interface Config {
   vars: Record<string, string>; secrets: { required: string[] };
   d1_databases: { binding: string; database_id: string }[];
   durable_objects: { bindings: { name: string; class_name: string }[] };
-  vpc_services?: { binding: string; service_id: string; remote?: boolean }[];
+  vpc_services?: { binding: string; service_id: string }[];
 }
 
 type ProductionRoute = { pattern: string; zone_name?: string; custom_domain?: true };
@@ -50,9 +50,7 @@ export function productionConfig(base: Config, input: unknown) {
   if (new Set(checkedRoutes.map(route=>route.pattern)).size !== checkedRoutes.length ||
       ![values.ADMIN_DASHBOARD_HOST,values.RUNTIME_MCP_ORIGIN.slice(8)].every(domain=>
         checkedRoutes.some(route=>route.custom_domain && route.pattern === domain))) throw invalid();
-  // VPC Services are production-only: the template declares none, and none is inherited.
-  const { vpc_services: _template, ...rest } = base;
-  return { ...rest, vpc_services: [{ binding: CODEX_EGRESS_BINDING, service_id: codexEgressServiceId }],
+  return { ...base, vpc_services: [{ binding: CODEX_EGRESS_BINDING, service_id: codexEgressServiceId }],
     name, routes: checkedRoutes, vars: { ...base.vars, ...values },
     d1_databases: base.d1_databases.map(db => db.binding === "DB" ? {...db,database_name:databaseName,database_id:databaseId} : db) };
 }
@@ -80,6 +78,20 @@ export function assertVersion(version: Version, config: Config, sha: string, pre
     if (!binding?.namespace_id) throw new Error("Durable Object binding mismatch");
     if (previous && !previous.resources.bindings.some(b => b.name === object.name && b.namespace_id === binding.namespace_id)) throw new Error("Durable Object namespace changed");
   }
+}
+/**
+ * Automatic release must not apply a configuration change. An operator approves one by
+ * dispatching CI on main with `approve_config_change`; that also accepts that the running
+ * version's bindings and variables differ from the candidate configuration.
+ */
+export function releaseConfigScope(oldConfig: unknown, newConfig: unknown, approved: boolean): "unchanged" | "approved" {
+  const comparable = (value: unknown) => {
+    const { build: _build, ...rest } = value as Record<string, unknown>;
+    return JSON.stringify(rest);
+  };
+  if (approved) return "approved";
+  if (comparable(oldConfig) !== comparable(newConfig)) throw new Error("Deployment configuration change requires operator review");
+  return "unchanged";
 }
 export function assertDeployment(deployment: Deployment, version: string): void {
   if (deployment.versions.length !== 1 || deployment.versions[0].version_id !== version || deployment.versions[0].percentage !== 100) throw new Error("Deployment is not the expected version at 100%");
@@ -128,13 +140,14 @@ async function run(mode: string): Promise<void> {
     assertDeployment(current, previous.id);
     const oldSha = previous.annotations["workers/message"]?.match(/^release ([a-f0-9]{40})$/)?.[1];
     if (!oldSha) throw new Error("Current release source cannot be established");
-    // Automatic code release must not apply schema, route, credential or egress changes.
-    const oldConfig = JSON.parse(execFileSync("git", ["show", `${oldSha}:wrangler.jsonc`], { encoding: "utf8" }));
-    const newConfig = JSON.parse(readFileSync("wrangler.jsonc", "utf8"));
-    delete oldConfig.build; delete newConfig.build;
-    if (JSON.stringify(oldConfig) !== JSON.stringify(newConfig)) throw new Error("Deployment configuration change requires operator review");
+    // Release never applies schema or egress-node changes; configuration needs operator approval.
+    const scope = releaseConfigScope(
+      JSON.parse(execFileSync("git", ["show", `${oldSha}:wrangler.jsonc`], { encoding: "utf8" })),
+      JSON.parse(readFileSync("wrangler.jsonc", "utf8")),
+      process.env.RELEASE_CONFIG_CHANGE_APPROVED === "true"
+    );
     execFileSync("git", ["diff", "--exit-code", oldSha, sha, "--", "migrations", "deploy/codex-egress-shim/server.mjs", "deploy/codex-egress-shim/*.ts", "deploy/codex-egress-shim/egress-protocol.json"], { stdio: "pipe" });
-    assertVersion(previous, config, oldSha);
+    if (scope === "unchanged") assertVersion(previous, config, oldSha);
     for (const db of config.d1_databases) {
       const result = await api<{ success: boolean; results: { name: string }[] }[]>(`/d1/database/${db.database_id}/query`, { sql: "SELECT name FROM d1_migrations ORDER BY name" });
       const expected = readdirSync("migrations").filter(name => name.endsWith(".sql")).sort();
@@ -142,7 +155,7 @@ async function run(mode: string): Promise<void> {
       assertMigrations(expected, result[0].results.map(row => row.name));
     }
     writeFileSync("tmp/release-before.json", JSON.stringify({ deployment: current.id, version: previous.id, sha: oldSha }));
-    console.log("Preflight passed; existing version is the code rollback target. No data rollback or egress update.");
+    console.log(`Preflight passed (configuration ${scope}); existing version is the code rollback target. No data rollback or egress update.`);
   } else {
     const before = JSON.parse(readFileSync("tmp/release-before.json", "utf8")) as { deployment: string; version: string; sha: string };
     const records = readFileSync("tmp/wrangler-upload.jsonl", "utf8").trim().split("\n").map(line => JSON.parse(line));
@@ -158,7 +171,7 @@ async function run(mode: string): Promise<void> {
       appendFileSync(process.env.GITHUB_OUTPUT, `version=${version.id}\n`);
     } else if (mode === "deployed") {
       assertDeployment(current, version.id);
-      const evidence = { sha, version: version.id, deployment: current.id, traffic: 100, rollbackVersion: before.version, rollbackSha: before.sha, d1: "no pending or newer migrations; historical ledger entries retained; no migration applied", egress: "unchanged", run: process.env.GITHUB_RUN_ID };
+      const evidence = { sha, version: version.id, deployment: current.id, traffic: 100, rollbackVersion: before.version, rollbackSha: before.sha, run: process.env.GITHUB_RUN_ID };
       writeFileSync("tmp/release-evidence.json", JSON.stringify(evidence, null, 2) + "\n");
       console.log(JSON.stringify(evidence));
     } else throw new Error("Unknown release phase");

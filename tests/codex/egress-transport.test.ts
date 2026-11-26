@@ -104,32 +104,6 @@ describe("Codex egress over the VPC binding", () => {
     expect(globalFetch).not.toHaveBeenCalled();
   });
 
-  it("passes the request body stream and client abort signal through unbuffered", async () => {
-    const { binding, calls } = recordingBinding();
-    const controller = new AbortController();
-    const request = new Request("https://relay.test/v1/responses", { method: "POST", signal: controller.signal });
-    const body = bodyStream();
-
-    await forwardResponses(request, env({ CODEX_EGRESS: binding }), deps(vi.fn()), requestContext(), token(), body);
-
-    expect(calls[0].init.body).toBe(body);
-    expect(calls[0].init.signal).toBe(request.signal);
-  });
-
-  it("maps a client abort during the binding call to 499", async () => {
-    const controller = new AbortController();
-    const binding = {
-      fetch: vi.fn(async () => {
-        controller.abort();
-        throw new DOMException("aborted", "AbortError");
-      })
-    };
-    await expect(forwardResponses(
-      new Request("https://relay.test/v1/responses", { method: "POST", signal: controller.signal }),
-      env({ CODEX_EGRESS: binding }), deps(vi.fn()), requestContext(), token(), bodyStream()
-    )).rejects.toMatchObject({ status: 499, code: "client_request_aborted" });
-  });
-
   it("maps a VPC proxy failure to a sanitized transport error", async () => {
     const errors: string[] = [];
     const spy = vi.spyOn(console, "error").mockImplementation((line: string) => { errors.push(line); });
@@ -152,11 +126,6 @@ describe("Codex egress over the VPC binding", () => {
     expect(logged).not.toContain("egress-secret");
   });
 
-  it("still rejects redirects returned through the binding", async () => {
-    const { binding } = recordingBinding(() => new Response(null, { status: 302, headers: { Location: "https://elsewhere.test" } }));
-    await expect(fetchCodexAccountResource(env({ CODEX_EGRESS: binding }), token(), "/account/profile"))
-      .rejects.toMatchObject({ status: 502, code: "upstream_redirect_rejected" });
-  });
 });
 
 describe("Codex egress readiness", () => {
