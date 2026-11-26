@@ -53,7 +53,7 @@ These Codex paths are not plans and must not reach a provider or a ledger charge
 
 New Codex setup files, console downloads and examples use only `https://api.trustedtunnel.app/backend-api/codex`. Grok and xAI stay on their own `/v1` origins. A `base_url` ending in `/backend-api/codex` is necessary for Codex to choose the ChatGPT realtime JSON shape, but it is not sufficient for every first-party gate. Codex `supports_codex_backend_routes` also requires provider name `OpenAI`, and `uses_codex_backend` requires a compatible auth mode without `experimental_bearer_token`. Generated setup keeps `name = "Agency Relay Codex"` and `experimental_bearer_token` so Agency Relay API keys keep working. That combination does not advertise full first-party Codex fidelity.
 
-Models and Responses use the selected ChatGPT credential through the Codex egress shim. The ChatGPT backend has no `/responses/compact` path. Context compaction is a `compaction_trigger` input item on canonical `POST /backend-api/codex/responses`. `CODEX_EGRESS_BASE_URL` must match the approved hostname. Realtime call creation, Live call creation and transcription use the same ChatGPT credential. Bodies stay opaque.
+Models and Responses use the selected ChatGPT credential through the Codex egress shim. The ChatGPT backend has no `/responses/compact` path. Context compaction is a `compaction_trigger` input item on canonical `POST /backend-api/codex/responses`. Realtime call creation, Live call creation and transcription use the same ChatGPT credential. Bodies stay opaque.
 
 Codex client voice uses Realtime/WebRTC call creation rather than a speech REST path. Do not infer new provider support from the console service name.
 

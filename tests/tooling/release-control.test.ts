@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { assertDeployment, assertVersion, assertMigrations, productionConfig } from "../../scripts/release-control";
+import { assertDeployment, assertVersion, assertMigrations, productionConfig, releaseConfigScope } from "../../scripts/release-control";
 
 it("adds only production deployment values to the verified local configuration", () => {
   const base = {name:"agency-relay-local", routes:[], compatibility_date:"2026-06-24", compatibility_flags:["global_fetch_strictly_public"],
@@ -52,27 +52,23 @@ it("requires authoritative 100 percent deployment rather than upload success", (
 it("requires the production Codex egress VPC Service from private settings", () => {
   const base = {name:"agency-relay-local", routes:[], compatibility_date:"2026-06-24", compatibility_flags:["global_fetch_strictly_public"],
     vars:{RUNTIME_INSTALLATIONS:"[]"}, secrets:{required:["KEY"]},
-    d1_databases:[{binding:"DB",database_id:"local",migrations_dir:"migrations"}],durable_objects:{bindings:[]},
-    vpc_services:[{binding:"CODEX_EGRESS",service_id:"00000000-0000-4000-8000-000000000001"}]};
+    d1_databases:[{binding:"DB",database_id:"local",migrations_dir:"migrations"}],durable_objects:{bindings:[]}};
   const settings = {name:"relay-primary",databaseName:"relay",databaseId:"1b26b984-8450-4220-bae0-330609b7cb9c",
     routes:[{pattern:"mcp.example.test",custom_domain:true}, {pattern:"console.example.test",custom_domain:true}, {pattern:"api.example.test/*",zone_name:"example.test"}],
     vars:{ADMIN_DASHBOARD_HOST:"console.example.test",CONSOLE_EMAIL_DOMAIN:"example.test",RUNTIME_MCP_ORIGIN:"https://mcp.example.test"}};
   const serviceId = "6d1f8a3e-2b4c-4d5e-8f90-1a2b3c4d5e6f";
 
-  // The production VPC Service is mandatory and replaces any template entry.
+  // The production VPC Service is mandatory and comes only from private settings.
   const config = productionConfig(base, {...settings, codexEgressServiceId:serviceId});
   expect(config.vpc_services).toEqual([{binding:"CODEX_EGRESS",service_id:serviceId}]);
-  expect(config.vars).not.toHaveProperty("CODEX_EGRESS_BASE_URL");
-  expect(config.vars).not.toHaveProperty("CODEX_EGRESS_TRANSPORT");
+  expect(config.vars).toEqual({...base.vars, ...settings.vars});
 
   for (const invalid of [
     {},
     {codexEgressServiceId:"not-a-uuid"},
     {codexEgressServiceId:42},
-    {codexEgressServiceId:serviceId, codexEgressTransport:"public"},
+    {codexEgressServiceId:serviceId, unexpectedSetting:true},
   ]) expect(() => productionConfig(base, {...settings, ...invalid})).toThrow();
-  expect(() => productionConfig(base, {...settings, codexEgressServiceId:serviceId,
-    vars:{...settings.vars, CODEX_EGRESS_BASE_URL:"https://egress.example.test"}})).toThrow();
 });
 
 it("requires the exact VPC Service binding before cutover", () => {
@@ -91,4 +87,12 @@ it("requires the exact VPC Service binding before cutover", () => {
   const otherType = structuredClone(version);
   otherType.resources.bindings[0].type = "service";
   expect(() => assertVersion(otherType, config, "sha", version)).toThrow("VPC Service binding mismatch");
+});
+
+it("stops a configuration change unless an operator approved it", () => {
+  const deployed = { name: "relay", vars: { A: "1" }, build: { command: "old" } };
+  expect(releaseConfigScope(deployed, { ...deployed, build: { command: "new" } }, false)).toBe("unchanged");
+  const changed = { ...deployed, vars: { A: "2" } };
+  expect(() => releaseConfigScope(deployed, changed, false)).toThrow("operator review");
+  expect(releaseConfigScope(deployed, changed, true)).toBe("approved");
 });

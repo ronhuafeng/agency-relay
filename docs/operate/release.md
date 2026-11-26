@@ -61,9 +61,12 @@ read the linked Actions result as well.
 The workflow reads production before upload and again before cutover. It requires
 an identified single-version deployment, no pending or newer D1 migrations, required
 secrets, exact variables/DB bindings, stable Durable Object namespaces and runtime
-flags. Retained historical migration names are not pending migrations. Configuration,
-migration or authored egress changes stop automatic release
-for operator review. It never applies migrations, changes routes, deploys egress,
+flags. Retained historical migration names are not pending migrations. Migration
+or authored egress changes stop automatic release. A configuration change, in
+`wrangler.jsonc` or the private production settings, also stops it until an operator
+approves it by running CI on `main` through `workflow_dispatch` with
+`approve_config_change`; that run rebuilds, verifies and releases the same way and
+skips only the configuration comparison against the running version. It never applies migrations, changes routes, deploys egress,
 rotates credentials or rolls back automatically. The preceding version remains
 the code recovery target only while its schema and authority stay compatible.
 An unknown upload/deployment result requires readback before another write.
@@ -131,21 +134,21 @@ The production Codex egress node is accessed through the operator's SSH alias
 `egress-sg`. Use that alias for maintenance; resolve its address and SSH identity
 from the operator's private configuration, not a hardcoded IP or key path.
 
-The Worker reaches this node only through the `CODEX_EGRESS` Workers VPC Service on
-its tunnel; the node has no public Worker-facing hostname. Do not select a maintenance
-target from a historical origin name. Before an update, read back the Tunnel connector,
-local service and active artifact directory on `egress-sg`.
+The Worker reaches the node only through the `CODEX_EGRESS` Workers VPC Service
+([invariant](../develop/responses.md)): an `http` Service on the `egress-sg` tunnel
+targeting the shim at `127.0.0.1:8789`. The node has no public Worker-facing hostname.
+The connector must stay on cloudflared 2025.7.0 or later with the QUIC protocol and
+outbound UDP 7844. Before an update, read back the Tunnel connector, local service
+and active artifact directory on `egress-sg`.
 
 Use release-identified directories, with `current` selecting the active release.
 Runtime files are `server.mjs`, `node-transport-adapter.mjs`,
 `transport-lifecycle.mjs` and `egress-protocol.json`. Keep the shim and cloudflared
 units active/enabled; unit definitions remain under `deploy/codex-egress-shim/`.
-
-The shim listens on `127.0.0.1:8789`; read the Tunnel readiness address from its
-service configuration. `.env` and `.tunnel-token` in the service directory are
-service-user-only. Worker and shim `CODEX_EGRESS_SECRET` must agree. Use the
-operator's configured SSH identity, not a hardcoded private-key path. Egress
-changes require `pnpm run egress:test` and release-identified artifacts.
+Read the Tunnel readiness address from its service configuration. `.env` and
+`.tunnel-token` in the service directory are service-user-only. Worker and shim
+`CODEX_EGRESS_SECRET` must agree. Egress changes require `pnpm run egress:test` and
+release-identified artifacts.
 
 For a `cloudflared` security update, follow the [official update guide](https://developers.cloudflare.com/tunnel/guides/update-cloudflared/)
 and preserve the installation method: use the same package manager for managed
@@ -156,33 +159,21 @@ shim restart or a Worker deployment. Stopping a connector can interrupt active
 SSE requests; do not promise connection continuity from replica count alone.
 
 After restart, verify the running process executable's version, both services'
-active/enabled state, Tunnel `/ready`, local shim `/healthz`, and operator readiness
-`codex_egress: configured`. Health checks prove reachability, not a completed
-Provider task. Record the exact release and readback evidence in the maintenance
-commit or owning issue, not a separate current-version ledger. Do not silently
-restore a version excluded by the security advisory if recovery is needed.
-
-### Workers VPC transport
-
-The Worker reaches the shim only through the `CODEX_EGRESS` Workers VPC Service
-binding; a missing binding fails closed. The production VPC Service is an `http`
-Service on the existing `egress-sg` tunnel targeting `127.0.0.1:8789`; the binding
-URL host is not routed and only sets `Host`. The connector must stay on cloudflared
-2025.7.0 or later with the QUIC protocol and outbound UDP 7844.
+active/enabled state, Tunnel `/ready`, local shim `/healthz`, and operator readiness.
+Health checks prove reachability, not a completed Provider task. Record the exact
+release and readback evidence in the maintenance commit or owning issue, not a
+separate current-version ledger. Do not silently restore a version excluded by the
+security advisory if recovery is needed.
 
 Creating or editing a VPC Service requires Connectivity Directory Admin; attaching
 it to a Worker requires Bind, and any account member with Bind can attach it to any
-Worker, so `CODEX_EGRESS_SECRET` remains the egress authentication. Granting the
-release token VPC binding permission is an explicit operator decision. `wrangler vpc
+Worker, so `CODEX_EGRESS_SECRET` remains the egress authentication. `wrangler vpc
 service update` replaces the whole configuration: read the full Service back after
-every write.
-
-Replacing the Service is an operator change: create the new Service and read it back,
-set `codexEgressServiceId` in the private production settings, upload, verify the
-`vpc_service` binding, deploy, then run a bounded smoke whose transport trace
-correlates the Worker outcome with egress acceptance and outcome. There is no public
-egress path to roll back to; recover with a previous VPC-bound version or by
-restoring the Service, tunnel or shim.
+every write. To replace the Service, create the new one and read it back, set
+`codexEgressServiceId` in the private production settings, release with an approved
+configuration change, and run a bounded smoke whose transport trace correlates the
+Worker outcome with egress acceptance and outcome. Recover with a previous VPC-bound
+version or by restoring the Service, tunnel or shim.
 
 ## Rollback
 
