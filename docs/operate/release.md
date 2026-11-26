@@ -98,8 +98,12 @@ the Stitch URL and authority revision through readback.
 Repository Secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` authorize
 Worker version upload/deployment and read-only D1 ledger verification;
 `MINI_ADMIN_SECRET` is used only for operator readiness. PR jobs receive no release
-credentials. Use the existing account-owned, resource-scoped token; do not widen
-its authority to bypass a blocked preflight.
+credentials. `CLOUDFLARE_API_TOKEN` is an account-owned token limited to Workers
+Scripts Edit (version upload/deployment and readback), D1 Read (the preflight
+`d1_migrations` query) and Connectivity Directory Bind (uploading a version with the
+`CODEX_EGRESS` VPC Service binding). Do not widen its authority to bypass a blocked
+preflight; creating or editing VPC Services, tunnels, routes or DNS is operator work
+with separate credentials.
 
 Use one computed Git SHA for artifact identity. Upload a version with message exactly `release $GIT_SHA`, inspect version bindings/secrets-presence/compatibility flags, deploy the intended version to 100% traffic with the same annotation, and read back deployment status.
 
