@@ -89,10 +89,11 @@ it("requires the exact VPC Service binding before cutover", () => {
   expect(() => assertVersion(otherType, config, "sha", version)).toThrow("VPC Service binding mismatch");
 });
 
-it("stops a configuration change unless an operator approved it", () => {
+it("stops configuration, migration or egress changes unless an operator approved them", () => {
   const deployed = { name: "relay", vars: { A: "1" }, build: { command: "old" } };
-  expect(releaseConfigScope(deployed, { ...deployed, build: { command: "new" } }, false)).toBe("unchanged");
+  expect(releaseConfigScope(deployed, { ...deployed, build: { command: "new" } }, false, false)).toBe("unchanged");
   const changed = { ...deployed, vars: { A: "2" } };
-  expect(() => releaseConfigScope(deployed, changed, false)).toThrow("operator review");
-  expect(releaseConfigScope(deployed, changed, true)).toBe("approved");
+  expect(() => releaseConfigScope(deployed, changed, false, false)).toThrow("operator review");
+  expect(() => releaseConfigScope(deployed, deployed, true, false)).toThrow("operator review");
+  expect(releaseConfigScope(deployed, changed, true, true)).toBe("approved");
 });

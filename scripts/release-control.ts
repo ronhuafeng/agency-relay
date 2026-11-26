@@ -80,17 +80,25 @@ export function assertVersion(version: Version, config: Config, sha: string, pre
   }
 }
 /**
- * Automatic release must not apply a configuration change. An operator approves one by
- * dispatching CI on main with `approve_config_change`; that also accepts that the running
- * version's bindings and variables differ from the candidate configuration.
+ * Automatic release must not apply a configuration, migration or egress-shim change. An
+ * operator approves one by dispatching CI on main with `approve_config_change`, after
+ * applying the migration or deploying the shim; that also accepts that the running
+ * version's bindings and variables differ from the candidate configuration. The D1
+ * migration ledger is still verified either way.
  */
-export function releaseConfigScope(oldConfig: unknown, newConfig: unknown, approved: boolean): "unchanged" | "approved" {
+export function releaseConfigScope(
+  oldConfig: unknown,
+  newConfig: unknown,
+  operatorOwnedFilesChanged: boolean,
+  approved: boolean
+): "unchanged" | "approved" {
   const comparable = (value: unknown) => {
     const { build: _build, ...rest } = value as Record<string, unknown>;
     return JSON.stringify(rest);
   };
   if (approved) return "approved";
   if (comparable(oldConfig) !== comparable(newConfig)) throw new Error("Deployment configuration change requires operator review");
+  if (operatorOwnedFilesChanged) throw new Error("Migration or egress change requires operator review");
   return "unchanged";
 }
 export function assertDeployment(deployment: Deployment, version: string): void {
@@ -141,12 +149,13 @@ async function run(mode: string): Promise<void> {
     const oldSha = previous.annotations["workers/message"]?.match(/^release ([a-f0-9]{40})$/)?.[1];
     if (!oldSha) throw new Error("Current release source cannot be established");
     // Release never applies schema or egress-node changes; configuration needs operator approval.
+    const operatorOwnedFilesChanged = execFileSync("git", ["diff", "--name-only", oldSha, sha, "--", "migrations", "deploy/codex-egress-shim/server.mjs", "deploy/codex-egress-shim/*.ts", "deploy/codex-egress-shim/egress-protocol.json"], { encoding: "utf8" }).trim() !== "";
     const scope = releaseConfigScope(
       JSON.parse(execFileSync("git", ["show", `${oldSha}:wrangler.jsonc`], { encoding: "utf8" })),
       JSON.parse(readFileSync("wrangler.jsonc", "utf8")),
+      operatorOwnedFilesChanged,
       process.env.RELEASE_CONFIG_CHANGE_APPROVED === "true"
     );
-    execFileSync("git", ["diff", "--exit-code", oldSha, sha, "--", "migrations", "deploy/codex-egress-shim/server.mjs", "deploy/codex-egress-shim/*.ts", "deploy/codex-egress-shim/egress-protocol.json"], { stdio: "pipe" });
     if (scope === "unchanged") assertVersion(previous, config, oldSha);
     for (const db of config.d1_databases) {
       const result = await api<{ success: boolean; results: { name: string }[] }[]>(`/d1/database/${db.database_id}/query`, { sql: "SELECT name FROM d1_migrations ORDER BY name" });
