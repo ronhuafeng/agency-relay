@@ -39,8 +39,6 @@ export interface FixtureOptions {
 }
 
 const fixtureEnvBindings = {
-  CODEX_EGRESS_BASE_URL: "https://codex-egress-us-west1-a.trustedtunnel.app",
-  CODEX_EGRESS_TRANSPORT: "public",
   CODEX_EGRESS_SECRET: "egress-secret",
   CODEX_OAUTH_TOKEN_URL: "https://auth.openai.test/oauth/token",
   CODEX_CLIENT_ID: "client",
@@ -207,6 +205,11 @@ export function makeFixture(options: FixtureOptions = {}): Fixture {
     },
     now: () => new Date("2026-06-24T00:00:00.000Z")
   };
+  // Codex egress reaches the shim only through the CODEX_EGRESS VPC binding. The fixture's
+  // upstream double stands in for that binding, resolved per call so tests may replace it.
+  if (!("CODEX_EGRESS" in (options.env ?? {}))) {
+    env.CODEX_EGRESS = { fetch: (input: RequestInfo | URL, init?: RequestInit) => deps.fetch(input, init) } as unknown as Fetcher;
+  }
   return { env, db, tokenAuthority, accountResponses, fetchCalls, ctx: new FakeExecutionContext(), deps };
 }
 

@@ -328,12 +328,12 @@ function environment(fetchImpl: typeof fetch, prohibitedValues: string[] = []): 
     TOKEN_ENCRYPTION_KEY_V1: "encryption-secret",
     API_KEY_HASH_PEPPER: "pepper-secret",
     ADMIN_SECRET: prohibitedValues[6] ?? "admin-secret",
-    CODEX_EGRESS_BASE_URL: "https://codex-egress-us-west1-a.trustedtunnel.app",
-    CODEX_EGRESS_TRANSPORT: "public",
     CODEX_EGRESS_SECRET: prohibitedValues[7] ?? "egress-secret",
     CODEX_OAUTH_TOKEN_URL: "https://auth.example.test",
     CODEX_CLIENT_ID: "client",
     REQUEST_AUDIT_RETENTION_DAYS: "30",
+    // Codex egress leaves only through the VPC binding; the same upstream double stands in.
+    CODEX_EGRESS: { fetch: fetchImpl },
     _fetch: fetchImpl
   } as unknown as Env & { _fetch: typeof fetch };
 }

@@ -591,8 +591,6 @@ function makeTokenAuthorityFixture(options: {
     });
   }));
   const env: Env = {
-    CODEX_EGRESS_BASE_URL: "",
-    CODEX_EGRESS_TRANSPORT: "public",
     CODEX_EGRESS_SECRET: "",
     CODEX_OAUTH_TOKEN_URL: "https://auth.openai.test/oauth/token",
     CODEX_CLIENT_ID: "client",

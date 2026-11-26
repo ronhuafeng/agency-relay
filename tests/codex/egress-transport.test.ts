@@ -8,12 +8,10 @@ import {
 import { codexEgressReadiness } from "../../src/codex/egress-transport";
 import type { AppDependencies, RequestContext } from "../../src/types";
 import type { FreshAccessToken } from "../../src/codex/types";
-import egressProtocol from "../../deploy/codex-egress-shim/egress-protocol.json";
 
 // Independent oracle: the only origin the VPC transport may address, and the shim's
 // accepted paths, written as literals rather than derived from adapter helpers.
 const VPC_ORIGIN = "http://codex-egress.internal";
-const PUBLIC_ORIGIN = "https://codex-egress-us-west1-a.trustedtunnel.app";
 
 interface RecordedCall {
   url: string;
@@ -35,8 +33,6 @@ type EnvOverrides = Omit<Partial<Env>, "CODEX_EGRESS"> & { CODEX_EGRESS?: unknow
 
 function env(overrides: EnvOverrides = {}): Env {
   return {
-    CODEX_EGRESS_TRANSPORT: "vpc",
-    CODEX_EGRESS_BASE_URL: PUBLIC_ORIGIN,
     CODEX_EGRESS_SECRET: "egress-secret",
     ...overrides
   } as Env;
@@ -67,10 +63,11 @@ describe("Codex egress over the VPC binding", () => {
   it("sends models, account, responses and backend requests only through the binding", async () => {
     const { binding, calls } = recordingBinding();
     const globalFetch = vi.fn();
+    const realGlobalFetch = vi.spyOn(globalThis, "fetch");
     const vpcEnv = env({ CODEX_EGRESS: binding });
 
-    await forwardModels(new Request("https://relay.test/v1/models?client_version=0.99.0&x=a%2Fb"), vpcEnv, deps(globalFetch), token());
-    await fetchCodexAccountResource(vpcEnv, deps(globalFetch), token(), "/account/usage");
+    await forwardModels(new Request("https://relay.test/v1/models?client_version=0.99.0&x=a%2Fb"), vpcEnv, token());
+    await fetchCodexAccountResource(vpcEnv, token(), "/account/usage");
     await forwardResponses(
       new Request("https://relay.test/v1/responses", { method: "POST" }),
       vpcEnv, deps(globalFetch), requestContext(), token(), bodyStream()
@@ -81,6 +78,8 @@ describe("Codex egress over the VPC binding", () => {
     );
 
     expect(globalFetch).not.toHaveBeenCalled();
+    expect(realGlobalFetch).not.toHaveBeenCalled();
+    realGlobalFetch.mockRestore();
     expect(calls.map(({ url, init }) => [init.method, url])).toEqual([
       ["GET", `${VPC_ORIGIN}/models?client_version=0.99.0&x=a%2Fb`],
       ["GET", `${VPC_ORIGIN}/account/usage`],
@@ -92,68 +91,16 @@ describe("Codex egress over the VPC binding", () => {
     }
   });
 
-  it("attaches the same credentials, manifest and secret as the public transport", async () => {
-    const { binding, calls } = recordingBinding();
-    const publicFetch = vi.fn(async () => new Response("{}", { status: 200 }));
-    const request = () => new Request("https://relay.test/v1/models", {
-      headers: { Originator: "codex-cli", "X-Future-Codex-Header": "keep", "CF-Connecting-IP": "203.0.113.9" }
-    });
-
-    await forwardModels(request(), env({ CODEX_EGRESS: binding }), deps(vi.fn()), token());
-    await forwardModels(request(), env({ CODEX_EGRESS_TRANSPORT: "public" }), deps(publicFetch), token());
-
-    const vpcHeaders = new Headers(calls[0].init.headers);
-    const [publicUrl, publicInit] = publicFetch.mock.calls[0] as unknown as [string, RequestInit];
-    const publicHeaders = new Headers(publicInit.headers);
-    expect(publicUrl).toBe(`${PUBLIC_ORIGIN}/models`);
-
-    const comparable = (headers: Headers) => [...headers.entries()]
-      .filter(([name]) => name !== egressProtocol.transportTrace.header)
-      .sort(([a], [b]) => a.localeCompare(b));
-    expect(comparable(vpcHeaders)).toEqual(comparable(publicHeaders));
-    expect(vpcHeaders.get(egressProtocol.secretHeader)).toBe("egress-secret");
-    expect(vpcHeaders.get("authorization")).toBe("Bearer codex_access");
-    expect(vpcHeaders.get("cf-connecting-ip")).toBeNull();
-    expect(JSON.parse(vpcHeaders.get(egressProtocol.manifestHeader) ?? "[]")).toContain("x-future-codex-header");
-  });
-
   it("fails closed before any credential exists when the binding is missing", async () => {
     const globalFetch = vi.fn();
     for (const missing of [undefined, null, {}, { fetch: "not-a-function" }]) {
       await expect(forwardModels(
         new Request("https://relay.test/v1/models"),
         env({ CODEX_EGRESS: missing }),
-        deps(globalFetch),
         token()
       )).rejects.toMatchObject({ status: 500, code: "missing_codex_egress_binding" });
     }
-    // No fallback: the public origin is configured and still never used.
-    expect(globalFetch).not.toHaveBeenCalled();
-  });
-
-  it.each(["", "  ", "VPC", "auto", "public,vpc"])("rejects transport selector %j instead of defaulting", async (selector) => {
-    const { binding } = recordingBinding();
-    const globalFetch = vi.fn();
-    await expect(forwardModels(
-      new Request("https://relay.test/v1/models"),
-      env({ CODEX_EGRESS_TRANSPORT: selector, CODEX_EGRESS: binding }),
-      deps(globalFetch),
-      token()
-    )).rejects.toMatchObject({ status: 500, code: "invalid_codex_egress_transport" });
-    expect(binding.fetch).not.toHaveBeenCalled();
-    expect(globalFetch).not.toHaveBeenCalled();
-  });
-
-  it("keeps the public transport off the binding and still rejects an unapproved origin", async () => {
-    const { binding } = recordingBinding();
-    const globalFetch = vi.fn();
-    await expect(forwardModels(
-      new Request("https://relay.test/v1/models"),
-      env({ CODEX_EGRESS_TRANSPORT: "public", CODEX_EGRESS_BASE_URL: "https://attacker.example", CODEX_EGRESS: binding }),
-      deps(globalFetch),
-      token()
-    )).rejects.toMatchObject({ status: 500, code: "invalid_codex_egress_base_url" });
-    expect(binding.fetch).not.toHaveBeenCalled();
+    // No fallback: global fetch is never used for Codex egress.
     expect(globalFetch).not.toHaveBeenCalled();
   });
 
@@ -207,7 +154,7 @@ describe("Codex egress over the VPC binding", () => {
 
   it("still rejects redirects returned through the binding", async () => {
     const { binding } = recordingBinding(() => new Response(null, { status: 302, headers: { Location: "https://elsewhere.test" } }));
-    await expect(fetchCodexAccountResource(env({ CODEX_EGRESS: binding }), deps(vi.fn()), token(), "/account/profile"))
+    await expect(fetchCodexAccountResource(env({ CODEX_EGRESS: binding }), token(), "/account/profile"))
       .rejects.toMatchObject({ status: 502, code: "upstream_redirect_rejected" });
   });
 });
@@ -216,15 +163,11 @@ describe("Codex egress readiness", () => {
   const binding = { fetch: () => Promise.reject(new Error("unused")) };
 
   it.each([
-    [{ CODEX_EGRESS: binding }, { transport: "vpc", status: "configured" }],
-    [{ CODEX_EGRESS: undefined }, { transport: "vpc", status: "missing" }],
-    [{ CODEX_EGRESS: binding, CODEX_EGRESS_SECRET: "" }, { transport: "vpc", status: "missing" }],
-    [{ CODEX_EGRESS_TRANSPORT: "public" }, { transport: "public", status: "configured" }],
-    [{ CODEX_EGRESS_TRANSPORT: "public", CODEX_EGRESS_BASE_URL: "https://attacker.example" }, { transport: "public", status: "invalid" }],
-    [{ CODEX_EGRESS_TRANSPORT: "public", CODEX_EGRESS_BASE_URL: "" }, { transport: "public", status: "missing" }],
-    [{ CODEX_EGRESS_TRANSPORT: "auto" }, { transport: null, status: "invalid" }],
-    [{ CODEX_EGRESS_TRANSPORT: "" }, { transport: null, status: "missing" }]
-  ])("reports %j as %j without performing a request", (overrides, expected) => {
-    expect(codexEgressReadiness(env(overrides as EnvOverrides))).toEqual(expected);
+    [{ CODEX_EGRESS: binding }, "configured"],
+    [{ CODEX_EGRESS: undefined }, "missing"],
+    [{ CODEX_EGRESS: { fetch: "not-a-function" } }, "missing"],
+    [{ CODEX_EGRESS: binding, CODEX_EGRESS_SECRET: "" }, "missing"]
+  ])("reports %j as %s without performing a request", (overrides, expected) => {
+    expect(codexEgressReadiness(env(overrides as EnvOverrides))).toBe(expected);
   });
 });

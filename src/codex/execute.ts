@@ -53,7 +53,7 @@ export async function executeCodexPlan(
     const attempt = await admitProviderAttempt({
       env, ctx, now: deps.now, requestContext, auth, plan
     });
-    return await forwardModels(request, env, deps, codexFreshToken(attempt), {
+    return await forwardModels(request, env, codexFreshToken(attempt), {
       upstreamClientIdentity: plan.upstreamClientIdentity,
       fallbackIdentityVersion,
       onTerminal: (outcome) => completeCodexProviderAttempt(attempt, outcome)

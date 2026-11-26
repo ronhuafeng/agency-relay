@@ -29,8 +29,6 @@
     ]
   },
   "vars": {
-    "CODEX_EGRESS_BASE_URL": "https://egress.example.test",
-    "CODEX_EGRESS_TRANSPORT": "public",
     "CODEX_OAUTH_TOKEN_URL": "https://auth.openai.com/oauth/token",
     "CODEX_CLIENT_ID": "app_EMoamEEZ73f0CkXaXp7hrann",
     "ADMIN_DASHBOARD_HOST": "console.example.test",

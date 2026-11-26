@@ -60,7 +60,7 @@ describe("Codex forwarding", () => {
     expect(transcription.status).toBe(200);
     expect(fixture.fetchCalls).toHaveLength(1);
     expect(fixture.fetchCalls[0]).toMatchObject({
-      url: "https://codex-egress-us-west1-a.trustedtunnel.app/transcribe",
+      url: "http://codex-egress.internal/transcribe",
       method: "POST",
       authorization: "Bearer shared_access"
     });
@@ -113,7 +113,7 @@ describe("Codex forwarding", () => {
     expect(calls.status).toBe(200);
     expect(fixture.fetchCalls).toHaveLength(1);
     expect(fixture.fetchCalls[0]).toMatchObject({
-      url: "https://codex-egress-us-west1-a.trustedtunnel.app/realtime/calls?intent=quicksilver&architecture=avas",
+      url: "http://codex-egress.internal/realtime/calls?intent=quicksilver&architecture=avas",
       method: "POST",
       authorization: "Bearer shared_access"
     });
@@ -147,7 +147,7 @@ describe("Codex forwarding", () => {
     ), fixture.env, fixture.ctx, fixture.deps);
     expect(calls.status).toBe(200);
     expect(fixture.fetchCalls[0]).toMatchObject({
-      url: "https://codex-egress-us-west1-a.trustedtunnel.app/realtime/calls?intent=quicksilver&architecture=avas",
+      url: "http://codex-egress.internal/realtime/calls?intent=quicksilver&architecture=avas",
       method: "POST"
     });
     expect(fixture.fetchCalls[0].headers.get("OpenAI-Alpha")).toBe("quicksilver=v2");
@@ -158,7 +158,7 @@ describe("Codex forwarding", () => {
       body: JSON.stringify({ model: "gpt-5.4", input: "with-usage", stream: true })
     }), fixture.env, fixture.ctx, fixture.deps);
     expect(responses.status).toBe(200);
-    expect(fixture.fetchCalls[1]?.url).toBe("https://codex-egress-us-west1-a.trustedtunnel.app/responses");
+    expect(fixture.fetchCalls[1]?.url).toBe("http://codex-egress.internal/responses");
 
     const publicResponses = await handleRequest(new Request("https://api.trustedtunnel.app/v1/responses", {
       method: "POST",
@@ -166,7 +166,7 @@ describe("Codex forwarding", () => {
       body: JSON.stringify({ model: "gpt-5.4", input: "with-usage", stream: true })
     }), fixture.env, fixture.ctx, fixture.deps);
     expect(publicResponses.status).toBe(200);
-    expect(fixture.fetchCalls[2]?.url).toBe("https://codex-egress-us-west1-a.trustedtunnel.app/responses");
+    expect(fixture.fetchCalls[2]?.url).toBe("http://codex-egress.internal/responses");
 
     const before = fixture.fetchCalls.length;
     const unknown = await handleRequest(new Request("https://api.trustedtunnel.app/backend-api/codex/not-a-route", {

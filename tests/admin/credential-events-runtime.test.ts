@@ -25,8 +25,7 @@ it("upgrades and publishes through real Workers WebSockets and rejects revoked s
     ADMIN_DASHBOARD_HOST: "console.example.test", CONSOLE_EMAIL_DOMAIN: "example.test",
     API_KEY_HASH_PEPPER: "runtime-synthetic-pepper", ADMIN_SECRET: "runtime-synthetic-operator",
     TOKEN_ENCRYPTION_KEY_V1: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
-    CODEX_EGRESS_TRANSPORT: "public",
-    CODEX_EGRESS_BASE_URL: "https://provider.invalid", CODEX_EGRESS_SECRET: "runtime-synthetic-egress",
+    CODEX_EGRESS_SECRET: "runtime-synthetic-egress",
     CODEX_OAUTH_TOKEN_URL: "https://provider.invalid/token", CODEX_CLIENT_ID: "runtime-synthetic-client",
     FEISHU_APP_ID: "runtime-synthetic-app", FEISHU_APP_SECRET: "runtime-synthetic-secret", REQUEST_AUDIT_RETENTION_DAYS: "7"
   };

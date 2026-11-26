@@ -7,7 +7,7 @@ it("adds only production deployment values to the verified local configuration",
     d1_databases:[{binding:"DB",database_id:"local",migrations_dir:"migrations"}],durable_objects:{bindings:[]}};
   const settings = {name:"relay-primary",databaseName:"relay",databaseId:"1b26b984-8450-4220-bae0-330609b7cb9c",
     routes:[{pattern:"api.example.test/*",zone_name:"example.test"}, {pattern:"mcp.example.test",custom_domain:true}, {pattern:"console.example.test",custom_domain:true}],
-    vars:{ADMIN_DASHBOARD_HOST:"console.example.test",CONSOLE_EMAIL_DOMAIN:"example.test",CODEX_EGRESS_BASE_URL:"https://egress.example.test",RUNTIME_MCP_ORIGIN:"https://mcp.example.test"}};
+    vars:{ADMIN_DASHBOARD_HOST:"console.example.test",CONSOLE_EMAIL_DOMAIN:"example.test",RUNTIME_MCP_ORIGIN:"https://mcp.example.test"},codexEgressServiceId:"6d1f8a3e-2b4c-4d5e-8f90-1a2b3c4d5e6f"};
   expect(productionConfig(base,settings)).toMatchObject({name:"relay-primary",routes:settings.routes,
     vars:{...settings.vars,RUNTIME_INSTALLATIONS:"[]"},compatibility_flags:["global_fetch_strictly_public"],
     d1_databases:[{binding:"DB",database_id:settings.databaseId,migrations_dir:"migrations"}]});
@@ -49,31 +49,30 @@ it("requires authoritative 100 percent deployment rather than upload success", (
   expect(() => assertDeployment({id:"deployment",versions:[{version_id:"expected",percentage:50},{version_id:"old",percentage:50}]}, "expected")).toThrow();
 });
 
-it("selects the Codex egress transport and VPC Service only from explicit production settings", () => {
+it("requires the production Codex egress VPC Service from private settings", () => {
   const base = {name:"agency-relay-local", routes:[], compatibility_date:"2026-06-24", compatibility_flags:["global_fetch_strictly_public"],
-    vars:{CODEX_EGRESS_TRANSPORT:"public",RUNTIME_INSTALLATIONS:"[]"}, secrets:{required:["KEY"]},
+    vars:{RUNTIME_INSTALLATIONS:"[]"}, secrets:{required:["KEY"]},
     d1_databases:[{binding:"DB",database_id:"local",migrations_dir:"migrations"}],durable_objects:{bindings:[]},
     vpc_services:[{binding:"CODEX_EGRESS",service_id:"00000000-0000-4000-8000-000000000001"}]};
   const settings = {name:"relay-primary",databaseName:"relay",databaseId:"1b26b984-8450-4220-bae0-330609b7cb9c",
     routes:[{pattern:"mcp.example.test",custom_domain:true}, {pattern:"console.example.test",custom_domain:true}, {pattern:"api.example.test/*",zone_name:"example.test"}],
-    vars:{ADMIN_DASHBOARD_HOST:"console.example.test",CONSOLE_EMAIL_DOMAIN:"example.test",CODEX_EGRESS_BASE_URL:"https://egress.example.test",RUNTIME_MCP_ORIGIN:"https://mcp.example.test"}};
+    vars:{ADMIN_DASHBOARD_HOST:"console.example.test",CONSOLE_EMAIL_DOMAIN:"example.test",RUNTIME_MCP_ORIGIN:"https://mcp.example.test"}};
   const serviceId = "6d1f8a3e-2b4c-4d5e-8f90-1a2b3c4d5e6f";
 
-  // Default: public transport, and the template placeholder never reaches production.
-  const publicConfig = productionConfig(base, settings);
-  expect(publicConfig.vars.CODEX_EGRESS_TRANSPORT).toBe("public");
-  expect(publicConfig).not.toHaveProperty("vpc_services");
-
-  const vpcConfig = productionConfig(base, {...settings, codexEgressTransport:"vpc", codexEgressServiceId:serviceId});
-  expect(vpcConfig.vars.CODEX_EGRESS_TRANSPORT).toBe("vpc");
-  expect(vpcConfig.vpc_services).toEqual([{binding:"CODEX_EGRESS",service_id:serviceId}]);
+  // The production VPC Service is mandatory and replaces any template entry.
+  const config = productionConfig(base, {...settings, codexEgressServiceId:serviceId});
+  expect(config.vpc_services).toEqual([{binding:"CODEX_EGRESS",service_id:serviceId}]);
+  expect(config.vars).not.toHaveProperty("CODEX_EGRESS_BASE_URL");
+  expect(config.vars).not.toHaveProperty("CODEX_EGRESS_TRANSPORT");
 
   for (const invalid of [
-    {codexEgressTransport:"vpc"},
-    {codexEgressTransport:"auto", codexEgressServiceId:serviceId},
-    {codexEgressTransport:"vpc", codexEgressServiceId:"not-a-uuid"},
+    {},
+    {codexEgressServiceId:"not-a-uuid"},
     {codexEgressServiceId:42},
+    {codexEgressServiceId:serviceId, codexEgressTransport:"public"},
   ]) expect(() => productionConfig(base, {...settings, ...invalid})).toThrow();
+  expect(() => productionConfig(base, {...settings, codexEgressServiceId:serviceId,
+    vars:{...settings.vars, CODEX_EGRESS_BASE_URL:"https://egress.example.test"}})).toThrow();
 });
 
 it("requires the exact VPC Service binding before cutover", () => {
