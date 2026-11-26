@@ -114,8 +114,10 @@ Build's headless `usage.input_tokens` is the ordinary-input bucket: full input m
 
 ### OpenAI API and ChatGPT subscriptions
 
-The Standard snapshot was checked against the official table on 2026-11-17.
-Existing listed rates are unchanged; `gpt-6.2-sol` is now covered at the same Standard rates as `gpt-6.1-sol`.
+The current Standard snapshot was checked against the official table on 2026-11-25.
+Earlier checks were 2026-10-07 (`openai-standard-2026-10-07`), 2026-11-11 (`openai-standard-30m-2026-11-11`; `gpt-6.1-terra` and `o3-pro` added), and 2026-11-17 (`openai-standard-30m-2026-11-17`; `gpt-6.2-sol` added at the same Standard rates as `gpt-6.1-sol`).
+Rates already in the table did not change at those checks. `gpt-6-astra` has been priced since the initial snapshot, and `o3-pro` since 2026-11-11; both were missing from this table and are listed below. `gpt-6.2-astra` is covered from the 2026-11-25 check at its own Standard rates.
+A saved observation keeps the `api_price_version` written with it. This check does not recalculate older `request_audit` or `usage_daily` rows.
 Cache-write valuation uses the default **30-minute** rate. OpenAI also lists a
 12-hour rate (2.5× ordinary input, rather than 1.25×), and permits mixed lifetimes.
 Agency Relay does not observe lifetime-specific write buckets. Its fixed default
@@ -126,6 +128,8 @@ It does not inspect or modify requests to choose a cache lifetime.
 
 | Model | Short input | Cache read | Cache write | Short output | Long input | Long cache read | Long cache write | Long output |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `gpt-6.2-astra` | 8 | 0.40 | 10 | 40 | 16 | 0.80 | 20 | 60 |
+| `gpt-6-astra` | 10 | 1 | 12.50 | 50 | 20 | 2 | 25 | 75 |
 | `gpt-6.2-sol` | 2 | 0.10 | 2.50 | 10 | 4 | 0.20 | 5 | 15 |
 | `gpt-6.1-sol` | 2 | 0.10 | 2.50 | 10 | 4 | 0.20 | 5 | 15 |
 | `gpt-6.1-terra` | 1 | 0.05 | 1.25 | 5 | 2 | 0.10 | 2.50 | 7.50 |
@@ -133,6 +137,7 @@ It does not inspect or modify requests to choose a cache lifetime.
 | `gpt-5.5` | 5 | 0.50 | — | 30 | 10 | 1 | — | 45 |
 | `gpt-5.4` | 2.50 | 0.25 | — | 15 | 5 | 0.50 | — | 22.50 |
 | `gpt-5.3-codex` | 1.75 | 0.175 | — | 14 | — | — | — | — |
+| `o3-pro` | 20 | — | — | 80 | — | — | — | — |
 
 Short context is at most 272K input tokens; long context is above 272K. A dash is no separately listed rate, not a measured zero or a claim that the model supports that context. Select the exact model and price version. Fast, Ultrafast, Batch, Flex, regional processing and tool/media prices are separate; do not apply one universal multiplier or use Standard rates to assert actual spend. [OpenAI pricing](https://developers.openai.com/api/docs/pricing)
 

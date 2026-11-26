@@ -29,19 +29,23 @@ describe("OpenAI Standard API-equivalent USD", () => {
   it("requires explicit cache writes for charged models and replaces ordinary input", () => {
     expect(value("gpt-6.1-sol")).toBeNull();
     expect(value("gpt-6.2-sol")).toBeNull();
+    expect(value("gpt-6.2-astra")).toBeNull();
     expect(value("gpt-6.1-sol", {cache_write_input_tokens: 30})?.ticks).toBe(2770000);
     expect(value("gpt-6.2-sol", {cache_write_input_tokens: 30})?.ticks).toBe(2770000);
+    expect(value("gpt-6.2-astra", {cache_write_input_tokens: 30})?.ticks).toBe(11080000);
     expect(value("gpt-6.1-sol", {cache_write_input_tokens: 0})?.ticks).toBe(2620000);
     expect(value("gpt-6.2-sol", {cache_write_input_tokens: 0})?.ticks).toBe(2620000);
+    expect(value("gpt-6.2-astra", {cache_write_input_tokens: 0})?.ticks).toBe(10480000);
   });
   it("uses the full-request long rate only above 272K input tokens", () => {
     expect(value("gpt-5.5", {input_tokens: 272000, cached_input_tokens: 0, output_tokens: 0})?.ticks).toBe(13600000000);
     expect(value("gpt-5.5", {input_tokens: 272001, cached_input_tokens: 0, output_tokens: 10})?.ticks).toBe(27204600000);
+    expect(value("gpt-6.2-astra", {input_tokens: 272001, cached_input_tokens: 20, cache_write_input_tokens: 30, output_tokens: 10})?.ticks).toBe(43524320000);
   });
   it("values newly listed models at the November Standard default-cache rates", () => {
     // 50 ordinary + 20 read + 30 write + 10 output tokens.
     expect(value("gpt-6.1-terra", {cache_write_input_tokens: 30}))
-      .toEqual({ticks: 1385000, version: "openai-standard-30m-2026-11-17"});
+      .toEqual({ticks: 1385000, version: "openai-standard-30m-2026-11-25"});
     expect(value("gpt-6.1-terra")).toBeNull();
     // Above 272K, every bucket uses the long-context rate, not just the excess.
     expect(value("gpt-6.1-terra", {input_tokens: 272001, cache_write_input_tokens: 30})?.ticks)
@@ -58,6 +62,7 @@ describe("OpenAI Standard API-equivalent USD", () => {
     }
     expect(value("gpt-6.1-sol", {cache_write_input_tokens: 81})).toBeNull();
     expect(value("gpt-6.2-sol", {cache_write_input_tokens: 81})).toBeNull();
+    expect(value("gpt-6.2-astra", {cache_write_input_tokens: 81})).toBeNull();
     expect(value("gpt-5.5-pro", {cached_input_tokens: 1})).toBeNull();
     expect(value("unknown")).toBeNull();
     expect(value("constructor")).toBeNull();
