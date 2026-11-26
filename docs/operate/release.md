@@ -61,12 +61,13 @@ read the linked Actions result as well.
 The workflow reads production before upload and again before cutover. It requires
 an identified single-version deployment, no pending or newer D1 migrations, required
 secrets, exact variables/DB bindings, stable Durable Object namespaces and runtime
-flags. Retained historical migration names are not pending migrations. Migration
-or authored egress changes stop automatic release. A configuration change, in
-`wrangler.jsonc` or the private production settings, also stops it until an operator
-approves it by running CI on `main` through `workflow_dispatch` with
-`approve_config_change`; that run rebuilds, verifies and releases the same way and
-skips only the configuration comparison against the running version. It never applies migrations, changes routes, deploys egress,
+flags. Retained historical migration names are not pending migrations. A
+configuration change (in `wrangler.jsonc` or the private production settings), a
+migration or an authored egress-shim change stops automatic release. After applying
+the migration or deploying the shim, an operator approves the release by running CI on
+`main` through `workflow_dispatch` with `approve_config_change`; that run rebuilds,
+verifies and releases the same way, still checks the D1 migration ledger, and skips
+only the comparisons against the running version. It never applies migrations, changes routes, deploys egress,
 rotates credentials or rolls back automatically. The preceding version remains
 the code recovery target only while its schema and authority stay compatible.
 An unknown upload/deployment result requires readback before another write.
