@@ -10,7 +10,7 @@
         "source": "url",
         "url": "https://github.com/cloudflare/skills.git",
         "ref": "main",
-        "sha": "86505e44f87d801aa1864a3c4109e9a8ae5c409f"
+        "sha": "ff191de7d903788eceaf516a514ae7d3b56b924a"
       },
       "policy": {
         "installation": "AVAILABLE",
@@ -25,7 +25,7 @@
         "url": "https://github.com/google-labs-code/stitch-skills.git",
         "path": "./plugins/stitch-design",
         "ref": "main",
-        "sha": "0337446dadde6f8c94210444e2aa9d546126480f"
+        "sha": "c78718b7f0515a201daf495753bc31e096b4c463"
       },
       "policy": {
         "installation": "AVAILABLE",
@@ -40,7 +40,7 @@
         "url": "https://github.com/google-labs-code/stitch-skills.git",
         "path": "./plugins/stitch-build",
         "ref": "main",
-        "sha": "0337446dadde6f8c94210444e2aa9d546126480f"
+        "sha": "c78718b7f0515a201daf495753bc31e096b4c463"
       },
       "policy": {
         "installation": "AVAILABLE",
@@ -55,7 +55,7 @@
         "url": "https://github.com/google-labs-code/stitch-skills.git",
         "path": "./plugins/stitch-utilities",
         "ref": "main",
-        "sha": "0337446dadde6f8c94210444e2aa9d546126480f"
+        "sha": "c78718b7f0515a201daf495753bc31e096b4c463"
       },
       "policy": {
         "installation": "AVAILABLE",
